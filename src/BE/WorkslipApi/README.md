@@ -8,8 +8,8 @@ ASP.NET Core .NET 10 API split into API host, application, domain, infrastructur
 ## Prerequisites
 
 - .NET SDK 10
-- access to the configured SQL Server database
-- Azure credentials when local configuration uses Azure App Configuration, Key Vault, Graph or other Azure integrations
+- a local SQL Server target for normal `Development` startup
+- Azure credentials only when an explicit operator operation or another Azure integration is intentionally used
 
 ## Run locally
 
@@ -27,13 +27,29 @@ Health check:
 curl http://localhost:5262/health
 ```
 
+`appsettings.Development.json` is tracked and intentionally contains only a safe Development baseline. It does not contain a production App Configuration endpoint, a production SQL target or machine-specific credentials. Normal `Development` startup fails closed unless the effective `Azure:Sql:ConnectionString` points to a provably local SQL target.
+
+Put machine-specific local settings and secrets in ignored `appsettings.Local.json`, environment variables or command-line overrides. Example `appsettings.Local.json` shape:
+
+```json
+{
+  "Azure": {
+    "Sql": {
+      "ConnectionString": "<your local SQL connection string>"
+    }
+  }
+}
+```
+
+Do not put production/Azure SQL connection strings in normal local Development configuration.
+
 ### Branch-local database migrations
 
 When the API runs in `Development` and `Azure:Sql:ConnectionString` points to a provably local SQL Server target, startup automatically applies pending versioned migrations from `../infrastructure/database/migrations` before the normal database connectivity check. This keeps a developer's local schema aligned when switching to a branch that introduces database changes.
 
-The local path accepts only localhost/loopback, `.`, `(local)`, local SQL Server instances and LocalDB. Azure SQL, LAN hosts and other remote or ambiguous targets are never auto-migrated. Existing Azure-backed Development startup therefore remains non-mutating unless its SQL connection is explicitly overridden to a local database.
+The local path accepts only localhost/loopback, `.`, `(local)`, local SQL Server instances and LocalDB. Azure SQL, LAN hosts and other remote or ambiguous targets are rejected for normal Development startup, not merely skipped for migrations.
 
-`Workslip:ApplyLocalMigrations=false` disables local auto-migration. `Workslip:ApplyLocalMigrations=true` is a strict safety assertion: startup fails if the configured target is not recognized as local instead of applying migrations remotely.
+`Workslip:ApplyLocalMigrations=false` disables local auto-migration. The tracked Development baseline enables it by default; the locality check remains the hard safety boundary.
 
 For example, on a machine with SQL Server LocalDB, keep the connection override in ignored local configuration or an environment variable:
 
@@ -83,14 +99,13 @@ the existing Graph integration, and reconciles only the platform organization an
 Superadmin rows. It does not run schema migrations, demo/reference-data seeding,
 hosted workers, or the HTTP server.
 
-From an operator workstation, first verify the Azure CLI tenant, subscription, user,
-and the configured App Configuration endpoint. The current Development settings use
-the production App Configuration endpoint; override it explicitly when targeting a
-different approved environment.
+`bootstrap-superadmins` is the only current Development-mode exception that may intentionally use remote SQL. Because the tracked Development baseline no longer points at production App Configuration, an operator must supply the approved App Configuration endpoint explicitly through an environment variable or command-line configuration and verify the resolved tenant/subscription/database before continuing.
 
 ```powershell
 az login
 az account show --query "{tenantId:tenantId,subscriptionId:id,user:user.name}" --output table
+
+$env:Azure__AppConfiguration__Endpoint='<approved App Configuration endpoint>'
 
 dotnet run --configuration Release --no-launch-profile -- `
   --environment Development `
@@ -108,13 +123,6 @@ three messages must report `EntraIdentityCreated: False`; the second run must no
 Workslip rows or Entra guests. On failure, preserve the logs without personal data,
 fix the reported access/data conflict, and rerun the same idempotent operation. Newly
 created guests are removed automatically when a later bootstrap step fails.
-
-For the normal Azure-backed development path, authenticate the developer identity with Azure CLI before starting the API:
-
-```powershell
-az login
-az account show
-```
 
 Do not commit connection strings, JWT signing secrets, Azure credentials, VAPID private keys or integration tokens.
 
@@ -137,7 +145,9 @@ Use [`AGENTS.md`](AGENTS.md) for backend architecture rules. Application service
 
 ## Runtime configuration
 
-Azure App Configuration owns non-secret runtime configuration. Secret values are resolved through Key Vault references/managed identity where configured. Infrastructure ownership and deployment details live in [`../infrastructure/README.md`](../infrastructure/README.md).
+Production/staging may use Azure App Configuration for shared non-secret runtime configuration and Key Vault references for secrets. Normal local Development starts from the tracked safe `appsettings.Development.json` baseline, then applies ignored `appsettings.Local.json`, environment variables and command-line overrides. A remote SQL target is rejected for ordinary Development startup even if Azure configuration was explicitly loaded.
+
+Infrastructure ownership and deployment details live in [`../infrastructure/README.md`](../infrastructure/README.md).
 
 Development/release-test endpoints (OpenAPI, Scalar and `/api/dev/*`) are registered only when the current release-testing policy enables them. `UseDeveloperExceptionPage` remains a Development-only concern. Treat the current release policy/configuration as authoritative rather than assuming those endpoints are always present.
 
@@ -153,7 +163,7 @@ Superadmin delegated organization access uses the existing server-side organizat
 
 Persistence uses EF Core/SQL Server. Staging and production startup only verify database connectivity; they do not apply schema changes, backfill tenant data or run development seeding. Production schema changes require the explicit protected deployment migration operation.
 
-Development startup may apply pending versioned migrations only when the configured SQL target is provably local, as described above. Development database seeding remains a separate explicit `Workslip:SeedDevelopmentData` opt-in, and external Entra identity reconciliation additionally requires `Workslip:SeedDevelopmentEntraIdentities`. New-tenant reference data is provisioned only during explicit organization onboarding. Treat changes to this area as production-sensitive and validate relational behaviour, concurrency and rollback explicitly.
+Normal Development startup requires a provably local SQL target and may apply pending versioned migrations to that local database as described above. Development database seeding remains a separate explicit `Workslip:SeedDevelopmentData` opt-in, and external Entra identity reconciliation additionally requires `Workslip:SeedDevelopmentEntraIdentities`. New-tenant reference data is provisioned only during explicit organization onboarding. Treat changes to this area as production-sensitive and validate relational behaviour, concurrency and rollback explicitly.
 
 Do not infer SQL behaviour from EF in-memory tests.
 
