@@ -45,36 +45,14 @@ public sealed class JobAssignmentValidatorTests
     }
 
     [Fact]
-    public async Task Existing_job_allows_admin_to_assign_self_in_same_filial()
+    public async Task Existing_job_allows_another_admin_from_same_filial()
     {
         var organizationId = Guid.NewGuid();
         var filialId = Guid.NewGuid();
-        var adminId = Guid.NewGuid();
-        var validator = CreateValidator(
-            organizationId,
-            filialId,
-            adminId,
-            new JobAssignmentUserScope(adminId, filialId, Roles.Admin));
-
-        var result = await validator.ValidateForExistingJobAsync(
-            Guid.NewGuid(),
-            [adminId],
-            CancellationToken.None);
-
-        Assert.Equal(JobAssignmentValidationStatus.Valid, result.Status);
-    }
-
-    [Fact]
-    public async Task Existing_job_rejects_another_admin_even_in_same_filial()
-    {
-        var organizationId = Guid.NewGuid();
-        var filialId = Guid.NewGuid();
-        var actorId = Guid.NewGuid();
         var otherAdminId = Guid.NewGuid();
         var validator = CreateValidator(
             organizationId,
             filialId,
-            actorId,
             new JobAssignmentUserScope(otherAdminId, filialId, Roles.Admin));
 
         var result = await validator.ValidateForExistingJobAsync(
@@ -82,11 +60,11 @@ public sealed class JobAssignmentValidatorTests
             [otherAdminId],
             CancellationToken.None);
 
-        Assert.Equal(JobAssignmentValidationStatus.InvalidAssignee, result.Status);
+        Assert.Equal(JobAssignmentValidationStatus.Valid, result.Status);
     }
 
     [Fact]
-    public async Task Existing_job_rejects_admin_self_from_another_filial()
+    public async Task Existing_job_rejects_admin_from_another_filial()
     {
         var organizationId = Guid.NewGuid();
         var jobFilialId = Guid.NewGuid();
@@ -94,12 +72,32 @@ public sealed class JobAssignmentValidatorTests
         var validator = CreateValidator(
             organizationId,
             jobFilialId,
-            adminId,
             new JobAssignmentUserScope(adminId, Guid.NewGuid(), Roles.Admin));
 
         var result = await validator.ValidateForExistingJobAsync(
             Guid.NewGuid(),
             [adminId],
+            CancellationToken.None);
+
+        Assert.Equal(JobAssignmentValidationStatus.InvalidAssignee, result.Status);
+    }
+
+    [Theory]
+    [InlineData(Roles.Auditor)]
+    [InlineData(Roles.Superadmin)]
+    public async Task Existing_job_rejects_non_assignment_roles(string role)
+    {
+        var organizationId = Guid.NewGuid();
+        var filialId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var validator = CreateValidator(
+            organizationId,
+            filialId,
+            new JobAssignmentUserScope(userId, filialId, role));
+
+        var result = await validator.ValidateForExistingJobAsync(
+            Guid.NewGuid(),
+            [userId],
             CancellationToken.None);
 
         Assert.Equal(JobAssignmentValidationStatus.InvalidAssignee, result.Status);
@@ -137,7 +135,7 @@ public sealed class JobAssignmentValidatorTests
     }
 
     [Fact]
-    public async Task Default_filial_validation_uses_same_rule_for_initial_assignment()
+    public async Task Default_filial_validation_allows_admin_assignment()
     {
         var organizationId = Guid.NewGuid();
         var filialId = Guid.NewGuid();
@@ -145,7 +143,6 @@ public sealed class JobAssignmentValidatorTests
         var validator = CreateValidator(
             organizationId,
             filialId,
-            adminId,
             new JobAssignmentUserScope(adminId, filialId, Roles.Admin));
 
         var result = await validator.ValidateForDefaultFilialAsync(
@@ -158,18 +155,11 @@ public sealed class JobAssignmentValidatorTests
     private static JobAssignmentValidator CreateValidator(
         Guid organizationId,
         Guid filialId,
-        params JobAssignmentUserScope[] users) =>
-        CreateValidator(organizationId, filialId, Guid.NewGuid(), users);
-
-    private static JobAssignmentValidator CreateValidator(
-        Guid organizationId,
-        Guid filialId,
-        Guid actorId,
         params JobAssignmentUserScope[] users)
     {
         return new JobAssignmentValidator(
             new StubScopeRepository(filialId, filialId, users),
-            new TestCurrentUserContext(actorId, organizationId, Roles.Admin));
+            new TestCurrentUserContext(Guid.NewGuid(), organizationId, Roles.Admin));
     }
 
     private sealed record TestCurrentUserContext(
