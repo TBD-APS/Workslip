@@ -136,6 +136,12 @@ public static class InfrastructureConfiguration
             return;
         }
 
+        if (DatabaseStartup.IsOpenApiGeneration(configuration))
+        {
+            Log.Information("[STARTUP 02.4] Enforce development SQL isolation - SKIPPED (OpenAPI generation mode)");
+            return;
+        }
+
         var connectionString = configuration[SqlConnectionStringKey];
 
         if (platformBootstrapRequested)
