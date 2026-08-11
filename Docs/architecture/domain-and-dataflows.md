@@ -15,6 +15,21 @@ Current tenant-scoped relationships include users, customers, jobs, assignments,
 
 Superadmin access does not remove ordinary tenant filtering from repositories. Cross-organization operational work uses the explicit delegated-organization session flow so existing services continue to operate with one effective organization context.
 
+## User audiences
+
+`Role` and `UserKind` are separate concerns. `Role` controls authorization; `UserKind` identifies which user audience an identity belongs to.
+
+Current audiences are:
+
+- `Member` — normal customer identities and the default for existing users;
+- `InternalTest` — internal QA identities that still exercise ordinary roles such as `User` or `Admin`.
+
+Non-Superadmin user discovery, user management and job-assignment targeting are restricted to the authenticated actor's `UserKind` in addition to the Organization, Filial and role checks. Superadmin may administer both audiences through the cross-organization user-management flow. Authentication lookup is intentionally not filtered by `UserKind`, so an internal test identity can sign in with its real role.
+
+Direct tenant user creation and invitations inherit the actor audience. Superadmin-created users default to `Member` unless explicitly classified as `InternalTest`. Pending invitations persist the audience so enrollment cannot accidentally move a test identity into the customer-visible user group.
+
+Reclassifying an identity changes future discovery, management and assignment eligibility only. It does not repartition historical jobs, worksheets, assignments or audit data. See ADR 0008.
+
 ## Filial ownership
 
 Workslips domain term is **Filial**. `Branch`, `BranchId`, `OrganizationBranch` and similar names are not Workslip domain terminology; Git branch remains ordinary version-control terminology.
@@ -30,7 +45,7 @@ Organization
 
 Every Organization has one default Filial. `Users` and `JobReports` carry `FilialId`, while `OrganizationId` remains the security/tenant authority. Database relationships use `(OrganizationId, FilialId)` so an ID from another Organization cannot be attached as a Filial.
 
-Job assignments are Filial-scoped. Tenant `User` employees and `Admin` users can be assignment targets when they belong to the same `OrganizationId` and `FilialId` as the Job. Admin and Superadmin roles may manage assignments; Auditor and Superadmin are not assignment targets.
+Job assignments are Filial-scoped. Tenant `User` employees and `Admin` users can be assignment targets when they belong to the same `OrganizationId` and `FilialId` as the Job. Admin and Superadmin roles may manage assignments; Auditor and Superadmin are not assignment targets. The UserKind audience rule above is an additional server-side assignment constraint.
 
 Current single-filial flows resolve the default Filial server-side. Existing create-user/create-job contracts therefore do not require clients to send `FilialId`. Customers and installation/reference data remain Organization-level until a concrete product requirement says otherwise.
 

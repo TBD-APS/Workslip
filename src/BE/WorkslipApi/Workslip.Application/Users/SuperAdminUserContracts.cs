@@ -6,13 +6,15 @@ public sealed record SuperAdminCreateUserRequest(
     string Email,
     string DisplayName,
     string Phone,
-    string Role);
+    string Role,
+    string? UserKind = null);
 
 public sealed record SuperAdminUpdateUserRequest(
     string? DisplayName,
     string? Phone,
     string? Role,
-    Guid? FilialId);
+    Guid? FilialId,
+    string? UserKind = null);
 
 public sealed record SuperAdminUserResponse(
     Guid Id,
@@ -24,6 +26,7 @@ public sealed record SuperAdminUserResponse(
     string DisplayName,
     string Phone,
     string Role,
+    string UserKind,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
@@ -43,4 +46,5 @@ public sealed record SuperAdminOrganizationOptionResponse(
 
 public sealed record SuperAdminUserOptionsResponse(
     IReadOnlyList<SuperAdminOrganizationOptionResponse> Organizations,
-    IReadOnlyList<string> Roles);
+    IReadOnlyList<string> Roles,
+    IReadOnlyList<string> UserKinds);

@@ -75,7 +75,7 @@ public sealed class UserServiceAuthorizationTests
     }
 
     [Fact]
-    public async Task CreateAsync_SuperadminCanCreateSuperadmin()
+    public async Task CreateAsync_SuperadminCanCreateSuperadminAndDefaultsToMemberAudience()
     {
         var repository = new FakeUserRepository();
         var entra = new FakeEntraService();
@@ -89,12 +89,13 @@ public sealed class UserServiceAuthorizationTests
         Assert.Equal(1, repository.CreateCalls);
         Assert.Equal(1, entra.CreateCalls);
         Assert.Equal(Roles.Superadmin, result.Value!.Role);
+        Assert.Equal(UserKinds.Member, repository.LastCreated?.UserKind);
     }
 
     [Fact]
-    public async Task CreateAsync_AdminCanStillCreateAdmin()
+    public async Task CreateAsync_MemberAdminCreatesMemberUser()
     {
-        var repository = new FakeUserRepository();
+        var repository = new FakeUserRepository { ActorUserKind = UserKinds.Member };
         var entra = new FakeEntraService();
         var service = CreateService(Roles.Admin, repository, entra);
 
@@ -104,8 +105,22 @@ public sealed class UserServiceAuthorizationTests
 
         Assert.Equal(ResultStatus.Ok, result.Status);
         Assert.Equal(1, repository.CreateCalls);
-        Assert.Equal(1, entra.CreateCalls);
-        Assert.Equal(Roles.Admin, result.Value!.Role);
+        Assert.Equal(UserKinds.Member, repository.LastCreated?.UserKind);
+    }
+
+    [Fact]
+    public async Task CreateAsync_InternalTestAdminCreatesInternalTestUser()
+    {
+        var repository = new FakeUserRepository { ActorUserKind = UserKinds.InternalTest };
+        var entra = new FakeEntraService();
+        var service = CreateService(Roles.Admin, repository, entra);
+
+        var result = await service.CreateAsync(
+            new CreateUserRequest("qa@example.test", "QA", "+4512345678", Roles.User),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Ok, result.Status);
+        Assert.Equal(UserKinds.InternalTest, repository.LastCreated?.UserKind);
     }
 
     private static UserService CreateService(
@@ -129,6 +144,7 @@ public sealed class UserServiceAuthorizationTests
             DisplayName = "Target",
             Phone = "+4512345678",
             Role = role,
+            UserKind = UserKinds.Member,
             EntraId = "entra-target",
             EntraEmail = "target@example.test",
             CreatedAt = DateTimeOffset.UtcNow,
@@ -138,7 +154,8 @@ public sealed class UserServiceAuthorizationTests
     private sealed class FakeCurrentUserContext(string role) : ICurrentUserContext
     {
         public static readonly Guid Organization = Guid.Parse("11111111-1111-1111-1111-111111111111");
-        public Guid? UserId { get; } = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        public static readonly Guid Actor = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        public Guid? UserId { get; } = Actor;
         public Guid? OrganizationId { get; } = Organization;
         public string? Role { get; } = role;
     }
@@ -162,12 +179,22 @@ public sealed class UserServiceAuthorizationTests
     private sealed class FakeUserRepository : IUserRepository
     {
         public UserDataRow? ExistingById { get; init; }
+        public string ActorUserKind { get; init; } = UserKinds.Member;
+        public UserDataRow? LastCreated { get; private set; }
         public int CreateCalls { get; private set; }
         public int UpdateCalls { get; private set; }
         public int DeleteCalls { get; private set; }
 
         public Task<UserDataRow?> GetAuthenticatedActorAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult<UserDataRow?>(null);
+            Task.FromResult<UserDataRow?>(id == FakeCurrentUserContext.Actor
+                ? new UserDataRow
+                {
+                    Id = FakeCurrentUserContext.Actor,
+                    OrganizationId = FakeCurrentUserContext.Organization,
+                    Role = Roles.Admin,
+                    UserKind = ActorUserKind
+                }
+                : null);
 
         public Task<UserDataRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(ExistingById?.Id == id ? ExistingById : null);
@@ -187,6 +214,7 @@ public sealed class UserServiceAuthorizationTests
         public Task<Guid> CreateAsync(UserDataRow user, CancellationToken cancellationToken)
         {
             CreateCalls++;
+            LastCreated = user;
             return Task.FromResult(user.Id);
         }
 

@@ -19,8 +19,12 @@ public sealed class InvitationService(
 {
     private const string RoleChangeRequiresStatusClearMessage =
         "Ryd den eksisterende invitationsstatus, før du sender en ny invitation med en anden rolle.";
+    private const string AudienceChangeRequiresStatusClearMessage =
+        "Ryd den eksisterende invitationsstatus, før invitationen flyttes til en anden brugergruppe.";
 
-    public async Task<Result<InviteUsersResponse>> InviteUsersAsync(InviteUsersRequest request, CancellationToken cancellationToken)
+    public async Task<Result<InviteUsersResponse>> InviteUsersAsync(
+        InviteUsersRequest request,
+        CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
@@ -38,22 +42,40 @@ public sealed class InvitationService(
             });
         }
 
+        var userKind = await ResolveInvitationUserKindAsync(organizationId.Value, cancellationToken);
+        if (userKind is null)
+        {
+            logger.LogWarning("Invite denied: authenticated actor audience could not be resolved.");
+            return Result<InviteUsersResponse>.Unauthorized();
+        }
+
         var results = new List<InviteUserResult>();
         foreach (var email in request.Emails)
         {
-            var result = await ProcessInviteEmailAsync(email, organizationId.Value, role, cancellationToken);
+            var result = await ProcessInviteEmailAsync(
+                email,
+                organizationId.Value,
+                role,
+                userKind,
+                cancellationToken);
             results.Add(result);
         }
 
         return Result<InviteUsersResponse>.Success(new InviteUsersResponse(results));
     }
 
-    public async Task<Result<AuthUserInfo>> CompleteEnrollmentAsync(EntraEnrollRequest request, CancellationToken cancellationToken)
+    public async Task<Result<AuthUserInfo>> CompleteEnrollmentAsync(
+        EntraEnrollRequest request,
+        CancellationToken cancellationToken)
     {
         return await CompleteInviteAsync(request.Token, request.DisplayName, request.Phone, cancellationToken);
     }
 
-    private async Task<Result<AuthUserInfo>> CompleteInviteAsync(string token, string displayName, string? phone, CancellationToken cancellationToken)
+    private async Task<Result<AuthUserInfo>> CompleteInviteAsync(
+        string token,
+        string displayName,
+        string? phone,
+        CancellationToken cancellationToken)
     {
         displayName = displayName.Trim();
         phone = string.IsNullOrWhiteSpace(phone) ? null : phone.Trim();
@@ -62,7 +84,9 @@ public sealed class InvitationService(
         {
             return Result<AuthUserInfo>.Invalid(new ValidationError
             {
-                Identifier = string.IsNullOrWhiteSpace(token) ? nameof(EntraEnrollRequest.Token) : nameof(EntraEnrollRequest.DisplayName),
+                Identifier = string.IsNullOrWhiteSpace(token)
+                    ? nameof(EntraEnrollRequest.Token)
+                    : nameof(EntraEnrollRequest.DisplayName),
                 ErrorMessage = "Invitationstoken og visningsnavn er påkrævet."
             });
         }
@@ -76,11 +100,15 @@ public sealed class InvitationService(
 
         var validationError = await ValidateInviteAsync(invite, cancellationToken);
         if (validationError is not null)
+        {
             return validationError;
+        }
 
         if (string.IsNullOrWhiteSpace(invite.EntraUserId))
         {
-            logger.LogWarning("Invite enrollment failed: Entra user not pre-provisioned. InviteId: {InviteId}", invite.Id);
+            logger.LogWarning(
+                "Invite enrollment failed: Entra user not pre-provisioned. InviteId: {InviteId}",
+                invite.Id);
             return Result<AuthUserInfo>.Conflict("entra_user_not_provisioned");
         }
 
@@ -101,7 +129,10 @@ public sealed class InvitationService(
                 userRole = existingUser.Role;
                 userDisplayName = existingUser.DisplayName;
 
-                logger.LogInformation("Invite accepted for existing user. UserId: {UserId}. InviteId: {InviteId}", userId, invite.Id);
+                logger.LogInformation(
+                    "Invite accepted for existing user. UserId: {UserId}. InviteId: {InviteId}",
+                    userId,
+                    invite.Id);
             }
             else
             {
@@ -116,13 +147,15 @@ public sealed class InvitationService(
             await transaction.CommitAsync(cancellationToken);
 
             logger.LogInformation(
-                "Invite enrollment complete. UserId: {UserId}. OrganizationId: {OrganizationId}. InviteId: {InviteId}. Role: {Role}.",
+                "Invite enrollment complete. UserId: {UserId}. OrganizationId: {OrganizationId}. InviteId: {InviteId}. Role: {Role}. UserKind: {UserKind}.",
                 userId,
                 organizationId,
                 invite.Id,
-                userRole);
+                userRole,
+                invite.UserKind);
 
-            return Result<AuthUserInfo>.Success(new AuthUserInfo(userId, organizationId, invite.Email, userDisplayName, userRole));
+            return Result<AuthUserInfo>.Success(
+                new AuthUserInfo(userId, organizationId, invite.Email, userDisplayName, userRole));
         }
         catch (Exception ex)
         {
@@ -132,7 +165,9 @@ public sealed class InvitationService(
         }
     }
 
-    private async Task RollbackTransactionAsync(IApplicationTransaction transaction, CancellationToken cancellationToken)
+    private async Task RollbackTransactionAsync(
+        IApplicationTransaction transaction,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -144,7 +179,9 @@ public sealed class InvitationService(
         }
     }
 
-    private async Task<Result<AuthUserInfo>?> ValidateInviteAsync(InviteTokenRow invite, CancellationToken cancellationToken)
+    private async Task<Result<AuthUserInfo>?> ValidateInviteAsync(
+        InviteTokenRow invite,
+        CancellationToken cancellationToken)
     {
         var validationError = await GetInviteValidationErrorAsync(invite, cancellationToken);
         return validationError is null
@@ -156,17 +193,23 @@ public sealed class InvitationService(
         string email,
         Guid organizationId,
         string role,
+        string userKind,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(email))
+        {
             return new InviteUserResult(email, false, "E-mailadressen er tom.", null);
+        }
 
         var normalizedEmail = email.Trim().ToLowerInvariant();
 
         try
         {
             var token = Guid.NewGuid().ToString("N");
-            var existingInvite = await inviteRepository.GetInviteByEmailAsync(organizationId, normalizedEmail, cancellationToken);
+            var existingInvite = await inviteRepository.GetInviteByEmailAsync(
+                organizationId,
+                normalizedEmail,
+                cancellationToken);
             Guid inviteId;
 
             if (existingInvite == null)
@@ -179,6 +222,7 @@ public sealed class InvitationService(
                     Email = normalizedEmail,
                     Token = token,
                     Role = role,
+                    UserKind = userKind,
                     ExpiresAt = DateTimeOffset.UtcNow.AddDays(7),
                     Consumed = false,
                     CreatedAt = DateTimeOffset.UtcNow
@@ -207,22 +251,40 @@ public sealed class InvitationService(
                         null);
                 }
 
+                var existingUserKind = UserKinds.Normalize(existingInvite.UserKind);
+                if (!string.Equals(existingUserKind, userKind, StringComparison.Ordinal))
+                {
+                    logger.LogWarning(
+                        "Invite audience change blocked. InviteId: {InviteId}. OrganizationId: {OrganizationId}. ExistingUserKind: {ExistingUserKind}. RequestedUserKind: {RequestedUserKind}.",
+                        existingInvite.Id,
+                        organizationId,
+                        existingInvite.UserKind,
+                        userKind);
+
+                    return new InviteUserResult(
+                        normalizedEmail,
+                        false,
+                        AudienceChangeRequiresStatusClearMessage,
+                        null);
+                }
+
                 inviteId = existingInvite.Id;
                 existingInvite.ExpiresAt = DateTimeOffset.UtcNow.AddDays(7);
                 existingInvite.Token = token;
                 existingInvite.Role = role;
+                existingInvite.UserKind = userKind;
                 existingInvite.Consumed = false;
                 await inviteRepository.UpdateAsync(existingInvite, cancellationToken);
             }
 
             await emailService.SendInviteEmailAsync(normalizedEmail, token, cancellationToken);
             logger.LogInformation(
-                "Invite sent. InviteId: {InviteId}. OrganizationId: {OrganizationId}. Role: {Role}.",
+                "Invite sent. InviteId: {InviteId}. OrganizationId: {OrganizationId}. Role: {Role}. UserKind: {UserKind}.",
                 inviteId,
                 organizationId,
-                role);
+                role,
+                userKind);
 
-            // The token is delivered only to the recipient by email and must not be returned by the API.
             return new InviteUserResult(normalizedEmail, true, null, null);
         }
         catch (InvalidOperationException ex)
@@ -259,7 +321,9 @@ public sealed class InvitationService(
         return Result<InviteListResponse>.Success(response);
     }
 
-    public async Task<Result<InviteOpenResponse>> MarkOpenedAsync(string token, CancellationToken cancellationToken)
+    public async Task<Result<InviteOpenResponse>> MarkOpenedAsync(
+        string token,
+        CancellationToken cancellationToken)
     {
         var invite = await inviteRepository.GetByTokenAsync(token, cancellationToken);
 
@@ -276,13 +340,15 @@ public sealed class InvitationService(
                 "Invite re-opened after consumption. InviteId: {InviteId}. UserExists: {UserExists}",
                 invite.Id,
                 consumedUser is not null);
-            return Result<InviteOpenResponse>.Success(new InviteOpenResponse(invite.Email, consumedUser is not null, Consumed: true));
+            return Result<InviteOpenResponse>.Success(
+                new InviteOpenResponse(invite.Email, consumedUser is not null, Consumed: true));
         }
 
         var validationError = await ValidateInviteForOpenAsync(invite, cancellationToken);
         if (validationError is not null)
         {
-            return Result<InviteOpenResponse>.Conflict(validationError.Errors.FirstOrDefault() ?? "validation_failed");
+            return Result<InviteOpenResponse>.Conflict(
+                validationError.Errors.FirstOrDefault() ?? "validation_failed");
         }
 
         if (string.IsNullOrWhiteSpace(invite.EntraUserId))
@@ -298,7 +364,10 @@ public sealed class InvitationService(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Invite open failed during Entra guest pre-creation. InviteId: {InviteId}", invite.Id);
+                logger.LogError(
+                    ex,
+                    "Invite open failed during Entra guest pre-creation. InviteId: {InviteId}",
+                    invite.Id);
                 throw;
             }
         }
@@ -313,10 +382,13 @@ public sealed class InvitationService(
         var user = await userRepository.GetByEmailAsync(invite.Email, cancellationToken);
         var userExists = user is not null;
 
-        return Result<InviteOpenResponse>.Success(new InviteOpenResponse(invite.Email, userExists, Consumed: invite.Consumed));
+        return Result<InviteOpenResponse>.Success(
+            new InviteOpenResponse(invite.Email, userExists, Consumed: invite.Consumed));
     }
 
-    private async Task<Result?> ValidateInviteForOpenAsync(InviteTokenRow invite, CancellationToken cancellationToken)
+    private async Task<Result?> ValidateInviteForOpenAsync(
+        InviteTokenRow invite,
+        CancellationToken cancellationToken)
     {
         var validationError = await GetInviteValidationErrorAsync(invite, cancellationToken);
         return validationError is null
@@ -324,7 +396,9 @@ public sealed class InvitationService(
             : Result.Conflict(validationError);
     }
 
-    private Task<string?> GetInviteValidationErrorAsync(InviteTokenRow invite, CancellationToken cancellationToken)
+    private Task<string?> GetInviteValidationErrorAsync(
+        InviteTokenRow invite,
+        CancellationToken cancellationToken)
     {
         if (invite.Consumed)
         {
@@ -341,9 +415,15 @@ public sealed class InvitationService(
         return Task.FromResult<string?>(null);
     }
 
-    public async Task<int> CleanupStaleEntraInvitesAsync(DateTimeOffset now, int take, CancellationToken cancellationToken)
+    public async Task<int> CleanupStaleEntraInvitesAsync(
+        DateTimeOffset now,
+        int take,
+        CancellationToken cancellationToken)
     {
-        var staleInvites = await inviteRepository.GetStaleEntraProvisionedAsync(now, take, cancellationToken);
+        var staleInvites = await inviteRepository.GetStaleEntraProvisionedAsync(
+            now,
+            take,
+            cancellationToken);
         var cleanedCount = 0;
 
         foreach (var invite in staleInvites)
@@ -369,10 +449,35 @@ public sealed class InvitationService(
         return cleanedCount;
     }
 
-    private async Task MarkInviteEntraCleanedAsync(InviteTokenRow invite, CancellationToken cancellationToken)
+    private async Task MarkInviteEntraCleanedAsync(
+        InviteTokenRow invite,
+        CancellationToken cancellationToken)
     {
         invite.EntraCleanedAt = DateTimeOffset.UtcNow;
         await inviteRepository.UpdateAsync(invite, cancellationToken);
+    }
+
+    private async Task<string?> ResolveInvitationUserKindAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(currentUser.Role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase))
+        {
+            return UserKinds.Member;
+        }
+
+        if (currentUser.UserId is not Guid actorId)
+        {
+            return null;
+        }
+
+        var actor = await userRepository.GetAuthenticatedActorAsync(actorId, cancellationToken);
+        if (actor?.OrganizationId != organizationId)
+        {
+            return null;
+        }
+
+        return UserKinds.Normalize(actor.UserKind);
     }
 
     private static string? NormalizeInviteRole(string? role)
@@ -396,7 +501,10 @@ public sealed class InvitationService(
         return null;
     }
 
-    private static UserDataRow BuildUserFromInvite(InviteTokenRow invite, string displayName, string? phone) =>
+    private static UserDataRow BuildUserFromInvite(
+        InviteTokenRow invite,
+        string displayName,
+        string? phone) =>
         new()
         {
             Id = Guid.NewGuid(),
@@ -407,6 +515,7 @@ public sealed class InvitationService(
             EntraEmail = invite.EntraEmail ?? invite.Email,
             EntraId = invite.EntraUserId ?? string.Empty,
             Role = invite.Role ?? Roles.User,
+            UserKind = UserKinds.Normalize(invite.UserKind) ?? UserKinds.Member,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };

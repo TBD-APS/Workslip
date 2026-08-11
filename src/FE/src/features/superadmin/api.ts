@@ -85,6 +85,7 @@ export async function createSuperadminUser(input: CreateSuperAdminUserInput): Pr
     displayName: input.displayName.trim(),
     phone: input.phone.trim(),
     role: input.role,
+    userKind: input.userKind,
   }, {
     skipGlobalErrorToast: true,
   }) as unknown as SuperAdminUser;

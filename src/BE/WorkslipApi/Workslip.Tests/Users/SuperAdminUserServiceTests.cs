@@ -68,6 +68,29 @@ public sealed class SuperAdminUserServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_WithoutExplicitUserKind_DefaultsToMember()
+    {
+        var repository = new FakeRepository { TenantFilialExists = true };
+        var service = CreateService(repository);
+        var organizationId = Guid.NewGuid();
+        var filialId = Guid.NewGuid();
+
+        var result = await service.CreateAsync(
+            new SuperAdminCreateUserRequest(
+                organizationId,
+                filialId,
+                "member@example.test",
+                "Member user",
+                string.Empty,
+                Roles.User),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Ok, result.Status);
+        Assert.Equal(UserKinds.Member, result.Value.UserKind);
+        Assert.Equal(UserKinds.Member, repository.User?.UserKind);
+    }
+
+    [Fact]
     public async Task UpdateAsync_WhenFilialDoesNotBelongToUsersOrganization_ReturnsInvalidWithoutUpdate()
     {
         var repository = new FakeRepository
@@ -87,7 +110,7 @@ public sealed class SuperAdminUserServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_WhenRoleChanges_UpdatesTenantUserAndInvalidatesAuthorizationCache()
+    public async Task UpdateAsync_WhenRoleAndUserKindChange_UpdatesUserAndInvalidatesAuthorizationCache()
     {
         var user = CreateRecord();
         var repository = new FakeRepository
@@ -104,7 +127,8 @@ public sealed class SuperAdminUserServiceTests
                 EntraEmail = "entra@example.test",
                 DisplayName = user.DisplayName,
                 Phone = user.Phone,
-                Role = user.Role
+                Role = user.Role,
+                UserKind = user.UserKind
             }
         };
         var cache = new FakeClaimsCacheInvalidator();
@@ -112,12 +136,19 @@ public sealed class SuperAdminUserServiceTests
 
         var result = await service.UpdateAsync(
             user.Id,
-            new SuperAdminUpdateUserRequest("Updated user", "12345678", Roles.Admin, user.FilialId),
+            new SuperAdminUpdateUserRequest(
+                "Updated user",
+                "12345678",
+                Roles.Admin,
+                user.FilialId,
+                UserKinds.InternalTest),
             CancellationToken.None);
 
         Assert.Equal(ResultStatus.Ok, result.Status);
         Assert.Equal(1, repository.UpdateCalls);
         Assert.Equal(Roles.Admin, repository.LastUpdatedRole);
+        Assert.Equal(UserKinds.InternalTest, repository.LastUpdatedUserKind);
+        Assert.Equal(UserKinds.InternalTest, result.Value.UserKind);
         Assert.Equal(1, cache.Calls);
         Assert.Equal("entra-id", cache.EntraId);
         Assert.Equal(user.Email, cache.Email);
@@ -138,7 +169,8 @@ public sealed class SuperAdminUserServiceTests
                 Email = user.Email,
                 EntraId = "entra-id",
                 EntraEmail = user.Email,
-                Role = user.Role
+                Role = user.Role,
+                UserKind = user.UserKind
             },
             DeleteStatus = SuperAdminUserDeleteStatus.HasHistory
         };
@@ -177,6 +209,7 @@ public sealed class SuperAdminUserServiceTests
             "Original user",
             string.Empty,
             Roles.User,
+            UserKinds.Member,
             DateTimeOffset.UtcNow.AddDays(-1),
             DateTimeOffset.UtcNow);
 
@@ -228,6 +261,7 @@ public sealed class SuperAdminUserServiceTests
         public int CreateCalls { get; private set; }
         public int UpdateCalls { get; private set; }
         public string? LastUpdatedRole { get; private set; }
+        public string? LastUpdatedUserKind { get; private set; }
         public bool TenantFilialExists { get; set; } = true;
         public SuperAdminUserRecord? User { get; set; }
         public UserDataRow? EmailUser { get; set; }
@@ -267,6 +301,19 @@ public sealed class SuperAdminUserServiceTests
         public Task<Guid?> CreateAsync(UserDataRow user, CancellationToken cancellationToken)
         {
             CreateCalls++;
+            User = new SuperAdminUserRecord(
+                user.Id,
+                user.OrganizationId,
+                "Organization A",
+                user.FilialId,
+                "Hovedfilial",
+                user.Email,
+                user.DisplayName,
+                user.Phone,
+                user.Role,
+                user.UserKind,
+                user.CreatedAt,
+                user.UpdatedAt);
             return Task.FromResult<Guid?>(user.Id);
         }
 
@@ -276,11 +323,13 @@ public sealed class SuperAdminUserServiceTests
             string phone,
             string role,
             Guid filialId,
+            string userKind,
             DateTimeOffset updatedAt,
             CancellationToken cancellationToken)
         {
             UpdateCalls++;
             LastUpdatedRole = role;
+            LastUpdatedUserKind = userKind;
             if (User is not null && User.Id == userId)
             {
                 User = User with
@@ -289,6 +338,7 @@ public sealed class SuperAdminUserServiceTests
                     Phone = phone,
                     Role = role,
                     FilialId = filialId,
+                    UserKind = userKind,
                     UpdatedAt = updatedAt
                 };
             }

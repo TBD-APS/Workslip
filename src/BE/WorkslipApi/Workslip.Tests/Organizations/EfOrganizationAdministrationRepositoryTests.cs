@@ -153,6 +153,7 @@ public sealed class EfOrganizationAdministrationRepositoryTests
         EntraEmail = user.EntraEmail,
         EntraId = user.EntraId,
         Role = user.Role,
+        UserKind = user.UserKind,
         CreatedAt = user.CreatedAt,
         UpdatedAt = user.UpdatedAt
     };
@@ -220,6 +221,7 @@ public sealed class EfOrganizationAdministrationRepositoryTests
                     EntraEmail TEXT NOT NULL,
                     EntraId TEXT NOT NULL,
                     Role TEXT NOT NULL,
+                    UserKind TEXT NOT NULL,
                     CreatedAt TEXT NOT NULL,
                     UpdatedAt TEXT NOT NULL,
                     FOREIGN KEY (OrganizationId) REFERENCES Organizations (Id)
