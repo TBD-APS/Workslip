@@ -29,11 +29,15 @@ When documentation disagrees with implementation, fix the maintained documentati
 ## Branch and scope discipline
 
 - Never push directly to `main`.
-- One Linear issue per branch and pull request.
+- One Linear issue per implementation branch and pull request. Repository-governance-only changes explicitly requested by the repository owner may omit a Linear issue.
 - Branch: `rbj--<issue>-<description>`.
 - PR title: `RBJ-<issue>: <description>`.
 - Prefer small, cohesive PRs and squash merging.
-- Prefer sequential PRs from updated `main` when issues are independently mergeable. Use a stacked branch/PR only when there is a real code dependency that prevents independent review or validation.
+- **Prefer Git stacks by default for related, ordered or overlapping work.** Keep one cohesive issue per stack layer, create each child branch from the previous stack branch, and target the child PR at its parent branch while the stack is active.
+- Do not create multiple parallel PRs against `main` or a release branch when the changes belong to the same delivery sequence, touch shared implementation, or have an intended merge order. Extend the existing stack instead.
+- Use a standalone PR directly from `main` or a release branch only when the change is genuinely independent, has no relevant dependency or overlap with an active stack, and can be reviewed, merged and deployed in any order.
+- Before opening a new PR, inspect related active branches/PRs and attach the work to the existing stack when one exists.
+- Keep the stack order explicit in PR descriptions. As parent layers merge, rebase or retarget the next layer instead of recreating equivalent parallel PRs unless a verified GitHub limitation makes replacement unavoidable.
 - Do not mix unrelated cleanup into feature work.
 - Improve nearby technical debt only when it is required for correctness, materially lowers risk, or removes duplication inside the task boundary.
 
@@ -42,7 +46,7 @@ When documentation disagrees with implementation, fix the maintained documentati
 For implementation batches, keep the execution loop short and deterministic:
 
 1. verify the problem against current source/runtime evidence;
-2. create or confirm the owning Linear issue and exact scope;
+2. confirm the owning Linear issue and exact scope for implementation work; do not create a new Linear issue unless explicitly requested;
 3. implement the smallest complete correction;
 4. add meaningful regression protection for the changed risk;
 5. run the required validation from [`Docs/agents/VALIDATION.md`](Docs/agents/VALIDATION.md);
