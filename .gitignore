@@ -28,7 +28,6 @@ packages/
 .env.*
 !.env.example
 !.env.sample
-appsettings.Development.json
 appsettings.Local.json
 appsettings.*.local.json
 secrets.json
