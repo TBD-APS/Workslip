@@ -81,6 +81,7 @@ public static class AuthenticationConfiguration
 
         builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
         builder.Services.AddScoped<IClaimsTransformation, UserClaimsTransformation>();
+        builder.Services.AddSingleton<IUserClaimsCacheInvalidator, UserClaimsCacheInvalidator>();
 
         builder.Services.AddAuthorization();
 
