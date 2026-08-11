@@ -107,7 +107,7 @@ public static class InfrastructureConfiguration
         {
             configuration.AddJsonFile(
                 "appsettings.Development.json",
-                optional: false,
+                optional: true,
                 reloadOnChange: true);
             configuration.AddJsonFile(
                 "appsettings.Local.json",
