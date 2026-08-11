@@ -23,17 +23,23 @@ Select exactly one:
 
 - [ ] Documentation updated
 - [ ] No documentation impact
-- [ ] Documentation waiver
 
 Documentation changed or reviewed:
 
 -
 
-For a waiver, complete all fields:
+## Compliance decision
 
-Waiver owner: -  
-Waiver expires: -  
-Follow-up: -
+Select exactly one and add evidence below when impact exists:
+
+- [ ] No personal-data or AI impact
+- [ ] Personal-data impact
+- [ ] AI-system impact
+- [ ] Both personal-data and AI-system impact
+
+Compliance notes / evidence:
+
+-
 
 ## Linear
 
