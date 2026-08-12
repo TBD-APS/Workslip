@@ -53,6 +53,7 @@ const user = {
   displayName: 'Beta Employee',
   phone: '12345678',
   role: 'User',
+  userKind: 'InternalTest',
   createdAt: '2026-08-09T20:00:00Z',
   updatedAt: '2026-08-09T20:00:00Z',
 };
@@ -76,6 +77,7 @@ describe('SuperAdminUsersPanel', () => {
     api.getOptions.mockResolvedValue({
       organizations: [organizationA, organizationB],
       roles: ['User', 'Admin', 'Auditor'],
+      userKinds: ['Member', 'InternalTest'],
     });
     api.getUsers.mockResolvedValue({ users: [user], total: 1 });
     api.updateUser.mockImplementation(async (_id, input) => ({ ...user, ...input }));
@@ -83,16 +85,17 @@ describe('SuperAdminUsersPanel', () => {
     api.deleteUser.mockResolvedValue(undefined);
   });
 
-  it('shows tenant and filial context for cross-organization users', async () => {
+  it('shows tenant, filial and internal-test context for cross-organization users', async () => {
     render(<SuperAdminUsersPanel />, { wrapper: createWrapper() });
 
     expect(await screen.findByText('Beta Employee')).toBeInTheDocument();
     expect(screen.getByText('employee@beta.test')).toBeInTheDocument();
     expect(screen.getByText('Beta El · Beta Aarhus')).toBeInTheDocument();
+    expect(screen.getByText('Brugergruppe: Intern test')).toBeInTheDocument();
     expect(screen.getByText('1 bruger')).toBeInTheDocument();
   });
 
-  it('updates role through the superadmin edit flow without changing organization or email', async () => {
+  it('updates role and user group through the existing superadmin edit flow', async () => {
     render(<SuperAdminUsersPanel />, { wrapper: createWrapper() });
 
     await screen.findByText('Beta Employee');
@@ -100,8 +103,10 @@ describe('SuperAdminUsersPanel', () => {
 
     expect(screen.getByDisplayValue('Beta El')).toBeDisabled();
     expect(screen.getByDisplayValue('employee@beta.test')).toBeDisabled();
+    expect(screen.getByLabelText('Brugergruppe')).toHaveValue('InternalTest');
 
     fireEvent.change(screen.getByLabelText('Rolle'), { target: { value: 'Admin' } });
+    fireEvent.change(screen.getByLabelText('Brugergruppe'), { target: { value: 'Member' } });
     fireEvent.click(screen.getByRole('button', { name: 'Gem ændringer' }));
 
     await waitFor(() => expect(api.updateUser).toHaveBeenCalledWith(
@@ -109,7 +114,17 @@ describe('SuperAdminUsersPanel', () => {
       expect.objectContaining({
         role: 'Admin',
         filialId: organizationB.filials[0].id,
+        userKind: 'Member',
       }),
     ));
+  });
+
+  it('defaults a new superadmin-created user to the customer audience', async () => {
+    render(<SuperAdminUsersPanel />, { wrapper: createWrapper() });
+
+    await screen.findByText('Beta Employee');
+    fireEvent.click(screen.getByRole('button', { name: 'Ny bruger' }));
+
+    expect(screen.getByLabelText('Brugergruppe')).toHaveValue('Member');
   });
 });

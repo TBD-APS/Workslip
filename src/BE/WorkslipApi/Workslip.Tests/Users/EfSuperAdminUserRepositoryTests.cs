@@ -13,7 +13,7 @@ namespace Workslip.Tests.Users;
 public sealed class EfSuperAdminUserRepositoryTests
 {
     [Fact]
-    public async Task ListAsync_ReturnsUsersAcrossTenantOrganizationsButExcludesPlatformUsers()
+    public async Task ListAsync_ReturnsUsersAcrossTenantOrganizationsWithAudienceButExcludesPlatformUsers()
     {
         await using var database = await RelationalTestDatabase.CreateAsync();
         var organizationA = CreateOrganization("Organization A");
@@ -26,9 +26,9 @@ public sealed class EfSuperAdminUserRepositoryTests
         database.Context.Organizations.AddRange(organizationA, organizationB, platform);
         database.Context.Set<OrganizationFilialRow>().AddRange(filialA, filialB, platformFilial);
         database.Context.Users.AddRange(
-            CreateUser(organizationA, filialA, "a@example.test", Roles.User),
-            CreateUser(organizationB, filialB, "b@example.test", Roles.Admin),
-            CreateUser(platform, platformFilial, "platform@example.test", Roles.Superadmin));
+            CreateUser(organizationA, filialA, "a@example.test", Roles.User, UserKinds.Member),
+            CreateUser(organizationB, filialB, "b@example.test", Roles.Admin, UserKinds.InternalTest),
+            CreateUser(platform, platformFilial, "platform@example.test", Roles.Superadmin, UserKinds.Member));
         await database.Context.SaveChangesAsync();
 
         var repository = new EfSuperAdminUserRepository(database.Context, new NoRetryPolicy());
@@ -36,9 +36,45 @@ public sealed class EfSuperAdminUserRepositoryTests
         var users = await repository.ListAsync(50, 0, null, "organization", "asc", CancellationToken.None);
 
         Assert.Equal(2, users.Count);
-        Assert.Contains(users, user => user.OrganizationId == organizationA.Id && user.FilialId == filialA.Id);
-        Assert.Contains(users, user => user.OrganizationId == organizationB.Id && user.FilialId == filialB.Id);
+        Assert.Contains(users, user =>
+            user.OrganizationId == organizationA.Id
+            && user.FilialId == filialA.Id
+            && user.UserKind == UserKinds.Member);
+        Assert.Contains(users, user =>
+            user.OrganizationId == organizationB.Id
+            && user.FilialId == filialB.Id
+            && user.UserKind == UserKinds.InternalTest);
         Assert.DoesNotContain(users, user => user.OrganizationId == PlatformOrganization.Id);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_CanReclassifyTenantUserAudience()
+    {
+        await using var database = await RelationalTestDatabase.CreateAsync();
+        var organization = CreateOrganization("Organization A");
+        var filial = CreateFilial(organization, "A filial");
+        var user = CreateUser(organization, filial, "a@example.test", Roles.User, UserKinds.Member);
+        database.Context.Organizations.Add(organization);
+        database.Context.Set<OrganizationFilialRow>().Add(filial);
+        database.Context.Users.Add(user);
+        await database.Context.SaveChangesAsync();
+
+        var repository = new EfSuperAdminUserRepository(database.Context, new NoRetryPolicy());
+
+        var updated = await repository.UpdateAsync(
+            user.Id,
+            user.DisplayName,
+            user.Phone,
+            user.Role,
+            filial.Id,
+            UserKinds.InternalTest,
+            DateTimeOffset.UtcNow,
+            CancellationToken.None);
+
+        Assert.True(updated);
+        Assert.Equal(
+            UserKinds.InternalTest,
+            (await database.Context.Users.AsNoTracking().SingleAsync()).UserKind);
     }
 
     [Fact]
@@ -92,7 +128,8 @@ public sealed class EfSuperAdminUserRepositoryTests
         OrganizationRow organization,
         OrganizationFilialRow filial,
         string email,
-        string role) => new()
+        string role,
+        string userKind) => new()
     {
         Id = Guid.NewGuid(),
         OrganizationId = organization.Id,
@@ -103,6 +140,7 @@ public sealed class EfSuperAdminUserRepositoryTests
         EntraEmail = email,
         EntraId = Guid.NewGuid().ToString(),
         Role = role,
+        UserKind = userKind,
         CreatedAt = DateTimeOffset.UtcNow,
         UpdatedAt = DateTimeOffset.UtcNow
     };
@@ -175,6 +213,7 @@ public sealed class EfSuperAdminUserRepositoryTests
                     EntraEmail TEXT NOT NULL,
                     EntraId TEXT NOT NULL,
                     Role TEXT NOT NULL,
+                    UserKind TEXT NOT NULL DEFAULT 'Member',
                     CreatedAt TEXT NOT NULL,
                     UpdatedAt TEXT NOT NULL,
                     FOREIGN KEY (OrganizationId) REFERENCES Organizations (Id)

@@ -44,6 +44,9 @@ public sealed class SuperAdminUserService(
     private static readonly IReadOnlyList<string> TenantRoles =
         [Roles.User, Roles.Admin, Roles.Auditor];
 
+    private static readonly IReadOnlyList<string> TenantUserKinds =
+        [UserKinds.Member, UserKinds.InternalTest];
+
     public async Task<Result<SuperAdminUserListResponse>> ListAsync(
         int? limit,
         int? offset,
@@ -73,7 +76,8 @@ public sealed class SuperAdminUserService(
             count));
     }
 
-    public async Task<Result<SuperAdminUserOptionsResponse>> GetOptionsAsync(CancellationToken cancellationToken)
+    public async Task<Result<SuperAdminUserOptionsResponse>> GetOptionsAsync(
+        CancellationToken cancellationToken)
     {
         if (!IsSuperadminActor())
         {
@@ -99,7 +103,8 @@ public sealed class SuperAdminUserService(
 
         return Result<SuperAdminUserOptionsResponse>.Success(new(
             organizations,
-            TenantRoles));
+            TenantRoles,
+            TenantUserKinds));
     }
 
     public async Task<Result<SuperAdminUserResponse>> CreateAsync(
@@ -119,6 +124,8 @@ public sealed class SuperAdminUserService(
         var validationResult = await createUserValidator.ValidateAsync(commonRequest, cancellationToken);
         var errors = MapValidationErrors(validationResult);
         AddTenantRoleError(errors, request.Role);
+        var userKind = NormalizeRequestedUserKind(request.UserKind);
+        AddUserKindError(errors, request.UserKind, userKind);
         if (request.OrganizationId == Guid.Empty)
         {
             errors.Add(new ValidationError
@@ -177,6 +184,7 @@ public sealed class SuperAdminUserService(
             EntraId = entraUser.EntraUserId,
             EntraEmail = entraUser.EntraMail,
             Role = request.Role,
+            UserKind = userKind!,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -201,11 +209,12 @@ public sealed class SuperAdminUserService(
             }
 
             logger.LogInformation(
-                "Superadmin created tenant user. UserId: {UserId}. OrganizationId: {OrganizationId}. FilialId: {FilialId}. Role: {Role}.",
+                "Superadmin created tenant user. UserId: {UserId}. OrganizationId: {OrganizationId}. FilialId: {FilialId}. Role: {Role}. UserKind: {UserKind}.",
                 created.Id,
                 created.OrganizationId,
                 created.FilialId,
-                created.Role);
+                created.Role,
+                created.UserKind);
 
             return Result<SuperAdminUserResponse>.Success(ToResponse(created));
         }
@@ -250,6 +259,12 @@ public sealed class SuperAdminUserService(
         {
             AddTenantRoleError(errors, request.Role);
         }
+
+        var requestedUserKind = request.UserKind is null
+            ? UserKinds.Normalize(current.UserKind) ?? UserKinds.Member
+            : UserKinds.Normalize(request.UserKind);
+        AddUserKindError(errors, request.UserKind, requestedUserKind);
+
         if (errors.Count > 0)
         {
             return Result<SuperAdminUserResponse>.Invalid(errors);
@@ -284,6 +299,7 @@ public sealed class SuperAdminUserService(
             phone,
             role,
             filialId,
+            requestedUserKind!,
             updatedAt,
             cancellationToken);
         if (!updated)
@@ -300,11 +316,12 @@ public sealed class SuperAdminUserService(
         }
 
         logger.LogInformation(
-            "Superadmin updated tenant user. UserId: {UserId}. OrganizationId: {OrganizationId}. FilialId: {FilialId}. Role: {Role}.",
+            "Superadmin updated tenant user. UserId: {UserId}. OrganizationId: {OrganizationId}. FilialId: {FilialId}. Role: {Role}. UserKind: {UserKind}.",
             response.Id,
             response.OrganizationId,
             response.FilialId,
-            response.Role);
+            response.Role,
+            response.UserKind);
 
         return Result<SuperAdminUserResponse>.Success(ToResponse(response));
     }
@@ -353,6 +370,7 @@ public sealed class SuperAdminUserService(
         user.DisplayName,
         user.Phone,
         user.Role,
+        user.UserKind,
         user.CreatedAt,
         user.UpdatedAt);
 
@@ -376,6 +394,28 @@ public sealed class SuperAdminUserService(
         {
             Identifier = nameof(SuperAdminCreateUserRequest.Role),
             ErrorMessage = "Tenant-brugere kan have rollen User, Admin eller Auditor."
+        });
+    }
+
+    private static string? NormalizeRequestedUserKind(string? userKind) =>
+        string.IsNullOrWhiteSpace(userKind)
+            ? UserKinds.Member
+            : UserKinds.Normalize(userKind);
+
+    private static void AddUserKindError(
+        ICollection<ValidationError> errors,
+        string? requestedUserKind,
+        string? normalizedUserKind)
+    {
+        if (requestedUserKind is null || normalizedUserKind is not null)
+        {
+            return;
+        }
+
+        errors.Add(new ValidationError
+        {
+            Identifier = nameof(SuperAdminCreateUserRequest.UserKind),
+            ErrorMessage = "Brugergruppen skal være Member eller InternalTest."
         });
     }
 

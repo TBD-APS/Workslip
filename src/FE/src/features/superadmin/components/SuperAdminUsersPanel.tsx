@@ -23,6 +23,8 @@ import type {
 import './SuperAdminUsersPanel.css';
 
 const PAGE_SIZE = 50;
+const MEMBER_USER_KIND = 'Member';
+const INTERNAL_TEST_USER_KIND = 'InternalTest';
 
 type UserDraft = CreateSuperAdminUserInput;
 
@@ -33,6 +35,7 @@ const emptyDraft: UserDraft = {
   displayName: '',
   phone: '',
   role: 'User',
+  userKind: MEMBER_USER_KIND,
 };
 
 export function SuperAdminUsersPanel() {
@@ -89,6 +92,7 @@ export function SuperAdminUsersPanel() {
 
   const organizations = optionsQuery.data?.organizations ?? [];
   const roles = optionsQuery.data?.roles ?? [];
+  const userKinds = optionsQuery.data?.userKinds ?? [];
   const total = usersQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -101,6 +105,9 @@ export function SuperAdminUsersPanel() {
       organizationId: organization?.id ?? '',
       filialId: filial?.id ?? '',
       role: roles[0] ?? 'User',
+      userKind: userKinds.includes(MEMBER_USER_KIND)
+        ? MEMBER_USER_KIND
+        : userKinds[0] ?? MEMBER_USER_KIND,
     });
     setFormError(null);
     setFormOpen(true);
@@ -115,6 +122,7 @@ export function SuperAdminUsersPanel() {
       displayName: user.displayName,
       phone: user.phone ?? '',
       role: user.role,
+      userKind: user.userKind,
     });
     setFormError(null);
     setFormOpen(true);
@@ -141,8 +149,8 @@ export function SuperAdminUsersPanel() {
     event.preventDefault();
     setFormError(null);
 
-    if (!draft.displayName.trim() || !draft.role || !draft.filialId) {
-      setFormError('Udfyld navn, rolle og filial.');
+    if (!draft.displayName.trim() || !draft.role || !draft.filialId || !draft.userKind) {
+      setFormError('Udfyld navn, rolle, brugergruppe og filial.');
       return;
     }
 
@@ -154,6 +162,7 @@ export function SuperAdminUsersPanel() {
           phone: draft.phone.trim(),
           role: draft.role,
           filialId: draft.filialId,
+          userKind: draft.userKind,
         },
       });
       return;
@@ -185,7 +194,7 @@ export function SuperAdminUsersPanel() {
           </span>
           <div>
             <h2 id="superadmin-users-title">Brugere</h2>
-            <p>Administrér tenant-brugere på tværs af organisationer og filialer.</p>
+            <p>Administrér tenant-brugere på tværs af organisationer, filialer og brugergrupper.</p>
           </div>
         </div>
         <button
@@ -206,7 +215,7 @@ export function SuperAdminUsersPanel() {
             setSearch(value);
             setPage(1);
           }}
-          placeholder="Søg navn, e-mail, organisation, filial eller rolle..."
+          placeholder="Søg navn, e-mail, organisation, filial, rolle eller brugergruppe..."
         />
         <span className="superadmin-users-count">{total} {total === 1 ? 'bruger' : 'brugere'}</span>
       </div>
@@ -314,6 +323,20 @@ export function SuperAdminUsersPanel() {
                 {roles.map((role) => <option key={role} value={role}>{role}</option>)}
               </select>
             </label>
+
+            <label className="form-field">
+              <span>Brugergruppe</span>
+              <select
+                className="form-input"
+                value={draft.userKind}
+                onChange={(event) => setDraft((current) => ({ ...current, userKind: event.target.value }))}
+                required
+              >
+                {userKinds.map((userKind) => (
+                  <option key={userKind} value={userKind}>{getUserKindLabel(userKind)}</option>
+                ))}
+              </select>
+            </label>
           </div>
 
           {formError && <div className="superadmin-alert superadmin-alert-error" role="alert">{formError}</div>}
@@ -359,6 +382,9 @@ export function SuperAdminUsersPanel() {
                   <Building2 size={14} aria-hidden="true" />
                   {user.organizationName} · {user.filialName}
                 </span>
+                {user.userKind === INTERNAL_TEST_USER_KIND && (
+                  <span className="superadmin-user-meta">Brugergruppe: Intern test</span>
+                )}
               </div>
               <div className="superadmin-user-card-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => beginEdit(user)}>
@@ -419,4 +445,8 @@ export function SuperAdminUsersPanel() {
 
 function getPreferredFilial(organization: SuperAdminOrganizationOption) {
   return organization.filials.find((filial) => filial.isDefault) ?? organization.filials[0];
+}
+
+function getUserKindLabel(userKind: string) {
+  return userKind === INTERNAL_TEST_USER_KIND ? 'Intern test' : 'Kunde';
 }

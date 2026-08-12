@@ -12,6 +12,7 @@ public sealed record SuperAdminUserRecord(
     string DisplayName,
     string Phone,
     string Role,
+    string UserKind,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
@@ -60,6 +61,7 @@ public interface ISuperAdminUserRepository
         string phone,
         string role,
         Guid filialId,
+        string userKind,
         DateTimeOffset updatedAt,
         CancellationToken cancellationToken);
 

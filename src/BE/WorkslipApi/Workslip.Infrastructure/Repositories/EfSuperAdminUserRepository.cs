@@ -72,11 +72,20 @@ public sealed class EfSuperAdminUserRepository(
         string phone,
         string role,
         Guid filialId,
+        string userKind,
         DateTimeOffset updatedAt,
         CancellationToken cancellationToken) =>
         retryPolicy.ExecuteAsync(
             "superadmin-users.update",
-            token => UpdateCoreAsync(userId, displayName, phone, role, filialId, updatedAt, token),
+            token => UpdateCoreAsync(
+                userId,
+                displayName,
+                phone,
+                role,
+                filialId,
+                userKind,
+                updatedAt,
+                token),
             cancellationToken);
 
     public Task<SuperAdminUserDeleteStatus> DeleteAsync(Guid userId, CancellationToken cancellationToken) =>
@@ -119,6 +128,7 @@ public sealed class EfSuperAdminUserRepository(
                 row.User.Email.Contains(term) ||
                 row.User.Phone.Contains(term) ||
                 row.User.Role.Contains(term) ||
+                row.User.UserKind.Contains(term) ||
                 row.Organization.Name.Contains(term) ||
                 row.Filial.Name.Contains(term));
         }
@@ -133,6 +143,8 @@ public sealed class EfSuperAdminUserRepository(
             ("organization", "desc") => query.OrderByDescending(row => row.Organization.Name).ThenBy(row => row.User.DisplayName),
             ("role", "asc") => query.OrderBy(row => row.User.Role).ThenBy(row => row.User.DisplayName),
             ("role", "desc") => query.OrderByDescending(row => row.User.Role).ThenBy(row => row.User.DisplayName),
+            ("userKind", "asc") => query.OrderBy(row => row.User.UserKind).ThenBy(row => row.User.DisplayName),
+            ("userKind", "desc") => query.OrderByDescending(row => row.User.UserKind).ThenBy(row => row.User.DisplayName),
             _ => query.OrderBy(row => row.Organization.Name).ThenBy(row => row.User.DisplayName)
         };
 
@@ -149,6 +161,7 @@ public sealed class EfSuperAdminUserRepository(
                 row.User.DisplayName,
                 row.User.Phone,
                 row.User.Role,
+                row.User.UserKind,
                 row.User.CreatedAt,
                 row.User.UpdatedAt))
             .ToListAsync(cancellationToken);
@@ -174,6 +187,7 @@ public sealed class EfSuperAdminUserRepository(
                 row.User.Email.Contains(term) ||
                 row.User.Phone.Contains(term) ||
                 row.User.Role.Contains(term) ||
+                row.User.UserKind.Contains(term) ||
                 row.Organization.Name.Contains(term) ||
                 row.Filial.Name.Contains(term));
         }
@@ -200,6 +214,7 @@ public sealed class EfSuperAdminUserRepository(
                 user.DisplayName,
                 user.Phone,
                 user.Role,
+                user.UserKind,
                 user.CreatedAt,
                 user.UpdatedAt))
         .FirstOrDefaultAsync(cancellationToken);
@@ -237,7 +252,9 @@ public sealed class EfSuperAdminUserRepository(
 
     private async Task<Guid?> CreateCoreAsync(UserDataRow user, CancellationToken cancellationToken)
     {
-        if (user.OrganizationId == PlatformOrganization.Id || user.Role == Roles.Superadmin)
+        if (user.OrganizationId == PlatformOrganization.Id
+            || user.Role == Roles.Superadmin
+            || !UserKinds.IsKnown(user.UserKind))
         {
             return null;
         }
@@ -261,10 +278,11 @@ public sealed class EfSuperAdminUserRepository(
         string phone,
         string role,
         Guid filialId,
+        string userKind,
         DateTimeOffset updatedAt,
         CancellationToken cancellationToken)
     {
-        if (role == Roles.Superadmin)
+        if (role == Roles.Superadmin || !UserKinds.IsKnown(userKind))
         {
             return false;
         }
@@ -277,6 +295,7 @@ public sealed class EfSuperAdminUserRepository(
                     .SetProperty(user => user.Phone, phone)
                     .SetProperty(user => user.Role, role)
                     .SetProperty(user => user.FilialId, filialId)
+                    .SetProperty(user => user.UserKind, userKind)
                     .SetProperty(user => user.UpdatedAt, updatedAt),
                 cancellationToken);
 

@@ -55,6 +55,7 @@ export interface SuperAdminUser {
   displayName: string;
   phone: string;
   role: string;
+  userKind: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -79,6 +80,7 @@ export interface SuperAdminOrganizationOption {
 export interface SuperAdminUserOptions {
   organizations: SuperAdminOrganizationOption[];
   roles: string[];
+  userKinds: string[];
 }
 
 export interface CreateSuperAdminUserInput {
@@ -88,6 +90,7 @@ export interface CreateSuperAdminUserInput {
   displayName: string;
   phone: string;
   role: string;
+  userKind?: string;
 }
 
 export interface UpdateSuperAdminUserInput {
@@ -95,4 +98,5 @@ export interface UpdateSuperAdminUserInput {
   phone?: string;
   role?: string;
   filialId?: string;
+  userKind?: string;
 }
