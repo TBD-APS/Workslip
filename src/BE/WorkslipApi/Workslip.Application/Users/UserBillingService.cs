@@ -1,6 +1,4 @@
 using Ardalis.Result;
-using Ardalis.Result.FluentValidation;
-using FluentValidation.Results;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
 using Workslip.Domain;
@@ -25,58 +23,44 @@ public sealed class UserBillingService(
 
     public async Task<Result<UserBillingRateResponse>> GetAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var organizationId = currentUser.OrganizationId;
-        if (organizationId is null)
+        if (currentUser.OrganizationId is not Guid organizationId)
             return Result<UserBillingRateResponse>.Unauthorized();
 
         var user = await repository.GetByIdAsync(userId, cancellationToken);
         if (user is null)
             return Result<UserBillingRateResponse>.NotFound();
-
         if (!CanManageTarget(user))
             return Result<UserBillingRateResponse>.Forbidden();
 
-        return Result<UserBillingRateResponse>.Success(new UserBillingRateResponse(user.Id, user.BillableHourlyRate));
+        return Result<UserBillingRateResponse>.Success(new(user.Id, user.BillableHourlyRate));
     }
 
-    public async Task<Result> UpdateAsync(
-        Guid userId,
-        UpdateBillableHourlyRateRequest request,
-        CancellationToken cancellationToken)
+    public async Task<Result> UpdateAsync(Guid userId, UpdateBillableHourlyRateRequest request, CancellationToken cancellationToken)
     {
-        var organizationId = currentUser.OrganizationId;
-        if (organizationId is null)
+        if (currentUser.OrganizationId is not Guid organizationId)
             return Result.Unauthorized();
 
         if (request.BillableHourlyRate is < 0m or > MaxBillableHourlyRate)
-        {
-            return Result.Invalid(new ValidationError
+            return Result.Invalid(new Ardalis.Result.ValidationError
             {
-                PropertyName = nameof(UpdateBillableHourlyRateRequest.BillableHourlyRate),
+                Identifier = nameof(UpdateBillableHourlyRateRequest.BillableHourlyRate),
                 ErrorMessage = "Den fakturerbare timepris skal være mellem 0 og 100.000 kr."
-            }.AsValidationError());
-        }
+            });
 
         var user = await repository.GetByIdAsync(userId, cancellationToken);
         if (user is null)
             return Result.NotFound();
-
         if (!CanManageTarget(user))
             return Result.Forbidden();
 
-        var normalizedRate = request.BillableHourlyRate.HasValue
+        var rate = request.BillableHourlyRate.HasValue
             ? decimal.Round(request.BillableHourlyRate.Value, 2, MidpointRounding.AwayFromZero)
             : null;
 
-        var updated = await repository.SetBillingRateAsync(organizationId.Value, userId, normalizedRate, cancellationToken);
-        if (!updated)
+        if (!await repository.SetBillingRateAsync(organizationId, userId, rate, cancellationToken))
             return Result.NotFound();
 
-        logger.LogInformation(
-            "User billing rate updated. UserId: {UserId}. OrganizationId: {OrganizationId}.",
-            userId,
-            organizationId.Value);
-
+        logger.LogInformation("User billing rate updated. UserId: {UserId}. OrganizationId: {OrganizationId}.", userId, organizationId);
         return Result.NoContent();
     }
 
