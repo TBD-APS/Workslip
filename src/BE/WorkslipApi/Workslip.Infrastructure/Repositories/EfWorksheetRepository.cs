@@ -130,10 +130,10 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         try
         {
             var transaction = _dbContext.Database.CurrentTransaction?.GetDbTransaction();
-            var worksheets = WorksheetBillingSnapshots.TableName(_dbContext, "Worksheets");
-            var jobs = WorksheetBillingSnapshots.TableName(_dbContext, "JobReports");
-            var rates = WorksheetBillingSnapshots.TableName(_dbContext, "UserBillingRates");
-            var snapshots = WorksheetBillingSnapshots.TableName(_dbContext, "WorksheetBillingSnapshots");
+            var worksheets = TableName("Worksheets");
+            var jobs = TableName("JobReports");
+            var rates = TableName("UserBillingRates");
+            var snapshots = TableName("WorksheetBillingSnapshots");
 
             var command = new CommandDefinition(
                 $"""
@@ -390,6 +390,14 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
     }
 
     private sealed record WorksheetRateProjection(Guid WorksheetId, decimal? BillableHourlyRate);
+
+    private string TableName(string name) =>
+        string.Equals(
+            _dbContext.Database.ProviderName,
+            "Microsoft.EntityFrameworkCore.SqlServer",
+            StringComparison.Ordinal)
+            ? $"dbo.{name}"
+            : name;
 
     public Task<decimal> GetHoursForUserDayAsync(
         Guid organizationId,
