@@ -74,6 +74,14 @@ public static class DatabaseStartup
         }
 
         environment ??= services.GetService<IHostEnvironment>();
+        if (environment is not null)
+        {
+            await LocalDevelopmentDatabasePreparation.PrepareAsync(
+                services,
+                configuration,
+                environment);
+        }
+
         if (environment is not null && ShouldApplyLocalMigrations(environment, configuration))
         {
             await RunDatabasePhaseAsync(
