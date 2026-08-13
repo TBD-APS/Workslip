@@ -13,6 +13,7 @@ public static class WorksheetMapper
 
     public sealed record WorksheetMyProjection
     {
+        public Guid WorksheetId { get; init; }
         public DateTime WorkDate { get; init; }
         public Guid JobId { get; init; }
         public Guid UserId { get; init; }
