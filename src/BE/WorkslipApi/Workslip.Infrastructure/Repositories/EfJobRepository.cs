@@ -224,12 +224,19 @@ public sealed class EfJobRepository : IJobRepository
     {
         _dbContext.ChangeTracker.Clear();
 
-        var statuses = query.Statuses?.Select(x => x.ToString()).Distinct() ?? [];       
+        var statuses = query.Statuses is { Count: > 0 }
+            ? query.Statuses.Select(x => x.ToString()).Distinct().ToArray()
+            : null;
+        var assignedToUserId = query.AssignedToUserId;
 
         var baseQuery =
             from job in _dbContext.JobReports.AsNoTracking()
             where job.OrganizationId == query.OrganizationId
-            where statuses.Contains(job.Status)
+            where statuses == null || statuses.Contains(job.Status)
+            where !assignedToUserId.HasValue || _dbContext.JobAssignments.Any(assignment =>
+                assignment.OrganizationId == query.OrganizationId
+                && assignment.ReportId == job.Id
+                && assignment.UserId == assignedToUserId.Value)
             where job.IsSoftDeleted == false
             where query.ReportNumber == null || (job.ReportNumber != null && job.ReportNumber.Contains(query.ReportNumber))
             where query.CustomerName == null || (job.CustomerName != null && job.CustomerName.Contains(query.CustomerName))

@@ -205,6 +205,50 @@ public sealed class DuplicateJobPerAssigneePersistenceTests
         Assert.All(assignments, assignment => Assert.Equal(created.Id, assignment.ReportId));
     }
 
+    [Fact]
+    public async Task ListAsync_scopes_a_regular_employee_to_their_own_duplicate_and_treats_missing_statuses_as_all()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var firstUserId = Guid.NewGuid();
+        var secondUserId = Guid.NewGuid();
+        await fixture.SeedAsync(firstUserId, secondUserId);
+        var request = new CreateJobRequest(
+            JobType: JobType.KLS.ToString(),
+            AssignedUserIds: [firstUserId, secondUserId],
+            DuplicatePerAssignedUser: true);
+
+        var created = await fixture.Repository.CreateAsync(
+            fixture.OrganizationId,
+            request,
+            request.AssignedUserIds!,
+            fixture.AdminId,
+            CancellationToken.None);
+
+        var allJobs = await fixture.Repository.ListAsync(
+            new JobQuery(
+                fixture.OrganizationId,
+                Statuses: null,
+                Limit: 50,
+                Offset: 0,
+                CurrentUserId: fixture.AdminId),
+            CancellationToken.None);
+        var firstUsersJobs = await fixture.Repository.ListAsync(
+            new JobQuery(
+                fixture.OrganizationId,
+                Statuses: null,
+                Limit: 50,
+                Offset: 0,
+                CurrentUserId: firstUserId,
+                AssignedToUserId: firstUserId),
+            CancellationToken.None);
+
+        Assert.Equal(2, allJobs.TotalCount);
+        Assert.Equal(created.CreatedJobIds!.OrderBy(id => id), allJobs.Items.Select(job => job.Id).OrderBy(id => id));
+        var assignedCopy = Assert.Single(firstUsersJobs.Items);
+        Assert.Equal(1, firstUsersJobs.TotalCount);
+        Assert.Equal(firstUserId, Assert.Single(assignedCopy.AssignedUsers).Id);
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;

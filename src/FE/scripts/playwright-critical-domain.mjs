@@ -1,7 +1,7 @@
 export function createDomainHelpers(env, c) {
   const { APP_URL, API_TIMEOUT, UI_TIMEOUT, postman } = env;
   const {
-    postmanBody, pickReferenceSelection, valueOf, candidates, unwrapCollection,
+    postmanBody, pickReferenceSelection, valueOf, candidates,
     fillIfVisible, waitForEnabled, waitForWizardStep, currentWizardStep, clickNext,
     clickByTextCandidates, checkRadioByCandidates, waitForApiResponse, escapeRegex,
     sectionByHeading
@@ -77,7 +77,6 @@ async function fillOverviewFields(session, { customerName, address }) {
 
 async function completeAndSubmitKlsViaUi(session, job) {
   await session.step('complete KLS wizard and submit', async () => {
-    await session.page.getByRole('button', { name: 'Til sagslisten', exact: true }).click();
     await session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded' });
     await waitForWizardStep(session.page, 'Sagsdetaljer');
     const referenceData = session.referenceData ?? await session.getReferenceData();
@@ -99,8 +98,11 @@ async function completeAndSubmitKlsViaUi(session, job) {
     }
 
     await clickNext(session.page, 'Timesedler');
-    const users = session.runtimeUsers?.length ? session.runtimeUsers : await ensureAssignableUsers(session, 1);
-    await addWorksheetViaUi(session, users[0], '1');
+    const currentUser = session.auth.user;
+    if (!currentUser?.id || !currentUser?.displayName) {
+      throw new Error('Authenticated user identity is unavailable for the worksheet.');
+    }
+    await addWorksheetViaUi(session, currentUser, '1');
 
     await clickNext(session.page, 'Afslutning');
     await clickByTextCandidates(session.page.locator('button'), candidates(selection.closureFlag), 'closure flag');
@@ -245,28 +247,6 @@ async function createMinimalJobFixtureViaApi(session, customer) {
   return created;
 }
 
-async function ensureAssignableUsers(session, count) {
-  const bodyTemplate = postmanBody(postman, '/api/users');
-  const requiredRole = String(bodyTemplate.role);
-  if (!requiredRole) throw new Error('Postman /api/users request must define a role.');
-  let users = unwrapCollection(await session.apiExpect('GET', '/api/users/', undefined, [200]))
-    .filter((user) => user.id && user.email && user.displayName && String(user.role).toLowerCase() === requiredRole.toLowerCase());
-  while (users.length < count) {
-    const index = users.length + 1;
-    const body = {
-      ...bodyTemplate,
-      email: session.data.userEmail(index),
-      displayName: `${session.data.userDisplayName} ${index}`,
-      phone: session.data.phone,
-      role: requiredRole,
-    };
-    const created = await session.apiExpect('POST', '/api/users/', body, [200, 201]);
-    session.fixtures.users.push(created.id);
-    users.push(created);
-  }
-  return users.slice(0, count);
-}
-
 async function addWorksheetViaUi(session, user, hours) {
   const page = session.page;
   const add = page.getByRole('button', { name: 'Tilføj timeseddel', exact: true });
@@ -295,7 +275,6 @@ async function addWorksheetViaUi(session, user, hours) {
     createCustomerViaUi,
     createCustomerFixtureViaApi,
     createMinimalJobFixtureViaApi,
-    ensureAssignableUsers,
     addWorksheetViaUi
   };
 }

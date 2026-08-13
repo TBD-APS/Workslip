@@ -31,6 +31,8 @@ public sealed class JobListCacheIsolationTests
         Assert.True(seenResult.Value.Items.Single().IsSeenByCurrentUser);
         Assert.False(unseenResult.Value.Items.Single().IsSeenByCurrentUser);
         Assert.Equal(2, repository.ListCallCount);
+        Assert.Contains(repository.Queries, query => query.AssignedToUserId == seenUserId);
+        Assert.Contains(repository.Queries, query => query.AssignedToUserId == unseenUserId);
     }
 
     [Fact]
@@ -107,10 +109,12 @@ public sealed class JobListCacheIsolationTests
         private readonly Guid jobId = Guid.NewGuid();
 
         internal int ListCallCount { get; private set; }
+        internal List<JobQuery> Queries { get; } = [];
 
         public Task<JobListResponse> ListAsync(JobQuery query, CancellationToken cancellationToken)
         {
             ListCallCount++;
+            Queries.Add(query);
             var item = new JobListItemResponse(
                 jobId,
                 organizationId,

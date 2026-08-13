@@ -13,10 +13,23 @@ public sealed class AuthorizedJobService(
 {
     private const int AuditorScanPageSize = 200;
 
-    public Task<Result<JobReportSummaryResponse>> CreateAsync(
+    public async Task<Result<JobReportSummaryResponse>> CreateAsync(
         CreateJobRequest request,
-        CancellationToken cancellationToken) =>
-        inner.CreateAsync(request, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        if (JobAssignmentPolicy.RequiresAssignedJobScope(currentUser.Role))
+        {
+            foreach (var linkedJobId in request.LinkedJobIds ?? [])
+            {
+                if (await GetAccessibleJobAsync(linkedJobId, cancellationToken) is null)
+                {
+                    return Result<JobReportSummaryResponse>.NotFound();
+                }
+            }
+        }
+
+        return await inner.CreateAsync(request, cancellationToken);
+    }
 
     public async Task<Result<JobListResponse>> ListAsync(
         List<JobStatus>? statuses,
@@ -122,17 +135,22 @@ public sealed class AuthorizedJobService(
         Guid id,
         CancellationToken cancellationToken)
     {
+        if (RequiresScopedJobAccess()
+            && await GetAccessibleJobAsync(id, cancellationToken) is null)
+        {
+            return Result<JobReportSummaryResponse>.NotFound();
+        }
+
         var result = await inner.GetSingleJobAsync(id, cancellationToken);
-        if (!result.IsSuccess || !AuditorDataScope.AppliesTo(currentUser.Role))
+        if (!result.IsSuccess || !RequiresScopedJobAccess())
         {
             return result;
         }
 
-        var filtered = AuditorDataScope.Filter(result.Value);
-        if (filtered is null)
-        {
-            return Result<JobReportSummaryResponse>.NotFound();
-        }
+        var filtered = AuditorDataScope.AppliesTo(currentUser.Role)
+            ? AuditorDataScope.Filter(result.Value)
+            : result.Value;
+        if (filtered is null) return Result<JobReportSummaryResponse>.NotFound();
 
         var visibleLinks = await FilterVisibleLinksAsync(filtered.Links, cancellationToken);
         return Result<JobReportSummaryResponse>.Success(filtered with { Links = visibleLinks });
@@ -144,21 +162,19 @@ public sealed class AuthorizedJobService(
         int? offset,
         CancellationToken cancellationToken)
     {
-        if (!AuditorDataScope.AppliesTo(currentUser.Role))
+        if (!RequiresScopedJobAccess())
         {
             return await inner.GetHistoryAsync(id, limit, offset, cancellationToken);
         }
 
-        var organizationId = currentUser.OrganizationId;
-        if (organizationId is null)
-        {
-            return Result<IReadOnlyList<JobHistoryResponse>>.Unauthorized();
-        }
-
-        var job = await jobRepository.GetSingleJobAsync(id, organizationId.Value, cancellationToken);
-        if (job is null || !AuditorDataScope.CanAccess(job))
+        if (await GetAccessibleJobAsync(id, cancellationToken) is null)
         {
             return Result<IReadOnlyList<JobHistoryResponse>>.NotFound();
+        }
+
+        if (!AuditorDataScope.AppliesTo(currentUser.Role))
+        {
+            return await inner.GetHistoryAsync(id, limit, offset, cancellationToken);
         }
 
         var requestedLimit = Math.Clamp(limit ?? 50, 1, AuditorScanPageSize);
@@ -192,11 +208,19 @@ public sealed class AuthorizedJobService(
         return Result<IReadOnlyList<JobHistoryResponse>>.Success(requestedEvents);
     }
 
-    public Task<Result<JobReportSummaryResponse>> UpdateAsync(
+    public async Task<Result<JobReportSummaryResponse>> UpdateAsync(
         Guid id,
         UpdateJobRequest request,
-        CancellationToken cancellationToken) =>
-        inner.UpdateAsync(id, request, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        if (JobAssignmentPolicy.RequiresAssignedJobScope(currentUser.Role)
+            && await GetAccessibleJobAsync(id, cancellationToken) is null)
+        {
+            return Result<JobReportSummaryResponse>.NotFound();
+        }
+
+        return await inner.UpdateAsync(id, request, cancellationToken);
+    }
 
     public async Task<Result<JobReportSummaryResponse>> ChangeStatusAsync(
         Guid id,
@@ -211,6 +235,11 @@ public sealed class AuthorizedJobService(
 
         var job = await jobRepository.GetSingleJobAsync(id, organizationId.Value, cancellationToken);
         if (job is null)
+        {
+            return Result<JobReportSummaryResponse>.NotFound();
+        }
+
+        if (!CanAccessJob(job))
         {
             return Result<JobReportSummaryResponse>.NotFound();
         }
@@ -270,17 +299,58 @@ public sealed class AuthorizedJobService(
         CancellationToken cancellationToken) =>
         inner.AssignAsync(jobId, userIds, cancellationToken);
 
-    public Task<Result<JobReportSummaryResponse>> CreateLinksAsync(
+    public async Task<Result<JobReportSummaryResponse>> CreateLinksAsync(
         Guid reportId,
         CreateJobLinkRequest request,
-        CancellationToken cancellationToken) =>
-        inner.CreateLinksAsync(reportId, request, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        if (JobAssignmentPolicy.RequiresAssignedJobScope(currentUser.Role))
+        {
+            var source = await GetAccessibleJobAsync(reportId, cancellationToken);
+            if (source is null)
+            {
+                return Result<JobReportSummaryResponse>.NotFound();
+            }
 
-    public Task<Result> DeleteLinksAsync(
+            foreach (var targetId in request.TargetReportIds)
+            {
+                if (await GetAccessibleJobAsync(targetId, cancellationToken) is null)
+                {
+                    return Result<JobReportSummaryResponse>.NotFound();
+                }
+            }
+        }
+
+        return await inner.CreateLinksAsync(reportId, request, cancellationToken);
+    }
+
+    public async Task<Result> DeleteLinksAsync(
         Guid reportId,
         DeleteJobLinksRequest request,
-        CancellationToken cancellationToken) =>
-        inner.DeleteLinksAsync(reportId, request, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        if (JobAssignmentPolicy.RequiresAssignedJobScope(currentUser.Role))
+        {
+            var source = await GetAccessibleJobAsync(reportId, cancellationToken);
+            if (source is null)
+            {
+                return Result.NotFound();
+            }
+
+            var linkedJobIds = source.Links
+                .Where(link => request.LinkIds.Contains(link.Id))
+                .Select(link => link.LinkedReportId);
+            foreach (var linkedJobId in linkedJobIds)
+            {
+                if (await GetAccessibleJobAsync(linkedJobId, cancellationToken) is null)
+                {
+                    return Result.NotFound();
+                }
+            }
+        }
+
+        return await inner.DeleteLinksAsync(reportId, request, cancellationToken);
+    }
 
     public Task<Result<JobDeleteErrorResponse>> DeleteAsync(
         Guid id,
@@ -297,19 +367,12 @@ public sealed class AuthorizedJobService(
         string? viewType,
         CancellationToken cancellationToken)
     {
-        if (!AuditorDataScope.AppliesTo(currentUser.Role))
+        if (!RequiresScopedJobAccess())
         {
             return await inner.MarkJobAsSeenAsync(id, viewType, cancellationToken);
         }
 
-        var organizationId = currentUser.OrganizationId;
-        if (organizationId is null)
-        {
-            return Result.Unauthorized();
-        }
-
-        var job = await jobRepository.GetSingleJobAsync(id, organizationId.Value, cancellationToken);
-        if (job is null || !AuditorDataScope.CanAccess(job))
+        if (await GetAccessibleJobAsync(id, cancellationToken) is null)
         {
             return Result.NotFound();
         }
@@ -341,12 +404,45 @@ public sealed class AuthorizedJobService(
                 organizationId.Value,
                 cancellationToken);
 
-            if (linkedJob is not null && AuditorDataScope.CanAccess(linkedJob))
+            if (linkedJob is not null && CanAccessJob(linkedJob))
             {
                 visibleLinks.Add(link);
             }
         }
 
         return visibleLinks;
+    }
+
+    private bool RequiresScopedJobAccess() =>
+        JobAssignmentPolicy.RequiresAssignedJobScope(currentUser.Role)
+        || AuditorDataScope.AppliesTo(currentUser.Role);
+
+    private bool CanAccessJob(JobReportResponse job)
+    {
+        if (AuditorDataScope.AppliesTo(currentUser.Role)
+            && !AuditorDataScope.CanAccess(job))
+        {
+            return false;
+        }
+
+        return !JobAssignmentPolicy.RequiresAssignedJobScope(currentUser.Role)
+            || currentUser.UserId is Guid userId
+            && job.AssignedUsers.Any(assignee => assignee.Id == userId);
+    }
+
+    private async Task<JobReportResponse?> GetAccessibleJobAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            return null;
+        }
+
+        var job = await jobRepository.GetSingleJobAsync(id, organizationId.Value, cancellationToken);
+        return job is not null && CanAccessJob(job)
+            ? job
+            : null;
     }
 }

@@ -7,6 +7,7 @@ namespace Workslip.Application.Jobs;
 
 public sealed record JobQuery(Guid OrganizationId, List<JobStatus>? Statuses, int Limit, int Offset,
     Guid? CurrentUserId = null,
+    Guid? AssignedToUserId = null,
     string? ReportNumber = null,
     string? CustomerName = null, 
     string? CustomerEmail = null,

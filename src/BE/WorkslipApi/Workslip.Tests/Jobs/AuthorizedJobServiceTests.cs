@@ -63,6 +63,151 @@ public sealed class AuthorizedJobServiceTests
     }
 
     [Fact]
+    public async Task GetSingleJobAsync_hides_a_copy_assigned_to_another_employee()
+    {
+        var organizationId = Guid.NewGuid();
+        var currentUserId = Guid.NewGuid();
+        var repository = new StubJobRepository(CreateJob(organizationId, JobStatus.Draft) with
+        {
+            AssignedUsers = [new AssignedUserResponse(Guid.NewGuid(), "Another employee")]
+        });
+        var service = CreateService(repository, organizationId, Roles.User, currentUserId);
+
+        var result = await service.GetSingleJobAsync(repository.Job!.Id, CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, result.Status);
+        Assert.Equal(1, repository.GetSingleCalls);
+    }
+
+    [Fact]
+    public async Task CreateAsync_does_not_allow_regular_user_to_link_another_employees_copy()
+    {
+        var organizationId = Guid.NewGuid();
+        var repository = new StubJobRepository(CreateJob(organizationId, JobStatus.Draft) with
+        {
+            AssignedUsers = [new AssignedUserResponse(Guid.NewGuid(), "Another employee")]
+        });
+        var service = CreateService(repository, organizationId, Roles.User, Guid.NewGuid());
+
+        var result = await service.CreateAsync(
+            new CreateJobRequest(LinkedJobIds: [repository.Job!.Id]),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, result.Status);
+        Assert.Equal(1, repository.GetSingleCalls);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_hides_a_copy_assigned_to_another_employee()
+    {
+        var organizationId = Guid.NewGuid();
+        var currentUserId = Guid.NewGuid();
+        var repository = new StubJobRepository(CreateJob(organizationId, JobStatus.Draft) with
+        {
+            AssignedUsers = [new AssignedUserResponse(Guid.NewGuid(), "Another employee")]
+        });
+        var service = CreateService(repository, organizationId, Roles.User, currentUserId);
+
+        var result = await service.UpdateAsync(
+            repository.Job!.Id,
+            new UpdateJobRequest(),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, result.Status);
+        Assert.Equal(1, repository.GetSingleCalls);
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_hides_a_copy_assigned_to_another_employee_before_transition()
+    {
+        var organizationId = Guid.NewGuid();
+        var repository = new StubJobRepository(CreateJob(organizationId, JobStatus.Draft) with
+        {
+            AssignedUsers = [new AssignedUserResponse(Guid.NewGuid(), "Another employee")]
+        });
+        var service = CreateService(repository, organizationId, Roles.User, Guid.NewGuid());
+
+        var result = await service.ChangeStatusAsync(
+            repository.Job!.Id,
+            new ChangeJobStatusRequest(JobStatus.InReview),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, result.Status);
+        Assert.Equal(1, repository.GetSingleCalls);
+        Assert.Equal(0, repository.TransitionCalls);
+    }
+
+    [Fact]
+    public async Task MarkJobAsSeenAsync_hides_a_copy_assigned_to_another_employee()
+    {
+        var organizationId = Guid.NewGuid();
+        var repository = new StubJobRepository(CreateJob(organizationId, JobStatus.Draft) with
+        {
+            AssignedUsers = [new AssignedUserResponse(Guid.NewGuid(), "Another employee")]
+        });
+        var service = CreateService(repository, organizationId, Roles.User, Guid.NewGuid());
+
+        var result = await service.MarkJobAsSeenAsync(repository.Job!.Id, JobViewTypes.New, CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, result.Status);
+        Assert.Equal(1, repository.GetSingleCalls);
+    }
+
+    [Fact]
+    public async Task GetHistoryAsync_hides_a_copy_assigned_to_another_employee()
+    {
+        var organizationId = Guid.NewGuid();
+        var repository = new StubJobRepository(CreateJob(organizationId, JobStatus.Draft) with
+        {
+            AssignedUsers = [new AssignedUserResponse(Guid.NewGuid(), "Another employee")]
+        });
+        var service = CreateService(repository, organizationId, Roles.User, Guid.NewGuid());
+
+        var result = await service.GetHistoryAsync(repository.Job!.Id, 50, 0, CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, result.Status);
+        Assert.Equal(1, repository.GetSingleCalls);
+    }
+
+    [Fact]
+    public async Task CreateLinksAsync_does_not_allow_regular_user_to_link_another_employees_copy()
+    {
+        var organizationId = Guid.NewGuid();
+        var repository = new StubJobRepository(CreateJob(organizationId, JobStatus.Draft) with
+        {
+            AssignedUsers = [new AssignedUserResponse(Guid.NewGuid(), "Another employee")]
+        });
+        var service = CreateService(repository, organizationId, Roles.User, Guid.NewGuid());
+
+        var result = await service.CreateLinksAsync(
+            repository.Job!.Id,
+            new CreateJobLinkRequest([Guid.NewGuid()]),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, result.Status);
+        Assert.Equal(1, repository.GetSingleCalls);
+    }
+
+    [Fact]
+    public async Task DeleteLinksAsync_does_not_allow_regular_user_to_remove_links_from_another_employees_copy()
+    {
+        var organizationId = Guid.NewGuid();
+        var repository = new StubJobRepository(CreateJob(organizationId, JobStatus.Draft) with
+        {
+            AssignedUsers = [new AssignedUserResponse(Guid.NewGuid(), "Another employee")]
+        });
+        var service = CreateService(repository, organizationId, Roles.User, Guid.NewGuid());
+
+        var result = await service.DeleteLinksAsync(
+            repository.Job!.Id,
+            new DeleteJobLinksRequest([Guid.NewGuid()]),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, result.Status);
+        Assert.Equal(1, repository.GetSingleCalls);
+    }
+
+    [Fact]
     public async Task MarkJobAsSeenAsync_returns_not_found_for_auditor_job_outside_discipline_scope()
     {
         var organizationId = Guid.NewGuid();
@@ -98,11 +243,12 @@ public sealed class AuthorizedJobServiceTests
     private static AuthorizedJobService CreateService(
         IJobRepository repository,
         Guid organizationId,
-        string role) =>
+        string role,
+        Guid? userId = null) =>
         new(
             inner: null!,
             jobRepository: repository,
-            currentUser: new StubCurrentUserContext(Guid.NewGuid(), organizationId, role),
+            currentUser: new StubCurrentUserContext(userId ?? Guid.NewGuid(), organizationId, role),
             logger: NullLogger<AuthorizedJobService>.Instance);
 
     private static JobReportResponse CreateJob(Guid organizationId, JobStatus status, params string[] installationTypes) =>

@@ -3,8 +3,8 @@
   "environments": {
     "production": {
       "url": "https://app.mrsoftware.dk",
-      "enableDevelopmentEndpoints": true,
-      "allowDestructivePlaywright": true
+      "enableDevelopmentEndpoints": false,
+      "allowDestructivePlaywright": false
     },
     "staging": {
       "url": null,

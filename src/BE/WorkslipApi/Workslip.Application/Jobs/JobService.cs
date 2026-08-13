@@ -165,7 +165,29 @@ public sealed class JobService(
             return Result<JobListResponse>.Invalid(searchErrors);
         }
 
-        var query = BuildJobQuery(organizationId.Value, statuses, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset, currentUser.UserId);
+        var requiresAssignedJobScope = JobAssignmentPolicy.RequiresAssignedJobScope(currentUser.Role);
+        var assignedToUserId = requiresAssignedJobScope
+            ? currentUser.UserId
+            : null;
+        if (requiresAssignedJobScope && assignedToUserId is null)
+        {
+            return Result<JobListResponse>.Unauthorized();
+        }
+
+        var query = BuildJobQuery(
+            organizationId.Value,
+            statuses,
+            reportNumber,
+            customerName,
+            customerEmail,
+            customerAddress,
+            search,
+            sortBy,
+            sortDirection,
+            limit,
+            offset,
+            currentUser.UserId,
+            assignedToUserId);
 
         var cacheKey = BuildJobListCacheKey(query);
         var result = await cache.GetOrCreateAsync(
@@ -931,7 +953,7 @@ public sealed class JobService(
         string? reportNumber, string? customerName, string? customerEmail, string? customerAddress,
         string? search,
         string? sortBy, string? sortDirection,
-        int? limit, int? offset, Guid? currentUserId = null)
+        int? limit, int? offset, Guid? currentUserId = null, Guid? assignedToUserId = null)
     {
         var normalizedReportSearch = string.IsNullOrWhiteSpace(reportNumber) ? null : reportNumber.Trim();
         var normalizedNameSearch = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim();
@@ -943,6 +965,7 @@ public sealed class JobService(
 
         return new JobQuery(organizationId, statuses, Math.Clamp(limit ?? 50, 1, 200), Math.Max(offset ?? 0, 0),
             currentUserId,
+            assignedToUserId,
             normalizedReportSearch, normalizedNameSearch, normalizedEmailSearch, normalizedAddressSearch,
             normalizedSearch,
             normalizedSortBy, normalizedSortDirection);
@@ -955,8 +978,9 @@ public sealed class JobService(
             : "all";
     
         var currentUserKey = query.CurrentUserId?.ToString("N") ?? "none";
+        var assignedToUserKey = query.AssignedToUserId?.ToString("N") ?? "all";
 
-        return $"jobs:list:organization={query.OrganizationId:N}:currentUser={currentUserKey}:status={statusKey}" +
+        return $"jobs:list:organization={query.OrganizationId:N}:currentUser={currentUserKey}:assignedTo={assignedToUserKey}:status={statusKey}" +
             $":reportNumber={query.ReportNumber ?? "none"}:customerName={query.CustomerName ?? "none"}" +
             $":customerEmail={query.CustomerEmail ?? "none"}:customerAddress={query.CustomerAddress ?? "none"}" +
             $":search={query.Search ?? "none"}" +

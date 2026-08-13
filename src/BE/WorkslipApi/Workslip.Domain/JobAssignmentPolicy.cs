@@ -10,6 +10,13 @@ public static class JobAssignmentPolicy
         string.Equals(role, Roles.User, StringComparison.OrdinalIgnoreCase)
         || string.Equals(role, Roles.Admin, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Regular employees must only access jobs assigned to themselves. Administrators
+    /// retain organization-wide access so they can review and approve submitted work.
+    /// </summary>
+    public static bool RequiresAssignedJobScope(string? role) =>
+        string.Equals(role, Roles.User, StringComparison.OrdinalIgnoreCase);
+
     public static bool CanReceiveAssignmentInFilial(
         string? role,
         Guid userFilialId,

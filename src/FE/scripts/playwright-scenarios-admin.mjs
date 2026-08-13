@@ -3,7 +3,7 @@ export function createAdminScenarioHandlers(env, h) {
   const {
     createKlsDraftViaUi, completeAndSubmitKlsViaUi, approveJobViaUi, rejectJobViaUi, navigateToAttestation,
     waitForWizardStep, waitForApiResponse, unwrapCollection, createCustomerFixtureViaApi, createMinimalJobFixtureViaApi,
-    ensureAssignableUsers, sectionByHeading, createCustomerViaUi, assignedIds, readCustomerName, addWorksheetViaUi,
+    sectionByHeading, createCustomerViaUi, assignedIds, readCustomerName, addWorksheetViaUi,
     assertStatus, readDestinationAddress, assertEqual, clickWizardStep, fillOverviewFields, waitForEnabled, extractInviteToken
   } = h;
 
@@ -25,9 +25,9 @@ async function invitationOnboardingFlow(session) {
     const payload = await response.json();
     const result = payload?.results?.find((item) => item.email === session.data.inviteEmail) ?? payload?.results?.[0];
     const token = extractInviteToken(result?.inviteLink ?? result?.token);
-    if (!result?.success || !token) throw new Error(`Invite result did not contain a successful token for ${session.data.inviteEmail}.`);
+    if (!result?.success || !token) throw new Error('Invite result did not contain a successful token.');
     session.inviteToken = token;
-    report.retainedFixtures.push({ type: 'invite', identifier: session.data.inviteEmail, reason: 'No invite delete contract exists.' });
+    report.retainedFixtures.push({ type: 'invite', identifier: `PLAYWRIGHT-${session.data.suffix}`, reason: 'No invite delete contract exists.' });
   });
 
   await session.step('invite acceptance UI reaches Microsoft handoff', async () => {
@@ -67,11 +67,11 @@ async function invitationOnboardingFlow(session) {
 }
 
 async function assignmentLifecycleFlow(session) {
-  await session.step('admin discovers or creates assignable users', async () => {
+  await session.step('admin resolves the stable configured assignees', async () => {
     await session.login('Admin');
     session.referenceData = await session.getReferenceData();
     session.address = await session.getAddress();
-    session.assignmentUsers = await ensureAssignableUsers(session, 2);
+    session.assignmentUsers = await session.getConfiguredUsers(['User', 'Admin']);
   }, { screenshot: false });
   const job = await createKlsDraftViaUi(session, {
     role: 'Admin',
@@ -85,50 +85,51 @@ async function assignmentLifecycleFlow(session) {
     }
     const copies = await Promise.all(job.createdJobIds.map((jobId) =>
       session.apiExpect('GET', `/api/jobs/${jobId}`, undefined, [200])));
-    const assignmentIds = copies.map((copy) => {
+    const copyByAssignedUserId = new Map();
+    for (const copy of copies) {
       const ids = assignedIds(copy);
       if (ids.length !== 1) throw new Error(`Duplicated job ${copy.id} has ${ids.length} assignments instead of one.`);
-      return ids[0];
-    });
+      if (copyByAssignedUserId.has(ids[0])) throw new Error(`More than one duplicate was assigned to ${ids[0]}.`);
+      copyByAssignedUserId.set(ids[0], copy);
+    }
     for (const user of session.assignmentUsers) {
-      if (!assignmentIds.includes(user.id)) throw new Error(`No independent job copy was assigned to ${user.id}.`);
+      if (!copyByAssignedUserId.has(user.id)) throw new Error(`No independent job copy was assigned to ${user.id}.`);
     }
+    session.assignmentCopies = copyByAssignedUserId;
   });
 
-  await session.step('assign and reassign through job UI', async () => {
-    await session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded' });
-    await waitForWizardStep(session.page, 'Sagsdetaljer');
-    const trigger = sectionByHeading(session.page, 'Tildelte medarbejdere').locator('button.multi-select-trigger');
-    const first = session.assignmentUsers[0];
-    const second = session.assignmentUsers[1];
-    let persisted = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
-    if (assignedIds(persisted).length !== 1 || !assignedIds(persisted).includes(first.id)) {
-      throw new Error('The primary duplicated job did not start with its single expected assignment.');
-    }
+  await session.step('each assignee completes only their own duplicate', async () => {
+    const [user, admin] = session.assignmentUsers;
+    const userJob = session.assignmentCopies.get(user.id);
+    const adminJob = session.assignmentCopies.get(admin.id);
+    if (!userJob?.id || !adminJob?.id) throw new Error('Independent assignment copies were not retained for the lifecycle test.');
 
-    await trigger.click();
-    await session.page.getByRole('option', { name: first.displayName, exact: true }).click();
-    await session.page.getByRole('option', { name: second.displayName, exact: true }).click();
-    const reassignment = waitForApiResponse(session.page, 'POST', `/api/jobs/${job.id}/assign`, [200]);
-    await trigger.click();
-    await reassignment;
-    persisted = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
-    const ids = assignedIds(persisted);
-    if (ids.includes(first.id) || !ids.includes(second.id)) throw new Error('Reassignment did not replace the selected user.');
-  });
+    await session.logout();
+    await session.login('User');
+    const assignedJobs = unwrapCollection(await session.apiExpect('GET', '/api/jobs/my-assigned', undefined, [200]));
+    if (!assignedJobs.some((item) => item.id === userJob.id)) throw new Error('User cannot see their duplicated assignment.');
+    if (assignedJobs.some((item) => item.id === adminJob.id)) throw new Error('User can see another assignee’s duplicated assignment.');
+    await completeAndSubmitKlsViaUi(session, userJob);
+    const userSubmitted = await session.apiExpect('GET', `/api/jobs/${userJob.id}`, undefined, [200]);
+    assertStatus(userSubmitted, ['InReview']);
+    await session.logout();
 
-  await session.step('assigned user sees job without admin privileges', async () => {
-    const assigned = session.assignmentUsers[1];
-    await session.logout();
-    const assignedMe = await session.authenticateEmail(assigned.email);
-    if (String(assignedMe.role).toLowerCase() === 'admin' || String(assignedMe.role).toLowerCase() === 'superadmin') {
-      throw new Error(`Assigned-user authentication resolved to privileged role ${assignedMe.role}.`);
-    }
-    const jobsResult = await session.api('GET', '/api/jobs/my-assigned');
-    if (jobsResult.response.status !== 200) throw new Error(`Assigned-user list returned ${jobsResult.response.status}.`);
-    if (!unwrapCollection(jobsResult.payload).some((item) => item.id === job.id)) throw new Error('Assigned user cannot see the assigned job.');
-    await session.logout();
     await session.login('Admin');
+    const adminDraft = await session.apiExpect('GET', `/api/jobs/${adminJob.id}`, undefined, [200]);
+    assertStatus(adminDraft, ['Draft', 'Kladde']);
+    await completeAndSubmitKlsViaUi(session, adminJob);
+    const adminSubmitted = await session.apiExpect('GET', `/api/jobs/${adminJob.id}`, undefined, [200]);
+    assertStatus(adminSubmitted, ['InReview']);
+  });
+
+  await session.step('admin approves each independent duplicate', async () => {
+    for (const assignedUser of session.assignmentUsers) {
+      const copy = session.assignmentCopies.get(assignedUser.id);
+      if (!copy?.id) throw new Error('Missing duplicate job before approval.');
+      await approveJobViaUi(session, copy.id);
+      const approved = await session.apiExpect('GET', `/api/jobs/${copy.id}`, undefined, [200]);
+      assertStatus(approved, ['Approved', 'Godkendt']);
+    }
   });
 }
 
@@ -185,7 +186,7 @@ async function worksheetIntegrityFlow(session) {
     await session.login('Admin');
     session.address = await session.getAddress();
     session.referenceData = await session.getReferenceData();
-    session.assignmentUsers = await ensureAssignableUsers(session, 1);
+    session.worksheetUser = session.auth.user;
   }, { screenshot: false });
   const job = await createKlsDraftViaUi(session, { role: 'Admin' });
 
@@ -193,9 +194,9 @@ async function worksheetIntegrityFlow(session) {
     await session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded' });
     await waitForWizardStep(session.page, 'Sagsdetaljer');
     await clickWizardStep(session.page, 'Timesedler');
-    await addWorksheetViaUi(session, session.assignmentUsers[0], '1,5');
+    await addWorksheetViaUi(session, session.worksheetUser, '1,5');
     const persisted = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
-    const worksheet = persisted.worksheets?.find((item) => item.userId === session.assignmentUsers[0].id);
+    const worksheet = persisted.worksheets?.find((item) => item.userId === session.worksheetUser.id);
     if (!worksheet || Number(worksheet.hoursWorked) !== 1.5) throw new Error('Danish decimal worksheet value 1,5 was not persisted as 1.5.');
     session.worksheetId = worksheet.id;
   });
@@ -209,7 +210,7 @@ async function worksheetIntegrityFlow(session) {
     await session.page.getByRole('button', { name: 'Gem', exact: true }).click();
     await updateResponse;
     let persisted = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
-    const matches = persisted.worksheets.filter((item) => item.userId === session.assignmentUsers[0].id && Number(item.hoursWorked) === 2.25);
+    const matches = persisted.worksheets.filter((item) => item.userId === session.worksheetUser.id && Number(item.hoursWorked) === 2.25);
     if (matches.length !== 1) throw new Error(`Expected one updated worksheet; found ${matches.length}.`);
 
     await session.page.getByRole('button', { name: 'Åbn handlinger for timeseddel', exact: true }).first().click();
@@ -228,14 +229,14 @@ async function diverseLifecycleFlow(session) {
   await session.step('admin login and runtime data discovery', async () => {
     await session.login('Admin');
     session.address = await session.getAddress();
-    session.assignmentUsers = await ensureAssignableUsers(session, 1);
+    session.worksheetUser = session.auth.user;
   }, { screenshot: false });
 
   const job = await session.step('create diverse job through simple UI', async () => {
     await session.page.goto(`${APP_URL}/app/job/simple/new`, { waitUntil: 'domcontentloaded' });
     await session.page.getByRole('heading', { name: 'Simpelt job', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await fillOverviewFields(session, { customerName: session.data.customerName, address: session.address });
-    await addWorksheetViaUi(session, session.assignmentUsers[0], '1');
+    await addWorksheetViaUi(session, session.worksheetUser, '1');
     const responsePromise = session.page.waitForResponse((response) =>
       response.request().method() === 'POST' && ['/api/jobs', '/api/jobs/'].includes(new URL(response.url()).pathname),
     { timeout: API_TIMEOUT });

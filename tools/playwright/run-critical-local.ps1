@@ -175,15 +175,23 @@ function Invoke-DirectRun {
 
     $sourceFiles = @(
         'scripts/playwright-release-runner.mjs',
+        'scripts/playwright-release-policy.mjs',
         'scripts/playwright-prod-smoke.mjs',
         'scripts/playwright-critical-contract.mjs',
         'scripts/playwright-critical-domain.mjs',
         'scripts/playwright-scenarios-core.mjs',
-        'scripts/playwright-scenarios-admin.mjs'
+        'scripts/playwright-scenarios-admin.mjs',
+        'scripts/playwright-synthetic-auth.mjs',
+        'scripts/playwright-release-runner.test.mjs',
+        'scripts/playwright-scenarios-admin.test.mjs',
+        'scripts/playwright-synthetic-auth.test.mjs'
     )
 
     Write-Host 'Validerer release-policy, Playwright-kilder og Postman collection...' -ForegroundColor Cyan
     Invoke-External -Command 'node' -Arguments @('--test', '..\..\tools\release\resolve-release-environment.test.mjs') -WorkingDirectory $frontendRoot
+    Invoke-External -Command 'node' -Arguments @('--test', 'scripts/playwright-release-runner.test.mjs') -WorkingDirectory $frontendRoot
+    Invoke-External -Command 'node' -Arguments @('--test', 'scripts/playwright-scenarios-admin.test.mjs') -WorkingDirectory $frontendRoot
+    Invoke-External -Command 'node' -Arguments @('--test', 'scripts/playwright-synthetic-auth.test.mjs') -WorkingDirectory $frontendRoot
     foreach ($sourceFile in $sourceFiles) {
         Invoke-External -Command 'node' -Arguments @('--check', $sourceFile) -WorkingDirectory $frontendRoot
     }
@@ -239,10 +247,6 @@ function Invoke-WorkflowRun {
         Write-Host 'Playwright Docker-image findes allerede lokalt.' -ForegroundColor DarkGreen
     }
 
-    if ($Scenario -eq 'all-critical') {
-        Write-Warning 'Workflow-mode starter alle ti matrix-jobs. Test public-smoke eller ét kritisk flow først.'
-    }
-
     $eventPath = Join-Path ([System.IO.Path]::GetTempPath()) ("workslip-playwright-{0}.json" -f [Guid]::NewGuid())
     $eventJson = @{
         inputs = @{
@@ -276,6 +280,9 @@ function Invoke-WorkflowRun {
 }
 
 $releaseTarget = Resolve-ReleaseTarget
+if ($Mode -eq 'Workflow' -and ($Target -ne 'Production' -or $Scenario -ne 'public-smoke')) {
+    throw 'Workflow-mode er bevidst kun konfigureret til write-free public-smoke mod Production. Kritiske flows afventer isoleret staging og godkendt test-authentication.'
+}
 if ($Scenario -ne 'public-smoke' -and -not [bool]$releaseTarget.allowDestructivePlaywright) {
     throw "Scenario '$Scenario' kræver et autentificeret release-testmiljø og er blokeret for det konfigurerede miljø '$targetKey'."
 }
