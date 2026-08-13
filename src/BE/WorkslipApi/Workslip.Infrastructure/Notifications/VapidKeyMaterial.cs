@@ -1,5 +1,7 @@
 using System.Formats.Asn1;
 using System.Security.Cryptography;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Workslip.Application.Notifications;
 using Workslip.Infrastructure.Configuration;
@@ -10,10 +12,25 @@ public sealed class VapidKeyMaterial : IVapidPublicKeyProvider
 {
     private const string P256ObjectIdentifier = "1.2.840.10045.3.1.7";
 
-    public VapidKeyMaterial(IOptions<VapidOptions> options)
+    public VapidKeyMaterial(
+        IOptions<VapidOptions> options,
+        IHostEnvironment environment,
+        ILogger<VapidKeyMaterial> logger)
     {
         var configured = options.Value;
-        var privateKeyBytes = DecodeBase64Url(configured.PrivateKey, "Vapid:PrivateKey");
+        byte[] privateKeyBytes;
+
+        if (string.IsNullOrWhiteSpace(configured.PrivateKey) && environment.IsDevelopment())
+        {
+            privateKeyBytes = CreateDevelopmentPrivateKey();
+            logger.LogWarning(
+                "VAPID private key is not configured. Using an ephemeral Development key; browser push subscriptions will be reconciled after API restart.");
+        }
+        else
+        {
+            privateKeyBytes = DecodeBase64Url(configured.PrivateKey, "Vapid:PrivateKey");
+        }
+
         if (privateKeyBytes.Length != 32)
         {
             throw new InvalidOperationException("Vapid:PrivateKey must be a 32-byte P-256 private key.");
@@ -29,6 +46,15 @@ public sealed class VapidKeyMaterial : IVapidPublicKeyProvider
     public string PublicKey { get; }
     public string PrivateKey { get; }
     public string Subject { get; }
+
+    private static byte[] CreateDevelopmentPrivateKey()
+    {
+        using var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var parameters = ecdsa.ExportParameters(includePrivateParameters: true);
+        return parameters.D is { Length: 32 } privateKey
+            ? privateKey
+            : throw new InvalidOperationException("Unable to generate an ephemeral Development VAPID key.");
+    }
 
     private static byte[] DerivePublicKey(byte[] privateKey)
     {
