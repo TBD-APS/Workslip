@@ -17,8 +17,8 @@ public static class DevelopmentDatabaseOnlySeeder
         InstallationBaselineProvisioner installationBaselineProvisioner,
         CancellationToken cancellationToken = default)
     {
-        await DatabaseSeeder.Seed(db, installationBaselineProvisioner, cancellationToken);
         await EnsureLocalSuperadminAsync(db, cancellationToken);
+        await DatabaseSeeder.Seed(db, installationBaselineProvisioner, cancellationToken);
     }
 
     private static async Task EnsureLocalSuperadminAsync(
@@ -44,7 +44,7 @@ public static class DevelopmentDatabaseOnlySeeder
         var userMatches = await db.Users
             .Where(user =>
                 user.Id == LocalSuperadminId ||
-                user.Email.ToLower() == normalizedEmail)
+                (user.Email != null && user.Email.ToLower() == normalizedEmail))
             .ToListAsync(cancellationToken);
 
         var existing = userMatches.SingleOrDefault(user => user.Id == LocalSuperadminId);
