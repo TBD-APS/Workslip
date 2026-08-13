@@ -34,8 +34,9 @@ public sealed class EfUserRepository : IUserRepository
     {
         return await _dbContext.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Id == id && u.OrganizationId == _currentUser.OrganizationId, cancellationToken);   
+            .FirstOrDefaultAsync(u => u.Id == id && u.OrganizationId == _currentUser.OrganizationId, cancellationToken);
     }
+
     public async Task<UserDataRow?> GetByEmailAsync(string email, CancellationToken cancellationToken) =>
         await _dbContext.Users
             .AsNoTracking()
@@ -156,6 +157,24 @@ public sealed class EfUserRepository : IUserRepository
         existing.UpdatedAt = user.UpdatedAt;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<bool> SetBillingRateAsync(
+        Guid organizationId,
+        Guid userId,
+        decimal? rate,
+        CancellationToken cancellationToken)
+    {
+        var existing = await _dbContext.Users
+            .FirstOrDefaultAsync(u => u.Id == userId && u.OrganizationId == organizationId, cancellationToken);
+
+        if (existing is null)
+            return false;
+
+        existing.BillableHourlyRate = rate;
+        existing.UpdatedAt = DateTimeOffset.UtcNow;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return true;
     }
 
     public async Task<IReadOnlyList<AssignedJobResponse>> GetAssignedJobsAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken)
