@@ -1,8 +1,11 @@
+using Dapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using System.Data;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
 using Workslip.Application.Worksheets;
+using Workslip.Domain;
 using Workslip.Domain.Models;
 using Workslip.Infrastructure.Mappers;
 using Workslip.Infrastructure.Resilience;
@@ -69,6 +72,7 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
             orderby u.DisplayName
             select new WorksheetMyProjection
             {
+                WorksheetId = w.Id,
                 WorkDate = w.WorkDate,
                 JobId = w.JobId,
                 UserId = w.UserId,
@@ -82,17 +86,93 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
             })
             .ToListAsync(cancellationToken);
 
-        return rows.Select(row => new MyWorksheetEntryResponse(
-            DateOnly.FromDateTime(row.WorkDate),
-            row.JobId,
-            row.UserId,
-            row.ReportNumber,
-            row.CustomerName,
-            row.CustomerAddress,
-            row.HoursWorked,
-            row.HasOutlay,
-            row.UserDisplayName,
-            row.JobType)).ToArray();
+        var rates = await GetEffectiveRatesAsync(
+            organizationId,
+            rows.Select(row => row.WorksheetId).ToArray(),
+            cancellationToken);
+
+        return rows.Select(row =>
+        {
+            var rate = rates.GetValueOrDefault(row.WorksheetId);
+            var amount = rate.HasValue
+                ? decimal.Round(row.HoursWorked * rate.Value, 2, MidpointRounding.AwayFromZero)
+                : null;
+
+            return new MyWorksheetEntryResponse(
+                DateOnly.FromDateTime(row.WorkDate),
+                row.JobId,
+                row.UserId,
+                row.ReportNumber,
+                row.CustomerName,
+                row.CustomerAddress,
+                row.HoursWorked,
+                row.HasOutlay,
+                row.UserDisplayName,
+                row.JobType,
+                rate,
+                amount);
+        }).ToArray();
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, decimal?>> GetEffectiveRatesAsync(
+        Guid organizationId,
+        IReadOnlyCollection<Guid> worksheetIds,
+        CancellationToken cancellationToken)
+    {
+        if (worksheetIds.Count == 0)
+            return new Dictionary<Guid, decimal?>();
+
+        var connection = _dbContext.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await connection.OpenAsync(cancellationToken);
+
+        try
+        {
+            var transaction = _dbContext.Database.CurrentTransaction?.GetDbTransaction();
+            var worksheets = WorksheetBillingSnapshots.TableName(_dbContext, "Worksheets");
+            var jobs = WorksheetBillingSnapshots.TableName(_dbContext, "JobReports");
+            var rates = WorksheetBillingSnapshots.TableName(_dbContext, "UserBillingRates");
+            var snapshots = WorksheetBillingSnapshots.TableName(_dbContext, "WorksheetBillingSnapshots");
+
+            var command = new CommandDefinition(
+                $"""
+                 SELECT
+                     worksheet.Id AS WorksheetId,
+                     CASE
+                         WHEN job.Status = @ApprovedStatus THEN snapshot.BillableHourlyRateSnapshot
+                         ELSE rate.BillableHourlyRate
+                     END AS BillableHourlyRate
+                 FROM {worksheets} AS worksheet
+                 INNER JOIN {jobs} AS job
+                     ON job.Id = worksheet.JobId
+                     AND job.OrganizationId = worksheet.OrganizationId
+                 LEFT JOIN {rates} AS rate
+                     ON rate.OrganizationId = worksheet.OrganizationId
+                     AND rate.UserId = worksheet.UserId
+                 LEFT JOIN {snapshots} AS snapshot
+                     ON snapshot.OrganizationId = worksheet.OrganizationId
+                     AND snapshot.WorksheetId = worksheet.Id
+                 WHERE worksheet.OrganizationId = @OrganizationId
+                   AND worksheet.Id IN @WorksheetIds;
+                 """,
+                new
+                {
+                    ApprovedStatus = JobStatus.Approved.ToString(),
+                    OrganizationId = organizationId,
+                    WorksheetIds = worksheetIds.ToArray()
+                },
+                transaction,
+                cancellationToken: cancellationToken);
+
+            var rows = await connection.QueryAsync<WorksheetRateProjection>(command);
+            return rows.ToDictionary(row => row.WorksheetId, row => row.BillableHourlyRate);
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
     }
 
     private async Task<IReadOnlyList<MyWorksheetEntryResponse>> GetWorksheetsForUserCoreAsync(
@@ -119,6 +199,7 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
             orderby w.WorkDate, r.ReportNumber, (r.CustomerName ?? (c != null ? c.Name : null))
             select new WorksheetMapper.WorksheetMyProjection
             {
+                WorksheetId = w.Id,
                 WorkDate = w.WorkDate,
                 JobId = w.JobId,
                 UserId = w.UserId,
@@ -154,13 +235,13 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         var workDate = request.WorkDate.ToDateTime(TimeOnly.MinValue);
 
         var user = await _dbContext.Users
-            .FirstOrDefaultAsync(u => u.Id == request.UserId && u.OrganizationId == _currentUser.OrganizationId, cancellationToken) 
+            .FirstOrDefaultAsync(u => u.Id == request.UserId && u.OrganizationId == _currentUser.OrganizationId, cancellationToken)
             ?? throw new InvalidOperationException($"User with ID {request.UserId} not found");
 
         var job = await _dbContext.JobReports
-            .FirstOrDefaultAsync(j => j.Id == request.JobId && j.OrganizationId == _currentUser.OrganizationId, cancellationToken) 
+            .FirstOrDefaultAsync(j => j.Id == request.JobId && j.OrganizationId == _currentUser.OrganizationId, cancellationToken)
             ?? throw new InvalidOperationException($"Job with ID {request.JobId} not found");
-        
+
         var stale = _dbContext.Worksheets.Local
             .FirstOrDefault(w => request.Id.HasValue
                 ? w.Id == request.Id.Value && w.JobId == request.JobId
@@ -307,6 +388,8 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         public Guid JobId { get; init; }
         public decimal? TotalHours { get; init; }
     }
+
+    private sealed record WorksheetRateProjection(Guid WorksheetId, decimal? BillableHourlyRate);
 
     public Task<decimal> GetHoursForUserDayAsync(
         Guid organizationId,
