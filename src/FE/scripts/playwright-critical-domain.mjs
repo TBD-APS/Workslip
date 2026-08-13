@@ -3,14 +3,33 @@ export function createDomainHelpers(env, c) {
   const {
     postmanBody, pickReferenceSelection, valueOf, candidates, unwrapCollection,
     fillIfVisible, waitForEnabled, waitForWizardStep, currentWizardStep, clickNext,
-    clickByTextCandidates, checkRadioByCandidates, waitForApiResponse, escapeRegex
+    clickByTextCandidates, checkRadioByCandidates, waitForApiResponse, escapeRegex,
+    sectionByHeading
   } = c;
 
-async function createKlsDraftViaUi(session, { role }) {
+async function createKlsDraftViaUi(session, { role, assignedUsers = [], duplicatePerAssignedUser = false }) {
   return session.step('create KLS draft through UI', async () => {
     await session.page.goto(`${APP_URL}/app/job/new`, { waitUntil: 'domcontentloaded' });
     await session.page.getByRole('heading', { name: 'Ny sag', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await fillOverviewFields(session, { customerName: session.data.customerName, address: session.address });
+    if (assignedUsers.length > 0) {
+      const trigger = sectionByHeading(session.page, 'Tildelte medarbejdere').locator('button.multi-select-trigger');
+      await waitForEnabled(trigger, 'assignment selector');
+      await trigger.click();
+      const selectedOptions = session.page.locator('[role="option"][aria-selected="true"]');
+      while (await selectedOptions.count()) await selectedOptions.first().click();
+      for (const assignedUser of assignedUsers) {
+        await session.page.getByRole('option', { name: assignedUser.displayName, exact: true }).click();
+      }
+      await trigger.click();
+      if (duplicatePerAssignedUser) {
+        const duplicate = session.page.getByRole('checkbox', {
+          name: /Opret en kopi af sagen til hver medarbejder/,
+        });
+        await duplicate.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+        await duplicate.check();
+      }
+    }
     const responsePromise = session.page.waitForResponse((response) =>
       response.request().method() === 'POST' && ['/api/jobs', '/api/jobs/'].includes(new URL(response.url()).pathname),
     { timeout: API_TIMEOUT });
@@ -21,10 +40,13 @@ async function createKlsDraftViaUi(session, { role }) {
     if (!response.ok()) throw new Error(`KLS draft creation returned HTTP ${response.status()}.`);
     const created = await response.json();
     if (!created?.id) throw new Error('KLS draft response had no id.');
-    session.fixtures.jobs.push(created.id);
-    session.scenarioReport.generatedFixtures.push({ type: 'job', id: created.id, source: 'UI + runtime API/DAWA data' });
-    await session.page.getByRole('heading', { name: 'Sagen er oprettet', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    return { id: created.id, reportNumber: created.reportNumber, customerName: session.data.customerName, role };
+    const createdJobIds = created.createdJobIds?.length ? created.createdJobIds : [created.id];
+    session.fixtures.jobs.push(...createdJobIds);
+    for (const id of createdJobIds) {
+      session.scenarioReport.generatedFixtures.push({ type: 'job', id, source: 'UI + runtime API/DAWA data' });
+    }
+    await session.page.getByRole('heading', { name: /sag(?:en|er) er oprettet/i }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    return { id: created.id, createdJobIds, reportNumber: created.reportNumber, customerName: session.data.customerName, role };
   });
 }
 

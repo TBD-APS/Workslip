@@ -73,21 +73,38 @@ async function assignmentLifecycleFlow(session) {
     session.address = await session.getAddress();
     session.assignmentUsers = await ensureAssignableUsers(session, 2);
   }, { screenshot: false });
-  const job = await createKlsDraftViaUi(session, { role: 'Admin' });
+  const job = await createKlsDraftViaUi(session, {
+    role: 'Admin',
+    assignedUsers: session.assignmentUsers,
+    duplicatePerAssignedUser: true,
+  });
+
+  await session.step('creation duplicates the job into independent assignments', async () => {
+    if (job.createdJobIds.length !== session.assignmentUsers.length) {
+      throw new Error(`Expected ${session.assignmentUsers.length} job copies; received ${job.createdJobIds.length}.`);
+    }
+    const copies = await Promise.all(job.createdJobIds.map((jobId) =>
+      session.apiExpect('GET', `/api/jobs/${jobId}`, undefined, [200])));
+    const assignmentIds = copies.map((copy) => {
+      const ids = assignedIds(copy);
+      if (ids.length !== 1) throw new Error(`Duplicated job ${copy.id} has ${ids.length} assignments instead of one.`);
+      return ids[0];
+    });
+    for (const user of session.assignmentUsers) {
+      if (!assignmentIds.includes(user.id)) throw new Error(`No independent job copy was assigned to ${user.id}.`);
+    }
+  });
 
   await session.step('assign and reassign through job UI', async () => {
     await session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded' });
     await waitForWizardStep(session.page, 'Sagsdetaljer');
     const trigger = sectionByHeading(session.page, 'Tildelte medarbejdere').locator('button.multi-select-trigger');
-    await trigger.click();
     const first = session.assignmentUsers[0];
     const second = session.assignmentUsers[1];
-    await session.page.getByRole('option', { name: first.displayName, exact: true }).click();
-    const firstAssignment = waitForApiResponse(session.page, 'POST', `/api/jobs/${job.id}/assign`, [200]);
-    await trigger.click();
-    await firstAssignment;
     let persisted = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
-    if (!assignedIds(persisted).includes(first.id)) throw new Error('First assignment was not persisted.');
+    if (assignedIds(persisted).length !== 1 || !assignedIds(persisted).includes(first.id)) {
+      throw new Error('The primary duplicated job did not start with its single expected assignment.');
+    }
 
     await trigger.click();
     await session.page.getByRole('option', { name: first.displayName, exact: true }).click();

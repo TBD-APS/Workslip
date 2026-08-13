@@ -159,7 +159,8 @@ public sealed record CreateJobRequest(
     string? DestinationCity = null,
     string? JobType = null,
     IReadOnlyList<CreateTimesheetRequest>? Timesheets = null,
-    IReadOnlyList<Guid>? AssignedUserIds = null);
+    IReadOnlyList<Guid>? AssignedUserIds = null,
+    bool? DuplicatePerAssignedUser = null);
 
 public sealed record CreateTimesheetRequest(
     string WorkDate,
@@ -259,7 +260,10 @@ public sealed record JobReportResponse(
     bool SoftDeleted,
     DateTimeOffset? DeletionScheduledAt,
     decimal? TotalHours,
-    string? RejectionNote);
+    string? RejectionNote)
+{
+    public IReadOnlyList<Guid>? CreatedJobIds { get; init; }
+}
 
 public sealed record JobTransitionResult(
     JobReportResponse Report,
@@ -334,7 +338,10 @@ public sealed record JobReportSummaryResponse(
     decimal? TotalHours,
     int? TotalOutlay,
     bool SoftDeleted,
-    string? RejectionNote);
+    string? RejectionNote)
+{
+    public IReadOnlyList<Guid>? CreatedJobIds { get; init; }
+}
 
 public sealed record JobReportSummaryWorkResponse(
     JobWorkKindResponse? WorkKind,

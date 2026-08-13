@@ -73,6 +73,66 @@ public sealed class CreateJobAssignmentValidationTests
             && error.ErrorMessage == JobAssignmentValidationResult.InvalidAssignee().ErrorMessage);
     }
 
+    [Fact]
+    public async Task Validator_rejects_duplicate_assignee_ids()
+    {
+        var organizationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var validator = new CreateJobRequestValidator(
+            new AllowAssignmentValidator(),
+            new EmptyWorksheetRepository(),
+            new TestCurrentUserContext(Guid.NewGuid(), organizationId, Roles.Admin));
+
+        var result = await validator.ValidateAsync(new CreateJobRequest(
+            JobType: JobType.KLS.ToString(),
+            AssignedUserIds: [userId, userId],
+            DuplicatePerAssignedUser: true));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error =>
+            error.PropertyName == nameof(CreateJobRequest.AssignedUserIds));
+    }
+
+    [Fact]
+    public async Task Validator_rejects_duplicate_per_assignee_for_non_admin()
+    {
+        var organizationId = Guid.NewGuid();
+        var validator = new CreateJobRequestValidator(
+            new AllowAssignmentValidator(),
+            new EmptyWorksheetRepository(),
+            new TestCurrentUserContext(Guid.NewGuid(), organizationId, Roles.User));
+
+        var result = await validator.ValidateAsync(new CreateJobRequest(
+            JobType: JobType.KLS.ToString(),
+            AssignedUserIds: [Guid.NewGuid(), Guid.NewGuid()],
+            DuplicatePerAssignedUser: true));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error =>
+            error.PropertyName == nameof(CreateJobRequest.DuplicatePerAssignedUser)
+            && error.ErrorMessage.Contains("administratorer", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Validator_requires_two_assignees_for_duplicate_per_assignee()
+    {
+        var organizationId = Guid.NewGuid();
+        var validator = new CreateJobRequestValidator(
+            new AllowAssignmentValidator(),
+            new EmptyWorksheetRepository(),
+            new TestCurrentUserContext(Guid.NewGuid(), organizationId, Roles.Admin));
+
+        var result = await validator.ValidateAsync(new CreateJobRequest(
+            JobType: JobType.KLS.ToString(),
+            AssignedUserIds: [Guid.NewGuid()],
+            DuplicatePerAssignedUser: true));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error =>
+            error.PropertyName == nameof(CreateJobRequest.DuplicatePerAssignedUser)
+            && error.ErrorMessage.Contains("mindst to", StringComparison.Ordinal));
+    }
+
     private sealed record TestCurrentUserContext(Guid? UserId, Guid? OrganizationId, string? Role) : ICurrentUserContext;
 
     private sealed class AllowAssignmentValidator : IJobAssignmentValidator

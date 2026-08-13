@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { CreateOverviewStep } from './CreateOverviewStep';
 import { JobOverviewStep } from './JobOverviewStep';
 
@@ -55,10 +55,11 @@ const baseForm = {
   technicalObservations: '',
 };
 
-function createState() {
+function createState(assignedUserIds = ['user-1']) {
   return {
     form: { ...baseForm },
-    assignedUserIds: ['user-1'],
+    assignedUserIds,
+    duplicatePerAssignedUser: false,
     assignableUsers: [],
     isLoadingUsers: false,
     linkedJobIds: [],
@@ -72,6 +73,7 @@ function createState() {
     updateSnapshotField: vi.fn(),
     updateEditSnapshot: vi.fn(),
     updateAssignedUsers: vi.fn(),
+    updateDuplicatePerAssignedUser: vi.fn(),
     updateLinkedJobs: vi.fn(),
     updateTaskDescription: vi.fn(),
     updateCustomerObservations: vi.fn(),
@@ -132,5 +134,40 @@ describe('create-customer option visibility', () => {
     rerender(<JobOverviewStep details={detailsState(true)} />);
 
     expect(screen.getByRole('checkbox', { name: 'Opret kunde' })).toBeInTheDocument();
+  });
+});
+
+describe('duplicate-per-assignee option', () => {
+  it('lets an admin opt in when more than one employee is selected', () => {
+    permissionState.isAdmin = true;
+    const create = createState(['user-1', 'user-2']);
+
+    render(<CreateOverviewStep create={create} linkableJobs={[]} isLoadingJobs={false} />);
+
+    const checkbox = screen.getByRole('checkbox', {
+      name: /Opret en kopi af sagen til hver medarbejder/,
+    });
+    fireEvent.click(checkbox);
+
+    expect(create.updateDuplicatePerAssignedUser).toHaveBeenCalledWith(true);
+    expect(screen.getByText(/udfyldes og godkendes separat/)).toBeInTheDocument();
+  });
+
+  it('stays hidden for one assignee and for non-admins', () => {
+    permissionState.isAdmin = true;
+    const { rerender } = render(
+      <CreateOverviewStep create={createState(['user-1'])} linkableJobs={[]} isLoadingJobs={false} />,
+    );
+    expect(screen.queryByRole('checkbox', {
+      name: /Opret en kopi af sagen til hver medarbejder/,
+    })).not.toBeInTheDocument();
+
+    permissionState.isAdmin = false;
+    rerender(
+      <CreateOverviewStep create={createState(['user-1', 'user-2'])} linkableJobs={[]} isLoadingJobs={false} />,
+    );
+    expect(screen.queryByRole('checkbox', {
+      name: /Opret en kopi af sagen til hver medarbejder/,
+    })).not.toBeInTheDocument();
   });
 });

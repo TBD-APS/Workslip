@@ -96,7 +96,10 @@ public sealed class JobService(
         try
         {
             var created = await _jobRepository.CreateAsync(organizationId.Value, request, assignedUserIds, actorId, cancellationToken);
-            await InvalidateJobCachesAsync(created.Id, created.OrganizationId, cancellationToken);
+            foreach (var createdJobId in created.CreatedJobIds ?? [created.Id])
+            {
+                await InvalidateJobCachesAsync(createdJobId, created.OrganizationId, cancellationToken);
+            }
             LogJobCreated(created);
 
             return await ToSummaryResultAsync(created, cancellationToken);
@@ -791,7 +794,10 @@ public sealed class JobService(
             totalHours,
             totalOverLay,
             report.SoftDeleted,
-            report.RejectionNote);
+            report.RejectionNote)
+        {
+            CreatedJobIds = report.CreatedJobIds
+        };
     }
 
     private async Task<List<ValidationError>> ValidateDraftWorkAsync(Guid organizationId, CreateJobWorkRequest? workind, CancellationToken cancellationToken)
@@ -993,8 +999,8 @@ public sealed class JobService(
 
     private void LogJobCreated(JobReportResponse job) =>
         logger.LogInformation(
-            "Job created. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKindId: {WorkKindId}. AssignedUserCount: {AssignedUserCount}. InstallationTypeCount: {InstallationTypeCount}.",
-            job.Id, job.OrganizationId, job.Status, job.ReportNumber, job.WorkKind?.Id, job.AssignedUsers.Count, job.InstallationTypes.Count);
+            "Job creation completed. PrimaryJobId: {PrimaryJobId}. CreatedJobCount: {CreatedJobCount}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKindId: {WorkKindId}. AssignedUserCount: {AssignedUserCount}. InstallationTypeCount: {InstallationTypeCount}.",
+            job.Id, job.CreatedJobIds?.Count ?? 1, job.OrganizationId, job.Status, job.ReportNumber, job.WorkKind?.Id, job.AssignedUsers.Count, job.InstallationTypes.Count);
 
     private void LogJobUpdated(JobReportResponse job) =>
         logger.LogInformation(

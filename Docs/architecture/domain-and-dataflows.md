@@ -47,6 +47,8 @@ Every Organization has one default Filial. `Users` and `JobReports` carry `Filia
 
 Job assignments are Filial-scoped. Tenant `User` employees and `Admin` users can be assignment targets when they belong to the same `OrganizationId` and `FilialId` as the Job. Admin and Superadmin roles may manage assignments; Auditor and Superadmin are not assignment targets. The UserKind audience rule above is an additional server-side assignment constraint.
 
+During job creation, an administrator may explicitly choose one independent Job per selected assignment target. The server creates the copies atomically with separate IDs, report numbers, assignment rows, worksheet ownership, status transitions and approval lifecycles. If that option is not selected, the existing shared multi-assignment Job remains available. This choice affects only newly created Jobs and does not rewrite historical assignments.
+
 Current single-filial flows resolve the default Filial server-side. Existing create-user/create-job contracts therefore do not require clients to send `FilialId`. Customers and installation/reference data remain Organization-level until a concrete product requirement says otherwise.
 
 ## Installation snapshot integrity

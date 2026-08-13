@@ -15,11 +15,36 @@ public sealed class CreateJobRequestValidator : AbstractValidator<CreateJobReque
     {
         SharedJobRequestRules.AddCommonRules(this);
 
+        RuleFor(request => request.AssignedUserIds)
+            .Must(userIds => userIds is null
+                || (userIds.All(userId => userId != Guid.Empty)
+                    && userIds.Distinct().Count() == userIds.Count))
+            .WithMessage("De valgte medarbejdere skal være unikke og gyldige.");
+
         RuleFor(request => request).CustomAsync(async (request, context, cancellationToken) =>
         {
             var organizationId = currentUser.OrganizationId;
             if (organizationId is null)
                 return;
+
+            if (request.DuplicatePerAssignedUser == true)
+            {
+                if (!JobAssignmentPolicy.CanManageAssignments(currentUser.Role))
+                {
+                    context.AddFailure(
+                        nameof(CreateJobRequest.DuplicatePerAssignedUser),
+                        "Kun administratorer kan oprette en kopi af sagen pr. medarbejder.");
+                    return;
+                }
+
+                if (request.AssignedUserIds is null || request.AssignedUserIds.Count < 2)
+                {
+                    context.AddFailure(
+                        nameof(CreateJobRequest.DuplicatePerAssignedUser),
+                        "Vælg mindst to medarbejdere for at oprette en kopi af sagen til hver medarbejder.");
+                    return;
+                }
+            }
 
             var assignedUserIds = JobAssignmentPolicy.ResolveInitialAssignments(
                 request.AssignedUserIds,
