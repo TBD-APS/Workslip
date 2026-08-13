@@ -14,16 +14,16 @@ public sealed class VapidKeyMaterial : IVapidPublicKeyProvider
 
     public VapidKeyMaterial(
         IOptions<VapidOptions> options,
-        IHostEnvironment environment,
-        ILogger<VapidKeyMaterial> logger)
+        IHostEnvironment? environment = null,
+        ILogger<VapidKeyMaterial>? logger = null)
     {
         var configured = options.Value;
         byte[] privateKeyBytes;
 
-        if (string.IsNullOrWhiteSpace(configured.PrivateKey) && environment.IsDevelopment())
+        if (string.IsNullOrWhiteSpace(configured.PrivateKey) && environment?.IsDevelopment() == true)
         {
             privateKeyBytes = CreateDevelopmentPrivateKey();
-            logger.LogWarning(
+            logger?.LogWarning(
                 "VAPID private key is not configured. Using an ephemeral Development key; browser push subscriptions will be reconciled after API restart.");
         }
         else
