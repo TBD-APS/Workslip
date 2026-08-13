@@ -9,6 +9,7 @@ using Workslip.Domain.Models;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
+using Workslip.Tests.Infrastructure;
 
 namespace Workslip.Tests.Jobs;
 
