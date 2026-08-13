@@ -8,6 +8,12 @@ namespace Workslip.Application.Users;
 
 public sealed record UserBillingRateResponse(Guid UserId, decimal? BillableHourlyRate);
 
+public interface IUserBillingRepository
+{
+    Task<UserDataRow?> GetByIdAsync(Guid userId, CancellationToken cancellationToken);
+    Task<bool> SetBillingRateAsync(Guid organizationId, Guid userId, decimal? rate, CancellationToken cancellationToken);
+}
+
 public interface IUserBillingService
 {
     Task<Result<UserBillingRateResponse>> GetAsync(Guid userId, CancellationToken cancellationToken);
@@ -15,7 +21,7 @@ public interface IUserBillingService
 }
 
 public sealed class UserBillingService(
-    IUserRepository repository,
+    IUserBillingRepository repository,
     ICurrentUserContext currentUser,
     ILogger<UserBillingService> logger) : IUserBillingService
 {
@@ -27,7 +33,7 @@ public sealed class UserBillingService(
             return Result<UserBillingRateResponse>.Unauthorized();
 
         var user = await repository.GetByIdAsync(userId, cancellationToken);
-        if (user is null)
+        if (user is null || user.OrganizationId != organizationId)
             return Result<UserBillingRateResponse>.NotFound();
         if (!CanManageTarget(user))
             return Result<UserBillingRateResponse>.Forbidden();
@@ -48,7 +54,7 @@ public sealed class UserBillingService(
             });
 
         var user = await repository.GetByIdAsync(userId, cancellationToken);
-        if (user is null)
+        if (user is null || user.OrganizationId != organizationId)
             return Result.NotFound();
         if (!CanManageTarget(user))
             return Result.Forbidden();
