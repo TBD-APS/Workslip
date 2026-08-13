@@ -11,6 +11,7 @@ public sealed class WorksheetRow : IJobRelated
     public Guid UserId { get; set; }
     public DateTime WorkDate { get; set; }
     public decimal HoursWorked { get; set; }
+    public decimal? BillableHourlyRateSnapshot { get; set; }
     public bool SleptOnJob { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
