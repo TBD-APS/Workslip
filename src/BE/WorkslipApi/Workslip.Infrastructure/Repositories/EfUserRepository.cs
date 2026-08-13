@@ -1,4 +1,6 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Workslip.Application.Auth;
 using Workslip.Application.Users;
 using Workslip.Domain;
@@ -32,9 +34,14 @@ public sealed class EfUserRepository : IUserRepository
 
     public async Task<UserDataRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
     {
-        return await _dbContext.Users
+        var user = await _dbContext.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Id == id && u.OrganizationId == _currentUser.OrganizationId, cancellationToken);
+
+        if (user is not null && _currentUser.OrganizationId is Guid organizationId)
+            user.BillableHourlyRate = await ReadBillableHourlyRateAsync(organizationId, id, cancellationToken);
+
+        return user;
     }
 
     public async Task<UserDataRow?> GetByEmailAsync(string email, CancellationToken cancellationToken) =>
@@ -61,7 +68,6 @@ public sealed class EfUserRepository : IUserRepository
                 u.EntraEmail,
                 u.EntraId,
                 u.Role,
-                u.BillableHourlyRate,
                 u.CreatedAt,
                 u.UpdatedAt,
                 MatchPriority = entraId != null && u.EntraId == entraId
@@ -86,7 +92,6 @@ public sealed class EfUserRepository : IUserRepository
             EntraEmail = matched.EntraEmail,
             EntraId = matched.EntraId,
             Role = matched.Role,
-            BillableHourlyRate = matched.BillableHourlyRate,
             CreatedAt = matched.CreatedAt,
             UpdatedAt = matched.UpdatedAt
         };
@@ -156,10 +161,12 @@ public sealed class EfUserRepository : IUserRepository
         existing.DisplayName = user.DisplayName;
         existing.Phone = user.Phone;
         existing.Role = user.Role;
-        existing.BillableHourlyRate = user.BillableHourlyRate;
         existing.UpdatedAt = user.UpdatedAt;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        if (_currentUser.OrganizationId is Guid organizationId)
+            await WriteBillableHourlyRateAsync(organizationId, user.Id, user.BillableHourlyRate, cancellationToken);
     }
 
     public async Task<IReadOnlyList<AssignedJobResponse>> GetAssignedJobsAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken)
@@ -232,6 +239,75 @@ public sealed class EfUserRepository : IUserRepository
 
         _dbContext.Users.Remove(user);
         await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<decimal?> ReadBillableHourlyRateAsync(
+        Guid organizationId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        if (!_dbContext.Database.IsSqlServer())
+            return null;
+
+        var connection = _dbContext.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await _dbContext.Database.OpenConnectionAsync(cancellationToken);
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = "SELECT [BillableHourlyRate] FROM [dbo].[Users] WHERE [OrganizationId] = @organizationId AND [Id] = @userId";
+            command.Transaction = _dbContext.Database.CurrentTransaction?.GetDbTransaction();
+            AddParameter(command, "@organizationId", organizationId);
+            AddParameter(command, "@userId", userId);
+            var value = await command.ExecuteScalarAsync(cancellationToken);
+            return value is null or DBNull ? null : Convert.ToDecimal(value);
+        }
+        finally
+        {
+            if (shouldClose)
+                await _dbContext.Database.CloseConnectionAsync();
+        }
+    }
+
+    private async Task WriteBillableHourlyRateAsync(
+        Guid organizationId,
+        Guid userId,
+        decimal? rate,
+        CancellationToken cancellationToken)
+    {
+        if (!_dbContext.Database.IsSqlServer())
+            return;
+
+        var connection = _dbContext.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await _dbContext.Database.OpenConnectionAsync(cancellationToken);
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE [dbo].[Users] SET [BillableHourlyRate] = @rate WHERE [OrganizationId] = @organizationId AND [Id] = @userId";
+            command.Transaction = _dbContext.Database.CurrentTransaction?.GetDbTransaction();
+            AddParameter(command, "@rate", rate);
+            AddParameter(command, "@organizationId", organizationId);
+            AddParameter(command, "@userId", userId);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+        finally
+        {
+            if (shouldClose)
+                await _dbContext.Database.CloseConnectionAsync();
+        }
+    }
+
+    private static void AddParameter(System.Data.Common.DbCommand command, string name, object? value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value ?? DBNull.Value;
+        command.Parameters.Add(parameter);
     }
 
     private static string[] NormalizeEmailCandidates(IEnumerable<string> emailCandidates) =>
