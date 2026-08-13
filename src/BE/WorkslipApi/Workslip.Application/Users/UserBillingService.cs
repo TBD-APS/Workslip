@@ -70,7 +70,7 @@ public sealed class UserBillingService(
         if (!CanManageTarget(user))
             return Result.Forbidden();
 
-        var rate = request.BillableHourlyRate.HasValue
+        decimal? rate = request.BillableHourlyRate.HasValue
             ? decimal.Round(request.BillableHourlyRate.Value, 2, MidpointRounding.AwayFromZero)
             : null;
 
