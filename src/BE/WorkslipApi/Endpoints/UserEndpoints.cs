@@ -26,6 +26,18 @@ public static class UserEndpoints
         }).Produces<UserDetailViewModel>()
         .RequireAuthorization(AuthPolicies.RequireUser);
 
+        group.MapGet("/{id}/billing-rate", async (Guid id, IUserBillingService service, HttpContext httpContext, CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            return ResultExtensions.ToHttpResult(await service.GetAsync(id, cancellationToken));
+        }).Produces<UserBillingRateResponse>();
+
+        group.MapPatch("/{id}/billing-rate", async (Guid id, UpdateBillableHourlyRateRequest request, IUserBillingService service, HttpContext httpContext, CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            return ResultExtensions.ToHttpResult(await service.UpdateAsync(id, request, cancellationToken));
+        }).Produces(StatusCodes.Status204NoContent).ProducesValidationProblem();
+
         group.MapGet("/", async ([AsParameters] ListQueryOptions query, IUserService service, HttpContext httpContext, CancellationToken cancellationToken) =>
         {
             HttpCacheHeaders.SetNoStore(httpContext);
