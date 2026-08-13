@@ -9,20 +9,21 @@ React 19 + TypeScript + Vite PWA frontend.
 
 - Node.js 24 recommended to match release CI
 - npm
-- Workslip API on `http://localhost:5262`, or an explicit local API base URL
+- .NET SDK 10, used to generate the API contract from the backend project in this working tree
+- A running Workslip API on `http://localhost:5262`, or an explicit local API base URL, only to serve requests from the running frontend
 
 ## Run locally
-
-Start the Workslip API first, then:
 
 ```bash
 npm ci
 npm run dev
 ```
 
-`npm run dev` generates the local Orval API client before starting Vite, so a fresh checkout does not require a separate generation command. If `VITE_API_BASE_URL` is not set, local API generation uses `http://localhost:5262`.
+`npm run dev` generates the local Orval API client before starting Vite, so a fresh checkout does not require a separate generation command. Generation builds the backend OpenAPI document from `src/BE/WorkslipApi` in an isolated contract-generation pass, so it needs neither a running API process nor a database. `.github/actions/generate-frontend-api` runs the same generator, so the local and CI contracts cannot diverge.
 
-The dev server listens on `http://127.0.0.1:5270`. `/api` is proxied to the local backend by `vite.config.ts` unless an explicit local API base URL is configured.
+`npm run generate:api:live` targets a running API over HTTP instead, using `VITE_API_BASE_URL` from `.env.local` and defaulting to `http://localhost:5262`. Setting `OPENAPI_DOCUMENT` to an already built document skips the backend build in every generation command.
+
+The dev server listens on `http://127.0.0.1:5270`. `/api` is proxied to the local backend by `vite.config.ts` unless an explicit local API base URL is configured, so serving data still requires the API to be running.
 
 ## Commands
 
@@ -35,7 +36,8 @@ The authoritative command list is `package.json`.
 | `npm run test -- --run` | run Vitest once |
 | `npm run build` | production type-check/build including service worker |
 | `npm run preview` | preview the production build |
-| `npm run generate:api:local` | generate API client from local environment config; defaults to `http://localhost:5262` |
+| `npm run generate:api:local` | generate API client from the backend OpenAPI contract built in this working tree |
+| `npm run generate:api:live` | generate API client from a running API; defaults to `http://localhost:5262` |
 | `npm run generate:api:dev` | generate API client from development environment config |
 | `npm run generate:api:prod` | generate API client from production environment config |
 | `npm run typecheck:sw` | type-check the service worker |

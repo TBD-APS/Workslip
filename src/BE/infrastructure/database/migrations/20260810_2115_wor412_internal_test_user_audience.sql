@@ -26,9 +26,9 @@ IF NOT EXISTS (
     WHERE parent_object_id = OBJECT_ID(N'dbo.Users')
       AND name = N'CK_Users_UserKind')
 BEGIN
-    ALTER TABLE dbo.Users WITH CHECK
+    EXEC(N'ALTER TABLE dbo.Users WITH CHECK
         ADD CONSTRAINT CK_Users_UserKind
-        CHECK (UserKind IN (N'Member', N'InternalTest'));
+        CHECK (UserKind IN (N''Member'', N''InternalTest''));');
 END;
 
 IF NOT EXISTS (
@@ -37,9 +37,9 @@ IF NOT EXISTS (
     WHERE parent_object_id = OBJECT_ID(N'dbo.InviteTokens')
       AND name = N'CK_InviteTokens_UserKind')
 BEGIN
-    ALTER TABLE dbo.InviteTokens WITH CHECK
+    EXEC(N'ALTER TABLE dbo.InviteTokens WITH CHECK
         ADD CONSTRAINT CK_InviteTokens_UserKind
-        CHECK (UserKind IN (N'Member', N'InternalTest'));
+        CHECK (UserKind IN (N''Member'', N''InternalTest''));');
 END;
 
 IF NOT EXISTS (
@@ -48,6 +48,6 @@ IF NOT EXISTS (
     WHERE object_id = OBJECT_ID(N'dbo.Users')
       AND name = N'IX_Users_Organization_UserKind')
 BEGIN
-    CREATE INDEX IX_Users_Organization_UserKind
-        ON dbo.Users (OrganizationId, UserKind);
+    EXEC(N'CREATE INDEX IX_Users_Organization_UserKind
+        ON dbo.Users (OrganizationId, UserKind);');
 END;
