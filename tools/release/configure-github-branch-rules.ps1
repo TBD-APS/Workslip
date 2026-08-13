@@ -4,7 +4,7 @@ param(
     [string]$Repository = 'Workslip-v2.0',
     [string]$ReleasePattern = 'release-*',
     [string]$FeaturePattern = 'rbj--*',
-    [string]$RequiredStatusCheck = 'CI Gate'
+    [string[]]$RequiredStatusChecks = @('CI Gate', 'Feature change guard')
 )
 
 Set-StrictMode -Version Latest
@@ -25,6 +25,11 @@ function New-IntegrationRulesetPayload {
     param(
         [Parameter(Mandatory)] [string]$Name,
         [Parameter(Mandatory)] [string[]]$IncludedRefs
+    )
+
+    $statusChecks = @(
+        $RequiredStatusChecks |
+            ForEach-Object { [ordered]@{ context = $_ } }
     )
 
     return [ordered]@{
@@ -56,9 +61,7 @@ function New-IntegrationRulesetPayload {
                 type = 'required_status_checks'
                 parameters = [ordered]@{
                     do_not_enforce_on_create = $true
-                    required_status_checks = @(
-                        [ordered]@{ context = $RequiredStatusCheck }
-                    )
+                    required_status_checks = $statusChecks
                     strict_required_status_checks_policy = $true
                 }
             }
@@ -72,9 +75,9 @@ function New-FeatureRulesetPayload {
         [Parameter(Mandatory)] [string[]]$IncludedRefs
     )
 
-    # Feature branches must remain writable by normal fast-forward pushes. The
-    # hard safety boundary is that an active feature ref cannot be deleted or
-    # rewritten non-fast-forward by an accidental reset/rebase/cleanup action.
+    # Feature branches remain writable by ordinary fast-forward pushes. The
+    # hard boundary protects the ref itself from disappearing or being rewritten
+    # to an unrelated/older commit by cleanup, reset or rebase mistakes.
     return [ordered]@{
         name = $Name
         target = 'branch'
@@ -161,7 +164,8 @@ Set-RepositoryRuleset -Name 'Workslip main protection' -Payload $mainPayload
 Set-RepositoryRuleset -Name 'Workslip release protection' -Payload $releasePayload
 Set-RepositoryRuleset -Name 'Workslip active feature protection' -Payload $featurePayload
 
+$statusSummary = $RequiredStatusChecks -join ', '
 Write-Host 'Branch rules reconciled.'
-Write-Host "main: PR + '$RequiredStatusCheck', squash only, deletion and non-fast-forward blocked."
+Write-Host "main: PR + required checks [$statusSummary], squash only, deletion and non-fast-forward blocked."
 Write-Host "${ReleasePattern}: same integration protection."
 Write-Host "${FeaturePattern}: deletion and non-fast-forward updates blocked; ordinary fast-forward feature pushes remain allowed."
