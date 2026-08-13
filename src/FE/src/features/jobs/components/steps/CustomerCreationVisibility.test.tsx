@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import type { ComponentProps } from 'react';
 import { CreateOverviewStep } from './CreateOverviewStep';
 import { JobOverviewStep } from './JobOverviewStep';
+
+type CreateState = ComponentProps<typeof CreateOverviewStep>['create'];
 
 const { permissionState } = vi.hoisted(() => ({
   permissionState: { isAdmin: false },
@@ -55,7 +58,7 @@ const baseForm = {
   technicalObservations: '',
 };
 
-function createState(assignedUserIds = ['user-1']) {
+function createState(assignedUserIds = ['user-1']): CreateState {
   return {
     form: { ...baseForm },
     assignedUserIds,
@@ -78,7 +81,7 @@ function createState(assignedUserIds = ['user-1']) {
     updateTaskDescription: vi.fn(),
     updateCustomerObservations: vi.fn(),
     updateTechnicalObservations: vi.fn(),
-  } as never;
+  } as unknown as CreateState;
 }
 
 function detailsState(isAdmin: boolean) {
