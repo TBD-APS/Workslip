@@ -230,7 +230,9 @@ public sealed class DuplicateJobPerAssigneePersistenceTests
                 Statuses: null,
                 Limit: 50,
                 Offset: 0,
-                CurrentUserId: fixture.AdminId),
+                CurrentUserId: fixture.AdminId,
+                SortBy: "reportNumber",
+                SortDirection: "asc"),
             CancellationToken.None);
         var firstUsersJobs = await fixture.Repository.ListAsync(
             new JobQuery(
@@ -239,7 +241,9 @@ public sealed class DuplicateJobPerAssigneePersistenceTests
                 Limit: 50,
                 Offset: 0,
                 CurrentUserId: firstUserId,
-                AssignedToUserId: firstUserId),
+                AssignedToUserId: firstUserId,
+                SortBy: "reportNumber",
+                SortDirection: "asc"),
             CancellationToken.None);
 
         Assert.Equal(2, allJobs.TotalCount);

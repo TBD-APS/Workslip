@@ -15,8 +15,12 @@ public sealed class AuthorizedJobServiceTests
     public async Task ChangeStatusAsync_forbids_user_approval_before_inner_service_runs()
     {
         var organizationId = Guid.NewGuid();
-        var repository = new StubJobRepository(CreateJob(organizationId, JobStatus.InReview));
-        var service = CreateService(repository, organizationId, Roles.User);
+        var userId = Guid.NewGuid();
+        var repository = new StubJobRepository(CreateJob(organizationId, JobStatus.InReview) with
+        {
+            AssignedUsers = [new AssignedUserResponse(userId, "Current employee")]
+        });
+        var service = CreateService(repository, organizationId, Roles.User, userId);
 
         var result = await service.ChangeStatusAsync(
             repository.Job!.Id,
