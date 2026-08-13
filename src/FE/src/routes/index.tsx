@@ -34,7 +34,7 @@ const UserList = lazy(() =>
   import('../features/users/routes/UserList').then((module) => ({ default: module.UserList })),
 );
 const UserDetail = lazy(() =>
-  import('../features/users/routes/UserDetail').then((module) => ({ default: module.UserDetail })),
+  import('../features/users/routes/UserDetailWithRate').then((module) => ({ default: module.UserDetailWithRate })),
 );
 const CustomerList = lazy(() =>
   import('../features/customers/routes/CustomerList').then((module) => ({ default: module.CustomerList })),
@@ -89,28 +89,13 @@ const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupReco
     role="alert"
     actions={(
       <>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={onRetry}
-          disabled={isRetrying}
-        >
+        <button type="button" className="btn btn-primary" onClick={onRetry} disabled={isRetrying}>
           {isRetrying ? 'Prøver igen...' : 'Prøv igen'}
         </button>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={onReload}
-          disabled={isRetrying}
-        >
+        <button type="button" className="btn btn-secondary" onClick={onReload} disabled={isRetrying}>
           Genindlæs appen
         </button>
-        <button
-          type="button"
-          className="system-state-link"
-          onClick={onLogin}
-          disabled={isRetrying}
-        >
+        <button type="button" className="system-state-link" onClick={onLogin} disabled={isRetrying}>
           Log ind igen
         </button>
       </>
@@ -118,11 +103,6 @@ const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupReco
   />
 );
 
-/**
- * A stored token and a loaded user are separate states. Temporary API startup
- * failures must not clear a potentially valid session or leave the app spinning
- * indefinitely.
- */
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { hasAuthToken, isAuthenticated, isLoading, clearLocalSession, meQuery } = useAuth();
   const location = useLocation();
@@ -136,11 +116,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     if (!hasAuthToken || isAuthenticated) return undefined;
-
-    const timer = window.setTimeout(() => {
-      setStartupTimedOut(true);
-    }, AUTH_STARTUP_GRACE_MS);
-
+    const timer = window.setTimeout(() => setStartupTimedOut(true), AUTH_STARTUP_GRACE_MS);
     return () => window.clearTimeout(timer);
   }, [hasAuthToken, isAuthenticated, retryAttempt]);
 
@@ -148,7 +124,6 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     setIsRetrying(true);
     setStartupTimedOut(false);
     setRetryAttempt((attempt) => attempt + 1);
-
     try {
       await meQuery.refetch();
     } catch {
@@ -163,13 +138,8 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     navigate(loginUrl, { replace: true });
   };
 
-  if (isAuthenticated) {
-    return <>{children}</>;
-  }
-
-  if (!hasAuthToken) {
-    return <Navigate to={loginUrl} replace />;
-  }
+  if (isAuthenticated) return <>{children}</>;
+  if (!hasAuthToken) return <Navigate to={loginUrl} replace />;
 
   if (startupTimedOut || meQuery.isError) {
     return (
@@ -183,12 +153,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (isLoading || meQuery.isPending) {
-    return (
-      <FullscreenSystemState
-        title="Tjekker login"
-        message="Vi kontrollerer din session og forbinder til Workslip."
-      />
-    );
+    return <FullscreenSystemState title="Tjekker login" message="Vi kontrollerer din session og forbinder til Workslip." />;
   }
 
   return (
@@ -280,10 +245,7 @@ export const router = createBrowserRouter([
           },
         ],
       },
-      {
-        path: '*',
-        element: <NotFoundPage />,
-      },
+      { path: '*', element: <NotFoundPage /> },
     ],
   },
 ]);
