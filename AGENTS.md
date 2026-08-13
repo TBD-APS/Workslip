@@ -41,6 +41,19 @@ When documentation disagrees with implementation, fix the maintained documentati
 - Do not mix unrelated cleanup into feature work.
 - Improve nearby technical debt only when it is required for correctness, materially lowers risk, or removes duplication inside the task boundary.
 
+## Customer-value gate
+
+For new customer-facing features, product improvements and material scope expansion, apply [`Docs/agents/CUSTOMER_VALUE_GATE.md`](Docs/agents/CUSTOMER_VALUE_GATE.md) before implementation.
+
+- Separate the customer problem from the requested solution.
+- Prefer the smallest complete slice that removes measurable pain using existing Workslip patterns.
+- Treat observed workarounds and repeated manual effort as evidence of latent demand.
+- Evaluate money/cashflow, paid time, resource leverage, risk, frequency, reach, adoption friction, effort, maintenance and evidence confidence.
+- End product triage with one recommendation: **DO NOW**, **VALIDATE FIRST**, **DEFER** or **REJECT / REFRAME**.
+- Do not let a commercial score override security, tenant isolation, authorization, data integrity, compliance or release safety.
+
+Urgent security, tenant-isolation, data-loss, compliance and production-correctness fixes do not wait for commercial scoring; use the gate only to keep their correction small and coherent.
+
 ## Delivery loop
 
 For implementation batches, keep the execution loop short and deterministic:
