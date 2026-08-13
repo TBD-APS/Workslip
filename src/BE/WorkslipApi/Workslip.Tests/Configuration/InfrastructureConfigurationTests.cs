@@ -40,6 +40,42 @@ public sealed class InfrastructureConfigurationTests
     }
 
     [Fact]
+    public void ResolveDevelopmentConnectionString_MissingOnWindows_UsesWorkslipLocalDb()
+    {
+        var resolved = InfrastructureConfiguration.ResolveDevelopmentConnectionString(
+            configuredConnectionString: null,
+            isWindows: true);
+
+        var connectionString = new SqlConnectionStringBuilder(resolved);
+        Assert.Equal(@"(localdb)\MSSQLLocalDB", connectionString.DataSource);
+        Assert.Equal("WorkslipLocal", connectionString.InitialCatalog);
+        Assert.True(connectionString.IntegratedSecurity);
+    }
+
+    [Fact]
+    public void ResolveDevelopmentConnectionString_MissingOnNonWindows_RequiresExplicitLocalSql()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            InfrastructureConfiguration.ResolveDevelopmentConnectionString(
+                configuredConnectionString: null,
+                isWindows: false));
+
+        Assert.Contains("requires a local SQL connection string", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ResolveDevelopmentConnectionString_ConfiguredValue_IsPreserved()
+    {
+        var configured = CreateLocalConnectionString();
+
+        var resolved = InfrastructureConfiguration.ResolveDevelopmentConnectionString(
+            configured,
+            isWindows: true);
+
+        Assert.Equal(configured, resolved);
+    }
+
+    [Fact]
     public void ConfigureInfrastructure_OpenApiGeneration_DoesNotRequireSql()
     {
         var args = new[] { $"--{DatabaseStartup.GenerateOpenApiOnlyKey}=true" };
@@ -115,8 +151,7 @@ public sealed class InfrastructureConfigurationTests
     private static string CreateLocalConnectionString() =>
         "Server=localhost,1433;" +
         "Initial Catalog=WorkslipLocal;" +
-        "User Id=workslip-local-test;" +
-        "Password=not-a-real-secret;" +
+        "Integrated Security=true;" +
         "Encrypt=False;TrustServerCertificate=True;Connection Timeout=5;";
 
     private static string CreateManagedIdentityConnectionString() =>
