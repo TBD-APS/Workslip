@@ -8,12 +8,6 @@ namespace Workslip.Application.Users;
 
 public sealed record UserBillingRateResponse(Guid UserId, decimal? BillableHourlyRate);
 
-public interface IUserBillingRepository
-{
-    Task<UserDataRow?> GetByIdAsync(Guid userId, CancellationToken cancellationToken);
-    Task<bool> SetBillingRateAsync(Guid organizationId, Guid userId, decimal? rate, CancellationToken cancellationToken);
-}
-
 public interface IUserBillingService
 {
     Task<Result<UserBillingRateResponse>> GetAsync(Guid userId, CancellationToken cancellationToken);
@@ -21,7 +15,7 @@ public interface IUserBillingService
 }
 
 public sealed class UserBillingService(
-    IUserBillingRepository repository,
+    IUserRepository repository,
     ICurrentUserContext currentUser,
     ILogger<UserBillingService> logger) : IUserBillingService
 {
@@ -59,12 +53,11 @@ public sealed class UserBillingService(
         if (!CanManageTarget(user))
             return Result.Forbidden();
 
-        var rate = request.BillableHourlyRate.HasValue
+        user.BillableHourlyRate = request.BillableHourlyRate.HasValue
             ? decimal.Round(request.BillableHourlyRate.Value, 2, MidpointRounding.AwayFromZero)
             : null;
-
-        if (!await repository.SetBillingRateAsync(organizationId, userId, rate, cancellationToken))
-            return Result.NotFound();
+        user.UpdatedAt = DateTimeOffset.UtcNow;
+        await repository.UpdateAsync(user, cancellationToken);
 
         logger.LogInformation("User billing rate updated. UserId: {UserId}. OrganizationId: {OrganizationId}.", userId, organizationId);
         return Result.NoContent();
