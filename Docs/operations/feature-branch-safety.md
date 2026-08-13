@@ -16,6 +16,7 @@ Run the repository ruleset reconciler with repository Administration write permi
 ```powershell
 pwsh ./tools/release/configure-github-branch-rules.ps1 -WhatIf
 pwsh ./tools/release/configure-github-branch-rules.ps1
+pwsh ./tools/release/configure-github-branch-rules.ps1 -VerifyOnly
 ```
 
 The intended repository rules are:
@@ -24,7 +25,9 @@ The intended repository rules are:
 - `release-*`: same integration protection;
 - `rbj--*`: ref deletion and non-fast-forward updates blocked while ordinary fast-forward development pushes remain allowed.
 
-The script is configuration-as-code only until the GitHub ruleset state is actually applied and verified. Do not claim the external protection is active from a green repository CI run alone.
+`-WhatIf` previews the intended reconciliation and deliberately does not claim external state. A normal run reconciles the rules and then reads GitHub back to verify the expected ref targets, active enforcement, rule types and required status checks. `-VerifyOnly` performs the same read-back verification without mutating GitHub.
+
+Do not claim the external protection is active from repository code or green CI alone. WOR-436 is complete only after `-VerifyOnly` succeeds against the repository state.
 
 ## High-risk product changes
 
