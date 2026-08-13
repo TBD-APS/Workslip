@@ -82,8 +82,9 @@ public static class DevelopmentDatabaseOnlySeeder
             }
             else if (platformOrganization.Name != PlatformOrganization.Name)
             {
-                platformOrganization.Name = PlatformOrganization.Name;
-                platformOrganization.UpdatedAt = now;
+                var entry = db.Entry(platformOrganization);
+                entry.Property(organization => organization.Name).CurrentValue = PlatformOrganization.Name;
+                entry.Property(organization => organization.UpdatedAt).CurrentValue = now;
             }
 
             if (existing is null)
