@@ -87,16 +87,28 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
     private static void ComposeKpis(IContainer container, IReadOnlyList<HoursRow> rows, IReadOnlyList<EmployeeSummary> employees)
     {
         var totalHours = rows.Sum(row => row.Hours);
-        var totalAmount = rows.Sum(row => row.Amount ?? 0m);
-        container.Row(row =>
+        var missingRates = rows.Count(row => row.HourlyRate is null);
+
+        container.Column(column =>
         {
-            row.RelativeItem().Element(cell => Kpi(cell, "Timer i alt", $"{FormatHours(totalHours)} t"));
-            row.ConstantItem(8);
-            row.RelativeItem().Element(cell => Kpi(cell, "Fakturerbart beløb", FormatCurrency(totalAmount)));
-            row.ConstantItem(8);
-            row.RelativeItem().Element(cell => Kpi(cell, "Medarbejdere", employees.Count.ToString(DanishCulture)));
-            row.ConstantItem(8);
-            row.RelativeItem().Element(cell => Kpi(cell, "Registreringer", rows.Count.ToString(DanishCulture)));
+            column.Item().Row(row =>
+            {
+                row.RelativeItem().Element(cell => Kpi(cell, "Timer i alt", $"{FormatHours(totalHours)} t"));
+                row.ConstantItem(8);
+                row.RelativeItem().Element(cell => Kpi(cell, "Fakturerbart beløb", FormatAmountTotal(rows)));
+                row.ConstantItem(8);
+                row.RelativeItem().Element(cell => Kpi(cell, "Medarbejdere", employees.Count.ToString(DanishCulture)));
+                row.ConstantItem(8);
+                row.RelativeItem().Element(cell => Kpi(cell, "Registreringer", rows.Count.ToString(DanishCulture)));
+            });
+
+            if (missingRates > 0)
+            {
+                column.Item().PaddingTop(6).Text(
+                        $"Bemærk: {missingRates} registrering{(missingRates == 1 ? "" : "er")} mangler fakturerbar timepris. Beløbstotaler er derfor ufuldstændige.")
+                    .FontSize(8)
+                    .SemiBold();
+            }
         });
     }
 
@@ -147,7 +159,7 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
                         table.Cell().Element(TableCell).AlignRight().Text(FormatHours(hours));
                     }
                     table.Cell().Element(TableCell).AlignRight().Text(FormatHours(employee.Rows.Sum(row => row.Hours))).Bold();
-                    table.Cell().Element(TableCell).AlignRight().Text(FormatCurrency(employee.Rows.Sum(row => row.Amount ?? 0m))).Bold();
+                    table.Cell().Element(TableCell).AlignRight().Text(FormatAmountTotal(employee.Rows)).Bold();
                 }
 
                 table.Cell().Element(TotalCell).Text("I alt").Bold();
@@ -157,7 +169,7 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
                     table.Cell().Element(TotalCell).AlignRight().Text(FormatHours(hours)).Bold();
                 }
                 table.Cell().Element(TotalCell).AlignRight().Text(FormatHours(rows.Sum(row => row.Hours))).Bold();
-                table.Cell().Element(TotalCell).AlignRight().Text(FormatCurrency(rows.Sum(row => row.Amount ?? 0m))).Bold();
+                table.Cell().Element(TotalCell).AlignRight().Text(FormatAmountTotal(rows)).Bold();
             });
         });
     }
@@ -169,7 +181,7 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
             column.Item().BorderBottom(1).BorderColor(Border).PaddingBottom(4).Row(row =>
             {
                 row.RelativeItem().Text(employee.Name).FontSize(11).Bold().FontColor(Primary);
-                row.AutoItem().Text($"{FormatHours(employee.Rows.Sum(item => item.Hours))} timer · {FormatCurrency(employee.Rows.Sum(item => item.Amount ?? 0m))}")
+                row.AutoItem().Text($"{FormatHours(employee.Rows.Sum(item => item.Hours))} timer · {FormatAmountTotal(employee.Rows)}")
                     .Bold().FontColor(Primary);
             });
 
@@ -240,6 +252,15 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
             .ThenBy(row => row.WorkDate)
             .ThenBy(row => row.ReportNumber, StringComparer.Create(DanishCulture, ignoreCase: true))
             .ToArray();
+
+    private static string FormatAmountTotal(IEnumerable<HoursRow> rows)
+    {
+        var materialized = rows as IReadOnlyCollection<HoursRow> ?? rows.ToArray();
+        var total = materialized.Sum(row => row.Amount ?? 0m);
+        return materialized.Any(row => row.Amount is null)
+            ? $"{FormatCurrency(total)} *"
+            : FormatCurrency(total);
+    }
 
     private static string FormatHours(decimal value) => value.ToString("0.##", DanishCulture);
     private static string FormatRate(decimal? value) => value.HasValue ? $"{value.Value.ToString("N2", DanishCulture)} kr." : "—";
