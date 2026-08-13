@@ -61,6 +61,7 @@ public sealed class EfUserRepository : IUserRepository
                 u.EntraEmail,
                 u.EntraId,
                 u.Role,
+                u.BillableHourlyRate,
                 u.CreatedAt,
                 u.UpdatedAt,
                 MatchPriority = entraId != null && u.EntraId == entraId
@@ -85,6 +86,7 @@ public sealed class EfUserRepository : IUserRepository
             EntraEmail = matched.EntraEmail,
             EntraId = matched.EntraId,
             Role = matched.Role,
+            BillableHourlyRate = matched.BillableHourlyRate,
             CreatedAt = matched.CreatedAt,
             UpdatedAt = matched.UpdatedAt
         };
@@ -154,27 +156,10 @@ public sealed class EfUserRepository : IUserRepository
         existing.DisplayName = user.DisplayName;
         existing.Phone = user.Phone;
         existing.Role = user.Role;
+        existing.BillableHourlyRate = user.BillableHourlyRate;
         existing.UpdatedAt = user.UpdatedAt;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-    }
-
-    public async Task<bool> SetBillingRateAsync(
-        Guid organizationId,
-        Guid userId,
-        decimal? rate,
-        CancellationToken cancellationToken)
-    {
-        var existing = await _dbContext.Users
-            .FirstOrDefaultAsync(u => u.Id == userId && u.OrganizationId == organizationId, cancellationToken);
-
-        if (existing is null)
-            return false;
-
-        existing.BillableHourlyRate = rate;
-        existing.UpdatedAt = DateTimeOffset.UtcNow;
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return true;
     }
 
     public async Task<IReadOnlyList<AssignedJobResponse>> GetAssignedJobsAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken)
