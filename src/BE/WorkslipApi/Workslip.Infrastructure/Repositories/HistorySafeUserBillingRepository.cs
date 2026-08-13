@@ -7,7 +7,7 @@ using Workslip.Infrastructure.Schema;
 
 namespace Workslip.Infrastructure.Repositories;
 
-internal sealed class HistorySafeUserBillingRepository(
+public sealed class HistorySafeUserBillingRepository(
     SqlUserBillingRepository inner,
     SqlDbContext dbContext) : IUserBillingRepository
 {
