@@ -1,0 +1,1 @@
+WOR-413: Windows Development startup defaults to MSSQLLocalDB/WorkslipLocal when no explicit local SQL override is configured. Remote/Azure SQL remains rejected; non-Windows Development still requires an explicit local SQL target.
