@@ -43,6 +43,13 @@ jobs:
       - name: Test change-risk classifier
         run: node --test tools/release/validate-pr-change-risk.test.mjs
 
+      - name: Validate ruleset reconciler syntax
+        shell: pwsh
+        run: >-
+          [scriptblock]::Create(
+            (Get-Content -Raw './tools/release/configure-github-branch-rules.ps1')
+          ) | Out-Null
+
       - name: Classify pull request change risk
         id: risk
         continue-on-error: true
