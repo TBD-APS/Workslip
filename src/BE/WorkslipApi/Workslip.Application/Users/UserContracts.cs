@@ -11,6 +11,8 @@ public sealed record UpdateUserRequest(
     string? Phone,
     string? Role);
 
+public sealed record UpdateBillableHourlyRateRequest(decimal? BillableHourlyRate);
+
 public sealed record UserResponse(
     Guid Id,
     Guid OrganizationId,
@@ -46,7 +48,8 @@ public sealed record UserDetailResponse(
     decimal? TotalHours,
     decimal? HoursThisWeek = null,
     decimal? HoursThisMonth = null,
-    decimal? HoursBiweekly = null);
+    decimal? HoursBiweekly = null,
+    decimal? BillableHourlyRate = null);
 
 public sealed record InviteUsersRequest(
     IReadOnlyList<string> Emails,
