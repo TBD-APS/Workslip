@@ -148,12 +148,7 @@ public static class InfrastructureConfiguration
 
         if (platformBootstrapRequested)
         {
-            if (string.IsNullOrWhiteSpace(connectionString))
-            {
-                throw new InvalidOperationException(
-                    "The explicit bootstrap-superadmins operation requires Azure:Sql:ConnectionString to be configured.");
-            }
-
+            
             ConfigureExplicitOperatorSqlAuthentication(configuration, connectionString);
             Log.Information("[STARTUP 02.4] Enforce development SQL isolation - EXPLICIT OPERATOR EXCEPTION (bootstrap-superadmins)");
             return;
