@@ -2,7 +2,7 @@
 
 **Status:** Active  
 **Owner:** Workslip maintainers  
-**Applies to:** Unified pull-request and `main` CI
+**Applies to:** Unified CI
 
 ## Purpose
 
@@ -10,9 +10,15 @@ Frontend validation must generate the Orval client from the backend OpenAPI cont
 
 The shared action is `.github/actions/generate-frontend-api/action.yml`. The unified workflow is `.github/workflows/frontend-validation.yml`, displayed in GitHub Actions as `CI`.
 
+## Shared generator
+
+The generator itself is `src/FE/scripts/generate-api-client.mjs`, invoked by the shared action and by `npm run generate:api:local` during local frontend development. One implementation owns the backend OpenAPI build and the Orval run, so a developer cannot generate a contract by a path that CI never exercises.
+
+Local frontend development therefore does not require a running API process or a database to obtain the contract. `npm run generate:api:live` remains available for deliberately generating against a running API.
+
 ## Contract-generation startup mode
 
-The action sets:
+The generator sets:
 
 ```text
 Workslip__GenerateOpenApiOnly=true
@@ -31,8 +37,7 @@ Normal application startup does not set this flag and retains its runtime infras
 The shared API-generation action owns only:
 
 1. .NET setup and API restore;
-2. isolated Release-mode OpenAPI generation;
-3. Orval generation from that document.
+2. invocation of the shared generator, which performs isolated Release-mode OpenAPI generation and Orval generation from that document.
 
 Backend correctness tests are deliberately not hidden inside the action. The unified `Backend` CI job runs the full backend Release build and test suite once.
 
@@ -47,7 +52,7 @@ The `Frontend + API contract` job owns:
 7. Vitest; and
 8. the production frontend build, including application and service-worker type checking.
 
-On pull requests the lint baseline is the exact pull-request base SHA. On a `main` push it is the previous `main` SHA, so a bypassed or unexpected regression cannot silently grow the lint baseline.
+On pull requests the lint baseline is the exact pull-request base SHA. On a push event it is the previous SHA for that branch, so a bypassed or unexpected regression cannot silently grow the lint baseline.
 
 ## Security boundary
 
@@ -57,7 +62,7 @@ A pull request must never be able to initialize production schema or start datab
 
 ## Regression requirements
 
-Changes to API startup, infrastructure registration, hosted services, OpenAPI generation or the shared action must preserve the contract-generation isolation boundary.
+Changes to API startup, infrastructure registration, hosted services, OpenAPI generation, the shared generator or the shared action must preserve the contract-generation isolation boundary.
 
 Changes to the lint ratchet must preserve focused tests proving that inherited findings remain allowed while genuinely new errors and additional occurrences are rejected.
 

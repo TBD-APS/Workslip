@@ -19,13 +19,16 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
     private static class PdfStyle
     {
-        public static readonly Color Primary = Color.FromHex("#334155");
-        public static readonly Color PrimaryLight = Color.FromHex("#F1F5F9");
-        public static readonly Color Accent = Color.FromHex("#64748B");
-        public static readonly Color TextDark = Color.FromHex("#0F172A");
-        public static readonly Color TextMedium = Color.FromHex("#475569");
-        public static readonly Color TextLight = Color.FromHex("#94A3B8");
-        public static readonly Color BorderColor = Color.FromHex("#E2E8F0");
+        public static readonly Color Primary = Color.FromHex("#06336B");
+        public static readonly Color PrimaryDark = Color.FromHex("#022B5C");
+        public static readonly Color PrimaryLight = Color.FromHex("#F4F7FB");
+        public static readonly Color Accent = Color.FromHex("#1266A5");
+        public static readonly Color Success = Color.FromHex("#278A43");
+        public static readonly Color SuccessLight = Color.FromHex("#EFF8F1");
+        public static readonly Color TextDark = Color.FromHex("#111827");
+        public static readonly Color TextMedium = Color.FromHex("#4B5563");
+        public static readonly Color TextLight = Color.FromHex("#6B7280");
+        public static readonly Color BorderColor = Color.FromHex("#DDE3EA");
         public static readonly Color SectionBackground = Colors.White;
         public static readonly string FontFamily = "Helvetica";
 
@@ -41,9 +44,9 @@ public sealed class JobReportPdfService : IJobReportPdfService
         public const int MarkerSize = 10;
 
         // Spacing
-        public const int PageMargin = 36;
-        public const int SectionGap = 8;
-        public const int GroupGap = 6;
+        public const int PageMargin = 28;
+        public const int SectionGap = 10;
+        public const int GroupGap = 8;
         public const int ItemGap = 5;
         public const int CompactGap = 4;
 
@@ -61,56 +64,110 @@ public sealed class JobReportPdfService : IJobReportPdfService
         {
             container.Page(page =>
             {
-                page.Size(PageSizes.A4);
-                page.Margin(PdfStyle.PageMargin);
-                page.DefaultTextStyle(x => x.FontSize(PdfStyle.BaseFontSize).FontFamily(PdfStyle.FontFamily));
-
+                ConfigurePage(page);
                 page.Header().Element(c => ComposeHeader(c, job, status));
-                page.Content().PaddingTop(PdfStyle.ContentPadding).Element(c => ComposeContent(c, job, jobBaseUri));
-                page.Footer().Element(c => ComposeFooter(c));
+                page.Content().PaddingTop(20).Element(c => ComposeOverviewPage(c, job, jobBaseUri));
+                page.Footer().Element(c => ComposeFooter(c, "Servicerapport"));
+            });
+
+            container.Page(page =>
+            {
+                ConfigurePage(page);
+                page.Header().Element(c => PageHeading(c, "KONTROLPUNKTER", "K"));
+                page.Content().PaddingTop(16).Element(c => ComposeDetailsPage(c, job));
+                page.Footer().Element(c => ComposeFooter(c, "Servicerapport"));
             });
         }).GeneratePdf();
+    }
+
+    private static void ConfigurePage(PageDescriptor page)
+    {
+        page.Size(PageSizes.A4);
+        page.MarginHorizontal(PdfStyle.PageMargin);
+        page.MarginTop(26);
+        page.MarginBottom(0);
+        page.DefaultTextStyle(x => x.FontSize(PdfStyle.BaseFontSize).FontFamily(PdfStyle.FontFamily).FontColor(PdfStyle.TextDark));
     }
 
     private static void ComposeHeader(IContainer container, JobReportSummaryResponse job, JobStatus status)
     {
         container.Column(col =>
         {
-            col.Item().Background(PdfStyle.Primary).Padding(PdfStyle.SectionPadding).Row(row =>
+            col.Item().Row(row =>
             {
-                row.RelativeItem().Column(brand =>
+                row.RelativeItem().AlignMiddle().Row(brand =>
                 {
-                    brand.Item().Text("WORKSLIP").FontSize(PdfStyle.TitleSize).Bold().FontColor(Colors.White);
-                    brand.Item().Text("4V05-rapport").FontSize(PdfStyle.SubHeaderSize).FontColor(Color.FromHex("#CBD5E1"));
+                    brand.ConstantItem(30).Height(30).Background(PdfStyle.Accent).CornerRadius(15)
+                        .AlignCenter().AlignMiddle().Text("W").FontSize(14).Bold().FontColor(Colors.White);
+                    brand.RelativeItem().PaddingLeft(8).AlignMiddle().Text("WORKSLIP").FontSize(20).Bold().FontColor(PdfStyle.Primary);
                 });
 
-                row.RelativeItem().AlignRight().Column(info =>
+                row.AutoItem().AlignRight().Column(info =>
                 {
-                    info.Item().Text(job.ReportNumber ?? ShortId(job.Id)).FontSize(PdfStyle.HeaderSize).Bold().FontColor(Colors.White);
-                    info.Item().PaddingTop(PdfStyle.SmallPadding).Border(1).BorderColor(StatusColor(status)).Background(StatusColor(status)).PaddingHorizontal(PdfStyle.CardPadding).PaddingVertical(2).AlignCenter().Text(StatusLabel(status)).FontSize(PdfStyle.SmallTextSize).Bold().FontColor(PdfStyle.TextDark);
+                    info.Item().AlignRight().Text("SERVICERAPPORT").FontSize(10).Bold().FontColor(PdfStyle.TextDark);
+                    info.Item().AlignRight().Text("4V05-rapport").FontSize(9).FontColor(PdfStyle.TextMedium);
                 });
             });
-
+            col.Item().PaddingTop(14).LineHorizontal(1).LineColor(PdfStyle.BorderColor);
         });
     }
 
-    private static void ComposeContent(IContainer container, JobReportSummaryResponse job, Uri? jobBaseUri)
+    private static void ComposeOverviewPage(IContainer container, JobReportSummaryResponse job, Uri? jobBaseUri)
     {
         container.Column(col =>
         {
             col.Spacing(PdfStyle.SectionGap);
-            col.Item().Element(c => ComposeMetaSection(c, job));
-            col.Item().Element(c => ComposeCustomerSection(c, job));
-            col.Item().Element(c => ComposeWorksheetsSection(c, job));
+            col.Item().Element(c => ComposeHero(c, job));
+            col.Item().Row(row =>
+            {
+                row.RelativeItem().Element(c => ComposeCustomerSection(c, job));
+                row.ConstantItem(12);
+                row.RelativeItem().Element(c => ComposeMetaSection(c, job));
+            });
+            col.Item().Element(c => ComposeTaskSection(c, job));
             col.Item().Element(c => ComposeObservationsSection(c, job));
             col.Item().Element(c => ComposeLinksSection(c, job, jobBaseUri));    
-            col.Item().Element(c => ComposeWorkSection(c, job));
         });
     }
 
+    private static void ComposeDetailsPage(IContainer container, JobReportSummaryResponse job)
+    {
+        container.Column(col =>
+        {
+            col.Spacing(18);
+            col.Item().Element(c => ComposeWorkSection(c, job));
+            col.Item().Element(c => PageHeading(c, "ARBEJDSSEDLER", "A"));
+            col.Item().Element(c => ComposeWorksheetsSection(c, job));
+        });
+    }
+
+    private static void ComposeHero(IContainer container, JobReportSummaryResponse job)
+    {
+        container.PaddingVertical(4).Row(row =>
+        {
+            row.RelativeItem().Column(left =>
+            {
+                left.Item().Text($"Sag #{job.ReportNumber ?? ShortId(job.Id)}").FontSize(25).Bold().FontColor(PdfStyle.TextDark);
+                left.Item().PaddingTop(6).Text(WorkKindLabel(job.Work.WorkKind)).FontSize(12).FontColor(PdfStyle.TextMedium);
+            });
+
+            row.ConstantItem(175).Border(1).BorderColor(PdfStyle.BorderColor).CornerRadius(6).Padding(12).Column(card =>
+            {
+                card.Spacing(8);
+                card.Item().Text(StatusLabel(job.Status)).FontSize(11).Bold().FontColor(StatusTextColor(job.Status));
+                card.Item().Text("STATUS").FontSize(7).FontColor(PdfStyle.TextLight);
+                card.Item().Text(FormatDate(GetReportDate(job))).FontSize(10).Bold();
+                card.Item().Text("DATO").FontSize(7).FontColor(PdfStyle.TextLight);
+            });
+        });
+    }
+
+    private static DateOnly? GetReportDate(JobReportSummaryResponse job) =>
+        job.SubmittedAt.HasValue ? DateOnly.FromDateTime(job.SubmittedAt.Value.LocalDateTime) : DateOnly.FromDateTime(job.UpdatedAt.LocalDateTime);
+
     private static void ComposeMetaSection(IContainer container, JobReportSummaryResponse job)
     {
-        Section(container, "Sag", body =>
+        Section(container, "Sagsoplysninger", "S", body =>
         {
             body.Column(section =>
             {
@@ -158,10 +215,6 @@ public sealed class JobReportPdfService : IJobReportPdfService
                     row.RelativeItem().Element(c => Field(c, "Afslutning", JoinLabels(job.Work.ClosureFlags.Select(flag => flag.Label))));
                 });
 
-                if (HasValue(job.Work.Remarks))
-                {
-                    section.Item().Element(c => Field(c, "Bemærkninger", job.Work.Remarks!));
-                }
                 });
             });
         });
@@ -169,7 +222,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
     private static void ComposeCustomerSection(IContainer container, JobReportSummaryResponse job)
     {
-        Section(container, "Kundeoplysninger", body =>
+        Section(container, "Kundeoplysninger", "K", body =>
         {
             body.Row(row =>
             {
@@ -193,7 +246,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
     private static void ComposeWorkSection(IContainer container, JobReportSummaryResponse job)
     {
-        Section(container, "Arbejde og kontrolpunkter", body =>
+        container.Element(body =>
         {
             body.Column(col =>
             {
@@ -213,14 +266,14 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
     private static void ComposeInstallation(IContainer container, InstallationTypeResponse installation)
     {
-        container.Border(1).BorderColor(PdfStyle.BorderColor).Background(PdfStyle.SectionBackground).Padding(PdfStyle.ElementPadding).Column(col =>
+        container.Border(1).BorderColor(PdfStyle.BorderColor).CornerRadius(5).Background(PdfStyle.SectionBackground).Column(col =>
         {
-            col.Spacing(PdfStyle.CompactGap);
-            col.Item().PaddingBottom(PdfStyle.SmallPadding).Text(installation.Name).FontSize(12).Bold().FontColor(PdfStyle.Primary);
+            col.Item().Background(PdfStyle.Primary).PaddingVertical(10).PaddingHorizontal(14)
+                .Text(installation.Name).FontSize(12).Bold().FontColor(Colors.White);
 
             foreach (var category in installation.Categories.OrderBy(x => x.IsIrrelevant).ThenBy(x => x.SortOrder))
             {
-                col.Item().Element(c => ComposeCategory(c, category));
+                col.Item().PaddingHorizontal(12).PaddingVertical(7).Element(c => ComposeCategory(c, category));
             }
         });
     }
@@ -241,6 +294,8 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
             if (category.IsIrrelevant)
             {
+                col.Item().PaddingTop(4).Background(PdfStyle.PrimaryLight).Padding(8)
+                    .Text("Ikke relevant").FontSize(PdfStyle.LabelSize).FontColor(PdfStyle.TextMedium);
                 return;
             }
 
@@ -250,72 +305,60 @@ public sealed class JobReportPdfService : IJobReportPdfService
                 return;
             }
 
-            var controlPoints = category.ControlPoints.OrderBy(x => x.SortOrder).ToList();
-            var columnCount = 3;
-            var rowCount = (int)Math.Ceiling((double)controlPoints.Count / columnCount);
-
-            col.Item().Table(table =>
+            foreach (var controlPoint in category.ControlPoints.OrderBy(x => x.SortOrder))
             {
-                table.ColumnsDefinition(columns =>
-                {
-                    columns.RelativeColumn();
-                    columns.RelativeColumn();
-                    columns.RelativeColumn();
-                });
-
-                for (int i = 0; i < rowCount; i++)
-                {
-                    table.Cell().Element(c => RenderControlPointCell(c, controlPoints, i * columnCount + 0));
-                    table.Cell().Element(c => RenderControlPointCell(c, controlPoints, i * columnCount + 1));
-                    table.Cell().Element(c => RenderControlPointCell(c, controlPoints, i * columnCount + 2));
-                }
-            });
+                col.Item().Element(c => ControlPointRow(c, controlPoint));
+            }
         });
-    }
-
-    private static void RenderControlPointCell(IContainer container, IReadOnlyList<InstallationTypeControlPointResponse> controlPoints, int index)
-    {
-        if (index >= controlPoints.Count)
-        {
-            container.Padding(2);
-            return;
-        }
-
-        ControlPointRow(container, controlPoints[index]);
     }
 
     private static void ControlPointRow(IContainer container, InstallationTypeControlPointResponse controlPoint)
     {
-        var marker = controlPoint.IsChecked ? "✓" : "□";
-        var color = controlPoint.IsChecked ? Color.FromHex("#166534") : PdfStyle.TextLight;
-
-        container.PaddingVertical(2).Row(row =>
+        container.Border(1).BorderColor(PdfStyle.BorderColor).CornerRadius(4).PaddingVertical(7).PaddingHorizontal(9).Row(row =>
         {
-            row.ConstantItem(16).Text(marker).FontSize(PdfStyle.MarkerSize).FontColor(color);
-            row.RelativeItem().Column(col =>
-            {
-                col.Item().Text(controlPoint.Name).FontSize(10).FontColor(PdfStyle.TextDark);
-            });
+            row.ConstantItem(18).Height(18)
+                .Background(controlPoint.IsChecked ? PdfStyle.Success : Colors.White)
+                .Border(1).BorderColor(controlPoint.IsChecked ? PdfStyle.Success : PdfStyle.BorderColor)
+                .AlignCenter().AlignMiddle().Text(controlPoint.IsChecked ? "X" : "").FontSize(8).Bold().FontColor(Colors.White);
+            row.RelativeItem().PaddingLeft(10).AlignMiddle().Text(controlPoint.Name).FontSize(10).FontColor(PdfStyle.TextDark);
+            row.AutoItem().PaddingLeft(8).AlignMiddle()
+                .Text(controlPoint.IsChecked ? "Godkendt" : "Ikke kontrolleret")
+                .FontSize(PdfStyle.SmallTextSize)
+                .FontColor(controlPoint.IsChecked ? PdfStyle.Success : PdfStyle.TextMedium);
         });
     }
 
     private static void ComposeObservationsSection(IContainer container, JobReportSummaryResponse job)
     {
-        Section(container, "Opgave og observationer", body =>
+        Section(container, "Observationer", "O", body =>
         {
-            body.Column(col =>
+            body.Row(row =>
             {
-                col.Spacing(PdfStyle.GroupGap);
-                col.Item().Element(c => LongText(c, "Opgavebeskrivelse", job.Observations.TaskDescription));
-                col.Item().Element(c => LongText(c, "Oplysninger til kunden", job.Observations.CustomerObservations));
-                col.Item().Element(c => LongText(c, "Tekniske observationer", job.Observations.TechnicalObservations));
+                row.RelativeItem().Element(c => LongText(c, "Tekniske observationer", job.Observations.TechnicalObservations));
+                row.ConstantItem(12);
+                row.RelativeItem().Element(c => LongText(c, "Information til kunden", job.Observations.CustomerObservations));
             });
+        });
+    }
+
+    private static void ComposeTaskSection(IContainer container, JobReportSummaryResponse job)
+    {
+        container.Column(col =>
+        {
+            col.Item().Element(c => PageHeading(c, "OPGAVEBESKRIVELSE", "B"));
+            col.Item().PaddingTop(8).Text(Value(job.Observations.TaskDescription)).FontSize(PdfStyle.FieldValueSize);
+            col.Item().PaddingTop(16).Element(c => PageHeading(c, "UDFØRT ARBEJDE", "U"));
+            col.Item().PaddingTop(8).Background(PdfStyle.PrimaryLight).Padding(10)
+                .Text(HasValue(job.Work.Remarks)
+                    ? job.Work.Remarks!
+                    : "Se kontrolpunkter og arbejdssedler for udført arbejde.")
+                .FontSize(PdfStyle.FieldValueSize).FontColor(PdfStyle.TextMedium);
         });
     }
 
     private static void ComposeWorksheetsSection(IContainer container, JobReportSummaryResponse job)
     {
-        Section(container, "Arbejdssedler", body =>
+        container.Element(body =>
         {
             body.Column(col =>
             {
@@ -386,7 +429,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
     private static void ComposeLinksSection(IContainer container, JobReportSummaryResponse job, Uri? jobBaseUri)
     {
-        Section(container, "Relaterede sager", body =>
+        Section(container, "Relaterede sager", "R", body =>
         {
             if (job.Links.Count == 0)
             {
@@ -418,13 +461,26 @@ public sealed class JobReportPdfService : IJobReportPdfService
         });
     }
 
-    private static void Section(IContainer container, string title, Action<IContainer> compose)
+    private static void Section(IContainer container, string title, string marker, Action<IContainer> compose)
+    {
+        container.Border(1).BorderColor(PdfStyle.BorderColor).CornerRadius(5).Padding(12).Column(col =>
+        {
+            col.Item().Element(c => PageHeading(c, title.ToUpperInvariant(), marker));
+            col.Item().PaddingTop(10).Element(c => compose(c));
+        });
+    }
+
+    private static void PageHeading(IContainer container, string title, string marker)
     {
         container.Column(col =>
         {
-            col.Item().Background(PdfStyle.PrimaryLight).PaddingVertical(PdfStyle.CardPadding).PaddingHorizontal(PdfStyle.ContentPadding)
-                .Text(title.ToUpperInvariant()).FontSize(PdfStyle.SectionTitleSize).Bold().FontColor(PdfStyle.Primary);
-            col.Item().Border(1).BorderColor(PdfStyle.BorderColor).BorderTop(0).Padding(PdfStyle.ContentPadding).Element(c => compose(c));
+            col.Item().Row(row =>
+            {
+                row.ConstantItem(24).Height(24).Border(1).BorderColor(PdfStyle.Accent).CornerRadius(12)
+                    .AlignCenter().AlignMiddle().Text(marker).FontSize(9).Bold().FontColor(PdfStyle.Accent);
+                row.RelativeItem().PaddingLeft(8).AlignMiddle().Text(title).FontSize(PdfStyle.SectionTitleSize).Bold().FontColor(PdfStyle.Primary);
+            });
+            col.Item().PaddingTop(7).LineHorizontal(1).LineColor(PdfStyle.BorderColor);
         });
     }
 
@@ -513,22 +569,23 @@ public sealed class JobReportPdfService : IJobReportPdfService
             .Text(text);
     }
 
-    private static void ComposeFooter(IContainer container)
+    private static void ComposeFooter(IContainer container, string reportType)
     {
-        container.Column(col =>
+        container.Background(PdfStyle.PrimaryDark).PaddingVertical(13).PaddingHorizontal(10).Row(row =>
         {
-            col.Item().PaddingTop(PdfStyle.SectionPadding).LineHorizontal(1).LineColor(PdfStyle.BorderColor);
-            col.Item().PaddingTop(PdfStyle.CardPadding).Row(row =>
+            row.RelativeItem().Column(left =>
             {
-                row.RelativeItem().Text($"PDF genereret {FormatDateTime(DateTimeOffset.Now)}").FontSize(PdfStyle.SmallTextSize).FontColor(PdfStyle.TextLight);
-                row.RelativeItem().AlignCenter().DefaultTextStyle(x => x.FontSize(PdfStyle.SmallTextSize).FontColor(PdfStyle.TextLight)).Text(text =>
-                {
-                    text.Span("Side ");
-                    text.CurrentPageNumber();
-                    text.Span(" af ");
-                    text.TotalPages();
-                });
-                row.RelativeItem().AlignRight().Text("WORKSLIP · Jobrapport").FontSize(PdfStyle.SmallTextSize).FontColor(PdfStyle.TextLight);
+                left.Item().Text("WORKSLIP").FontSize(8).Bold().FontColor(Colors.White);
+                left.Item().Text(reportType).FontSize(8).FontColor(Color.FromHex("#D8E5F5"));
+            });
+            row.RelativeItem().AlignCenter().Text($"Genereret {FormatDateTime(DateTimeOffset.Now)}")
+                .FontSize(8).FontColor(Color.FromHex("#D8E5F5"));
+            row.RelativeItem().AlignRight().DefaultTextStyle(x => x.FontSize(8).FontColor(Colors.White)).Text(text =>
+            {
+                text.Span("Side ");
+                text.CurrentPageNumber();
+                text.Span(" af ");
+                text.TotalPages();
             });
         });
     }
@@ -601,5 +658,13 @@ public sealed class JobReportPdfService : IJobReportPdfService
         JobStatus.Approved => Color.FromHex("#86EFAC"),
         JobStatus.Rejected => Color.FromHex("#FCA5A5"),
         _ => Colors.White
+    };
+
+    private static Color StatusTextColor(JobStatus status) => status switch
+    {
+        JobStatus.Approved => PdfStyle.Success,
+        JobStatus.Rejected => Color.FromHex("#B42318"),
+        JobStatus.InReview => PdfStyle.Accent,
+        _ => PdfStyle.TextMedium
     };
 }

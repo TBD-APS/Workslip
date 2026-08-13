@@ -13,7 +13,7 @@ Opret og fordel opgaver med de oplysninger, medarbejderen har brug for.
 
 ## Registrering
 
-Registrér timer, noter og materialer fra mobil eller desktop.
+Registrér timer og noter fra mobil eller desktop.
 
 ## Godkendelse
 

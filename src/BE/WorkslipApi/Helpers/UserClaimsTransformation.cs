@@ -34,7 +34,20 @@ public sealed class UserClaimsTransformation(
             return principal;
         }
 
-        if (HasClaim(principal, OrganizationIdClaim) && (HasClaim(principal, WorkslipUserIdClaim) || HasClaim(principal, ClaimTypes.Role)))
+        // Delegated Superadmin organization sessions intentionally carry an
+        // effective tenant OrganizationId that differs from the platform user's
+        // persisted OrganizationId. Never replace those scoped claims here.
+        if (HasClaim(principal, JwtHelper.DelegatedOrganizationSessionClaim))
+        {
+            return principal;
+        }
+
+        // A principal already transformed during this authentication pass is
+        // complete. Ordinary local JWTs do not contain workslipUserId, so they
+        // continue below and have role/organization refreshed from Workslip DB.
+        if (HasClaim(principal, OrganizationIdClaim)
+            && HasClaim(principal, WorkslipUserIdClaim)
+            && HasClaim(principal, ClaimTypes.Role))
         {
             return principal;
         }
@@ -70,9 +83,10 @@ public sealed class UserClaimsTransformation(
                 if (row is null)
                 {
                     logger.LogWarning(
-                        "Authenticated Entra user was not found in Workslip database. EntraIdPresent={EntraIdPresent} EmailCandidateCount={EmailCandidateCount}.",
+                        "Authenticated user was not found in Workslip database. EntraIdPresent={EntraIdPresent} EmailCandidateCount={EmailCandidateCount}.",
                         !string.IsNullOrWhiteSpace(entraId),
                         emailCandidates.Count);
+                    RemoveWorkslipClaims(identity);
                     return principal;
                 }
 
@@ -216,14 +230,19 @@ public sealed class UserClaimsTransformation(
 
     private static void ReplaceWorkslipClaims(ClaimsIdentity identity, CachedWorkslipUser user)
     {
-        foreach (var claim in identity.Claims.Where(IsWorkslipManagedClaim).ToArray())
-        {
-            identity.RemoveClaim(claim);
-        }
+        RemoveWorkslipClaims(identity);
 
         identity.AddClaim(new Claim(WorkslipUserIdClaim, user.UserId.ToString()));
         identity.AddClaim(new Claim(OrganizationIdClaim, user.OrganizationId.ToString()));
         identity.AddClaim(new Claim(ClaimTypes.Role, user.Role));
+    }
+
+    private static void RemoveWorkslipClaims(ClaimsIdentity identity)
+    {
+        foreach (var claim in identity.Claims.Where(IsWorkslipManagedClaim).ToArray())
+        {
+            identity.RemoveClaim(claim);
+        }
     }
 
     private static bool IsWorkslipManagedClaim(Claim claim) =>

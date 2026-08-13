@@ -125,6 +125,7 @@ public sealed class AuthServiceEntraLoginTests
             new InlineValidator<CreateUserRequest>(),
             new InlineValidator<UpdateUserRequest>(),
             new FakeUserEntraService(),
+            new NoOpClaimsCacheInvalidator(),
             currentUser,
             new NoOpImageStorage(),
             NullLogger<UserService>.Instance);
@@ -246,6 +247,13 @@ public sealed class AuthServiceEntraLoginTests
             throw new NotSupportedException();
     }
 
+    private sealed class NoOpClaimsCacheInvalidator : IUserClaimsCacheInvalidator
+    {
+        public void Invalidate(string? entraId, string? email, string? entraEmail)
+        {
+        }
+    }
+
     private sealed class RelationalTestDatabase : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
@@ -290,6 +298,7 @@ public sealed class AuthServiceEntraLoginTests
                         EntraEmail TEXT NOT NULL,
                         EntraId TEXT NOT NULL,
                         Role TEXT NOT NULL,
+                        UserKind TEXT NOT NULL,
                         CreatedAt TEXT NOT NULL,
                         UpdatedAt TEXT NOT NULL,
                         FOREIGN KEY (OrganizationId) REFERENCES Organizations (Id)

@@ -50,6 +50,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Workslip.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Remove="Workslip.Application\**\*.cs" />
     <Compile Remove="Workslip.Domain\**\*.cs" />
     <Compile Remove="Workslip.Infrastructure\**\*.cs" />
