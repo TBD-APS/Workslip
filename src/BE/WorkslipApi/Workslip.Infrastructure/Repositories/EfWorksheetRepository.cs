@@ -3,6 +3,7 @@ using System.Data;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
 using Workslip.Application.Worksheets;
+using Workslip.Domain;
 using Workslip.Domain.Models;
 using Workslip.Infrastructure.Mappers;
 using Workslip.Infrastructure.Resilience;
@@ -24,32 +25,13 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         _retryPolicy = retryPolicy;
     }
 
-    public Task<IReadOnlyList<MyWorksheetEntryResponse>> GetWorksheetsForUserAsync(
-        Guid userId,
-        Guid organizationId,
-        DateOnly monthStart,
-        DateOnly monthEnd,
-        CancellationToken cancellationToken) =>
-        _retryPolicy.ExecuteAsync(
-            "worksheets.my",
-            token => GetWorksheetsForUserCoreAsync(userId, organizationId, monthStart, monthEnd, token),
-            cancellationToken);
+    public Task<IReadOnlyList<MyWorksheetEntryResponse>> GetWorksheetsForUserAsync(Guid userId, Guid organizationId, DateOnly monthStart, DateOnly monthEnd, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("worksheets.my", token => GetWorksheetsForUserCoreAsync(userId, organizationId, monthStart, monthEnd, token), cancellationToken);
 
-    public Task<IReadOnlyList<MyWorksheetEntryResponse>> GetAllWorksheetsAsync(
-        Guid organizationId,
-        DateOnly monthStart,
-        DateOnly monthEnd,
-        CancellationToken cancellationToken) =>
-        _retryPolicy.ExecuteAsync(
-            "worksheets.all",
-            token => GetAllWorksheetsCoreAsync(organizationId, monthStart, monthEnd, token),
-            cancellationToken);
+    public Task<IReadOnlyList<MyWorksheetEntryResponse>> GetAllWorksheetsAsync(Guid organizationId, DateOnly monthStart, DateOnly monthEnd, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("worksheets.all", token => GetAllWorksheetsCoreAsync(organizationId, monthStart, monthEnd, token), cancellationToken);
 
-    private async Task<IReadOnlyList<MyWorksheetEntryResponse>> GetAllWorksheetsCoreAsync(
-        Guid organizationId,
-        DateOnly monthStart,
-        DateOnly monthEnd,
-        CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<MyWorksheetEntryResponse>> GetAllWorksheetsCoreAsync(Guid organizationId, DateOnly monthStart, DateOnly monthEnd, CancellationToken cancellationToken)
     {
         var fromDate = monthStart.ToDateTime(TimeOnly.MinValue);
         var toDate = monthEnd.ToDateTime(TimeOnly.MaxValue);
@@ -67,20 +49,20 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
                 && !r.IsSoftDeleted
                 && u.OrganizationId == organizationId
             orderby u.DisplayName
-            select new WorksheetMyProjection
+            select new
             {
-                WorkDate = w.WorkDate,
-                JobId = w.JobId,
-                UserId = w.UserId,
-                ReportNumber = r.ReportNumber,
+                w.WorkDate,
+                w.JobId,
+                w.UserId,
+                r.ReportNumber,
                 CustomerName = r.CustomerName ?? (c != null ? c.Name : "Ukendt kunde"),
                 CustomerAddress = r.CustomerAddress ?? (c != null ? c.Address : null),
                 HasOutlay = w.SleptOnJob,
-                HoursWorked = w.HoursWorked,
+                w.HoursWorked,
                 UserDisplayName = u.DisplayName,
-                JobType = r.JobType.ToString()
-            })
-            .ToListAsync(cancellationToken);
+                JobType = r.JobType.ToString(),
+                EffectiveRate = r.Status == nameof(JobStatus.Approved) ? w.BillableHourlyRateSnapshot : u.BillableHourlyRate
+            }).ToListAsync(cancellationToken);
 
         return rows.Select(row => new MyWorksheetEntryResponse(
             DateOnly.FromDateTime(row.WorkDate),
@@ -92,15 +74,12 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
             row.HoursWorked,
             row.HasOutlay,
             row.UserDisplayName,
-            row.JobType)).ToArray();
+            row.JobType,
+            row.EffectiveRate,
+            row.EffectiveRate.HasValue ? decimal.Round(row.HoursWorked * row.EffectiveRate.Value, 2, MidpointRounding.AwayFromZero) : null)).ToArray();
     }
 
-    private async Task<IReadOnlyList<MyWorksheetEntryResponse>> GetWorksheetsForUserCoreAsync(
-        Guid userId,
-        Guid organizationId,
-        DateOnly monthStart,
-        DateOnly monthEnd,
-        CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<MyWorksheetEntryResponse>> GetWorksheetsForUserCoreAsync(Guid userId, Guid organizationId, DateOnly monthStart, DateOnly monthEnd, CancellationToken cancellationToken)
     {
         var fromDate = monthStart.ToDateTime(TimeOnly.MinValue);
         var toDate = monthEnd.ToDateTime(TimeOnly.MaxValue);
@@ -128,20 +107,11 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
                 HasOutlay = w.SleptOnJob,
                 HoursWorked = w.HoursWorked,
                 JobType = r.JobType.ToString()
-            })
-            .ToListAsync(cancellationToken);
+            }).ToListAsync(cancellationToken);
 
         return rows.Select(row => new MyWorksheetEntryResponse(
-            DateOnly.FromDateTime(row.WorkDate),
-            row.JobId,
-            row.UserId,
-            row.ReportNumber,
-            row.CustomerName,
-            row.CustomerAddress,
-            row.HoursWorked,
-            row.HasOutlay,
-            UserDisplayName: row.UserDisplayName,
-            row.JobType)).ToArray();
+            DateOnly.FromDateTime(row.WorkDate), row.JobId, row.UserId, row.ReportNumber, row.CustomerName,
+            row.CustomerAddress, row.HoursWorked, row.HasOutlay, UserDisplayName: row.UserDisplayName, row.JobType)).ToArray();
     }
 
     public Task<WorksheetResponse> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken) =>
@@ -152,42 +122,25 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         var now = DateTimeOffset.UtcNow;
         var workDate = request.WorkDate.ToDateTime(TimeOnly.MinValue);
-
-        var user = await _dbContext.Users
-            .FirstOrDefaultAsync(u => u.Id == request.UserId && u.OrganizationId == _currentUser.OrganizationId, cancellationToken) 
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == request.UserId && u.OrganizationId == _currentUser.OrganizationId, cancellationToken)
             ?? throw new InvalidOperationException($"User with ID {request.UserId} not found");
-
-        var job = await _dbContext.JobReports
-            .FirstOrDefaultAsync(j => j.Id == request.JobId && j.OrganizationId == _currentUser.OrganizationId, cancellationToken) 
+        _ = await _dbContext.JobReports.FirstOrDefaultAsync(j => j.Id == request.JobId && j.OrganizationId == _currentUser.OrganizationId, cancellationToken)
             ?? throw new InvalidOperationException($"Job with ID {request.JobId} not found");
-        
-        var stale = _dbContext.Worksheets.Local
-            .FirstOrDefault(w => request.Id.HasValue
-                ? w.Id == request.Id.Value && w.JobId == request.JobId
-                : w.JobId == request.JobId && w.UserId == request.UserId && w.WorkDate == workDate);
-        if (stale is not null)
-            _dbContext.Entry(stale).State = EntityState.Detached;
+
+        var stale = _dbContext.Worksheets.Local.FirstOrDefault(w => request.Id.HasValue
+            ? w.Id == request.Id.Value && w.JobId == request.JobId
+            : w.JobId == request.JobId && w.UserId == request.UserId && w.WorkDate == workDate);
+        if (stale is not null) _dbContext.Entry(stale).State = EntityState.Detached;
 
         var existing = request.Id.HasValue
-            ? await _dbContext.Worksheets
-                .FirstOrDefaultAsync(
-                    w => w.Id == request.Id.Value && w.JobId == request.JobId && w.OrganizationId == _currentUser.OrganizationId,
-                    cancellationToken)
-            : await _dbContext.Worksheets
-                .FirstOrDefaultAsync(w => w.JobId == request.JobId && w.UserId == request.UserId && w.WorkDate == workDate, cancellationToken);
-
-        if (request.Id.HasValue && existing is null)
-            throw new InvalidOperationException("Worksheet not found");
+            ? await _dbContext.Worksheets.FirstOrDefaultAsync(w => w.Id == request.Id.Value && w.JobId == request.JobId && w.OrganizationId == _currentUser.OrganizationId, cancellationToken)
+            : await _dbContext.Worksheets.FirstOrDefaultAsync(w => w.JobId == request.JobId && w.UserId == request.UserId && w.WorkDate == workDate, cancellationToken);
+        if (request.Id.HasValue && existing is null) throw new InvalidOperationException("Worksheet not found");
 
         var existingId = existing?.Id;
-        var existingHoursForUserDay = await _dbContext.Worksheets
-            .AsNoTracking()
-            .Where(w => w.OrganizationId == _currentUser.OrganizationId
-                && w.UserId == request.UserId
-                && w.WorkDate == workDate
-                && (!existingId.HasValue || w.Id != existingId.Value))
+        var existingHoursForUserDay = await _dbContext.Worksheets.AsNoTracking()
+            .Where(w => w.OrganizationId == _currentUser.OrganizationId && w.UserId == request.UserId && w.WorkDate == workDate && (!existingId.HasValue || w.Id != existingId.Value))
             .SumAsync(w => w.HoursWorked, cancellationToken);
-
         if (existingHoursForUserDay + request.HoursWorked > 24m)
             throw new InvalidOperationException("Worksheet daily hours cannot exceed 24 hours for the selected user");
 
@@ -203,33 +156,16 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         {
             existing = new WorksheetRow
             {
-                Id = Guid.NewGuid(),
-                OrganizationId = user.OrganizationId,
-                JobId = request.JobId,
-                UserId = request.UserId,
-                WorkDate = workDate,
-                HoursWorked = request.HoursWorked,
-                SleptOnJob = request.SleptOnJob,
-                CreatedAt = now,
-                UpdatedAt = now
+                Id = Guid.NewGuid(), OrganizationId = user.OrganizationId, JobId = request.JobId, UserId = request.UserId,
+                WorkDate = workDate, HoursWorked = request.HoursWorked, SleptOnJob = request.SleptOnJob, CreatedAt = now, UpdatedAt = now
             };
             _dbContext.Worksheets.Add(existing);
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-
-        return new WorksheetResponse(
-            existing.Id,
-            existing.OrganizationId,
-            existing.JobId,
-            existing.UserId,
-            user.DisplayName,
-            request.WorkDate,
-            existing.HoursWorked,
-            existing.SleptOnJob,
-            existing.CreatedAt,
-            existing.UpdatedAt);
+        return new WorksheetResponse(existing.Id, existing.OrganizationId, existing.JobId, existing.UserId, user.DisplayName,
+            request.WorkDate, existing.HoursWorked, existing.SleptOnJob, existing.CreatedAt, existing.UpdatedAt);
     }
 
     public Task DeleteAsync(Guid worksheetId, Guid jobId, CancellationToken cancellationToken) =>
@@ -237,18 +173,10 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
 
     private async Task DeleteAsyncCoreAsync(Guid worksheetId, Guid jobId, CancellationToken cancellationToken)
     {
-        var stale = _dbContext.Worksheets.Local
-            .FirstOrDefault(w => w.Id == worksheetId && w.JobId == jobId);
-        if (stale is not null)
-            _dbContext.Entry(stale).State = EntityState.Detached;
-
-        var existing = await _dbContext.Worksheets
-            .FirstOrDefaultAsync(
-                w => w.Id == worksheetId && w.JobId == jobId && w.OrganizationId == _currentUser.OrganizationId, cancellationToken);
-
-        if (existing is null)
-            return;
-
+        var stale = _dbContext.Worksheets.Local.FirstOrDefault(w => w.Id == worksheetId && w.JobId == jobId);
+        if (stale is not null) _dbContext.Entry(stale).State = EntityState.Detached;
+        var existing = await _dbContext.Worksheets.FirstOrDefaultAsync(w => w.Id == worksheetId && w.JobId == jobId && w.OrganizationId == _currentUser.OrganizationId, cancellationToken);
+        if (existing is null) return;
         _dbContext.Worksheets.Remove(existing);
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -258,27 +186,14 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
 
     private async Task<IReadOnlyList<WorksheetResponse>> ListByJobAsyncCoreAsync(Guid jobId, CancellationToken cancellationToken)
     {
-        var rows = await (
-            from worksheet in _dbContext.Worksheets.AsNoTracking()
-            join user in _dbContext.Users.AsNoTracking() on worksheet.UserId equals user.Id
-            where worksheet.JobId == jobId
-                && worksheet.OrganizationId == _currentUser.OrganizationId
-                && user.OrganizationId == _currentUser.OrganizationId
-            orderby worksheet.WorkDate, user.DisplayName
-            select new { Worksheet = worksheet, user.DisplayName }
-        ).ToListAsync(cancellationToken);
-
-        return rows.Select(row => new WorksheetResponse(
-            row.Worksheet.Id,
-            row.Worksheet.OrganizationId,
-            row.Worksheet.JobId,
-            row.Worksheet.UserId,
-            row.DisplayName,
-            DateOnly.FromDateTime(row.Worksheet.WorkDate),
-            row.Worksheet.HoursWorked,
-            row.Worksheet.SleptOnJob,
-            row.Worksheet.CreatedAt,
-            row.Worksheet.UpdatedAt)).ToArray();
+        var rows = await (from worksheet in _dbContext.Worksheets.AsNoTracking()
+                          join user in _dbContext.Users.AsNoTracking() on worksheet.UserId equals user.Id
+                          where worksheet.JobId == jobId && worksheet.OrganizationId == _currentUser.OrganizationId && user.OrganizationId == _currentUser.OrganizationId
+                          orderby worksheet.WorkDate, user.DisplayName
+                          select new { Worksheet = worksheet, user.DisplayName }).ToListAsync(cancellationToken);
+        return rows.Select(row => new WorksheetResponse(row.Worksheet.Id, row.Worksheet.OrganizationId, row.Worksheet.JobId, row.Worksheet.UserId,
+            row.DisplayName, DateOnly.FromDateTime(row.Worksheet.WorkDate), row.Worksheet.HoursWorked, row.Worksheet.SleptOnJob,
+            row.Worksheet.CreatedAt, row.Worksheet.UpdatedAt)).ToArray();
     }
 
     public Task<IReadOnlyList<WorksheetUserGroupResponse>> GetGroupedByJobAsync(Guid jobId, CancellationToken cancellationToken) =>
@@ -286,19 +201,12 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
 
     private async Task<IReadOnlyList<WorksheetUserGroupResponse>> GetGroupedByJobAsyncCoreAsync(Guid jobId, CancellationToken cancellationToken)
     {
-        var rows = await (
-            from w in _dbContext.Worksheets.AsNoTracking()
-            join u in _dbContext.Users.AsNoTracking() on w.UserId equals u.Id
-            where w.JobId == jobId
-            orderby u.DisplayName, w.WorkDate descending
-            select new WorksheetMapper.WorksheetEntryProjection
-            {
-                WorkDate = w.WorkDate,
-                HoursWorked = w.HoursWorked,
-                DisplayName = u.DisplayName
-            }
-        ).ToListAsync(cancellationToken);
-
+        var rows = await (from w in _dbContext.Worksheets.AsNoTracking()
+                          join u in _dbContext.Users.AsNoTracking() on w.UserId equals u.Id
+                          where w.JobId == jobId
+                          orderby u.DisplayName, w.WorkDate descending
+                          select new WorksheetMapper.WorksheetEntryProjection { WorkDate = w.WorkDate, HoursWorked = w.HoursWorked, DisplayName = u.DisplayName })
+            .ToListAsync(cancellationToken);
         return WorksheetMapper.ToGroupedResponse(rows);
     }
 
@@ -308,39 +216,17 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         public decimal? TotalHours { get; init; }
     }
 
-    public Task<decimal> GetHoursForUserDayAsync(
-        Guid organizationId,
-        Guid userId,
-        DateOnly workDate,
-        CancellationToken cancellationToken) =>
-        _retryPolicy.ExecuteAsync(
-            "worksheets.daily-hours",
-            token => _dbContext.Worksheets
-                .AsNoTracking()
-                .Where(w => w.OrganizationId == organizationId
-                    && w.UserId == userId
-                    && w.WorkDate == workDate.ToDateTime(TimeOnly.MinValue))
-                .SumAsync(w => w.HoursWorked, token),
-            cancellationToken);
+    public Task<decimal> GetHoursForUserDayAsync(Guid organizationId, Guid userId, DateOnly workDate, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("worksheets.daily-hours", token => _dbContext.Worksheets.AsNoTracking()
+            .Where(w => w.OrganizationId == organizationId && w.UserId == userId && w.WorkDate == workDate.ToDateTime(TimeOnly.MinValue))
+            .SumAsync(w => w.HoursWorked, token), cancellationToken);
 
-    public async Task<IReadOnlyDictionary<Guid, decimal?>> GetTotalHoursByJobAsync(
-        IEnumerable<Guid> jobIds, CancellationToken cancellationToken)
+    public async Task<IReadOnlyDictionary<Guid, decimal?>> GetTotalHoursByJobAsync(IEnumerable<Guid> jobIds, CancellationToken cancellationToken)
     {
         var ids = jobIds.Distinct().ToArray();
         if (ids.Length == 0) return new Dictionary<Guid, decimal?>();
-
-        var rows = await _dbContext.Worksheets
-            .AsNoTracking()
-            .Where(w => ids.Contains(w.JobId))
-            .GroupBy(w => w.JobId)
-            .Select(g => new JobTotalHoursProjection
-            {
-                JobId = g.Key,
-                TotalHours = g.Sum(w => w.HoursWorked)
-            })
-            .ToListAsync(cancellationToken);
-
+        var rows = await _dbContext.Worksheets.AsNoTracking().Where(w => ids.Contains(w.JobId)).GroupBy(w => w.JobId)
+            .Select(g => new JobTotalHoursProjection { JobId = g.Key, TotalHours = g.Sum(w => w.HoursWorked) }).ToListAsync(cancellationToken);
         return rows.ToDictionary(r => r.JobId, r => r.TotalHours);
     }
-
 }
