@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Pencil, Save, X } from 'lucide-react';
 import { NumericInput } from '../../../components/forms/NumericInput';
@@ -17,10 +17,6 @@ export function UserRateCard({ userId }: { userId: string }) {
     queryFn: () => customAxiosInstance<RateResponse>({ url: `/api/users/${userId}/billing-rate`, method: 'GET' }),
   });
 
-  useEffect(() => {
-    if (!editing && query.data) setValue(query.data.billableHourlyRate?.toString().replace('.', ',') ?? '');
-  }, [editing, query.data]);
-
   const mutation = useMutation({
     mutationFn: (billableHourlyRate: number | null) => customAxiosInstance<void>({
       url: `/api/users/${userId}/billing-rate`,
@@ -34,6 +30,11 @@ export function UserRateCard({ userId }: { userId: string }) {
     },
     onError: () => notify.error('Timeprisen kunne ikke gemmes'),
   });
+
+  const beginEditing = () => {
+    setValue(query.data?.billableHourlyRate?.toString().replace('.', ',') ?? '');
+    setEditing(true);
+  };
 
   const save = () => {
     const normalized = value.trim().replace(',', '.');
@@ -53,7 +54,7 @@ export function UserRateCard({ userId }: { userId: string }) {
           <p className="subtitle">Bruges i månedens administrative timeoversigt.</p>
         </div>
         {!editing && !query.isLoading && (
-          <button className="btn-icon" type="button" onClick={() => setEditing(true)} aria-label="Rediger timepris">
+          <button className="btn-icon" type="button" onClick={beginEditing} aria-label="Rediger timepris">
             <Pencil size={16} />
           </button>
         )}
