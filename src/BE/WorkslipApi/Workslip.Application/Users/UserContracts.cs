@@ -48,8 +48,7 @@ public sealed record UserDetailResponse(
     decimal? TotalHours,
     decimal? HoursThisWeek = null,
     decimal? HoursThisMonth = null,
-    decimal? HoursBiweekly = null,
-    decimal? BillableHourlyRate = null);
+    decimal? HoursBiweekly = null);
 
 public sealed record InviteUsersRequest(
     IReadOnlyList<string> Emails,
