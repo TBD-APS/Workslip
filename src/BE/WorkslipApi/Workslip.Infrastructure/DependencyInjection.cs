@@ -36,6 +36,7 @@ public static class DependencyInjection
 
         services.AddScoped<TenantIntegrityInterceptor>();
         services.AddScoped<JobStatusTransitionInterceptor>();
+        services.AddScoped<ApprovedJobRateInterceptor>();
         services.AddScoped<AuditInterceptor>();
         services.AddScoped<WorksheetDailyHoursInterceptor>();
 
@@ -47,11 +48,13 @@ public static class DependencyInjection
 
             var tenantIntegrityInterceptor = sp.GetRequiredService<TenantIntegrityInterceptor>();
             var transitionInterceptor = sp.GetRequiredService<JobStatusTransitionInterceptor>();
+            var approvedJobRateInterceptor = sp.GetRequiredService<ApprovedJobRateInterceptor>();
             var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
             var worksheetDailyHoursInterceptor = sp.GetRequiredService<WorksheetDailyHoursInterceptor>();
             options.AddInterceptors(
                 tenantIntegrityInterceptor,
                 transitionInterceptor,
+                approvedJobRateInterceptor,
                 auditInterceptor,
                 worksheetDailyHoursInterceptor);
 
