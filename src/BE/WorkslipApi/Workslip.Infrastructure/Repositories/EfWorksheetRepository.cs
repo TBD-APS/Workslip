@@ -61,22 +61,43 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
                 w.HoursWorked,
                 UserDisplayName = u.DisplayName,
                 JobType = r.JobType.ToString(),
-                EffectiveRate = r.Status == nameof(JobStatus.Approved) ? w.BillableHourlyRateSnapshot : u.BillableHourlyRate
+                r.Status,
+                w.BillableHourlyRateSnapshot
             }).ToListAsync(cancellationToken);
 
-        return rows.Select(row => new MyWorksheetEntryResponse(
-            DateOnly.FromDateTime(row.WorkDate),
-            row.JobId,
-            row.UserId,
-            row.ReportNumber,
-            row.CustomerName,
-            row.CustomerAddress,
-            row.HoursWorked,
-            row.HasOutlay,
-            row.UserDisplayName,
-            row.JobType,
-            row.EffectiveRate,
-            row.EffectiveRate.HasValue ? decimal.Round(row.HoursWorked * row.EffectiveRate.Value, 2, MidpointRounding.AwayFromZero) : null)).ToArray();
+        var currentRates = new Dictionary<Guid, decimal?>();
+        var userRepository = new EfUserRepository(_dbContext, _currentUser);
+        foreach (var userId in rows
+                     .Where(row => row.Status != nameof(JobStatus.Approved))
+                     .Select(row => row.UserId)
+                     .Distinct())
+        {
+            currentRates[userId] = (await userRepository.GetByIdAsync(userId, cancellationToken))?.BillableHourlyRate;
+        }
+
+        return rows.Select(row =>
+        {
+            var rate = row.Status == nameof(JobStatus.Approved)
+                ? row.BillableHourlyRateSnapshot
+                : currentRates.GetValueOrDefault(row.UserId);
+            var amount = rate.HasValue
+                ? decimal.Round(row.HoursWorked * rate.Value, 2, MidpointRounding.AwayFromZero)
+                : null;
+
+            return new MyWorksheetEntryResponse(
+                DateOnly.FromDateTime(row.WorkDate),
+                row.JobId,
+                row.UserId,
+                row.ReportNumber,
+                row.CustomerName,
+                row.CustomerAddress,
+                row.HoursWorked,
+                row.HasOutlay,
+                row.UserDisplayName,
+                row.JobType,
+                rate,
+                amount);
+        }).ToArray();
     }
 
     private async Task<IReadOnlyList<MyWorksheetEntryResponse>> GetWorksheetsForUserCoreAsync(Guid userId, Guid organizationId, DateOnly monthStart, DateOnly monthEnd, CancellationToken cancellationToken)
@@ -124,8 +145,10 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         var workDate = request.WorkDate.ToDateTime(TimeOnly.MinValue);
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == request.UserId && u.OrganizationId == _currentUser.OrganizationId, cancellationToken)
             ?? throw new InvalidOperationException($"User with ID {request.UserId} not found");
-        _ = await _dbContext.JobReports.FirstOrDefaultAsync(j => j.Id == request.JobId && j.OrganizationId == _currentUser.OrganizationId, cancellationToken)
+        var job = await _dbContext.JobReports.FirstOrDefaultAsync(j => j.Id == request.JobId && j.OrganizationId == _currentUser.OrganizationId, cancellationToken)
             ?? throw new InvalidOperationException($"Job with ID {request.JobId} not found");
+        if (job.Status == nameof(JobStatus.Approved))
+            throw new InvalidOperationException("Worksheets on an approved job are immutable.");
 
         var stale = _dbContext.Worksheets.Local.FirstOrDefault(w => request.Id.HasValue
             ? w.Id == request.Id.Value && w.JobId == request.JobId
@@ -173,12 +196,24 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
 
     private async Task DeleteAsyncCoreAsync(Guid worksheetId, Guid jobId, CancellationToken cancellationToken)
     {
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        var job = await _dbContext.JobReports.AsNoTracking()
+            .FirstOrDefaultAsync(j => j.Id == jobId && j.OrganizationId == _currentUser.OrganizationId, cancellationToken);
+        if (job?.Status == nameof(JobStatus.Approved))
+            throw new InvalidOperationException("Worksheets on an approved job are immutable.");
+
         var stale = _dbContext.Worksheets.Local.FirstOrDefault(w => w.Id == worksheetId && w.JobId == jobId);
         if (stale is not null) _dbContext.Entry(stale).State = EntityState.Detached;
         var existing = await _dbContext.Worksheets.FirstOrDefaultAsync(w => w.Id == worksheetId && w.JobId == jobId && w.OrganizationId == _currentUser.OrganizationId, cancellationToken);
-        if (existing is null) return;
+        if (existing is null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return;
+        }
+
         _dbContext.Worksheets.Remove(existing);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public Task<IReadOnlyList<WorksheetResponse>> ListByJobAsync(Guid jobId, CancellationToken cancellationToken) =>
@@ -203,7 +238,7 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
     {
         var rows = await (from w in _dbContext.Worksheets.AsNoTracking()
                           join u in _dbContext.Users.AsNoTracking() on w.UserId equals u.Id
-                          where w.JobId == jobId
+                          where w.JobId == jobId && w.OrganizationId == _currentUser.OrganizationId && u.OrganizationId == _currentUser.OrganizationId
                           orderby u.DisplayName, w.WorkDate descending
                           select new WorksheetMapper.WorksheetEntryProjection { WorkDate = w.WorkDate, HoursWorked = w.HoursWorked, DisplayName = u.DisplayName })
             .ToListAsync(cancellationToken);
@@ -225,8 +260,11 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
     {
         var ids = jobIds.Distinct().ToArray();
         if (ids.Length == 0) return new Dictionary<Guid, decimal?>();
-        var rows = await _dbContext.Worksheets.AsNoTracking().Where(w => ids.Contains(w.JobId)).GroupBy(w => w.JobId)
-            .Select(g => new JobTotalHoursProjection { JobId = g.Key, TotalHours = g.Sum(w => w.HoursWorked) }).ToListAsync(cancellationToken);
+        var rows = await _dbContext.Worksheets.AsNoTracking()
+            .Where(w => w.OrganizationId == _currentUser.OrganizationId && ids.Contains(w.JobId))
+            .GroupBy(w => w.JobId)
+            .Select(g => new JobTotalHoursProjection { JobId = g.Key, TotalHours = g.Sum(w => w.HoursWorked) })
+            .ToListAsync(cancellationToken);
         return rows.ToDictionary(r => r.JobId, r => r.TotalHours);
     }
 }
