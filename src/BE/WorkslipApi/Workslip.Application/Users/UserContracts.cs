@@ -11,6 +11,8 @@ public sealed record UpdateUserRequest(
     string? Phone,
     string? Role);
 
+public sealed record UpdateBillableHourlyRateRequest(decimal? BillableHourlyRate);
+
 public sealed record UserResponse(
     Guid Id,
     Guid OrganizationId,
