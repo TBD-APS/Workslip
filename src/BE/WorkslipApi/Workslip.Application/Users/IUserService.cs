@@ -14,5 +14,7 @@ public interface IUserService
 
     Task<Result<UserResponse>> UpdateAsync(Guid userId, UpdateUserRequest request, CancellationToken cancellationToken);
 
+    Task<Result> UpdateBillableHourlyRateAsync(Guid userId, UpdateBillableHourlyRateRequest request, CancellationToken cancellationToken);
+
     Task<Result> DeleteAsync(Guid userId, CancellationToken cancellationToken);
 }
