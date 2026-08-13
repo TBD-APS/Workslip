@@ -64,6 +64,19 @@ public sealed class JobAssignmentPolicyTests
         Assert.Equal([assignedId], result);
     }
 
+    [Fact]
+    public void ResolveInitialAssignments_ignores_explicit_assignment_for_regular_user()
+    {
+        var actorId = Guid.NewGuid();
+
+        var result = JobAssignmentPolicy.ResolveInitialAssignments(
+            [Guid.NewGuid()],
+            actorId,
+            Roles.User);
+
+        Assert.Equal([actorId], result);
+    }
+
     [Theory]
     [InlineData(Roles.User)]
     [InlineData(Roles.Admin)]

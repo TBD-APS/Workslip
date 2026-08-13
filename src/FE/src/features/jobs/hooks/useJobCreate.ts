@@ -26,6 +26,7 @@ type CreateJobRequestWithSnapshot = CreateJobRequest & {
   jobType: 'KLS' | 'Diverse' | 'Unknown';
   assignedUserIds?: string[];
   duplicatePerAssignedUser?: boolean;
+  linkedJobIds?: string[];
 };
 
 export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?: JobForm) {
@@ -54,9 +55,10 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
         const createdJobIds = response.createdJobIds?.length ? response.createdJobIds : [jobId];
         const promises: Promise<unknown>[] = [];
 
-        if (linkedJobIds.length > 0) {
-          promises.push(...createdJobIds.map((createdJobId) =>
-            linkMutation.mutateAsync({ id: createdJobId, data: { targetReportIds: linkedJobIds } })));
+        // Atomic linking is part of the current create contract. Keep a single-job
+        // fallback only for a short frontend-before-backend deployment skew.
+        if (response.createdJobIds === undefined && linkedJobIds.length > 0) {
+          promises.push(linkMutation.mutateAsync({ id: jobId, data: { targetReportIds: linkedJobIds } }));
         }
 
         // New backends persist initial assignments inside the job-create transaction.
@@ -278,6 +280,7 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
       jobType: targetForm.jobType,
       assignedUserIds,
       duplicatePerAssignedUser: duplicatePerAssignedUser && assignedUserIds.length > 1,
+      linkedJobIds,
       work: null,
       observations: {
         reportDate: null,

@@ -160,7 +160,8 @@ public sealed record CreateJobRequest(
     string? JobType = null,
     IReadOnlyList<CreateTimesheetRequest>? Timesheets = null,
     IReadOnlyList<Guid>? AssignedUserIds = null,
-    bool? DuplicatePerAssignedUser = null);
+    bool? DuplicatePerAssignedUser = null,
+    IReadOnlyList<Guid>? LinkedJobIds = null);
 
 public sealed record CreateTimesheetRequest(
     string WorkDate,

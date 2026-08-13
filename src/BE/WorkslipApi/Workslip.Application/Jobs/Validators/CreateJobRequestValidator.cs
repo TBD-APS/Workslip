@@ -21,6 +21,12 @@ public sealed class CreateJobRequestValidator : AbstractValidator<CreateJobReque
                     && userIds.Distinct().Count() == userIds.Count))
             .WithMessage("De valgte medarbejdere skal være unikke og gyldige.");
 
+        RuleFor(request => request.LinkedJobIds)
+            .Must(jobIds => jobIds is null
+                || (jobIds.All(jobId => jobId != Guid.Empty)
+                    && jobIds.Distinct().Count() == jobIds.Count))
+            .WithMessage("De sammenkædede sager skal være unikke og gyldige.");
+
         RuleFor(request => request).CustomAsync(async (request, context, cancellationToken) =>
         {
             var organizationId = currentUser.OrganizationId;
@@ -44,6 +50,18 @@ public sealed class CreateJobRequestValidator : AbstractValidator<CreateJobReque
                         "Vælg mindst to medarbejdere for at oprette en kopi af sagen til hver medarbejder.");
                     return;
                 }
+            }
+
+            if (request.AssignedUserIds is { Count: > 0 }
+                && !JobAssignmentPolicy.CanManageAssignments(currentUser.Role)
+                && (currentUser.UserId is not Guid actorId
+                    || request.AssignedUserIds.Count != 1
+                    || request.AssignedUserIds[0] != actorId))
+            {
+                context.AddFailure(
+                    nameof(CreateJobRequest.AssignedUserIds),
+                    "Medarbejdere kan kun oprette sager til sig selv.");
+                return;
             }
 
             var assignedUserIds = JobAssignmentPolicy.ResolveInitialAssignments(

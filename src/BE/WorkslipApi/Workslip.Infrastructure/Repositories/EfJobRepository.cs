@@ -99,6 +99,7 @@ public sealed class EfJobRepository : IJobRepository
                 CustomerEmail = customerSnapshot?.Email,
                 CustomerPhone = customerSnapshot?.Phone,
                 CustomerAddress = customerSnapshot?.Address,
+                CustomerContactPerson = customerSnapshot?.ContactPerson,
                 DestinationAddress = request.DestinationAddress,
                 DestinationZipCode = request.DestinationZipCode,
                 DestinationCity = request.DestinationCity,
@@ -145,6 +146,23 @@ public sealed class EfJobRepository : IJobRepository
                 actorId,
                 now,
                 cancellationToken);
+        }
+
+        var linkedJobIds = request.LinkedJobIds?
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToArray() ?? [];
+        if (linkedJobIds.Length > 0)
+        {
+            _dbContext.JobReportLinks.AddRange(
+                reportIds.SelectMany(reportId => linkedJobIds.Select(linkedJobId => new JobReportLinkRow
+                {
+                    Id = Guid.NewGuid(),
+                    OrganizationId = organizationId,
+                    SourceReportId = reportId,
+                    TargetReportId = linkedJobId,
+                    CreatedAt = now
+                })));
         }
         
         await _dbContext.SaveChangesAsync(cancellationToken);        

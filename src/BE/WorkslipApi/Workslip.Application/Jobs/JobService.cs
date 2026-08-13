@@ -89,17 +89,36 @@ public sealed class JobService(
             }
         }
 
+        var linkedJobIds = request.LinkedJobIds ?? [];
+        foreach (var linkedJobId in linkedJobIds)
+        {
+            if (await _jobRepository.GetSingleJobAsync(linkedJobId, organizationId.Value, cancellationToken) is null)
+            {
+                return Result<JobReportSummaryResponse>.Invalid([new ValidationError
+                {
+                    Identifier = nameof(CreateJobRequest.LinkedJobIds),
+                    ErrorMessage = "Den valgte sammenkædede sag findes ikke."
+                }]);
+            }
+        }
+
         var actorId = currentUser.UserId;
-        var assignedUserIds = actorId.HasValue && IsJobAssignableRole(currentUser.Role)
-            ? [actorId.Value]
-            : Array.Empty<Guid>();
+        var assignedUserIds = JobAssignmentPolicy.ResolveInitialAssignments(
+            request.AssignedUserIds,
+            actorId,
+            currentUser.Role);
         try
         {
             var created = await _jobRepository.CreateAsync(organizationId.Value, request, assignedUserIds, actorId, cancellationToken);
-            foreach (var createdJobId in created.CreatedJobIds ?? [created.Id])
+            var createdJobIds = created.CreatedJobIds ?? [created.Id];
+            foreach (var affectedJobId in createdJobIds.Concat(linkedJobIds).Distinct())
             {
-                await InvalidateJobCachesAsync(createdJobId, created.OrganizationId, cancellationToken);
+                await InvalidateJobCachesAsync(affectedJobId, created.OrganizationId, cancellationToken);
             }
+
+            if (request.DuplicatePerAssignedUser == true)
+                await QueueDuplicatedJobAssignmentNotificationsAsync(created, createdJobIds, actorId, cancellationToken);
+
             LogJobCreated(created);
 
             return await ToSummaryResultAsync(created, cancellationToken);
@@ -991,6 +1010,60 @@ public sealed class JobService(
 
     private static bool IsJobAssignableRole(string? role) =>
         JobAssignmentPolicy.CanReceiveAssignment(role);
+
+    private async Task QueueDuplicatedJobAssignmentNotificationsAsync(
+        JobReportResponse primaryJob,
+        IReadOnlyList<Guid> createdJobIds,
+        Guid? actorId,
+        CancellationToken cancellationToken)
+    {
+        foreach (var createdJobId in createdJobIds)
+        {
+            var job = createdJobId == primaryJob.Id
+                ? primaryJob
+                : await _jobRepository.GetSingleJobAsync(
+                    createdJobId,
+                    primaryJob.OrganizationId,
+                    cancellationToken);
+            if (job is null)
+            {
+                logger.LogError(
+                    "Duplicated job lookup failed before assignment notification. JobId: {JobId}. OrganizationId: {OrganizationId}.",
+                    createdJobId,
+                    primaryJob.OrganizationId);
+                continue;
+            }
+
+            var reportNumber = job.ReportNumber ?? "Uden nummer";
+            var address = job.DestinationAddress ?? job.Customer?.Address ?? "Ingen adresse angivet";
+            foreach (var assignedUser in job.AssignedUsers)
+            {
+                if (assignedUser.Id == actorId)
+                    continue;
+
+                try
+                {
+                    await notificationService.QueueJobAssignedAsync(
+                        assignedUser.Id,
+                        assignedUser.DisplayName,
+                        job.Id,
+                        reportNumber,
+                        address,
+                        cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    // Job creation is already committed and idempotency must not be
+                    // aborted because a secondary notification could not be queued.
+                    logger.LogError(
+                        exception,
+                        "Failed to queue duplicated job assignment notification. JobId: {JobId}. UserId: {UserId}.",
+                        job.Id,
+                        assignedUser.Id);
+                }
+            }
+        }
+    }
 
     private static List<ValidationError> MapValidationErrors(ValidationResult result) =>
         result.Errors

@@ -22,6 +22,7 @@ public sealed class DuplicateJobPerAssigneePersistenceTests
         var firstUserId = Guid.NewGuid();
         var secondUserId = Guid.NewGuid();
         await fixture.SeedAsync(firstUserId, secondUserId);
+        var linkedJobId = await fixture.SeedLinkedJobAsync();
 
         var request = new CreateJobRequest(
             CustomerSnapshot: new CustomerSnapshotData(
@@ -43,7 +44,8 @@ public sealed class DuplicateJobPerAssigneePersistenceTests
                 new CreateTimesheetRequest("2026-08-13", secondUserId.ToString(), 2m, false)
             ],
             AssignedUserIds: [firstUserId, secondUserId],
-            DuplicatePerAssignedUser: true);
+            DuplicatePerAssignedUser: true,
+            LinkedJobIds: [linkedJobId]);
 
         var created = await fixture.Repository.CreateAsync(
             fixture.OrganizationId,
@@ -66,6 +68,7 @@ public sealed class DuplicateJobPerAssigneePersistenceTests
         Assert.All(jobs, job =>
         {
             Assert.Equal("Samme opgavebeskrivelse", job.TaskDescription);
+            Assert.Equal("Test kontakt", job.CustomerContactPerson);
             Assert.Equal(JobStatus.Draft.ToString(), job.Status);
         });
         Assert.Single(await fixture.Context.Customers.AsNoTracking().ToArrayAsync());
@@ -92,6 +95,13 @@ public sealed class DuplicateJobPerAssigneePersistenceTests
             var assignment = Assert.Single(assignments, candidate => candidate.ReportId == worksheet.JobId);
             Assert.Equal(assignment.UserId, worksheet.UserId);
         });
+
+        var links = await fixture.Context.JobReportLinks
+            .AsNoTracking()
+            .Where(link => createdJobIds.Contains(link.SourceReportId))
+            .ToArrayAsync();
+        Assert.Equal(2, links.Length);
+        Assert.All(links, link => Assert.Equal(linkedJobId, link.TargetReportId));
 
         await fixture.Repository.TransitionAsync(
             createdJobIds[0],
@@ -141,6 +151,32 @@ public sealed class DuplicateJobPerAssigneePersistenceTests
         Assert.Empty(await fixture.Context.JobReports.AsNoTracking().ToArrayAsync());
         Assert.Empty(await fixture.Context.JobAssignments.AsNoTracking().ToArrayAsync());
         Assert.Empty(await fixture.Context.Customers.AsNoTracking().ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task CreateAsync_rolls_back_every_copy_when_a_link_target_is_missing()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var firstUserId = Guid.NewGuid();
+        var secondUserId = Guid.NewGuid();
+        await fixture.SeedAsync(firstUserId, secondUserId);
+        var request = new CreateJobRequest(
+            JobType: JobType.KLS.ToString(),
+            AssignedUserIds: [firstUserId, secondUserId],
+            DuplicatePerAssignedUser: true,
+            LinkedJobIds: [Guid.NewGuid()]);
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => fixture.Repository.CreateAsync(
+            fixture.OrganizationId,
+            request,
+            request.AssignedUserIds!,
+            fixture.AdminId,
+            CancellationToken.None));
+
+        fixture.Context.ChangeTracker.Clear();
+        Assert.Empty(await fixture.Context.JobReports.AsNoTracking().ToArrayAsync());
+        Assert.Empty(await fixture.Context.JobAssignments.AsNoTracking().ToArrayAsync());
+        Assert.Empty(await fixture.Context.JobReportLinks.AsNoTracking().ToArrayAsync());
     }
 
     [Fact]
@@ -241,6 +277,24 @@ public sealed class DuplicateJobPerAssigneePersistenceTests
                 UpdatedAt = now
             }));
             await Context.SaveChangesAsync();
+        }
+
+        internal async Task<Guid> SeedLinkedJobAsync()
+        {
+            var linkedJobId = Guid.NewGuid();
+            var now = DateTimeOffset.UtcNow;
+            Context.JobReports.Add(new JobReportRow
+            {
+                Id = linkedJobId,
+                OrganizationId = OrganizationId,
+                ReportNumber = "LINK",
+                Status = JobStatus.Draft.ToString(),
+                JobType = JobType.KLS,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+            await Context.SaveChangesAsync();
+            return linkedJobId;
         }
 
         public async ValueTask DisposeAsync()

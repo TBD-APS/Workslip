@@ -24,7 +24,7 @@ public static class JobAssignmentPolicy
         Guid? actorId,
         string? actorRole)
     {
-        if (requestedUserIds is not null)
+        if (requestedUserIds is not null && CanManageAssignments(actorRole))
         {
             return requestedUserIds
                 .Where(id => id != Guid.Empty)
