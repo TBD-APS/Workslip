@@ -6,6 +6,7 @@ using Workslip.Application.Common;
 using Workslip.Application.Invitations;
 using Workslip.Application.Organizations;
 using Workslip.Application.Users;
+using Workslip.Domain;
 using Workslip.Domain.Models;
 using Xunit;
 
