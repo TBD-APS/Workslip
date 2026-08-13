@@ -13,6 +13,7 @@ public sealed class UserService(
     IValidator<CreateUserRequest> createUserValidator,
     IValidator<UpdateUserRequest> updateUserValidator,
     IUserEntraService entraService,
+    IUserClaimsCacheInvalidator claimsCache,
     ICurrentUserContext currentUser,
     ILogger<UserService> logger) : IUserService
 {
@@ -241,6 +242,7 @@ public sealed class UserService(
         user.UpdatedAt = DateTimeOffset.UtcNow;
 
         await repository.UpdateAsync(user, cancellationToken);
+        claimsCache.Invalidate(user.EntraId, user.Email, user.EntraEmail);
 
         logger.LogInformation("User updated. UserId: {UserId}.", userId);
 
@@ -271,6 +273,7 @@ public sealed class UserService(
         }
 
         await repository.DeleteAsync(userId, cancellationToken);
+        claimsCache.Invalidate(user.EntraId, user.Email, user.EntraEmail);
 
         logger.LogInformation("User deleted. UserId: {UserId}.", userId);
 

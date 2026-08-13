@@ -100,6 +100,93 @@ public sealed class InvitationEnrollmentTests
         Assert.Equal(0, entra.DeleteCalls);
     }
 
+    [Theory]
+    [InlineData("organization")]
+    [InlineData("role")]
+    [InlineData("userKind")]
+    public async Task CompleteEnrollmentAsync_WhenExistingUserDoesNotMatchInvite_ReturnsConflictWithoutConsuming(
+        string mismatch)
+    {
+        var invite = CreateInvite();
+        invite.EntraUserId = "entra-1";
+        invite.EntraEmail = invite.Email;
+        invite.UserKind = UserKinds.Member;
+        var existingUser = new UserDataRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = invite.OrganizationId,
+            Email = invite.Email,
+            DisplayName = "Existing",
+            Role = Roles.User,
+            UserKind = UserKinds.Member
+        };
+
+        switch (mismatch)
+        {
+            case "organization":
+                existingUser.OrganizationId = Guid.NewGuid();
+                break;
+            case "role":
+                existingUser.Role = Roles.Auditor;
+                break;
+            case "userKind":
+                existingUser.UserKind = UserKinds.InternalTest;
+                break;
+        }
+
+        var users = new FakeUserRepository { ExistingUser = existingUser };
+        var invites = new FakeInviteRepository(invite);
+        var transactionFactory = new FakeTransactionFactory();
+        var service = CreateService(users, invites, new FakeEntraService(), transactionFactory);
+
+        var result = await service.CompleteEnrollmentAsync(
+            new EntraEnrollRequest(invite.Token, "Jane", null),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        Assert.Contains("invite_existing_user_mismatch", result.Errors);
+        Assert.Equal(0, users.CreateCalls);
+        Assert.Equal(0, invites.MarkConsumedCalls);
+        Assert.False(invite.Consumed);
+        Assert.Equal(0, transactionFactory.Transaction.CommitCalls);
+        Assert.Equal(1, transactionFactory.Transaction.RollbackCalls);
+    }
+
+    [Fact]
+    public async Task CompleteEnrollmentAsync_WhenExistingUserMatchesInvite_ConsumesInviteAndReturnsExistingUser()
+    {
+        var invite = CreateInvite();
+        invite.EntraUserId = "entra-1";
+        invite.EntraEmail = invite.Email;
+        invite.UserKind = UserKinds.InternalTest;
+        var existingUser = new UserDataRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = invite.OrganizationId,
+            Email = invite.Email,
+            DisplayName = "Existing",
+            Role = Roles.User,
+            UserKind = UserKinds.InternalTest
+        };
+        var users = new FakeUserRepository { ExistingUser = existingUser };
+        var invites = new FakeInviteRepository(invite);
+        var transactionFactory = new FakeTransactionFactory();
+        var service = CreateService(users, invites, new FakeEntraService(), transactionFactory);
+
+        var result = await service.CompleteEnrollmentAsync(
+            new EntraEnrollRequest(invite.Token, "Ignored", null),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Ok, result.Status);
+        Assert.Equal(existingUser.Id, result.Value?.UserId);
+        Assert.Equal(existingUser.OrganizationId, result.Value?.OrganizationId);
+        Assert.Equal(existingUser.Role, result.Value?.Role);
+        Assert.Equal(0, users.CreateCalls);
+        Assert.Equal(1, invites.MarkConsumedCalls);
+        Assert.Equal(1, transactionFactory.Transaction.CommitCalls);
+        Assert.Equal(0, transactionFactory.Transaction.RollbackCalls);
+    }
+
     [Fact]
     public async Task MarkOpenedAsync_WhenInviteValid_EnsuresEntraGuestBeforeMarkingOpened()
     {

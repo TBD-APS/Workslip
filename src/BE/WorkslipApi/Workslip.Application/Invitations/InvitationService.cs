@@ -17,6 +17,7 @@ public sealed class InvitationService(
     ICurrentUserContext currentUser,
     ILogger<InvitationService> logger) : IInvitationService
 {
+    private const string ExistingUserMismatchError = "invite_existing_user_mismatch";
     private const string RoleChangeRequiresStatusClearMessage =
         "Ryd den eksisterende invitationsstatus, før du sender en ny invitation med en anden rolle.";
     private const string AudienceChangeRequiresStatusClearMessage =
@@ -124,6 +125,16 @@ public sealed class InvitationService(
 
             if (existingUser is not null)
             {
+                if (!ExistingUserMatchesInvite(existingUser, invite))
+                {
+                    logger.LogWarning(
+                        "Invite enrollment blocked because the existing user does not match the invitation. InviteId: {InviteId}. UserId: {UserId}.",
+                        invite.Id,
+                        existingUser.Id);
+                    await RollbackTransactionAsync(transaction, cancellationToken);
+                    return Result<AuthUserInfo>.Conflict(ExistingUserMismatchError);
+                }
+
                 userId = existingUser.Id;
                 organizationId = existingUser.OrganizationId;
                 userRole = existingUser.Role;
@@ -499,6 +510,20 @@ public sealed class InvitationService(
         }
 
         return null;
+    }
+
+    private static bool ExistingUserMatchesInvite(UserDataRow user, InviteTokenRow invite)
+    {
+        var existingRole = NormalizeInviteRole(user.Role);
+        var inviteRole = NormalizeInviteRole(invite.Role);
+        var existingUserKind = UserKinds.Normalize(user.UserKind);
+        var inviteUserKind = UserKinds.Normalize(invite.UserKind);
+
+        return user.OrganizationId == invite.OrganizationId
+            && existingRole is not null
+            && string.Equals(existingRole, inviteRole, StringComparison.Ordinal)
+            && existingUserKind is not null
+            && string.Equals(existingUserKind, inviteUserKind, StringComparison.Ordinal);
     }
 
     private static UserDataRow BuildUserFromInvite(
