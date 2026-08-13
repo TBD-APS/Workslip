@@ -3,9 +3,6 @@ using Workslip.Application.Jobs;
 
 namespace Workslip.Application.Worksheets;
 
-/// <summary>
-/// Request contract for creating a worksheet.
-/// </summary>
 public sealed record UpsertWorksheetRequest(
     Guid? Id,
     Guid JobId,
@@ -15,10 +12,6 @@ public sealed record UpsertWorksheetRequest(
     decimal HoursWorked,
     bool SleptOnJob);
 
-
-/// <summary>
-/// Response contract representing a worksheet.
-/// </summary>
 public sealed record WorksheetResponse(
     Guid Id,
     Guid OrganizationId,
@@ -41,7 +34,9 @@ public sealed record MyWorksheetEntryResponse(
     decimal HoursWorked,
     bool HasOutlay,
     string? UserDisplayName = null,
-    string? JobType = null);
+    string? JobType = null,
+    decimal? BillableHourlyRate = null,
+    decimal? BillableAmount = null);
 
 public sealed record MyWorksheetDayResponse(
     DateOnly Date,
@@ -65,13 +60,8 @@ public sealed record MyWorksheetsMonthResponse(
     int OutlayCount,
     IReadOnlyList<MyWorksheetWeekResponse> Weeks);
 
-public sealed record MonthlyHoursPdfResponse(
-    byte[] Content,
-    string FileName);
-
-public sealed record MonthlyHoursPdfPreviewResponse(
-    string ContentType,
-    IReadOnlyList<string> Pages);
+public sealed record MonthlyHoursPdfResponse(byte[] Content, string FileName);
+public sealed record MonthlyHoursPdfPreviewResponse(string ContentType, IReadOnlyList<string> Pages);
 
 public interface IMonthlyHoursPdfGenerator
 {
