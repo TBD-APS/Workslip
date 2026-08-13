@@ -154,19 +154,30 @@ public static class InfrastructureConfiguration
             return;
         }
 
+        var isWindows = OperatingSystem.IsWindows();
         var resolvedConnectionString = ResolveDevelopmentConnectionString(
             connectionString,
-            OperatingSystem.IsWindows());
+            isWindows);
 
-        if (string.IsNullOrWhiteSpace(connectionString))
+        if (!string.Equals(connectionString, resolvedConnectionString, StringComparison.Ordinal))
         {
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [SqlConnectionStringKey] = resolvedConnectionString
             });
-            Log.Information(
-                "[STARTUP 02.4] Enforce development SQL isolation - using default Windows LocalDB target ({DatabaseName})",
-                "WorkslipLocal");
+
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                Log.Information(
+                    "[STARTUP 02.4] Enforce development SQL isolation - using default Windows LocalDB target ({DatabaseName})",
+                    "WorkslipLocal");
+            }
+            else
+            {
+                Log.Warning(
+                    "[STARTUP 02.4] Enforce development SQL isolation - ignored non-local/invalid configured SQL target and substituted default Windows LocalDB ({DatabaseName})",
+                    "WorkslipLocal");
+            }
         }
 
         if (!LocalDevelopmentDatabaseMigrationRunner.IsLocalSqlTarget(resolvedConnectionString))
@@ -182,14 +193,23 @@ public static class InfrastructureConfiguration
         string? configuredConnectionString,
         bool isWindows)
     {
-        if (!string.IsNullOrWhiteSpace(configuredConnectionString))
+        if (!string.IsNullOrWhiteSpace(configuredConnectionString) &&
+            LocalDevelopmentDatabaseMigrationRunner.IsLocalSqlTarget(configuredConnectionString))
+        {
             return configuredConnectionString;
+        }
 
         if (isWindows)
             return DefaultWindowsLocalDbConnectionString;
 
+        if (string.IsNullOrWhiteSpace(configuredConnectionString))
+        {
+            throw new InvalidOperationException(
+                "Development startup requires a local SQL connection string on this platform. Configure Azure:Sql:ConnectionString in appsettings.Local.json or an environment variable. Remote/Azure SQL is not allowed for normal Development startup.");
+        }
+
         throw new InvalidOperationException(
-            "Development startup requires a local SQL connection string on this platform. Configure Azure:Sql:ConnectionString in appsettings.Local.json or an environment variable. Remote/Azure SQL is not allowed for normal Development startup.");
+            "Development startup refused Azure:Sql:ConnectionString because the SQL target is not provably local. Use localhost/loopback, LocalDB, '.', or '(local)'. Remote/Azure SQL is allowed only for an explicit operator operation, not normal local startup.");
     }
 
     private static void ConfigureExplicitOperatorSqlAuthentication(
