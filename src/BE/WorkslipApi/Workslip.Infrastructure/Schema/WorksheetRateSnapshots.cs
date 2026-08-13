@@ -19,7 +19,10 @@ internal static class WorksheetRateSnapshots
                 .ToDictionary(user => user.Id, user => user.BillableHourlyRate);
 
             foreach (var worksheet in worksheets)
+            {
                 worksheet.BillableHourlyRateSnapshot = rates.GetValueOrDefault(worksheet.UserId);
+                db.Entry(worksheet).Property(row => row.BillableHourlyRateSnapshot).IsModified = true;
+            }
         }
     }
 
@@ -41,7 +44,10 @@ internal static class WorksheetRateSnapshots
                 .ToDictionaryAsync(user => user.Id, user => user.BillableHourlyRate, cancellationToken);
 
             foreach (var worksheet in worksheets)
+            {
                 worksheet.BillableHourlyRateSnapshot = rates.GetValueOrDefault(worksheet.UserId);
+                db.Entry(worksheet).Property(row => row.BillableHourlyRateSnapshot).IsModified = true;
+            }
         }
     }
 }
