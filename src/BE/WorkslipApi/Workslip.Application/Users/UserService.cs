@@ -67,7 +67,7 @@ public sealed class UserService(
             "User created. UserId: {UserId}. OrganizationId: {OrganizationId}. Role: {Role}. UserKind: {UserKind}.",
             user.Id,
             user.OrganizationId,
-            user.Role,
+            SanitizeForLog(user.Role),
             user.UserKind);
 
         return Result<UserResponse>.Success(UserResponseBuilder.MapToResponse(user));
@@ -340,6 +340,11 @@ public sealed class UserService(
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
+
+    private static string SanitizeForLog(string? value) =>
+        string.IsNullOrEmpty(value)
+            ? string.Empty
+            : value.Replace("\r", string.Empty).Replace("\n", string.Empty);
 
     private static DateOnly ComputeBiweeklyStart()
     {
