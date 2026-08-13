@@ -2,6 +2,7 @@ using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using System.Data;
+using System.Globalization;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
 using Workslip.Application.Worksheets;
@@ -138,11 +139,14 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
             var command = new CommandDefinition(
                 $"""
                  SELECT
-                     worksheet.Id AS WorksheetId,
-                     CASE
-                         WHEN job.Status = @ApprovedStatus THEN snapshot.BillableHourlyRateSnapshot
-                         ELSE rate.BillableHourlyRate
-                     END AS BillableHourlyRate
+                     CAST(worksheet.Id AS nvarchar(36)) AS WorksheetId,
+                     CAST(
+                         CASE
+                             WHEN job.Status = @ApprovedStatus THEN snapshot.BillableHourlyRateSnapshot
+                             ELSE rate.BillableHourlyRate
+                         END
+                         AS nvarchar(64)
+                     ) AS BillableHourlyRate
                  FROM {worksheets} AS worksheet
                  INNER JOIN {jobs} AS job
                      ON job.Id = worksheet.JobId
@@ -166,7 +170,9 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
                 cancellationToken: cancellationToken);
 
             var rows = await connection.QueryAsync<WorksheetRateProjection>(command);
-            return rows.ToDictionary(row => row.WorksheetId, row => row.BillableHourlyRate);
+            return rows.ToDictionary(
+                row => Guid.Parse(row.WorksheetId),
+                row => ParseNullableDecimal(row.BillableHourlyRate));
         }
         finally
         {
@@ -389,7 +395,12 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         public decimal? TotalHours { get; init; }
     }
 
-    private sealed record WorksheetRateProjection(Guid WorksheetId, decimal? BillableHourlyRate);
+    private sealed record WorksheetRateProjection(string WorksheetId, string? BillableHourlyRate);
+
+    private static decimal? ParseNullableDecimal(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? null
+            : decimal.Parse(value, NumberStyles.Number, CultureInfo.InvariantCulture);
 
     private string TableName(string name) =>
         string.Equals(
