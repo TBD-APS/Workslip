@@ -14,9 +14,19 @@ public static class AuthEndpoints
 
         group.MapGet("/me", async (IAuthService service, CancellationToken cancellationToken) =>
         {
-            var me = await service.GetCurrentUserAsync(cancellationToken);
-            return Results.Ok(UserViewModelBuilder.ToUser(me));
-        }).Produces<UserViewModel>().RequireAuthorization(AuthPolicies.RequireReadAccess);
+            try
+            {
+                var me = await service.GetCurrentUserAsync(cancellationToken);
+                return Results.Ok(UserViewModelBuilder.ToUser(me));
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Results.Unauthorized();
+            }
+        })
+        .Produces<UserViewModel>()
+        .Produces(StatusCodes.Status401Unauthorized)
+        .RequireAuthorization(AuthPolicies.RequireReadAccess);
 
         group.MapPatch("/me", async (UpdateUserRequest request, IAuthService service, HttpContext httpContext, CancellationToken cancellationToken) =>
         {
