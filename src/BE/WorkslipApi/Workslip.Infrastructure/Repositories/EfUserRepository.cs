@@ -246,6 +246,11 @@ public sealed class EfUserRepository : IUserRepository
         Guid userId,
         CancellationToken cancellationToken)
     {
+        var tracked = _dbContext.Users.Local.FirstOrDefault(user =>
+            user.Id == userId && user.OrganizationId == organizationId);
+        if (tracked?.BillableHourlyRate is decimal trackedRate)
+            return trackedRate;
+
         if (!_dbContext.Database.IsSqlServer())
             return null;
 
