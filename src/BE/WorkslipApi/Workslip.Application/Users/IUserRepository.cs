@@ -18,5 +18,4 @@ public interface IUserRepository
     Task<IReadOnlyList<AssignedJobResponse>> GetAssignedJobsAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken);
     Task<decimal?> GetTotalHoursAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<Guid, UserPeriodHours>> GetPeriodHoursAsync(Guid organizationId, DateOnly biweeklyStart, CancellationToken cancellationToken);
-    Task<bool> SetBillingRateAsync(Guid organizationId, Guid userId, decimal? rate, CancellationToken cancellationToken);
 }
