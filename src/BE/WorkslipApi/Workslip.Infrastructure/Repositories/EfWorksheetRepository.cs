@@ -94,7 +94,7 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         return rows.Select(row =>
         {
             var rate = rates.GetValueOrDefault(row.WorksheetId);
-            var amount = rate.HasValue
+            decimal? amount = rate.HasValue
                 ? decimal.Round(row.HoursWorked * rate.Value, 2, MidpointRounding.AwayFromZero)
                 : null;
 
