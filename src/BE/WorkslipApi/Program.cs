@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Serilog;
 using Workslip.Api.Configuration;
+using Workslip.Api.Endpoints;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
 
@@ -95,6 +96,7 @@ try
     RunStartupPhase(10, "Map endpoints and environment-specific features", () =>
     {
         app.ConfigureEndpoints();
+        app.MapJobCostingEndpoints();
         app.ConfigureDevEnvironment(releaseTestingEnabled);
     });
 
