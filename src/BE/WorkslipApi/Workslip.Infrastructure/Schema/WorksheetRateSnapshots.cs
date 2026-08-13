@@ -1,31 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Workslip.Application.Auth;
+using Workslip.Infrastructure.Repositories;
 
 namespace Workslip.Infrastructure.Schema;
 
 internal static class WorksheetRateSnapshots
 {
-    internal static void Capture(SqlDbContext db, IReadOnlyList<(Guid JobId, Guid OrganizationId)> jobs)
-    {
-        foreach (var job in jobs)
-        {
-            var worksheets = db.Worksheets
-                .Where(row => row.OrganizationId == job.OrganizationId && row.JobId == job.JobId)
-                .ToList();
-            var userIds = worksheets.Select(row => row.UserId).Distinct().ToArray();
-            if (userIds.Length == 0) continue;
-
-            var rates = db.Users.AsNoTracking()
-                .Where(user => user.OrganizationId == job.OrganizationId && userIds.Contains(user.Id))
-                .ToDictionary(user => user.Id, user => user.BillableHourlyRate);
-
-            foreach (var worksheet in worksheets)
-            {
-                worksheet.BillableHourlyRateSnapshot = rates.GetValueOrDefault(worksheet.UserId);
-                db.Entry(worksheet).Property(row => row.BillableHourlyRateSnapshot).IsModified = true;
-            }
-        }
-    }
-
     internal static async Task CaptureAsync(
         SqlDbContext db,
         IReadOnlyList<(Guid JobId, Guid OrganizationId)> jobs,
@@ -36,12 +16,11 @@ internal static class WorksheetRateSnapshots
             var worksheets = await db.Worksheets
                 .Where(row => row.OrganizationId == job.OrganizationId && row.JobId == job.JobId)
                 .ToListAsync(cancellationToken);
-            var userIds = worksheets.Select(row => row.UserId).Distinct().ToArray();
-            if (userIds.Length == 0) continue;
+            var userRepository = new EfUserRepository(db, new SnapshotTenantContext(job.OrganizationId));
+            var rates = new Dictionary<Guid, decimal?>();
 
-            var rates = await db.Users.AsNoTracking()
-                .Where(user => user.OrganizationId == job.OrganizationId && userIds.Contains(user.Id))
-                .ToDictionaryAsync(user => user.Id, user => user.BillableHourlyRate, cancellationToken);
+            foreach (var userId in worksheets.Select(row => row.UserId).Distinct())
+                rates[userId] = (await userRepository.GetByIdAsync(userId, cancellationToken))?.BillableHourlyRate;
 
             foreach (var worksheet in worksheets)
             {
@@ -49,5 +28,12 @@ internal static class WorksheetRateSnapshots
                 db.Entry(worksheet).Property(row => row.BillableHourlyRateSnapshot).IsModified = true;
             }
         }
+    }
+
+    private sealed class SnapshotTenantContext(Guid organizationId) : ICurrentUserContext
+    {
+        public Guid? UserId => null;
+        public Guid? OrganizationId { get; } = organizationId;
+        public string? Role => null;
     }
 }
