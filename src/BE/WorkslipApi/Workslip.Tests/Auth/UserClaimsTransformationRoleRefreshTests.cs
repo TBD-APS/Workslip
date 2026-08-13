@@ -77,6 +77,33 @@ public sealed class UserClaimsTransformationRoleRefreshTests
         Assert.Equal(Roles.Superadmin, transformed.FindFirst(ClaimTypes.Role)?.Value);
     }
 
+    [Fact]
+    public async Task TransformAsync_LocalSessionWithoutDatabaseUser_RemovesWorkslipAuthorizationClaims()
+    {
+        var repository = new FakeUserRepository();
+        var transformation = CreateTransformation(repository);
+        var identity = new ClaimsIdentity(
+            [
+                new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+                new Claim(ClaimTypes.Email, "deleted@example.test"),
+                new Claim("organizationId", Guid.NewGuid().ToString()),
+                new Claim(ClaimTypes.Role, Roles.Admin),
+                new Claim("roles", Roles.Admin)
+            ],
+            authenticationType: "LocalJwt");
+        var principal = new ClaimsPrincipal(identity);
+
+        var transformed = await transformation.TransformAsync(principal);
+
+        Assert.Equal(1, repository.ExternalIdentityCalls);
+        Assert.True(transformed.Identity?.IsAuthenticated);
+        Assert.NotNull(transformed.FindFirst(ClaimTypes.Email));
+        Assert.DoesNotContain(transformed.Claims, claim => claim.Type == "organizationId");
+        Assert.DoesNotContain(transformed.Claims, claim => claim.Type == "workslipUserId");
+        Assert.DoesNotContain(transformed.Claims, claim => claim.Type == ClaimTypes.Role);
+        Assert.DoesNotContain(transformed.Claims, claim => claim.Type == "roles");
+    }
+
     private static UserClaimsTransformation CreateTransformation(IUserRepository repository)
     {
         var cache = new MemoryCache(new MemoryCacheOptions());

@@ -124,6 +124,7 @@ public sealed class AuthServiceEntraLoginTests
             new InlineValidator<CreateUserRequest>(),
             new InlineValidator<UpdateUserRequest>(),
             new FakeUserEntraService(),
+            new NoOpClaimsCacheInvalidator(),
             currentUser,
             NullLogger<UserService>.Instance);
 
@@ -242,6 +243,13 @@ public sealed class AuthServiceEntraLoginTests
 
         public Task DeleteUserAsync(string entraUserId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class NoOpClaimsCacheInvalidator : IUserClaimsCacheInvalidator
+    {
+        public void Invalidate(string? entraId, string? email, string? entraEmail)
+        {
+        }
     }
 
     private sealed class RelationalTestDatabase : IAsyncDisposable

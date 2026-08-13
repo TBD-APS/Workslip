@@ -86,6 +86,7 @@ public sealed class UserClaimsTransformation(
                         "Authenticated user was not found in Workslip database. EntraIdPresent={EntraIdPresent} EmailCandidateCount={EmailCandidateCount}.",
                         !string.IsNullOrWhiteSpace(entraId),
                         emailCandidates.Count);
+                    RemoveWorkslipClaims(identity);
                     return principal;
                 }
 
@@ -229,14 +230,19 @@ public sealed class UserClaimsTransformation(
 
     private static void ReplaceWorkslipClaims(ClaimsIdentity identity, CachedWorkslipUser user)
     {
-        foreach (var claim in identity.Claims.Where(IsWorkslipManagedClaim).ToArray())
-        {
-            identity.RemoveClaim(claim);
-        }
+        RemoveWorkslipClaims(identity);
 
         identity.AddClaim(new Claim(WorkslipUserIdClaim, user.UserId.ToString()));
         identity.AddClaim(new Claim(OrganizationIdClaim, user.OrganizationId.ToString()));
         identity.AddClaim(new Claim(ClaimTypes.Role, user.Role));
+    }
+
+    private static void RemoveWorkslipClaims(ClaimsIdentity identity)
+    {
+        foreach (var claim in identity.Claims.Where(IsWorkslipManagedClaim).ToArray())
+        {
+            identity.RemoveClaim(claim);
+        }
     }
 
     private static bool IsWorkslipManagedClaim(Claim claim) =>
