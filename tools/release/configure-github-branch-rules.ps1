@@ -4,7 +4,8 @@ param(
     [string]$Repository = 'Workslip-v2.0',
     [string]$ReleasePattern = 'release-*',
     [string]$FeaturePattern = 'rbj--*',
-    [string[]]$RequiredStatusChecks = @('CI Gate', 'Feature change guard')
+    [string[]]$RequiredStatusChecks = @('CI Gate', 'Feature change guard'),
+    [switch]$VerifyOnly
 )
 
 Set-StrictMode -Version Latest
@@ -75,9 +76,6 @@ function New-FeatureRulesetPayload {
         [Parameter(Mandatory)] [string[]]$IncludedRefs
     )
 
-    # Feature branches remain writable by ordinary fast-forward pushes. The
-    # hard boundary protects the ref itself from disappearing or being rewritten
-    # to an unrelated/older commit by cleanup, reset or rebase mistakes.
     return [ordered]@{
         name = $Name
         target = 'branch'
@@ -148,6 +146,55 @@ function Set-RepositoryRuleset {
     }
 }
 
+function Assert-RepositoryRuleset {
+    param(
+        [Parameter(Mandatory)] [string]$Name,
+        [Parameter(Mandatory)] [object]$Expected
+    )
+
+    $rulesets = @(Invoke-GhJsonApi -Method GET -Endpoint "repos/$Owner/$Repository/rulesets")
+    $summary = $rulesets |
+        Where-Object { $_.name -eq $Name -and $_.source_type -eq 'Repository' } |
+        Select-Object -First 1
+
+    if ($null -eq $summary) {
+        throw "Required GitHub ruleset '$Name' is not present."
+    }
+
+    $actual = Invoke-GhJsonApi -Method GET -Endpoint "repos/$Owner/$Repository/rulesets/$($summary.id)"
+    if ($actual.enforcement -ne 'active') {
+        throw "GitHub ruleset '$Name' is not active."
+    }
+
+    $expectedRefs = @($Expected.conditions.ref_name.include | ForEach-Object { [string]$_ } | Sort-Object)
+    $actualRefs = @($actual.conditions.ref_name.include | ForEach-Object { [string]$_ } | Sort-Object)
+    if (Compare-Object -ReferenceObject $expectedRefs -DifferenceObject $actualRefs) {
+        throw "GitHub ruleset '$Name' does not target the expected refs."
+    }
+
+    $expectedRuleTypes = @($Expected.rules | ForEach-Object { [string]$_.type } | Sort-Object)
+    $actualRuleTypes = @($actual.rules | ForEach-Object { [string]$_.type } | Sort-Object)
+    if (Compare-Object -ReferenceObject $expectedRuleTypes -DifferenceObject $actualRuleTypes) {
+        throw "GitHub ruleset '$Name' does not contain the expected rule types."
+    }
+
+    $expectedStatusRule = $Expected.rules | Where-Object { $_.type -eq 'required_status_checks' } | Select-Object -First 1
+    if ($null -ne $expectedStatusRule) {
+        $actualStatusRule = $actual.rules | Where-Object { $_.type -eq 'required_status_checks' } | Select-Object -First 1
+        if ($null -eq $actualStatusRule) {
+            throw "GitHub ruleset '$Name' is missing required status checks."
+        }
+
+        $expectedChecks = @($expectedStatusRule.parameters.required_status_checks | ForEach-Object { [string]$_.context } | Sort-Object)
+        $actualChecks = @($actualStatusRule.parameters.required_status_checks | ForEach-Object { [string]$_.context } | Sort-Object)
+        if (Compare-Object -ReferenceObject $expectedChecks -DifferenceObject $actualChecks) {
+            throw "GitHub ruleset '$Name' does not require the expected status checks."
+        }
+    }
+
+    Write-Host "Verified GitHub ruleset '$Name' (id $($summary.id))."
+}
+
 Assert-GitHubCli
 
 $mainPayload = New-IntegrationRulesetPayload `
@@ -160,12 +207,23 @@ $featurePayload = New-FeatureRulesetPayload `
     -Name 'Workslip active feature protection' `
     -IncludedRefs @("refs/heads/$FeaturePattern")
 
-Set-RepositoryRuleset -Name 'Workslip main protection' -Payload $mainPayload
-Set-RepositoryRuleset -Name 'Workslip release protection' -Payload $releasePayload
-Set-RepositoryRuleset -Name 'Workslip active feature protection' -Payload $featurePayload
+if (-not $VerifyOnly) {
+    Set-RepositoryRuleset -Name 'Workslip main protection' -Payload $mainPayload
+    Set-RepositoryRuleset -Name 'Workslip release protection' -Payload $releasePayload
+    Set-RepositoryRuleset -Name 'Workslip active feature protection' -Payload $featurePayload
+
+    if ($WhatIfPreference) {
+        Write-Host 'WhatIf complete. External GitHub ruleset state was not changed or claimed as verified.'
+        return
+    }
+}
+
+Assert-RepositoryRuleset -Name 'Workslip main protection' -Expected $mainPayload
+Assert-RepositoryRuleset -Name 'Workslip release protection' -Expected $releasePayload
+Assert-RepositoryRuleset -Name 'Workslip active feature protection' -Expected $featurePayload
 
 $statusSummary = $RequiredStatusChecks -join ', '
-Write-Host 'Branch rules reconciled.'
+Write-Host 'Branch rules reconciled and externally verified.'
 Write-Host "main: PR + required checks [$statusSummary], squash only, deletion and non-fast-forward blocked."
 Write-Host "${ReleasePattern}: same integration protection."
 Write-Host "${FeaturePattern}: deletion and non-fast-forward updates blocked; ordinary fast-forward feature pushes remain allowed."
