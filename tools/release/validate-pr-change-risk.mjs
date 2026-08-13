@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process';
+import { appendFileSync } from 'node:fs';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 
@@ -23,9 +24,8 @@ export function parseNumstat(text) {
     .filter(Boolean)
     .map((line) => {
       const [addedRaw, deletedRaw, ...pathParts] = line.split('\t');
-      const path = pathParts.join('\t');
       return {
-        path,
+        path: pathParts.join('\t'),
         added: addedRaw === '-' ? 0 : Number.parseInt(addedRaw, 10) || 0,
         deleted: deletedRaw === '-' ? 0 : Number.parseInt(deletedRaw, 10) || 0,
       };
@@ -97,15 +97,12 @@ function parseArgs(argv) {
   return options;
 }
 
-function writeOutput(result) {
-  const summary = [
-    `Product additions: ${result.productAdded}`,
-    `Product deletions: ${result.productDeleted}`,
-    `Deletion ratio: ${Math.round(result.deletionRatio * 100)}%`,
-    `Deleted product files: ${result.productDeletedFiles.length}`,
-  ];
+function report(result) {
+  console.log(`Product additions: ${result.productAdded}`);
+  console.log(`Product deletions: ${result.productDeleted}`);
+  console.log(`Deletion ratio: ${Math.round(result.deletionRatio * 100)}%`);
+  console.log(`Deleted product files: ${result.productDeletedFiles.length}`);
 
-  console.log(summary.join('\n'));
   if (result.productDeletedFiles.length > 0) {
     console.log('\nDeleted product files:');
     for (const file of result.productDeletedFiles) console.log(`- ${file}`);
@@ -117,41 +114,28 @@ function writeOutput(result) {
   } else {
     console.log('\nChange does not cross the high-risk feature-removal threshold.');
   }
-
-  if (process.env.GITHUB_OUTPUT) {
-    const fs = requireFs();
-    fs.appendFileSync(process.env.GITHUB_OUTPUT, `high_risk=${result.highRisk}\n`);
-  }
 }
 
-function requireFs() {
-  // Keep the classifier import side-effect free for node:test.
-  return globalThis.__workslipFs ??= awaitImportFs();
-}
-
-function awaitImportFs() {
-  // eslint-disable-next-line global-require
-  return require('node:fs');
-}
-
-async function main() {
+function main() {
   const { base, head } = parseArgs(process.argv.slice(2));
   const numstat = parseNumstat(gitDiff(['--numstat', `${base}...${head}`]));
   const nameStatus = parseNameStatus(gitDiff(['--name-status', '--find-renames', `${base}...${head}`]));
   const result = classifyChangeRisk({ numstat, nameStatus });
 
-  const { appendFileSync } = await import('node:fs');
   if (process.env.GITHUB_OUTPUT) {
     appendFileSync(process.env.GITHUB_OUTPUT, `high_risk=${result.highRisk}\n`);
   }
-  writeOutput({ ...result, _skipOutputWrite: true });
+
+  report(result);
   if (result.highRisk) process.exitCode = 42;
 }
 
 const isEntryPoint = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isEntryPoint) {
-  main().catch((error) => {
+  try {
+    main();
+  } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
-  });
+  }
 }
