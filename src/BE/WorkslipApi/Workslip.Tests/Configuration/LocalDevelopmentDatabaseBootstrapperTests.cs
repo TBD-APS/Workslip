@@ -45,6 +45,15 @@ public sealed class LocalDevelopmentDatabaseBootstrapperTests
     }
 
     [Fact]
+    public void ClassifySchemaState_UnrelatedTableWithoutOrganizations_IsInconsistent()
+    {
+        var state = LocalDevelopmentDatabaseBootstrapper.ClassifySchemaState(
+            ["SomeUnexpectedTable"]);
+
+        Assert.Equal(LocalDevelopmentSchemaState.Inconsistent, state);
+    }
+
+    [Fact]
     public async Task PrepareAsync_NonDevelopment_DoesNotResolveDatabaseServices()
     {
         await using var services = new ServiceCollection().BuildServiceProvider();
