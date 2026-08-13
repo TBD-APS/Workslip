@@ -20,8 +20,7 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
         RasterDpi = 144
     };
 
-    public byte[] Generate(MyWorksheetsMonthResponse month) =>
-        CreateDocument(month).GeneratePdf();
+    public byte[] Generate(MyWorksheetsMonthResponse month) => CreateDocument(month).GeneratePdf();
 
     public IReadOnlyList<byte[]> GeneratePreviewPages(MyWorksheetsMonthResponse month) =>
         CreateDocument(month).GenerateImages(PreviewImageSettings).ToArray();
@@ -56,9 +55,7 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
                     column.Item().PageBreak();
                     column.Item().Text("Detaljer").FontSize(13).Bold().FontColor(Primary);
                     foreach (var employee in employees)
-                    {
                         column.Item().Element(container => ComposeEmployeeDetails(container, employee));
-                    }
                 });
                 page.Footer().AlignCenter().Text(text =>
                 {
@@ -90,9 +87,12 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
     private static void ComposeKpis(IContainer container, IReadOnlyList<HoursRow> rows, IReadOnlyList<EmployeeSummary> employees)
     {
         var totalHours = rows.Sum(row => row.Hours);
+        var totalAmount = rows.Sum(row => row.Amount ?? 0m);
         container.Row(row =>
         {
             row.RelativeItem().Element(cell => Kpi(cell, "Timer i alt", $"{FormatHours(totalHours)} t"));
+            row.ConstantItem(8);
+            row.RelativeItem().Element(cell => Kpi(cell, "Fakturerbart beløb", FormatCurrency(totalAmount)));
             row.ConstantItem(8);
             row.RelativeItem().Element(cell => Kpi(cell, "Medarbejdere", employees.Count.ToString(DanishCulture)));
             row.ConstantItem(8);
@@ -126,6 +126,7 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
                     foreach (var _ in weeks)
                         columns.RelativeColumn();
                     columns.RelativeColumn();
+                    columns.RelativeColumn(1.4f);
                 });
 
                 table.Header(header =>
@@ -133,7 +134,8 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
                     header.Cell().Element(TableHeader).Text("Medarbejder");
                     foreach (var week in weeks)
                         header.Cell().Element(TableHeader).AlignRight().Text($"Uge {week}");
-                    header.Cell().Element(TableHeader).AlignRight().Text("I alt");
+                    header.Cell().Element(TableHeader).AlignRight().Text("Timer i alt");
+                    header.Cell().Element(TableHeader).AlignRight().Text("Beløb");
                 });
 
                 foreach (var employee in employees)
@@ -145,6 +147,7 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
                         table.Cell().Element(TableCell).AlignRight().Text(FormatHours(hours));
                     }
                     table.Cell().Element(TableCell).AlignRight().Text(FormatHours(employee.Rows.Sum(row => row.Hours))).Bold();
+                    table.Cell().Element(TableCell).AlignRight().Text(FormatCurrency(employee.Rows.Sum(row => row.Amount ?? 0m))).Bold();
                 }
 
                 table.Cell().Element(TotalCell).Text("I alt").Bold();
@@ -154,6 +157,7 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
                     table.Cell().Element(TotalCell).AlignRight().Text(FormatHours(hours)).Bold();
                 }
                 table.Cell().Element(TotalCell).AlignRight().Text(FormatHours(rows.Sum(row => row.Hours))).Bold();
+                table.Cell().Element(TotalCell).AlignRight().Text(FormatCurrency(rows.Sum(row => row.Amount ?? 0m))).Bold();
             });
         });
     }
@@ -165,18 +169,21 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
             column.Item().BorderBottom(1).BorderColor(Border).PaddingBottom(4).Row(row =>
             {
                 row.RelativeItem().Text(employee.Name).FontSize(11).Bold().FontColor(Primary);
-                row.AutoItem().Text($"{FormatHours(employee.Rows.Sum(item => item.Hours))} timer").Bold().FontColor(Primary);
+                row.AutoItem().Text($"{FormatHours(employee.Rows.Sum(item => item.Hours))} timer · {FormatCurrency(employee.Rows.Sum(item => item.Amount ?? 0m))}")
+                    .Bold().FontColor(Primary);
             });
 
             column.Item().Table(table =>
             {
                 table.ColumnsDefinition(columns =>
                 {
-                    columns.ConstantColumn(65);
-                    columns.ConstantColumn(40);
-                    columns.RelativeColumn(1.3f);
-                    columns.RelativeColumn(3);
-                    columns.ConstantColumn(55);
+                    columns.ConstantColumn(62);
+                    columns.ConstantColumn(34);
+                    columns.RelativeColumn(1.1f);
+                    columns.RelativeColumn(2.4f);
+                    columns.ConstantColumn(48);
+                    columns.ConstantColumn(72);
+                    columns.ConstantColumn(82);
                 });
 
                 table.Header(header =>
@@ -186,6 +193,8 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
                     header.Cell().Element(TableHeader).Text("Sag");
                     header.Cell().Element(TableHeader).Text("Kunde");
                     header.Cell().Element(TableHeader).AlignRight().Text("Timer");
+                    header.Cell().Element(TableHeader).AlignRight().Text("Sats");
+                    header.Cell().Element(TableHeader).AlignRight().Text("Beløb");
                 });
 
                 foreach (var row in employee.Rows)
@@ -195,6 +204,8 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
                     table.Cell().Element(TableCell).Text(row.ReportNumber);
                     table.Cell().Element(TableCell).Text(row.CustomerName);
                     table.Cell().Element(TableCell).AlignRight().Text(FormatHours(row.Hours));
+                    table.Cell().Element(TableCell).AlignRight().Text(FormatRate(row.HourlyRate));
+                    table.Cell().Element(TableCell).AlignRight().Text(FormatOptionalCurrency(row.Amount));
                 }
             });
         });
@@ -221,7 +232,9 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
                 string.IsNullOrWhiteSpace(entry.UserDisplayName) ? "Ukendt medarbejder" : entry.UserDisplayName.Trim(),
                 string.IsNullOrWhiteSpace(entry.ReportNumber) ? "—" : entry.ReportNumber.Trim(),
                 string.IsNullOrWhiteSpace(entry.CustomerName) ? "Ukendt kunde" : entry.CustomerName.Trim(),
-                entry.HoursWorked))
+                entry.HoursWorked,
+                entry.BillableHourlyRate,
+                entry.BillableAmount))
             .OrderBy(row => row.EmployeeName, StringComparer.Create(DanishCulture, ignoreCase: true))
             .ThenBy(row => row.UserId)
             .ThenBy(row => row.WorkDate)
@@ -229,9 +242,11 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
             .ToArray();
 
     private static string FormatHours(decimal value) => value.ToString("0.##", DanishCulture);
+    private static string FormatRate(decimal? value) => value.HasValue ? $"{value.Value.ToString("N2", DanishCulture)} kr." : "—";
+    private static string FormatOptionalCurrency(decimal? value) => value.HasValue ? FormatCurrency(value.Value) : "—";
+    private static string FormatCurrency(decimal value) => $"{value.ToString("N2", DanishCulture)} kr.";
     private static string FormatDate(DateOnly value) => value.ToString("dd.MM.yyyy", DanishCulture);
-    private static string MonthLabel(int year, int month) =>
-        new DateTime(year, month, 1).ToString("MMMM yyyy", DanishCulture);
+    private static string MonthLabel(int year, int month) => new DateTime(year, month, 1).ToString("MMMM yyyy", DanishCulture);
 
     private sealed record HoursRow(
         DateOnly WorkDate,
@@ -240,7 +255,9 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
         string EmployeeName,
         string ReportNumber,
         string CustomerName,
-        decimal Hours);
+        decimal Hours,
+        decimal? HourlyRate,
+        decimal? Amount);
 
     private sealed record EmployeeSummary(Guid UserId, string Name, IReadOnlyList<HoursRow> Rows);
 }
