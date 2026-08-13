@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace Workslip.Domain.Models;
 
 public sealed class UserDataRow
@@ -11,6 +13,7 @@ public sealed class UserDataRow
     public string EntraEmail { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
+    [NotMapped]
     public decimal? BillableHourlyRate { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
