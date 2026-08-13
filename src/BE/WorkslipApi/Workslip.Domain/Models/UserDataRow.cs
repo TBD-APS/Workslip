@@ -11,6 +11,7 @@ public sealed class UserDataRow
     public string EntraEmail { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
+    public decimal? BillableHourlyRate { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
