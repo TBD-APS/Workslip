@@ -1,1 +1,1 @@
-& (Join-Path $PSScriptRoot 'tools/dev/start-local.ps1') @args
+& (Join-Path $PSScriptRoot 'tools/dev/start.ps1') @args
