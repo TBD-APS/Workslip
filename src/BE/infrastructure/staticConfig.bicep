@@ -32,7 +32,7 @@ var appConfigValues = {
   'Authorization:Policies:RequireReadAccess': 'User|Auditor'
   'Authorization:Policies:RequireUser': 'User'
 
-  'Azure:DocumentFileStorage:ContainerName': 'report-attachments'
+  'Azure:DocumentFileStorage:ContainerName': 'uploads'
   'Azure:DocumentFileStorage:LocalRootPath': 'UploadedFiles'
 
   'Authorization:RoleHierarchy:Superadmin:0': 'Admin'

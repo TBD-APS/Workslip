@@ -3,6 +3,7 @@ import type { useJobDetails } from '../../hooks/useJobDetails';
 import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock, AssignmentBlock, DestinationAddressBlock } from '../JobDetailBlocks';
 import { useCan } from '../../../../providers/permissions';
 import { CollapsibleSection } from '../../../../components/forms/CollapsibleSection';
+import { JobImagesSection } from '../../../images/JobImagesSection';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -90,6 +91,9 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
         onChange={details.updateTechnicalObservations}
         placeholder="Notér tekniske observationer..."
       />
+      {details.job?.id && (
+        <JobImagesSection jobId={details.job.id} allowManage />
+      )}
     </>
   );
 }

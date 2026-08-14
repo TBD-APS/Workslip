@@ -27,6 +27,7 @@ Do not create a page merely to fill the list. Add it only when it reduces redisc
 - [`adr/0005-main-as-production-boundary.md`](adr/0005-main-as-production-boundary.md)
 - [`adr/0006-explicit-database-migrations-with-deployment-identity.md`](adr/0006-explicit-database-migrations-with-deployment-identity.md)
 - [`adr/0007-filial-under-organization.md`](adr/0007-filial-under-organization.md)
+- [`adr/0008-private-blob-storage-for-images.md`](adr/0008-private-blob-storage-for-images.md)
 - [`adr/0008-job-costing-billing-basis.md`](adr/0008-job-costing-billing-basis.md)
 - [`adr/0008-user-audience-separation.md`](adr/0008-user-audience-separation.md)
 

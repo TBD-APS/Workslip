@@ -2,10 +2,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Workslip.Application;
 using Workslip.Application.Common;
 using Workslip.Application.Customers;
 using Workslip.Application.Diagnostics;
+using Workslip.Application.Images;
 using Workslip.Application.Invitations;
 using Workslip.Application.Jobs;
 using Workslip.Application.Notifications;
@@ -20,6 +22,7 @@ using Workslip.Infrastructure.Notifications;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
+using Workslip.Infrastructure.Storage;
 using Workslip.Infrastructure.Transactions;
 
 namespace Workslip.Infrastructure;
@@ -85,6 +88,14 @@ public static class DependencyInjection
         services.AddScoped<InstallationBaselineProvisioner>();
         services.AddScoped<PlatformIdentityBootstrapper>();
         services.AddScoped<DevelopmentDatabaseSeeder>();
+
+        services.AddSingleton<IImageStorage>(serviceProvider =>
+        {
+            var environment = serviceProvider.GetRequiredService<IHostEnvironment>();
+            return environment.IsDevelopment()
+                ? ActivatorUtilities.CreateInstance<LocalImageStorage>(serviceProvider)
+                : ActivatorUtilities.CreateInstance<AzureBlobImageStorage>(serviceProvider);
+        });
 
         services.AddHttpClient<IErrorDiagnosticsService, ApplicationInsightsErrorDiagnosticsService>(client =>
         {

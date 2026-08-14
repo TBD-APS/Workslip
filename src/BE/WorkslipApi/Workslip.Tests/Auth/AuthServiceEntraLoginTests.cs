@@ -10,6 +10,7 @@ using Workslip.Domain;
 using Workslip.Domain.Models;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Schema;
+using Workslip.Tests.TestDoubles;
 using Xunit;
 
 namespace Workslip.Tests.Auth;
@@ -126,6 +127,7 @@ public sealed class AuthServiceEntraLoginTests
             new FakeUserEntraService(),
             new NoOpClaimsCacheInvalidator(),
             currentUser,
+            new NoOpImageStorage(),
             NullLogger<UserService>.Instance);
 
         var profileUpdate = await authService.UpdateCurrentUserAsync(

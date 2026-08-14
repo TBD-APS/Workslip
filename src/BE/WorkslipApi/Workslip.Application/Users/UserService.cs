@@ -3,6 +3,7 @@ using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
+using Workslip.Application.Images;
 using Workslip.Domain;
 using Workslip.Domain.Models;
 
@@ -15,6 +16,7 @@ public sealed class UserService(
     IUserEntraService entraService,
     IUserClaimsCacheInvalidator claimsCache,
     ICurrentUserContext currentUser,
+    IImageStorage imageStorage,
     ILogger<UserService> logger) : IUserService
 {
     public async Task<Result<UserResponse>> CreateAsync(CreateUserRequest request, CancellationToken cancellationToken)
@@ -270,6 +272,20 @@ public sealed class UserService(
         {
             logger.LogWarning("User delete denied: managing a Superadmin requires a Superadmin actor.");
             return Result.Forbidden();
+        }
+
+        try
+        {
+            await imageStorage.DeleteProfileImageAsync(user.OrganizationId, user.Id, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "User deletion blocked because profile image cleanup failed. UserId: {UserId}. OrganizationId: {OrganizationId}.",
+                user.Id,
+                user.OrganizationId);
+            throw;
         }
 
         await repository.DeleteAsync(userId, cancellationToken);
