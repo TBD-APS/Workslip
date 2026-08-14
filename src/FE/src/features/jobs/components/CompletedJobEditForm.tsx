@@ -67,11 +67,11 @@ export function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJob
           <section className="detail-section attestation-summary-section">
             <div className="section-header-row attestation-compact-header">
               <FileCheck2 size={18} />
-              <h3>Observationer og noter</h3>
+              <h3>Noter</h3>
             </div>
             <TextAreaBlock
               icon={<FileText size={18} />}
-              title="Opgave"
+              title="Opgavebeskrivelse"
               value={details.form.taskDescription}
               onChange={details.updateTaskDescription}
               placeholder="Beskriv opgaven..."
@@ -79,7 +79,7 @@ export function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJob
             <div className="form-divider" />
             <TextAreaBlock
               icon={<MessageSquare size={18} />}
-              title="Kundeinfo"
+              title="Oplysninger til kunden"
               value={details.form.customerObservations}
               onChange={details.updateCustomerObservations}
               placeholder="Notér oplysninger til kunden..."
@@ -87,10 +87,10 @@ export function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJob
             <div className="form-divider" />
             <TextAreaBlock
               icon={<Wrench size={18} />}
-              title="Teknisk"
+              title="Kommentar til sagen"
               value={details.form.technicalObservations}
               onChange={details.updateTechnicalObservations}
-              placeholder="Notér tekniske observationer..."
+              placeholder="Skriv en kommentar til sagen..."
             />
           </section>
 
