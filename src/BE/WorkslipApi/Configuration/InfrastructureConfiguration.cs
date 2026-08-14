@@ -10,6 +10,8 @@ namespace Workslip.Api.Configuration;
 public static class InfrastructureConfiguration
 {
     private const string SqlConnectionStringKey = "Azure:Sql:ConnectionString";
+    private const string DefaultWindowsLocalDbConnectionString =
+        "Server=(localdb)\\MSSQLLocalDB;Initial Catalog=WorkslipLocal;Integrated Security=true;TrustServerCertificate=true;MultipleActiveResultSets=true";
 
     public static WebApplicationBuilder ConfigureInfrastructure(this WebApplicationBuilder builder, string[] args)
     {
@@ -146,30 +148,68 @@ public static class InfrastructureConfiguration
 
         if (platformBootstrapRequested)
         {
-            if (string.IsNullOrWhiteSpace(connectionString))
-            {
-                throw new InvalidOperationException(
-                    "The explicit bootstrap-superadmins operation requires Azure:Sql:ConnectionString to be configured.");
-            }
-
+            
             ConfigureExplicitOperatorSqlAuthentication(configuration, connectionString);
             Log.Information("[STARTUP 02.4] Enforce development SQL isolation - EXPLICIT OPERATOR EXCEPTION (bootstrap-superadmins)");
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(connectionString))
+        var isWindows = OperatingSystem.IsWindows();
+        var resolvedConnectionString = ResolveDevelopmentConnectionString(
+            connectionString,
+            isWindows);
+
+        if (!string.Equals(connectionString, resolvedConnectionString, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException(
-                "Development startup requires a local SQL connection string. Configure Azure:Sql:ConnectionString in appsettings.Local.json or an environment variable. Remote/Azure SQL is not allowed for normal Development startup.");
+            configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [SqlConnectionStringKey] = resolvedConnectionString
+            });
+
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                Log.Information(
+                    "[STARTUP 02.4] Enforce development SQL isolation - using default Windows LocalDB target ({DatabaseName})",
+                    "WorkslipLocal");
+            }
+            else
+            {
+                Log.Warning(
+                    "[STARTUP 02.4] Enforce development SQL isolation - ignored non-local/invalid configured SQL target and substituted default Windows LocalDB ({DatabaseName})",
+                    "WorkslipLocal");
+            }
         }
 
-        if (!LocalDevelopmentDatabaseMigrationRunner.IsLocalSqlTarget(connectionString))
+        if (!LocalDevelopmentDatabaseMigrationRunner.IsLocalSqlTarget(resolvedConnectionString))
         {
             throw new InvalidOperationException(
                 "Development startup refused Azure:Sql:ConnectionString because the SQL target is not provably local. Use localhost/loopback, LocalDB, '.', or '(local)'. Remote/Azure SQL is allowed only for an explicit operator operation, not normal local startup.");
         }
 
         Log.Information("[STARTUP 02.4] Enforce development SQL isolation - OK (local SQL target verified)");
+    }
+
+    internal static string ResolveDevelopmentConnectionString(
+        string? configuredConnectionString,
+        bool isWindows)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredConnectionString) &&
+            LocalDevelopmentDatabaseMigrationRunner.IsLocalSqlTarget(configuredConnectionString))
+        {
+            return configuredConnectionString;
+        }
+
+        if (isWindows)
+            return DefaultWindowsLocalDbConnectionString;
+
+        if (string.IsNullOrWhiteSpace(configuredConnectionString))
+        {
+            throw new InvalidOperationException(
+                "Development startup requires a local SQL connection string on this platform. Configure Azure:Sql:ConnectionString in appsettings.Local.json or an environment variable. Remote/Azure SQL is not allowed for normal Development startup.");
+        }
+
+        throw new InvalidOperationException(
+            "Development startup refused Azure:Sql:ConnectionString because the SQL target is not provably local. Use localhost/loopback, LocalDB, '.', or '(local)'. Remote/Azure SQL is allowed only for an explicit operator operation, not normal local startup.");
     }
 
     private static void ConfigureExplicitOperatorSqlAuthentication(

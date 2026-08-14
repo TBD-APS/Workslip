@@ -1,0 +1,101 @@
+name: Feature change guard
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'release-*'
+      - 'release/**'
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  feature-change-guard:
+    name: Feature change guard
+    if: >-
+      github.event.pull_request.base.ref == 'main' ||
+      startsWith(github.event.pull_request.base.ref, 'release-') ||
+      startsWith(github.event.pull_request.base.ref, 'release/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout pull request head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Ensure base commit is available
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -Eeuo pipefail
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "${BASE_SHA}"
+          fi
+
+      - name: Test change-risk classifier
+        run: node --test tools/release/validate-pr-change-risk.test.mjs
+
+      - name: Validate ruleset reconciler syntax
+        shell: pwsh
+        run: >-
+          [scriptblock]::Create(
+            (Get-Content -Raw './tools/release/configure-github-branch-rules.ps1')
+          ) | Out-Null
+
+      - name: Classify pull request change risk
+        id: risk
+        continue-on-error: true
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node tools/release/validate-pr-change-risk.mjs --base "$BASE_SHA" --head "$HEAD_SHA"
+
+      - name: Reject invalid classifier result
+        if: steps.risk.outcome == 'failure' && steps.risk.outputs.high_risk != 'true'
+        shell: bash
+        run: |
+          echo '::error::Feature change classifier failed before producing a valid risk decision.'
+          exit 1
+
+      - name: Require explicit approval for high-risk feature change
+        if: steps.risk.outputs.high_risk == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -Eeuo pipefail
+
+          if ! jq -e '.pull_request.labels | any(.name == "intentional-feature-removal")' "$GITHUB_EVENT_PATH" >/dev/null; then
+            echo '::error::High-risk product-code change requires the intentional-feature-removal label.'
+            exit 1
+          fi
+
+          reviews="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/reviews")"
+          approval_count="$(
+            jq --arg head "$HEAD_SHA" --arg author "$PR_AUTHOR" \
+              '[.[] | select(.state == "APPROVED" and .commit_id == $head and .user.login != $author)] | length' \
+              <<<"$reviews"
+          )"
+
+          if [[ "$approval_count" -lt 1 ]]; then
+            echo '::error::High-risk product-code change requires an APPROVED review on the current head SHA from someone other than the PR author.'
+            exit 1
+          fi
+
+          echo "High-risk change explicitly approved on current head ${HEAD_SHA}."
+
+      - name: Guard passed
+        if: steps.risk.outputs.high_risk != 'true'
+        run: echo 'No high-risk product feature change detected.'

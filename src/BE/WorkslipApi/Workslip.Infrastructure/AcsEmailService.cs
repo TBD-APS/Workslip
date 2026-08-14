@@ -13,50 +13,36 @@ public sealed class AcsEmailService(
     ICorrelationIdAccessor correlationIdAccessor)
     : IEmailService
 {
-    private readonly string _acsEndpoint = new(
-        configuration["Azure:Acs:ConnectionString"]
-        ?? throw new InvalidOperationException("ACS endpoint is not configured. Set Acs:Endpoint or ACS_ENDPOINT."));
-
-    private readonly string _senderAddress = configuration["Azure:Acs:SenderAddress"]
-        ?? throw new InvalidOperationException("ACS sender address is not configured. Set Azure:Acs:SenderAddress.");
-
-    private readonly string _senderPlaínHeaderText = configuration["Azure:Acs:PLainHeaderText"]
-    ?? throw new InvalidOperationException("ACS sender address is not configured. Set Azure:Acs:PLainHeaderText.");
-
-    private readonly string _senderPlainText = configuration["Azure:Acs:PlainInviteText"]
-        ?? throw new InvalidOperationException("ACS sender address is not configured. Set Azure:Acs:PlainInviteText.");
-
-    private readonly string _senderHtmlText = configuration["Azure:Acs:HtmlInviteText"]
-        ?? throw new InvalidOperationException("ACS sender address is not configured. Set Azure:Acs:HtmlInviteText.");
-
-    private readonly string _acsInviteBaseUrlLink = new(
-    configuration["Azure:Acs:InviteBaseUrl"]
-    ?? throw new InvalidOperationException("ACS endpoint is not configured. Set Acs:Endpoint or ACS_ENDPOINT."));
-
-    private readonly string _otcHeaderText = configuration["Azure:Acs:OtcHeaderText"]
-        ?? throw new InvalidOperationException("ACS OTC header text is not configured. Set Azure:Acs:OtcHeaderText.");
-
-    private readonly string _otcPlainText = configuration["Azure:Acs:OtcPlainText"]
-        ?? throw new InvalidOperationException("ACS OTC plain text is not configured. Set Azure:Acs:OtcPlainText.");
-
-    private readonly string _otcHtmlText = configuration["Azure:Acs:OtcHtmlText"]
-        ?? throw new InvalidOperationException("ACS OTC HTML text is not configured. Set Azure:Acs:OtcHtmlText.");
+    private readonly string? _acsConnectionString = configuration["Azure:Acs:ConnectionString"];
+    private readonly string? _senderAddress = configuration["Azure:Acs:SenderAddress"];
+    private readonly string? _senderPlainHeaderText = configuration["Azure:Acs:PLainHeaderText"];
+    private readonly string? _senderPlainText = configuration["Azure:Acs:PlainInviteText"];
+    private readonly string? _senderHtmlText = configuration["Azure:Acs:HtmlInviteText"];
+    private readonly string? _acsInviteBaseUrlLink = configuration["Azure:Acs:InviteBaseUrl"];
+    private readonly string? _otcHeaderText = configuration["Azure:Acs:OtcHeaderText"];
+    private readonly string? _otcPlainText = configuration["Azure:Acs:OtcPlainText"];
+    private readonly string? _otcHtmlText = configuration["Azure:Acs:OtcHtmlText"];
 
     public async Task SendInviteEmailAsync(string toEmail, string token, CancellationToken cancellationToken)
     {
-        var emailClient = new EmailClient(_acsEndpoint);
+        var emailClient = new EmailClient(RequireConfigured(_acsConnectionString, "Azure:Acs:ConnectionString"));
+        var senderAddress = RequireConfigured(_senderAddress, "Azure:Acs:SenderAddress");
+        var headerText = RequireConfigured(_senderPlainHeaderText, "Azure:Acs:PLainHeaderText");
+        var plainText = RequireConfigured(_senderPlainText, "Azure:Acs:PlainInviteText");
+        var htmlText = RequireConfigured(_senderHtmlText, "Azure:Acs:HtmlInviteText");
+        var inviteBaseUrl = RequireConfigured(_acsInviteBaseUrlLink, "Azure:Acs:InviteBaseUrl");
 
-        var trimmedUrl = _acsInviteBaseUrlLink.TrimEnd('/');
+        var trimmedUrl = inviteBaseUrl.TrimEnd('/');
         var callBackUrl = $"{trimmedUrl}/{token}";
 
-        var emailContent = new EmailContent(_senderPlaínHeaderText)
+        var emailContent = new EmailContent(headerText)
         {
-            Html = _senderHtmlText.Replace("{inviteLink}", callBackUrl),
-            PlainText = _senderPlainText.Replace("{inviteLink}", callBackUrl)
+            Html = htmlText.Replace("{inviteLink}", callBackUrl),
+            PlainText = plainText.Replace("{inviteLink}", callBackUrl)
         };
 
         var message = new EmailMessage(
-            _senderAddress,
+            senderAddress,
             new EmailRecipients([new EmailAddress(toEmail)]),
             emailContent);
 
@@ -83,16 +69,20 @@ public sealed class AcsEmailService(
 
     public async Task SendOtcEmailAsync(string toEmail, string code, CancellationToken cancellationToken)
     {
-        var emailClient = new EmailClient(_acsEndpoint);
+        var emailClient = new EmailClient(RequireConfigured(_acsConnectionString, "Azure:Acs:ConnectionString"));
+        var senderAddress = RequireConfigured(_senderAddress, "Azure:Acs:SenderAddress");
+        var headerText = RequireConfigured(_otcHeaderText, "Azure:Acs:OtcHeaderText");
+        var plainText = RequireConfigured(_otcPlainText, "Azure:Acs:OtcPlainText");
+        var htmlText = RequireConfigured(_otcHtmlText, "Azure:Acs:OtcHtmlText");
 
-        var emailContent = new EmailContent(_otcHeaderText)
+        var emailContent = new EmailContent(headerText)
         {
-            Html = _otcHtmlText.Replace("{otcCode}", code),
-            PlainText = _otcPlainText.Replace("{otcCode}", code)
+            Html = htmlText.Replace("{otcCode}", code),
+            PlainText = plainText.Replace("{otcCode}", code)
         };
 
         var message = new EmailMessage(
-            _senderAddress,
+            senderAddress,
             new EmailRecipients([new EmailAddress(toEmail)]),
             emailContent);
 
@@ -116,4 +106,9 @@ public sealed class AcsEmailService(
             throw;
         }
     }
+
+    private static string RequireConfigured(string? value, string key) =>
+        !string.IsNullOrWhiteSpace(value)
+            ? value
+            : throw new InvalidOperationException($"ACS configuration '{key}' is not configured.");
 }

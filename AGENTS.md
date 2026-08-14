@@ -41,6 +41,24 @@ When documentation disagrees with implementation, fix the maintained documentati
 - Do not mix unrelated cleanup into feature work.
 - Improve nearby technical debt only when it is required for correctness, materially lowers risk, or removes duplication inside the task boundary.
 
+## Production boundary and release-candidate hygiene
+
+- Accepted ADRs define the delivery architecture. The existence of a `release-*` branch, an open release PR or CI triggers for release branches does **not** by itself redefine the production boundary.
+- [`ADR 0005`](Docs/architecture/adr/0005-main-as-production-boundary.md) currently makes `main` the normal application production boundary. Normal delivery remains feature/stack PR → required validation → explicit merge to `main` → production unless a newer accepted ADR replaces that decision.
+- A release candidate branch may be used only as an explicit, temporary delivery exception. While it exists, do not generalize its mechanics into permanent architecture or update unrelated guidance as though release branches are the new default.
+- A release-candidate PR is a release manifest, not a feature PR. Before it can be considered ready it must reflect the **current** candidate SHA and actual `main...candidate` contents, identify the included issues/PRs or cohesive change groups, record exact-head CI evidence, list every still-required relational/HTTP/Playwright/infrastructure/deployed check, identify database migrations and rollout/rollback dependencies, and call out known exceptions or deferred risks.
+- Deterministic CI being green is necessary repository evidence, not a substitute for risk-specific runtime evidence. A green build/test suite does not close an explicitly required SQL Server, HTTP authorization, browser/mobile, infrastructure or deployed smoke gate.
+- If a feature PR is merged while its body still says a required gate is pending, treat that as a completion defect: preserve the gap in the release manifest/Linear and resolve or explicitly waive it before production promotion.
+- After a temporary release candidate is promoted, retire its delivery artifacts and return new work to the accepted normal flow. Do not roll the release branch forward indefinitely without an explicit architecture decision.
+- Temporary validation PRs, branches, workflow edits, generated snapshots and one-off files must be removed or explicitly retained with an owner before the owning issue is completed.
+
+## Canonical local development
+
+- On a supported Windows developer machine, root `./dev.ps1` is the canonical full-stack bootstrap and smoke path. See [`Docs/operations/local-development.md`](Docs/operations/local-development.md).
+- Do not invent `appsettings.Local.json` values, copy production configuration, enable remote SQL, or route synthetic test users through Entra merely to make local development start.
+- If the canonical bootstrap fails on a clean supported machine, treat that as a Workslip setup defect and fix the maintained bootstrap/configuration instead of documenting tribal workarounds.
+- Backend-only/frontend-only manual commands remain valid for focused debugging, but they do not replace the fresh-machine full-stack runtime smoke.
+
 ## Delivery loop
 
 For implementation batches, keep the execution loop short and deterministic:

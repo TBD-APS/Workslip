@@ -41,7 +41,7 @@ internal static class LocalDevelopmentDatabasePreparation
         Log.Information(
             "[STARTUP 08.0] Fresh/empty local database detected; seeding synthetic DB-only development data before migration processing");
 
-        await DatabaseSeeder.Seed(
+        await DevelopmentDatabaseOnlySeeder.SeedAsync(
             db,
             scope.ServiceProvider.GetRequiredService<InstallationBaselineProvisioner>(),
             cancellationToken);
