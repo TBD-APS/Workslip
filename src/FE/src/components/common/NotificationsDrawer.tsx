@@ -1,6 +1,16 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, CheckCheck, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Bell,
+  BellRing,
+  CheckCheck,
+  CircleCheck,
+  ClipboardCheck,
+  Info,
+  Sparkles,
+  UserPlus,
+  X,
+} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../lib/axios';
 import { notificationListQueryKey } from '../../lib/notificationQueryKeys';
@@ -23,6 +33,8 @@ type NotificationsDrawerProps = {
   onUnreadCountChange?: (count: number) => void;
 };
 
+type NotificationFilter = 'all' | 'unread';
+
 const EMPTY_NOTIFICATIONS: NotificationItem[] = [];
 
 const countUnread = (items: NotificationItem[]) =>
@@ -33,6 +45,44 @@ const getBodyLines = (body: string) =>
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
+
+const getNotificationIcon = (item: NotificationItem) => {
+  const haystack = `${item.title} ${item.body}`.toLocaleLowerCase('da-DK');
+
+  if (haystack.includes('færdig') || haystack.includes('completed') || haystack.includes('godkend')) {
+    return <CircleCheck size={18} />;
+  }
+
+  if (haystack.includes('tildelt') || haystack.includes('medarbejder') || haystack.includes('assigned')) {
+    return <UserPlus size={18} />;
+  }
+
+  if (haystack.includes('opgave') || haystack.includes('sag') || haystack.includes('job')) {
+    return <ClipboardCheck size={18} />;
+  }
+
+  return item.isRead ? <Info size={18} /> : <BellRing size={18} />;
+};
+
+const formatRelativeCreatedAt = (createdUtc: string) => {
+  const createdAt = new Date(createdUtc);
+  const diffMs = Date.now() - createdAt.getTime();
+  const diffMinutes = Math.max(0, Math.round(diffMs / 60_000));
+
+  if (diffMinutes < 1) return 'Nu';
+  if (diffMinutes < 60) return `${diffMinutes} min. siden`;
+
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} t. siden`;
+
+  const diffDays = Math.round(diffHours / 24);
+  if (diffDays < 7) return diffDays === 1 ? 'I går' : `${diffDays} dage siden`;
+
+  return createdAt.toLocaleDateString('da-DK', {
+    day: 'numeric',
+    month: 'short',
+  });
+};
 
 async function getNotifications(): Promise<NotificationItem[]> {
   const response = await apiClient.get('/api/notifications', {
@@ -68,6 +118,7 @@ export function NotificationsDrawer({
   });
   const [actionError, setActionError] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set());
+  const [filter, setFilter] = useState<NotificationFilter>('all');
   const navigate = useNavigate();
 
   const updateItems = useCallback((updater: (current: NotificationItem[]) => NotificationItem[]) => {
@@ -90,6 +141,10 @@ export function NotificationsDrawer({
   }, [isOpen, organizationId, refetch, userId]);
 
   const unreadCount = useMemo(() => countUnread(items), [items]);
+  const visibleItems = useMemo(
+    () => (filter === 'unread' ? items.filter((item) => !item.isRead) : items),
+    [filter, items],
+  );
   const loading = userId.length > 0
     && organizationId.length > 0
     && isPending
@@ -113,6 +168,7 @@ export function NotificationsDrawer({
         setActionError(null);
       } catch {
         setActionError('Notifikationen kunne ikke markeres som læst.');
+        return;
       }
     }
 
@@ -153,21 +209,48 @@ export function NotificationsDrawer({
     }
   };
 
-  const formatCreatedAt = (createdUtc: string) =>
-    new Date(createdUtc).toLocaleString('da-DK', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    });
-
   return (
     <Drawer
       isOpen={isOpen}
       onClose={closeDrawer}
-      title="Notifikationer"
-      ariaLabel="Notifikationer"
+      title="Indbakke"
+      ariaLabel="Notifikationsindbakke"
       icon={<Bell size={20} />}
       className="history-drawer notifications-drawer"
     >
+      <div className="notifications-hero">
+        <span className="notifications-hero-icon" aria-hidden="true">
+          <Sparkles size={18} />
+        </span>
+        <div>
+          <strong>Hold styr på det vigtigste</strong>
+          <span>{unreadCount === 0 ? 'Du er helt ajour.' : `${unreadCount} ${unreadCount === 1 ? 'ting' : 'ting'} kræver din opmærksomhed.`}</span>
+        </div>
+      </div>
+
+      <div className="notifications-tabs" role="tablist" aria-label="Filtrer notifikationer">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={filter === 'all'}
+          className={filter === 'all' ? 'active' : ''}
+          onClick={() => setFilter('all')}
+        >
+          Alle
+          <span>{items.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={filter === 'unread'}
+          className={filter === 'unread' ? 'active' : ''}
+          onClick={() => setFilter('unread')}
+        >
+          Ulæste
+          <span>{unreadCount}</span>
+        </button>
+      </div>
+
       {error && (
         <div className="notification-error" role="alert">
           <span>{error}</span>
@@ -179,7 +262,7 @@ export function NotificationsDrawer({
 
       {!loading && items.length > 0 && (
         <div className="notifications-toolbar">
-          <span>{unreadCount === 0 ? 'Ingen ulæste' : `${unreadCount} ulæste`}</span>
+          <span>{filter === 'unread' ? 'Kræver opmærksomhed' : 'Seneste aktivitet'}</span>
           {unreadCount > 0 && (
             <button type="button" onClick={() => void markAllRead()}>
               <CheckCheck size={16} />
@@ -190,16 +273,25 @@ export function NotificationsDrawer({
       )}
 
       {loading ? (
-        <div className="drawer-empty">Henter notifikationer…</div>
-      ) : items.length > 0 ? (
+        <div className="notifications-skeleton" aria-label="Henter notifikationer">
+          <span />
+          <span />
+          <span />
+        </div>
+      ) : visibleItems.length > 0 ? (
         <div className="notifications-list">
-          {items.map((item) => {
+          {visibleItems.map((item, index) => {
             const isDeleting = deletingIds.has(item.id);
             return (
               <div
                 key={item.id}
                 className={`notification-item${item.isRead ? '' : ' notification-item-unread'}${isDeleting ? ' notification-item-deleting' : ''}`}
+                style={{ '--notification-index': index } as CSSProperties}
               >
+                {!item.isRead && <span className="notification-unread-dot" aria-hidden="true" />}
+                <span className="notification-type-icon" aria-hidden="true">
+                  {getNotificationIcon(item)}
+                </span>
                 <button
                   type="button"
                   className="notification-item-main"
@@ -209,16 +301,17 @@ export function NotificationsDrawer({
                 >
                   <span className="notification-item-header">
                     <strong className="notification-item-title">{item.title}</strong>
-                    {!item.isRead && <span className="notification-new-label">Ny</span>}
+                    <small title={new Date(item.createdUtc).toLocaleString('da-DK')}>
+                      {formatRelativeCreatedAt(item.createdUtc)}
+                    </small>
                   </span>
                   <span className="notification-body">
-                    {getBodyLines(item.body).map((line, index) => (
-                      <span key={`${item.id}-${index}`} className="notification-body-line">
+                    {getBodyLines(item.body).map((line, lineIndex) => (
+                      <span key={`${item.id}-${lineIndex}`} className="notification-body-line">
                         {line}
                       </span>
                     ))}
                   </span>
-                  <small>{formatCreatedAt(item.createdUtc)}</small>
                 </button>
                 <button
                   type="button"
@@ -235,7 +328,13 @@ export function NotificationsDrawer({
           })}
         </div>
       ) : !error ? (
-        <div className="drawer-empty">Ingen notifikationer endnu.</div>
+        <div className="notifications-empty">
+          <span className="notifications-empty-icon" aria-hidden="true">
+            {filter === 'unread' ? <CheckCheck size={30} /> : <Bell size={30} />}
+          </span>
+          <strong>{filter === 'unread' ? 'Du er helt ajour' : 'Ingen notifikationer endnu'}</strong>
+          <span>{filter === 'unread' ? 'Der er ikke noget, der kræver din opmærksomhed lige nu.' : 'Nye hændelser og opgaver dukker op her.'}</span>
+        </div>
       ) : null}
     </Drawer>
   );
