@@ -1,6 +1,6 @@
 # AI review rollout gate
 
-Before this workflow can be treated as active, configure the three repository secrets documented in `README.md` and observe one real pull request end to end.
+Before this workflow can be treated as active, configure the repository secrets documented in `README.md` (`ANTHROPIC_API_KEY` and `WORKSLIP_REVIEW_PAT` at minimum; `OPENAI_API_KEY` optionally) and observe one real pull request end to end.
 
 Required evidence:
 

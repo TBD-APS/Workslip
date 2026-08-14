@@ -10,19 +10,19 @@ This automation adds a second review signal after Workslip's normal `CI` succeed
 2. `AI PR Review` runs automatically after successful PR CI only for `OWNER`, `MEMBER` or `COLLABORATOR` authors. External-contributor PRs require explicit `workflow_dispatch` so a public repository cannot be used to generate uncontrolled model spend.
 3. The workflow checks out trusted `main` only. It never checks out or executes the pull-request head in a secret-bearing job.
 4. PR metadata and the unified diff are fetched through the GitHub API, size-bounded, redacted and marked as untrusted data. A stale CI completion is skipped when the PR has already moved to another head SHA.
-5. OpenAI Codex and Claude review the same context independently with read-only tools.
+5. OpenAI Codex and Claude review the same context independently with read-only tools. A provider without a configured credential is treated as intentionally disabled, so Claude-only operation is a fully supported mode rather than a degraded one.
 6. The aggregator updates one sticky PR comment through the configured `rasm105k` token.
 7. The aggregator also publishes an `AI PR Review` commit status on the exact reviewed PR head SHA. This keeps later ruleset enforcement possible without changing the review architecture.
-8. A failing AI status is emitted only when both available models independently report a matching `high` or `critical` finding with confidence >= 0.80. One-model findings remain advisory and are reported as degraded review mode.
+8. A failing AI status is emitted only when both available models independently report a matching `high` or `critical` finding with confidence >= 0.80. Single-provider findings are always advisory: with only Claude configured the review never blocks on its own, and degraded mode is reported only when a *configured* provider fails.
 9. No AI path approves or merges a pull request.
 
 ## Required repository secrets
 
 Configure these in GitHub repository Actions secrets:
 
-- `OPENAI_API_KEY` — API key dedicated to CI review usage.
-- `ANTHROPIC_API_KEY` — API key dedicated to CI review usage.
-- `WORKSLIP_REVIEW_PAT` — a fine-grained GitHub personal access token owned by `rasm105k`, restricted to **only** `rasm105k/Workslip-v2.0`, with Metadata read and Issues read/write. Do not grant Contents, Administration, Actions, Secrets or repository-management write access.
+- `ANTHROPIC_API_KEY` — API key dedicated to CI review usage. Required for Claude review.
+- `WORKSLIP_REVIEW_PAT` — a fine-grained GitHub personal access token owned by `rasm105k`, restricted to **only** `rasm105k/Workslip-v2.0`, with Metadata read and Issues read/write. Do not grant Contents, Administration, Actions, Secrets or repository-management write access. Required for posting the review comment.
+- `OPENAI_API_KEY` — optional. When present it adds the second independent reviewer and enables consensus blocking; when absent the workflow runs cleanly in Claude-only mode.
 
 The workflow calls `/user` before posting and fails closed if `WORKSLIP_REVIEW_PAT` does not belong to `rasm105k`. `GITHUB_TOKEN` is intentionally not used for the final comment because that would publish as `github-actions[bot]` rather than the configured personal account.
 
