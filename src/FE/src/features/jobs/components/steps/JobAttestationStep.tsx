@@ -66,10 +66,9 @@ export function JobAttestationStep({
     { label: 'Anlægstyper', value: selectedInstallationTypeNames.join(', ') },
   ]);
   const observationItems = compactObservations([
-    { label: 'Opgave', value: job.observations.taskDescription },
-    { label: 'Kundeinfo', value: job.observations.customerObservations },
-    { label: 'Teknisk', value: job.observations.technicalObservations },
-    { label: 'Bemærkninger', value: job.work.remarks },
+    { label: 'Opgavebeskrivelse', value: job.observations.taskDescription },
+    { label: 'Oplysninger til kunden', value: job.observations.customerObservations },
+    { label: 'Kommentar til sagen', value: job.observations.technicalObservations },
   ]);
   const totalHoursValue = parseNullableNumber(job.totalHours);
   const totalHoursLabel = (
@@ -205,6 +204,12 @@ export function JobAttestationStep({
                   </li>
                 ))}
               </ul>
+              {hasText(job.work.remarks) && (
+                <div className="attestation-data-pair observation">
+                  <dt>Begrundelse for irrelevante kontrolpunkter</dt>
+                  <dd>{job.work.remarks.trim()}</dd>
+                </div>
+              )}
             </CollapsibleSection>
           )}
         </section>
