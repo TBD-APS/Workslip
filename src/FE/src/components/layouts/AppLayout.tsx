@@ -45,6 +45,7 @@ export const AppLayout = () => {
   const appHomePath = getAuthenticatedHomePath(user?.role);
   const isAuditorSession = appHomePath === AUDITOR_AUTHENTICATED_PATH;
   const canUseAppCommands = !isSuperadmin || Boolean(organizationSession);
+  const canSearchJobs = canUseAppCommands && !isAuditorSession;
 
   const { theme, toggle: toggleTheme } = useTheme();
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
@@ -201,7 +202,7 @@ export const AppLayout = () => {
         homePath={appHomePath}
         homeLabel={isAuditorSession ? 'Rapporter' : 'Sager'}
         canUseAppCommands={canUseAppCommands}
-        canSearchJobs={canUseAppCommands && canViewTimer}
+        canSearchJobs={canSearchJobs}
         canViewAllJobs={canViewAllJobs}
         currentUserId={user?.id}
         canViewTimer={canUseAppCommands && canViewTimer}
