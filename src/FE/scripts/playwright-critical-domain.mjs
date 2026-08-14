@@ -111,7 +111,8 @@ async function completeAndSubmitKlsViaUi(session, job) {
     const response = waitForApiResponse(session.page, 'POST', `/api/jobs/${job.id}/status`, [200]);
     await session.page.getByRole('button', { name: 'Attestér og indsend', exact: true }).click();
     await response;
-    await session.page.getByRole('heading', { name: 'Sag sendt til kontoret', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    const submittedStatus = session.page.getByRole('status').filter({ hasText: 'Sagen er attesteret' });
+    await submittedStatus.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   });
 }
 
