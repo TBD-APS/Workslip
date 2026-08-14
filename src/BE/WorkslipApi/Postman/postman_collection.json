@@ -1740,6 +1740,7 @@
                   "const internalFields = ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'];",
                   "pm.test('job summary view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
                   "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
+                  "pm.test('create response identifies every created job', function () { pm.expect(json.createdJobIds).to.deep.eql([json.id]); });",
                   "pm.collectionVariables.set('jobId', json.id);",
                   "pm.test('customer email echoed', function () { pm.expect(json.customer.email).to.eql(pm.variables.get('customerEmail')); });",
                   "pm.test('installation types include selected categories and control points', function () {",

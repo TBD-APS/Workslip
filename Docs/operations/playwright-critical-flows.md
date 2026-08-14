@@ -1,139 +1,73 @@
-# Playwright critical-flow suite
+# Playwright release-test policy
 
-**Status:** Active, manually triggered  
-**Owner:** Frontend/API maintainers  
-**Source of truth:** `src/FE/config/release-environments.json`, runtime UI, runtime OpenAPI, endpoint code, `src/BE/WorkslipApi/Postman/postman_collection.json`, local run evidence, and GitHub Actions run evidence
+**Status:** Partially configured — only the write-free production smoke is runnable today
 
-## Purpose
+**Owner:** Workslip release maintainers
 
-`.github/workflows/playwright-prod-smoke.yml` runs mobile Chromium against an explicitly selected release-test target.
+**Source of truth:** `src/FE/config/release-environments.json`, `tools/release/resolve-release-environment.mjs`, `.github/workflows/playwright-prod-smoke.yml`, and run artifacts
 
-Before first customer go-live, `https://app.mrsoftware.dk` is the only deployed environment and is intentionally configured as **pre-live production**. It contains no active customers and is therefore used as the release-test environment, including authenticated scenarios that write synthetic data and clean it up afterward.
+**Review cadence:** Before changing a release target, authentication method, or destructive scenario
 
-After customer go-live, Workslip moves to two environments:
+## Current runnable scope
 
-- production allows only the write-free `public-smoke` scenario;
-- staging hosts dev-login/release-test endpoints and the full critical-flow suite.
+The only deployed Playwright run that is configured and allowed is:
 
-The workflow is manual and is not a pull-request check or deployment step. It therefore adds no time to normal frontend or backend deployment.
+- `public-smoke` against `https://app.mrsoftware.dk`.
 
-## Central release-environment policy
+It opens the public application in Chromium at the iPhone 13 viewport and verifies that the page responds. It does not authenticate, send an OTC, create data, or invoke an API mutation.
 
-`src/FE/config/release-environments.json` is the reviewed source of truth. It intentionally lives inside the Vercel frontend root so the production build cannot depend on the optional Vercel setting that includes files outside a project's root directory. Backend and repository workflows read the same file.
+`src/FE/config/release-environments.json` is deliberately fail-closed in the current `prelive` phase:
 
-`tools/release/resolve-release-environment.mjs` validates the policy before API deployment, release validation, local runs, and GitHub-hosted Playwright runs.
+- production has `enableDevelopmentEndpoints: false` and `allowDestructivePlaywright: false`;
+- staging has no URL and is not a runnable target;
+- `playwright-release-runner.mjs` rejects every non-public scenario against production, regardless of phase.
 
-The current pre-live state is:
+The GitHub workflow exposes no target or scenario selector. It runs the one honest operation above, validates the Playwright source tests first, and uploads the short-lived public-smoke artifact. A workflow must not advertise a scenario that cannot complete in GitHub Actions.
 
-| Environment | URL | Dev/release endpoints | Destructive Playwright |
-|---|---|---:|---:|
-| Production | `https://app.mrsoftware.dk` | Enabled | Enabled |
-| Staging | Not configured | Disabled | Disabled |
+## Critical suite: maintained, but intentionally blocked
 
-The required live state is:
+The authenticated scenario code remains in the repository so it can be validated statically and completed once the proper environment exists. It is **not** current deployment evidence and is not configured for GitHub Actions.
 
-| Environment | URL | Dev/release endpoints | Destructive Playwright |
-|---|---|---:|---:|
-| Production | `https://app.mrsoftware.dk` | Disabled | Disabled |
-| Staging | Dedicated staging origin | Enabled | Enabled |
+The full suite stays blocked until both prerequisites are complete:
 
-The resolver rejects unsafe intermediate combinations. In particular:
+1. [WOR-309](https://linear.app/workslip/issue/WOR-309/isoleret-pre-merge-testmilj%C3%B8-og-automatisk-playwright-for-pr-sha) provides an isolated, candidate-SHA staging frontend, API, database, and synthetic data boundary.
+2. [WOR-357](https://linear.app/workslip/issue/WOR-357/replace-playwright-dev-login-dependency-with-real-test-authentication) provides approved non-interactive test authentication without a dev-token endpoint, static token, or hidden login bypass.
 
-- live production cannot expose development endpoints or permit destructive Playwright;
-- the live phase cannot be selected before a runnable staging origin exists;
-- destructive Playwright cannot be enabled where development endpoints are disabled;
-- target URLs must be clean HTTPS origins without credentials, path, query, or fragment.
+Do not solve either prerequisite by running mutations against `https://app.mrsoftware.dk`, by adding `/api/dev/token` outside ASP.NET Development, or by putting mailbox credentials in the repository or CI logs.
 
-The backend API deployment reads the production entry and applies `ReleaseTesting__Enabled` to Azure App Service before deploying. Missing or invalid backend configuration is fail-closed: outside ASP.NET Development, release-test endpoints are absent unless the resolved value is exactly `true`.
+Until those items are complete, authenticated work is reported as **implemented but Playwright-unvalidated**. That is an honest gap, not a passing critical test.
 
-The frontend Vite build reads the same policy. Dev-login controls are rendered only when both conditions hold:
+## Assignment duplication coverage
 
-- `VITE_ENABLE_DEV_LOGIN=true` for the deployment;
-- the selected release target enables development endpoints in the committed policy.
+`assignment-lifecycle` now models the actual WOR-424 requirement rather than fabricating random users:
 
-An invalid or missing `VITE_RELEASE_TARGET` defaults to `production`, which is the safe behavior after go-live. The future staging project must explicitly set `VITE_RELEASE_TARGET=staging`.
+1. an Admin resolves the stable configured `User` and `Admin` identities in the active test organization;
+2. the Admin creates a KLS task with **Opret en kopi af sagen til hver medarbejder** enabled;
+3. the test proves there is exactly one independent copy per assignee;
+4. each assignee completes and submits only their own copy;
+5. the Admin approves both copies individually.
 
-`DeveloperExceptionPage` is restricted to ASP.NET Development and is never enabled by the pre-live release-test setting.
+The harness never creates identities just to make a scenario pass. If the configured users are missing or do not have the expected roles, the scenario stops without exposing their addresses.
 
-## Go-live switch
+This is source-level coverage only until an isolated staging run succeeds.
 
-Before inviting the first customer:
+## Authentication and evidence boundaries
 
-1. deploy a separate staging frontend, API, database, test identities, and synthetic fixtures;
-2. change `src/FE/config/release-environments.json` from `prelive` to `live`;
-3. set production `enableDevelopmentEndpoints` and `allowDestructivePlaywright` to `false`;
-4. configure the staging HTTPS origin and set both staging flags to `true`;
-5. set the staging Vercel variable `VITE_RELEASE_TARGET=staging` and keep `VITE_ENABLE_DEV_LOGIN=true` there;
-6. set the production Vercel variable `VITE_ENABLE_DEV_LOGIN=false` as defense in depth;
-7. deploy the API so `ReleaseTesting__Enabled=false` reaches production;
-8. verify `/api/dev/token`, runtime OpenAPI, and Scalar are unavailable in production;
-9. run `public-smoke` against production and the critical suite against staging.
+Authenticated scenarios use the normal one-time-code UI and the four configured role identities described in [synthetic-test-identities.md](synthetic-test-identities.md). There is no approved automated inbox reader today, so a non-interactive authenticated run stops before `/api/auth/send-code`.
 
-WOR-309 tracks creation of the second environment. The configuration switch itself must be reviewed and merged before customer access opens.
+For a future allowed staging run, an operator may explicitly use a headed TTY session and enter received codes only in the browser. The harness caches an already-authenticated Admin token in memory for cleanup so it does not trigger an unnecessary additional OTC login.
 
-## Scenarios
+Artifacts are minimized:
 
-The suite covers these selectable scenarios:
-
-1. `auth-session`
-2. `kls-lifecycle`
-3. `rejection-loop`
-4. `draft-recovery`
-5. `role-tenant-isolation`
-6. `invitation-onboarding`
-7. `assignment-lifecycle`
-8. `customer-lifecycle`
-9. `worksheet-integrity`
-10. `diverse-lifecycle`
-
-A former `notification-navigation` scenario was removed: as written, it never opened the deployed app, authenticated, registered a service worker, or dispatched a real `PushEvent` — it only imported `src/pwa/pushNotificationPayload.ts` and `src/pwa/notificationNavigation.ts` and called their exported functions directly in Node, which is exactly what `src/FE/src/pwa/pushNotificationPayload.test.ts` and `src/FE/src/pwa/notificationNavigation.test.ts` already cover as unit tests. It was labeled as a browser/service-worker critical flow but added no coverage beyond those unit tests. A real end-to-end replacement (real service-worker `PushEvent` dispatch, real `notificationclick` routing, real cache-isolation check against the deployed asset cache) is tracked as follow-up work rather than reintroduced here.
-
-`all-critical` expands into ten independent GitHub Actions matrix jobs with `max-parallel: 4`. Each flow has its own browser process, report, screenshots where the scenario permits them, cleanup, result, and artifact. `public-smoke` remains a write-free availability check.
-
-`src/FE/scripts/playwright-release-runner.mjs` is the required entry point. It rejects authenticated scenarios when the resolved target does not permit release-test access. Do not bypass it by invoking the underlying scenario orchestrator directly.
-
-## Runtime optimization
-
-The workflow uses Microsoft's version-matched `mcr.microsoft.com/playwright:v1.55.0-noble` image. Chromium and its Linux system dependencies are already in that image, so the job does not run `playwright install --with-deps` on every invocation.
-
-Only the isolated `playwright@1.55.0` Node runtime is installed under `src/FE/scripts/node_modules`. The full frontend dependency graph is not installed for a deployed smoke run. The per-flow timeout is 35 minutes.
-
-## Data and contract rules
-
-The suite must not depend on pre-existing IDs, customers, jobs, users, reference-data values, addresses, or sort order.
-
-- Runtime API contracts are loaded from the deployed `/openapi/v1.json` while release-test endpoints are enabled.
-- Executable request examples and unique-value conventions are loaded from `Postman/postman_collection.json`.
-- Installation types, users, customers, jobs, roles, and organization context are loaded from runtime API responses.
-- Postal addresses are selected from the DAWA autocomplete service and entered through the real UI control.
-- Missing assignable users and isolated tenant fixtures are created through documented API contracts using unique values derived from the Postman collection.
-- User-visible state transitions are performed through the actual UI. Direct API calls are limited to fixture discovery/setup, assertions, tenant-boundary probes, and cleanup.
-
-Every direct API call must exist in both runtime OpenAPI and the Postman collection. Missing contract coverage fails the scenario instead of falling back to guessed data or request shapes.
-
-## Test-data lifecycle
-
-Jobs, customers, worksheets, and users created by a scenario are removed where a delete contract exists. Organization and invitation fixtures are retained and clearly prefixed because the current public contract has no corresponding delete operation. Retained and failed-cleanup fixtures are listed in `report.json`.
-
-All generated fixtures include a `PLAYWRIGHT` marker and unique run identifier. Full flows are permitted only when the resolved target explicitly enables destructive Playwright and contains no customer production data.
-
-Before customer go-live, retained fixtures and cleanup failures must be reviewed and removed or intentionally isolated. After go-live, no full flow may target production even if an operator selects it manually; the policy resolver and release runner block the attempt.
-
-## Authentication and sensitive evidence
-
-The authenticated suite uses the deployed one-time-code controls and the four role-specific `WORKSLIP_SYNTHETIC_*_EMAIL` variables described in [`synthetic-test-identities.md`](synthetic-test-identities.md). There is currently no approved automated inbox reader, so non-interactive authenticated runs fail before sending mail. A local operator may explicitly enable a headed TTY run and enter each delivered code only in the visible browser. The scenarios never fall back to another authentication path or assumed user. Tokens are kept in memory and are never written to artifacts.
-
-Authenticated Playwright traces are not uploaded because they can contain authorization headers, request bodies, and personal data. Artifacts contain redacted JSON reports and selected screenshots. Login steps do not take screenshots.
-
-The invitation scenario verifies the real UI through the Microsoft handoff. Completing Microsoft enrollment requires an isolated third-party identity session and is reported as a coverage limitation when no such session is available.
+- public smoke may save a screenshot;
+- authenticated scenarios save no screenshots while identity/customer redaction is not strong enough to make them safe;
+- reports redact OTC values, bearer tokens, query secrets, and email addresses;
+- traces are not uploaded;
+- generated data uses a `PLAYWRIGHT` marker and cleanup failures are recorded without personal identifiers.
 
 ## Local Windows validation
 
-Use `tools/playwright/run-critical-local.ps1` from the repository root. It resolves the selected target from the committed release policy and refuses unsafe scenario/target combinations.
-
-### Fast direct run
-
-Prerequisite: Node.js 20 or newer; Node.js 22 is recommended.
+Use `tools/playwright/run-critical-local.ps1` from the repository root. Today this is the supported direct run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\playwright\run-critical-local.ps1 `
@@ -142,46 +76,25 @@ powershell -ExecutionPolicy Bypass -File .\tools\playwright\run-critical-local.p
   -Scenario public-smoke
 ```
 
-During the documented pre-live phase, an authenticated production flow is allowed:
+The helper installs the version-matched Playwright runtime when required, validates release policy and source tests, resolves the committed target, and writes evidence under `artifacts/playwright-prod-smoke`.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\playwright\run-critical-local.ps1 `
-  -Mode Direct `
-  -Target Production `
-  -Scenario auth-session
-```
+If an operator's network requires an outbound HTTP(S) proxy, set the non-secret proxy origin in `WORKSLIP_PLAYWRIGHT_PROXY` for that shell. The runner accepts only a credential-free origin and never records it in the report. If that proxy performs TLS interception and its CA cannot be installed in Chromium, a local operator may additionally set `WORKSLIP_PLAYWRIGHT_IGNORE_HTTPS_ERRORS=true`; this is accepted only with the explicit proxy setting and does not change CI. Such a run proves browser flow/connectivity, not the target certificate chain.
 
-After the live switch, the same command is rejected. Use `-Target Staging` for authenticated/full flows.
+`-Mode Workflow` intentionally supports only the same public production smoke. A critical scenario or staging target is rejected before Docker/`act` work begins.
 
-### Actual YAML through `act`
+## Completing the configuration later
 
-Prerequisites:
+After WOR-309 and WOR-357 are approved and deployed:
 
-- Docker Desktop is installed and running.
-- `act` is installed.
+1. configure a separate HTTPS staging origin and isolated database with synthetic-only data;
+2. update the committed release policy to `live`, keeping production flags false and enabling only the isolated staging target;
+3. prove the candidate SHA is deployed to that target;
+4. add a reviewed CI-safe authentication mechanism that uses the normal auth boundary and does not expose credentials or codes;
+5. re-enable selected critical workflow inputs only after a successful staging run and artifact review;
+6. keep production restricted to `public-smoke` permanently.
 
-```powershell
-winget install Docker.DockerDesktop
-winget install nektos.act
-```
+The frontend has no deployment-controlled dev-login switch. Local development buttons use `import.meta.env.DEV`, and `/api/dev/token` is mapped only in ASP.NET Development. Release policy must not claim otherwise.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\playwright\run-critical-local.ps1 `
-  -Mode Workflow `
-  -Target Production `
-  -Scenario public-smoke
-```
+## Source validation
 
-The helper creates the `workflow_dispatch` event JSON in the temporary directory, pre-pulls the version-matched Playwright image when necessary, calls `act`, removes the event file, and opens `artifacts/playwright-prod-smoke`.
-
-`act` sets `ACT=true`. The workflow therefore skips GitHub's artifact-upload action locally while preserving screenshots and `report.json` in the mounted repository workspace. Local evidence is ignored by Git.
-
-A successful `act` run proves that the workflow can execute in local Docker emulation. It does not prove that GitHub-hosted runner permissions, network access, or the target environment are identical.
-
-## GitHub Actions run
-
-Open **Actions → Playwright critical flows → Run workflow**, choose both target and scenario, and run it from the default branch.
-
-A single scenario produces `playwright-critical-flows-<target>-<scenario>`. `all-critical` produces one artifact per scenario, retained for seven days.
-
-A passing workflow is evidence only for the selected scenario, deployed revision, resolved environment, browser, and viewport recorded in the artifact.
+`CI` validates the release-policy resolver, the release-runner guard, synthetic-auth fail-closed behavior, Playwright syntax, Postman JSON, documentation, frontend tests, and build. Those checks verify that the harness remains safe and internally coherent; they do not replace a successful browser run against the eventual isolated staging target.

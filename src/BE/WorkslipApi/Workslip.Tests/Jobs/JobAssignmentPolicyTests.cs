@@ -40,6 +40,17 @@ public sealed class JobAssignmentPolicyTests
         Assert.False(JobAssignmentPolicy.CanReceiveAssignment(role));
     }
 
+    [Theory]
+    [InlineData(Roles.User, true)]
+    [InlineData(Roles.Admin, false)]
+    [InlineData(Roles.Superadmin, false)]
+    [InlineData(Roles.Auditor, false)]
+    [InlineData(null, false)]
+    public void RequiresAssignedJobScope_limits_only_regular_users(string? role, bool expected)
+    {
+        Assert.Equal(expected, JobAssignmentPolicy.RequiresAssignedJobScope(role));
+    }
+
     [Fact]
     public void CanReceiveAssignmentInFilial_requires_allowed_role_and_matching_filial()
     {
@@ -62,6 +73,19 @@ public sealed class JobAssignmentPolicyTests
         var result = JobAssignmentPolicy.ResolveInitialAssignments([assignedId], actorId, Roles.Admin);
 
         Assert.Equal([assignedId], result);
+    }
+
+    [Fact]
+    public void ResolveInitialAssignments_ignores_explicit_assignment_for_regular_user()
+    {
+        var actorId = Guid.NewGuid();
+
+        var result = JobAssignmentPolicy.ResolveInitialAssignments(
+            [Guid.NewGuid()],
+            actorId,
+            Roles.User);
+
+        Assert.Equal([actorId], result);
     }
 
     [Theory]

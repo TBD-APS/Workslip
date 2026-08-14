@@ -68,8 +68,7 @@ public static class DependencyInjection
         services.AddScoped<IInviteRepository, EfInviteRepository>();
         services.AddScoped<IInvitationStatusRepository, EfInviteRepository>();
         services.AddScoped<IJobLinkRepository, EfJobLinkRepository>();
-        services.AddScoped<EfJobRepository>();
-        services.AddScoped<IJobRepository, AssignmentAwareJobRepository>();
+        services.AddScoped<IJobRepository, EfJobRepository>();
         services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
         services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();

@@ -64,6 +64,24 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
             isEditing={true}
           />
 
+          {isAdmin && create.assignedUserIds.length > 1 && (
+            <section className="detail-section">
+              <label className="attestation-confirm-row">
+                <span className="attestation-confirm-copy">
+                  <span className="attestation-confirm-label">Opret en kopi af sagen til hver medarbejder</span>
+                  <span className="attestation-confirm-description">
+                    Hver medarbejder får sin egen sag, som udfyldes og godkendes separat.
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={create.duplicatePerAssignedUser}
+                  onChange={(event) => create.updateDuplicatePerAssignedUser(event.target.checked)}
+                />
+              </label>
+            </section>
+          )}
+
           <LinkedJobsBlock
             jobs={linkableJobs}
             linkedJobIds={create.linkedJobIds}

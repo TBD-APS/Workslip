@@ -43,6 +43,9 @@ test('the Playwright entry point fails before browser or network setup', () => {
       ...roleEmails,
       PROD_URL: 'https://example.test',
       SCENARIO: 'auth-session',
+      WORKSLIP_RELEASE_PHASE: 'live',
+      WORKSLIP_TEST_TARGET: 'staging',
+      WORKSLIP_ALLOW_DESTRUCTIVE_PLAYWRIGHT: 'true',
       [INTERACTIVE_OTC_ENV]: '',
     },
   });
@@ -51,6 +54,26 @@ test('the Playwright entry point fails before browser or network setup', () => {
   assert.notEqual(result.status, 0);
   assert.match(output, /stopped before \/api\/auth\/send-code/);
   assert.doesNotMatch(output, /@example\.test/);
+});
+
+test('the underlying orchestrator cannot bypass the production policy', () => {
+  const script = fileURLToPath(new URL('./playwright-prod-smoke.mjs', import.meta.url));
+  const result = spawnSync(process.execPath, [script], {
+    encoding: 'utf8',
+    timeout: 5_000,
+    env: {
+      ...process.env,
+      PROD_URL: 'https://example.test',
+      SCENARIO: 'assignment-lifecycle',
+      WORKSLIP_RELEASE_PHASE: 'prelive',
+      WORKSLIP_TEST_TARGET: 'production',
+      WORKSLIP_ALLOW_DESTRUCTIVE_PLAYWRIGHT: 'true',
+    },
+  });
+  const output = `${result.stdout}\n${result.stderr}`;
+
+  assert.notEqual(result.status, 0);
+  assert.match(output, /Production permits only the write-free public-smoke scenario/);
 });
 
 test('interactive OTC requires both an explicit opt-in and a TTY', () => {
@@ -105,4 +128,12 @@ test('artifact URL redaction removes OTC path values', () => {
   assert.doesNotMatch(redact(sensitiveUrl), /123456|secret/);
   assert.doesNotMatch(safeUrl(sensitiveUrl), /123456|secret/);
   assert.match(safeUrl(sensitiveUrl), /verify-code\/REDACTED/);
+});
+
+test('artifact redaction removes email addresses from messages and URLs', () => {
+  const { redact, safeUrl } = createContractHelpers({ API_TIMEOUT: 1, UI_TIMEOUT: 1, postman: {} });
+  const email = 'person@example.test';
+
+  assert.doesNotMatch(redact(`Failed for ${email}`), /person@example\.test/);
+  assert.doesNotMatch(safeUrl(`https://api.example.test/invites/${email}?email=${email}`), /person@example\.test/);
 });

@@ -176,15 +176,44 @@ async function fillIfVisible(locator, value) { if (await locator.isVisible().cat
 async function waitForEnabled(locator, description, timeout = UI_TIMEOUT) { await locator.waitFor({ state: 'visible', timeout }); const start = Date.now(); while (await locator.isDisabled()) { if (Date.now() - start > timeout) throw new Error(`${description} remained disabled.`); await new Promise((resolve) => setTimeout(resolve, 150)); } }
 async function waitForWizardStep(page, label) { await page.getByRole('button', { name: `${label} - aktuelt trin`, exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT }); }
 async function currentWizardStep(page) { for (const label of ['Sagsdetaljer', 'Anlægstyper', 'Kontrolpunkter', 'Timesedler', 'Afslutning', 'Attestering']) if (await page.getByRole('button', { name: `${label} - aktuelt trin`, exact: true }).isVisible().catch(() => false)) return label; return null; }
-async function clickNext(page, nextStep) { const button = page.getByRole('button', { name: 'Næste', exact: true }); await waitForEnabled(button, `Næste before ${nextStep}`); await button.click(); await waitForWizardStep(page, nextStep); }
+async function revealStepNavigation(page) {
+  const button = page.getByRole('button', { name: 'Næste', exact: true });
+  if (await button.isVisible().catch(() => false)) return button;
+  const shell = page.locator('.app-shell').first();
+  if (await shell.count()) {
+    await shell.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  } else {
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  }
+  await page.waitForTimeout(150);
+  return button;
+}
+async function clickNext(page, nextStep) { const button = await revealStepNavigation(page); await waitForEnabled(button, `Næste before ${nextStep}`); await button.click(); await waitForWizardStep(page, nextStep); }
 async function clickWizardStep(page, label) { const button = page.getByRole('button', { name: new RegExp(`^${escapeRegex(label)}`) }); await button.click(); await waitForWizardStep(page, label); }
 async function clickByTextCandidates(locator, values, description) { for (const value of values) { const match = locator.filter({ hasText: value }).first(); if (await match.isVisible().catch(() => false)) { await match.click(); return; } } throw new Error(`No visible ${description} matched runtime values: ${values.join(', ')}.`); }
-async function checkRadioByCandidates(page, values, description) { for (const value of values) { const radio = page.getByRole('radio', { name: value, exact: true }); if (await radio.isVisible().catch(() => false)) { await radio.check(); return; } const label = page.locator('label').filter({ hasText: value }).first(); if (await label.isVisible().catch(() => false)) { await label.click(); return; } } throw new Error(`No visible ${description} matched runtime values: ${values.join(', ')}.`); }
+async function checkRadioByCandidates(page, values, description) {
+  for (const value of values) {
+    const radio = page.getByRole('radio', { name: value, exact: true });
+    const label = page.locator('label').filter({ has: radio }).first();
+    if (await label.isVisible().catch(() => false)) {
+      await label.scrollIntoViewIfNeeded();
+      await label.click();
+      if (await radio.isChecked()) return;
+      throw new Error(`Visible ${description} label did not select its radio: ${value}.`);
+    }
+    if (await radio.isVisible().catch(() => false)) {
+      await radio.check();
+      if (await radio.isChecked()) return;
+      throw new Error(`Visible ${description} radio did not become checked: ${value}.`);
+    }
+  }
+  throw new Error(`No visible ${description} matched runtime values: ${values.join(', ')}.`);
+}
 async function waitForApiResponse(page, method, pathname, statuses) { const response = await page.waitForResponse((candidate) => candidate.request().method() === method && new URL(candidate.url()).pathname.replace(/\/$/, '') === pathname.replace(/\/$/, ''), { timeout: API_TIMEOUT }); if (!statuses.includes(response.status())) throw new Error(`${method} ${pathname} returned HTTP ${response.status()}.`); return response; }
 function assertNoBrowserErrors(session) { if (session.scenarioReport.pageErrors.length) throw new Error(`Unhandled page errors: ${session.scenarioReport.pageErrors.join(' | ')}`); const failedApi = session.scenarioReport.failedApiResponses.filter((item) => !item.expected); if (failedApi.length) throw new Error(`Unexpected failed API responses: ${JSON.stringify(failedApi)}`); }
 function serializeError(error) { return { message: redact(error instanceof Error ? error.message : String(error)), stack: redact(error instanceof Error ? error.stack ?? '' : '') }; }
-function redact(value) { return String(value ?? '').replace(/Bearer\s+[^\s,;]+/gi, 'Bearer [REDACTED]').replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[REDACTED_TOKEN]').replace(/(\/api\/auth\/verify-code\/)[^/?#\s]+/gi, '$1[REDACTED]').replace(/[?&](code|token|state|session_state)=[^&\s]+/gi, '$1=[REDACTED]'); }
-function safeUrl(value) { try { const url = new URL(value); url.pathname = url.pathname.replace(/(\/api\/auth\/verify-code\/)[^/]+/gi, '$1REDACTED'); for (const key of [...url.searchParams.keys()]) url.searchParams.set(key, '[REDACTED]'); url.hash = ''; return url.toString(); } catch { return redact(value); } }
+function redact(value) { return String(value ?? '').replace(/Bearer\s+[^\s,;]+/gi, 'Bearer [REDACTED]').replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[REDACTED_TOKEN]').replace(/(\/api\/auth\/verify-code\/)[^/?#\s]+/gi, '$1REDACTED').replace(/([?&])(code|token|state|session_state)=[^&\s]+/gi, '$1$2=[REDACTED]').replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[REDACTED_EMAIL]'); }
+function safeUrl(value) { try { const url = new URL(value); url.pathname = url.pathname.replace(/(\/api\/auth\/verify-code\/)[^/]+/gi, '$1REDACTED'); for (const key of [...url.searchParams.keys()]) url.searchParams.set(key, '[REDACTED]'); url.hash = ''; return redact(url.toString()); } catch { return redact(value); } }
 function fileSafe(value) { return String(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 100); }
 function escapeRegex(value) { return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
