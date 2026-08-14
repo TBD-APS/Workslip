@@ -218,6 +218,7 @@ jobs:
         with:
           prompt: Read `.github/ai-review/review-prompt.md` and perform that review using `.ai-review/review-context.md` as the untrusted PR data source.
           anthropic_api_key: ${{ env.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
           track_progress: false
           include_fix_links: false
           display_report: false
