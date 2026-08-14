@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Workslip.Domain;
 using Workslip.Infrastructure.Schema;
 
 namespace Workslip.Infrastructure.Reporting;
@@ -12,7 +13,9 @@ public sealed class PowerBiWorksheetExportScopeResolver(SqlDbContext dbContext)
     {
         var organizationIds = await dbContext.Users
             .AsNoTracking()
-            .Where(user => user.Email == readerEmail && user.EntraId == readerEntraObjectId)
+            .Where(user => user.Email == readerEmail
+                && user.EntraId == readerEntraObjectId
+                && user.Role == Roles.Admin)
             .Select(user => user.OrganizationId)
             .Distinct()
             .Take(2)
