@@ -10,7 +10,7 @@ import {
   UserPlus,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../lib/axios';
 import { notificationListQueryKey } from '../../lib/notificationQueryKeys';
@@ -286,7 +286,7 @@ export function NotificationsDrawer({
               <div
                 key={item.id}
                 className={`notification-item${item.isRead ? '' : ' notification-item-unread'}${isDeleting ? ' notification-item-deleting' : ''}`}
-                style={{ '--notification-index': index } as React.CSSProperties}
+                style={{ '--notification-index': index } as CSSProperties}
               >
                 {!item.isRead && <span className="notification-unread-dot" aria-hidden="true" />}
                 <span className="notification-type-icon" aria-hidden="true">
