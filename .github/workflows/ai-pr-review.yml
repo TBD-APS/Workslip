@@ -41,33 +41,68 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          trigger_head=''
+          automatic=false
+
           if [ "${GITHUB_EVENT_NAME}" = "workflow_run" ]; then
+            automatic=true
             event="$(jq -r '.workflow_run.event // ""' "$GITHUB_EVENT_PATH")"
             conclusion="$(jq -r '.workflow_run.conclusion // ""' "$GITHUB_EVENT_PATH")"
-            head_sha="$(jq -r '.workflow_run.head_sha // ""' "$GITHUB_EVENT_PATH")"
+            trigger_head="$(jq -r '.workflow_run.head_sha // ""' "$GITHUB_EVENT_PATH")"
             pr_number="$(jq -r '.workflow_run.pull_requests[0].number // ""' "$GITHUB_EVENT_PATH")"
 
             if [ "$event" != "pull_request" ] || [ "$conclusion" != "success" ]; then
               echo "eligible=false" >> "$GITHUB_OUTPUT"
               echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
-              echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+              echo "head_sha=$trigger_head" >> "$GITHUB_OUTPUT"
               echo "ci_conclusion=$conclusion" >> "$GITHUB_OUTPUT"
               exit 0
             fi
 
             if [ -z "$pr_number" ]; then
               pr_number="$(gh api -H 'Accept: application/vnd.github+json' \
-                "/repos/${GITHUB_REPOSITORY}/commits/${head_sha}/pulls" --jq '.[0].number // empty')"
+                "/repos/${GITHUB_REPOSITORY}/commits/${trigger_head}/pulls" --jq '.[0].number // empty')"
             fi
           else
             pr_number="$MANUAL_PR"
             conclusion="manual"
-            head_sha="$(gh api "/repos/${GITHUB_REPOSITORY}/pulls/${pr_number}" --jq '.head.sha')"
           fi
 
-          if ! [[ "$pr_number" =~ ^[0-9]+$ ]] || [ -z "$head_sha" ]; then
-            echo "Unable to resolve PR/head SHA." >&2
+          if ! [[ "$pr_number" =~ ^[0-9]+$ ]]; then
+            echo "Unable to resolve PR number." >&2
             exit 1
+          fi
+
+          pr_json="$(gh api "/repos/${GITHUB_REPOSITORY}/pulls/${pr_number}")"
+          head_sha="$(printf '%s' "$pr_json" | jq -r '.head.sha // ""')"
+          association="$(printf '%s' "$pr_json" | jq -r '.author_association // "NONE"')"
+
+          if [ -z "$head_sha" ]; then
+            echo "Unable to resolve PR head SHA." >&2
+            exit 1
+          fi
+
+          if [ "$automatic" = true ] && [ "$trigger_head" != "$head_sha" ]; then
+            echo "Skipping stale CI completion for ${trigger_head}; PR now points to ${head_sha}."
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+            echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+            echo "ci_conclusion=$conclusion" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$automatic" = true ]; then
+            case "$association" in
+              OWNER|MEMBER|COLLABORATOR) ;;
+              *)
+                echo "Skipping automatic paid AI review for author association ${association}; use workflow_dispatch for an explicit external-contributor review."
+                echo "eligible=false" >> "$GITHUB_OUTPUT"
+                echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+                echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+                echo "ci_conclusion=$conclusion" >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+            esac
           fi
 
           echo "eligible=true" >> "$GITHUB_OUTPUT"
