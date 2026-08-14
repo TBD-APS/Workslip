@@ -4,6 +4,9 @@ param(
     [string]$Location = 'westeurope',
     [string]$COMPANY_NAME = 'mrsoftware',
     [string]$GlobalAdminId = '9ea4bcd3-bf90-4249-93e0-f45070d140f7',
+    [string]$PowerBiReaderPrincipalId = '',
+    [string]$PowerBiReaderEmail = '',
+    [switch]$EnablePowerBiExport,
     [string]$EntraStatePath = ''
 )
 
@@ -47,6 +50,9 @@ Write-Host 'Phase 2/4: deploying Azure infrastructure...' -ForegroundColor Cyan
     -Location $Location `
     -COMPANY_NAME $COMPANY_NAME `
     -GlobalAdminId $GlobalAdminId `
+    -PowerBiReaderPrincipalId $PowerBiReaderPrincipalId `
+    -PowerBiReaderEmail $PowerBiReaderEmail `
+    -EnablePowerBiExport:$EnablePowerBiExport `
     -EntraStatePath $EntraStatePath
 
 Write-Host 'Phase 3/4: reconciling VAPID secret lifecycle...' -ForegroundColor Cyan

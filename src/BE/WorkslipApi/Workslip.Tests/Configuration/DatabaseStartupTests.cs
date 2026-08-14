@@ -207,7 +207,7 @@ public sealed class DatabaseStartupTests
 
     [Theory]
     [InlineData(true, 0)]
-    [InlineData(false, 3)]
+    [InlineData(false, 4)]
     public void ConfigureServices_RegistersHostedServicesOnlyForRuntime(
         bool generateOpenApiOnly,
         int expectedHostedServiceCount)

@@ -3,6 +3,12 @@ extension microsoftGraphV1
 param companyName string = ''
 param environment string = ''
 param globalAdminId string = ''
+@description('Microsoft Entra object ID for the Power BI report reader. Leave empty until the processor/privacy gate is approved.')
+param powerBiReaderPrincipalId string = ''
+@description('Workslip login email whose organization owns the exported worksheet data.')
+param powerBiReaderEmail string = ''
+@description('Explicit production activation switch for the worksheet export.')
+param powerBiExportEnabled bool = false
 param location string = resourceGroup().location
 param storageAccountName string       = take('st${companyName}${toLower(environment)}', 24)
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
@@ -44,6 +50,7 @@ param sqlAdminPassword string
 // Centralised here so they're easy to audit and update.
 var roles = {
   storageBlobContributor:  'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+  storageBlobReader: '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1'
   appConfigurationDataReader: '516239f1-63e1-4d78-a4de-a74fb236a071'
   logAnalyticsDataReader: '3b03c2da-16b3-4a49-8834-0f8130efdd3b'
   keyVaultAdministrator: '00482a5a-887f-4fb3-b363-3b7fe8e74483'
@@ -70,6 +77,9 @@ var isProduction = toLower(environment) == 'prod'
 var acsSenderAddress = isProduction
   ? '${customEmailSenderUsername}@${customEmailDomainName}'
   : 'DoNotReply@${azureManagedEmailDomain.properties.mailFromSenderDomain}'
+var powerBiContainerName = empty(powerBiReaderPrincipalId)
+  ? 'powerbi-disabled'
+  : 'powerbi-${take(replace(toLower(powerBiReaderPrincipalId), '-', ''), 12)}'
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Runtime identity
@@ -337,6 +347,10 @@ module dynamicAppConfigValues './dynamicConfig.bicep' = {
     acsSenderAddress: acsSenderAddress
 
     storageAccountName: storageAccount.name
+    powerBiReaderEmail: powerBiReaderEmail
+    powerBiReaderPrincipalId: powerBiReaderPrincipalId
+    powerBiContainerName: powerBiContainerName
+    powerBiExportEnabled: powerBiExportEnabled
     applicationInsightsConnectionString: appInsights.properties.ConnectionString
 
     sqlConnectionString: keyVaultConfigs.outputs.sqlConnectionstring
@@ -681,6 +695,24 @@ resource documentsContainer 'Microsoft.Storage/storageAccounts/blobServices/cont
   name: 'documents'
 }
 
+resource powerBiWorksheetsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
+  parent: blobService
+  name: powerBiContainerName
+  properties: {
+    publicAccess: 'None'
+  }
+}
+
+resource powerBiReaderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(powerBiReaderPrincipalId)) {
+  name: guid(powerBiWorksheetsContainer.id, powerBiReaderPrincipalId, roles.storageBlobReader)
+  scope: powerBiWorksheetsContainer
+  properties: {
+    principalId: powerBiReaderPrincipalId
+    principalType: 'User'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.storageBlobReader)
+  }
+}
+
 resource storageRoleBlob 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid('${storageAccount.id}${identity.id}${roles.storageBlobContributor}')
   scope: storageAccount
@@ -774,6 +806,7 @@ resource customEmailSender 'Microsoft.Communication/emailServices/domains/sender
 // ──────────────────────────────────────────────────────────────────────────────
 
 output STORAGE_ACCOUNT_NAME string             = storageAccount.name
+output POWER_BI_WORKSHEETS_BLOB_URL string     = 'https://${storageAccount.name}.blob.core.windows.net/${powerBiWorksheetsContainer.name}/worksheets.csv'
 output WEB_API_NAME string                     = webApi.name
 output WEB_API_DEFAULT_HOSTNAME string         = webApi.properties.defaultHostName
 output WEB_API_URL string                      = 'https://${webApi.properties.defaultHostName}'

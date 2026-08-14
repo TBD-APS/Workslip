@@ -4,6 +4,9 @@ param(
     [string]$Location = 'westeurope',
     [string]$COMPANY_NAME = 'mrsoftware',
     [string]$GlobalAdminId = '9ea4bcd3-bf90-4249-93e0-f45070d140f7',
+    [string]$PowerBiReaderPrincipalId = '',
+    [string]$PowerBiReaderEmail = '',
+    [switch]$EnablePowerBiExport,
     [string]$EntraStatePath = ''
 )
 
@@ -41,6 +44,12 @@ if (-not (Test-Path $SqlAccessScript)) {
 
 if (-not (Get-Command sqlcmd -ErrorAction SilentlyContinue)) {
     throw 'sqlcmd is required to provision the API managed identity in Azure SQL.'
+}
+
+if ($EnablePowerBiExport -and
+    ([string]::IsNullOrWhiteSpace($PowerBiReaderPrincipalId) -or
+     [string]::IsNullOrWhiteSpace($PowerBiReaderEmail))) {
+    throw 'Power BI export activation requires both PowerBiReaderPrincipalId and PowerBiReaderEmail.'
 }
 
 $OriginalProvisionedValues = $null
@@ -666,6 +675,9 @@ try {
             companyName = @{ value = $COMPANY_NAME }
             environment = @{ value = $Environment }
             globalAdminId = @{ value = $GlobalAdminId }
+            powerBiReaderPrincipalId = @{ value = $PowerBiReaderPrincipalId }
+            powerBiReaderEmail = @{ value = $PowerBiReaderEmail }
+            powerBiExportEnabled = @{ value = [bool]$EnablePowerBiExport }
             location = @{ value = $Location }
             sqlAdminPassword = @{ value = $sqlAdminPassword }
         }
