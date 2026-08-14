@@ -33,6 +33,11 @@ type Draft = {
   revision: number;
 };
 
+type DraftState = {
+  key: string;
+  value: Draft;
+};
+
 const emptyDraft = (): Draft => ({ title: '', content: '', tagsText: '', revision: 0 });
 
 const toDraft = (document: DocumentDetailResponse): Draft => ({
@@ -75,11 +80,12 @@ export const DocsPage = () => {
   const canEdit = useCan('docs:edit');
   const isCreating = id === 'new';
   const selectedId = id && id !== 'new' ? id : null;
+  const draftKey = isCreating ? 'new' : selectedId ?? 'none';
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [draft, setDraft] = useState<Draft>(emptyDraft);
-  const [isEditing, setIsEditing] = useState(isCreating);
+  const [draftState, setDraftState] = useState<DraftState | null>(null);
+  const [editingDocumentId, setEditingDocumentId] = useState<string | null>(null);
 
   useEffect(() => {
     const handle = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
@@ -103,28 +109,24 @@ export const DocsPage = () => {
     staleTime: 10_000,
   });
 
-  useEffect(() => {
-    if (isCreating) {
-      setDraft(emptyDraft());
-      setIsEditing(true);
-      return;
-    }
-
-    if (detailQuery.data) {
-      setDraft(toDraft(detailQuery.data));
-      setIsEditing(false);
-    }
-  }, [detailQuery.data, isCreating, selectedId]);
-
   const sourceDraft = useMemo(
     () => detailQuery.data ? toDraft(detailQuery.data) : emptyDraft(),
     [detailQuery.data],
   );
+  const draft = draftState?.key === draftKey ? draftState.value : sourceDraft;
+  const isEditing = isCreating || editingDocumentId === selectedId;
   const isDirty = isCreating
     ? Boolean(draft.title.trim() || draft.content || draft.tagsText.trim())
     : draft.title !== sourceDraft.title
       || draft.content !== sourceDraft.content
       || draft.tagsText !== sourceDraft.tagsText;
+
+  const updateDraft = (mutate: (current: Draft) => Draft) => {
+    setDraftState((current) => ({
+      key: draftKey,
+      value: mutate(current?.key === draftKey ? current.value : sourceDraft),
+    }));
+  };
 
   useEffect(() => {
     if (!isDirty) return;
@@ -147,6 +149,8 @@ export const DocsPage = () => {
     }),
     onSuccess: async (document) => {
       queryClient.setQueryData(['docs', 'detail', document.id], document);
+      setDraftState(null);
+      setEditingDocumentId(null);
       await invalidateDocs();
       notify.success('Dokumentet er oprettet.');
       navigate(`/app/docs/${document.id}`, { replace: true });
@@ -163,13 +167,15 @@ export const DocsPage = () => {
     }),
     onSuccess: async (document) => {
       queryClient.setQueryData(['docs', 'detail', document.id], document);
-      setDraft(toDraft(document));
-      setIsEditing(false);
+      setDraftState({ key: document.id, value: toDraft(document) });
+      setEditingDocumentId(null);
       await invalidateDocs();
       notify.success('Dokumentet er gemt.');
     },
     onError: async (error) => {
       if (isConflict(error)) {
+        setDraftState(null);
+        setEditingDocumentId(null);
         notify.error('Dokumentet er ændret af en anden. Den nyeste version hentes nu.');
         await queryClient.invalidateQueries({ queryKey: ['docs', 'detail', selectedId] });
         return;
@@ -181,6 +187,8 @@ export const DocsPage = () => {
   const deleteMutation = useMutation({
     mutationFn: () => deleteDocument(selectedId!),
     onSuccess: async () => {
+      setDraftState(null);
+      setEditingDocumentId(null);
       await invalidateDocs();
       notify.success('Dokumentet er slettet.');
       navigate('/app/docs', { replace: true });
@@ -188,8 +196,8 @@ export const DocsPage = () => {
     onError: () => notify.error('Dokumentet kunne ikke slettes.'),
   });
 
-  const hasInvalidTags = parseTags(draft.tagsText).some((tag) => tag.length > 40)
-    || parseTags(draft.tagsText).length > 10;
+  const parsedTags = parseTags(draft.tagsText);
+  const hasInvalidTags = parsedTags.some((tag) => tag.length > 40) || parsedTags.length > 10;
   const canSave = draft.title.trim().length > 0
     && draft.title.trim().length <= 200
     && draft.content.length <= 200_000
@@ -200,23 +208,23 @@ export const DocsPage = () => {
   const confirmDiscard = (): boolean =>
     !isDirty || window.confirm('Du har ændringer, der ikke er gemt. Vil du fortsætte uden at gemme?');
 
-  const selectDocument = (documentId: string) => {
+  const leaveCurrentDocument = (path: string) => {
     if (!confirmDiscard()) return;
-    navigate(`/app/docs/${documentId}`);
+    setDraftState(null);
+    setEditingDocumentId(null);
+    navigate(path);
   };
 
-  const startNew = () => {
-    if (!confirmDiscard()) return;
-    navigate('/app/docs/new');
-  };
+  const selectDocument = (documentId: string) => leaveCurrentDocument(`/app/docs/${documentId}`);
+  const startNew = () => leaveCurrentDocument('/app/docs/new');
 
   const cancelEdit = () => {
     if (isCreating) {
-      if (confirmDiscard()) navigate('/app/docs');
+      leaveCurrentDocument('/app/docs');
       return;
     }
-    setDraft(sourceDraft);
-    setIsEditing(false);
+    setDraftState(null);
+    setEditingDocumentId(null);
   };
 
   const submit = () => {
@@ -344,7 +352,7 @@ export const DocsPage = () => {
         {(isCreating || selectedDocument) && (
           <article className="docs-document">
             <header className="docs-document-header">
-              <button type="button" className="docs-mobile-back" onClick={() => navigate('/app/docs')} aria-label="Tilbage til dokumenter">
+              <button type="button" className="docs-mobile-back" onClick={() => leaveCurrentDocument('/app/docs')} aria-label="Tilbage til dokumenter">
                 <ArrowLeft size={18} />
               </button>
               <div className="docs-document-heading">
@@ -353,7 +361,7 @@ export const DocsPage = () => {
               </div>
               <div className="docs-document-actions">
                 {!isEditing && canEdit && selectedDocument && (
-                  <button type="button" className="btn btn-secondary" onClick={() => setIsEditing(true)}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setEditingDocumentId(selectedId)}>
                     <Pencil size={16} /> Rediger
                   </button>
                 )}
@@ -375,7 +383,7 @@ export const DocsPage = () => {
                   <input
                     autoFocus={isCreating}
                     value={draft.title}
-                    onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
+                    onChange={(event) => updateDraft((current) => ({ ...current, title: event.target.value }))}
                     maxLength={200}
                     placeholder="Fx Onboarding af nye medarbejdere"
                   />
@@ -387,7 +395,7 @@ export const DocsPage = () => {
                     <Tag size={16} aria-hidden="true" />
                     <input
                       value={draft.tagsText}
-                      onChange={(event) => setDraft((current) => ({ ...current, tagsText: event.target.value }))}
+                      onChange={(event) => updateDraft((current) => ({ ...current, tagsText: event.target.value }))}
                       placeholder="Onboarding, Drift, Produkt"
                     />
                   </div>
@@ -398,7 +406,7 @@ export const DocsPage = () => {
                   <span>Indhold <small>{draft.content.length.toLocaleString('da-DK')} / 200.000</small></span>
                   <textarea
                     value={draft.content}
-                    onChange={(event) => setDraft((current) => ({ ...current, content: event.target.value }))}
+                    onChange={(event) => updateDraft((current) => ({ ...current, content: event.target.value }))}
                     maxLength={200_000}
                     placeholder="Skriv den viden, teamet skal kunne finde igen…"
                   />
