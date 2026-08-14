@@ -10,8 +10,8 @@ const preliveConfig = {
   environments: {
     production: {
       url: 'https://app.mrsoftware.dk',
-      enableDevelopmentEndpoints: true,
-      allowDestructivePlaywright: true,
+      enableDevelopmentEndpoints: false,
+      allowDestructivePlaywright: false,
     },
     staging: {
       url: null,
@@ -37,14 +37,14 @@ const liveConfig = {
   },
 };
 
-test('pre-live production explicitly allows the current full release-test suite', () => {
+test('pre-live production is limited to a write-free public smoke', () => {
   const config = validateReleaseConfig(preliveConfig);
   assert.deepEqual(resolveReleaseEnvironment(config, 'production'), {
     phase: 'prelive',
     environment: 'production',
     url: 'https://app.mrsoftware.dk',
-    enableDevelopmentEndpoints: true,
-    allowDestructivePlaywright: true,
+    enableDevelopmentEndpoints: false,
+    allowDestructivePlaywright: false,
   });
 });
 
@@ -73,7 +73,7 @@ test('live phase without a runnable staging environment is rejected', () => {
   );
 });
 
-test('destructive Playwright cannot be enabled without development endpoints', () => {
+test('pre-live production rejects any attempt to enable destructive testing', () => {
   assert.throws(
     () => validateReleaseConfig({
       ...preliveConfig,
@@ -81,11 +81,12 @@ test('destructive Playwright cannot be enabled without development endpoints', (
         ...preliveConfig.environments,
         production: {
           ...preliveConfig.environments.production,
-          enableDevelopmentEndpoints: false,
+          enableDevelopmentEndpoints: true,
+          allowDestructivePlaywright: true,
         },
       },
     }),
-    /cannot allow destructive Playwright/,
+    /Pre-live production must disable development endpoints and destructive Playwright/,
   );
 });
 

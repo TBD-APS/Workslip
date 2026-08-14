@@ -15,11 +15,54 @@ public sealed class CreateJobRequestValidator : AbstractValidator<CreateJobReque
     {
         SharedJobRequestRules.AddCommonRules(this);
 
+        RuleFor(request => request.AssignedUserIds)
+            .Must(userIds => userIds is null
+                || (userIds.All(userId => userId != Guid.Empty)
+                    && userIds.Distinct().Count() == userIds.Count))
+            .WithMessage("De valgte medarbejdere skal være unikke og gyldige.");
+
+        RuleFor(request => request.LinkedJobIds)
+            .Must(jobIds => jobIds is null
+                || (jobIds.All(jobId => jobId != Guid.Empty)
+                    && jobIds.Distinct().Count() == jobIds.Count))
+            .WithMessage("De sammenkædede sager skal være unikke og gyldige.");
+
         RuleFor(request => request).CustomAsync(async (request, context, cancellationToken) =>
         {
             var organizationId = currentUser.OrganizationId;
             if (organizationId is null)
                 return;
+
+            if (request.DuplicatePerAssignedUser == true)
+            {
+                if (!JobAssignmentPolicy.CanManageAssignments(currentUser.Role))
+                {
+                    context.AddFailure(
+                        nameof(CreateJobRequest.DuplicatePerAssignedUser),
+                        "Kun administratorer kan oprette en kopi af sagen pr. medarbejder.");
+                    return;
+                }
+
+                if (request.AssignedUserIds is null || request.AssignedUserIds.Count < 2)
+                {
+                    context.AddFailure(
+                        nameof(CreateJobRequest.DuplicatePerAssignedUser),
+                        "Vælg mindst to medarbejdere for at oprette en kopi af sagen til hver medarbejder.");
+                    return;
+                }
+            }
+
+            if (request.AssignedUserIds is { Count: > 0 }
+                && !JobAssignmentPolicy.CanManageAssignments(currentUser.Role)
+                && (currentUser.UserId is not Guid actorId
+                    || request.AssignedUserIds.Count != 1
+                    || request.AssignedUserIds[0] != actorId))
+            {
+                context.AddFailure(
+                    nameof(CreateJobRequest.AssignedUserIds),
+                    "Medarbejdere kan kun oprette sager til sig selv.");
+                return;
+            }
 
             var assignedUserIds = JobAssignmentPolicy.ResolveInitialAssignments(
                 request.AssignedUserIds,

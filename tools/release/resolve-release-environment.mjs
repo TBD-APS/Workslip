@@ -80,8 +80,8 @@ export function validateReleaseConfig(value) {
   const staging = validateEnvironment(environments.staging, 'staging', root.phase === 'live');
 
   if (root.phase === 'prelive') {
-    if (!production.enableDevelopmentEndpoints || !production.allowDestructivePlaywright) {
-      throw new Error('Pre-live production must enable release-test endpoints and destructive Playwright.');
+    if (production.enableDevelopmentEndpoints || production.allowDestructivePlaywright) {
+      throw new Error('Pre-live production must disable development endpoints and destructive Playwright.');
     }
     if (staging.url !== null || staging.enableDevelopmentEndpoints || staging.allowDestructivePlaywright) {
       throw new Error('Staging must remain disabled until the live two-environment phase.');

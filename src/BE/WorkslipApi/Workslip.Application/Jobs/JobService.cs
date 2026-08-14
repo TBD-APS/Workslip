@@ -89,14 +89,36 @@ public sealed class JobService(
             }
         }
 
+        var linkedJobIds = request.LinkedJobIds ?? [];
+        foreach (var linkedJobId in linkedJobIds)
+        {
+            if (await _jobRepository.GetSingleJobAsync(linkedJobId, organizationId.Value, cancellationToken) is null)
+            {
+                return Result<JobReportSummaryResponse>.Invalid([new ValidationError
+                {
+                    Identifier = nameof(CreateJobRequest.LinkedJobIds),
+                    ErrorMessage = "Den valgte sammenkædede sag findes ikke."
+                }]);
+            }
+        }
+
         var actorId = currentUser.UserId;
-        var assignedUserIds = actorId.HasValue && IsJobAssignableRole(currentUser.Role)
-            ? [actorId.Value]
-            : Array.Empty<Guid>();
+        var assignedUserIds = JobAssignmentPolicy.ResolveInitialAssignments(
+            request.AssignedUserIds,
+            actorId,
+            currentUser.Role);
         try
         {
             var created = await _jobRepository.CreateAsync(organizationId.Value, request, assignedUserIds, actorId, cancellationToken);
-            await InvalidateJobCachesAsync(created.Id, created.OrganizationId, cancellationToken);
+            var createdJobIds = created.CreatedJobIds ?? [created.Id];
+            foreach (var affectedJobId in createdJobIds.Concat(linkedJobIds).Distinct())
+            {
+                await InvalidateJobCachesAsync(affectedJobId, created.OrganizationId, cancellationToken);
+            }
+
+            if (request.DuplicatePerAssignedUser == true)
+                await QueueDuplicatedJobAssignmentNotificationsAsync(created, createdJobIds, actorId, cancellationToken);
+
             LogJobCreated(created);
 
             return await ToSummaryResultAsync(created, cancellationToken);
@@ -143,7 +165,29 @@ public sealed class JobService(
             return Result<JobListResponse>.Invalid(searchErrors);
         }
 
-        var query = BuildJobQuery(organizationId.Value, statuses, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset, currentUser.UserId);
+        var requiresAssignedJobScope = JobAssignmentPolicy.RequiresAssignedJobScope(currentUser.Role);
+        var assignedToUserId = requiresAssignedJobScope
+            ? currentUser.UserId
+            : null;
+        if (requiresAssignedJobScope && assignedToUserId is null)
+        {
+            return Result<JobListResponse>.Unauthorized();
+        }
+
+        var query = BuildJobQuery(
+            organizationId.Value,
+            statuses,
+            reportNumber,
+            customerName,
+            customerEmail,
+            customerAddress,
+            search,
+            sortBy,
+            sortDirection,
+            limit,
+            offset,
+            currentUser.UserId,
+            assignedToUserId);
 
         var cacheKey = BuildJobListCacheKey(query);
         var result = await cache.GetOrCreateAsync(
@@ -791,7 +835,10 @@ public sealed class JobService(
             totalHours,
             totalOverLay,
             report.SoftDeleted,
-            report.RejectionNote);
+            report.RejectionNote)
+        {
+            CreatedJobIds = report.CreatedJobIds
+        };
     }
 
     private async Task<List<ValidationError>> ValidateDraftWorkAsync(Guid organizationId, CreateJobWorkRequest? workind, CancellationToken cancellationToken)
@@ -906,7 +953,7 @@ public sealed class JobService(
         string? reportNumber, string? customerName, string? customerEmail, string? customerAddress,
         string? search,
         string? sortBy, string? sortDirection,
-        int? limit, int? offset, Guid? currentUserId = null)
+        int? limit, int? offset, Guid? currentUserId = null, Guid? assignedToUserId = null)
     {
         var normalizedReportSearch = string.IsNullOrWhiteSpace(reportNumber) ? null : reportNumber.Trim();
         var normalizedNameSearch = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim();
@@ -918,6 +965,7 @@ public sealed class JobService(
 
         return new JobQuery(organizationId, statuses, Math.Clamp(limit ?? 50, 1, 200), Math.Max(offset ?? 0, 0),
             currentUserId,
+            assignedToUserId,
             normalizedReportSearch, normalizedNameSearch, normalizedEmailSearch, normalizedAddressSearch,
             normalizedSearch,
             normalizedSortBy, normalizedSortDirection);
@@ -930,8 +978,9 @@ public sealed class JobService(
             : "all";
     
         var currentUserKey = query.CurrentUserId?.ToString("N") ?? "none";
+        var assignedToUserKey = query.AssignedToUserId?.ToString("N") ?? "all";
 
-        return $"jobs:list:organization={query.OrganizationId:N}:currentUser={currentUserKey}:status={statusKey}" +
+        return $"jobs:list:organization={query.OrganizationId:N}:currentUser={currentUserKey}:assignedTo={assignedToUserKey}:status={statusKey}" +
             $":reportNumber={query.ReportNumber ?? "none"}:customerName={query.CustomerName ?? "none"}" +
             $":customerEmail={query.CustomerEmail ?? "none"}:customerAddress={query.CustomerAddress ?? "none"}" +
             $":search={query.Search ?? "none"}" +
@@ -986,6 +1035,60 @@ public sealed class JobService(
     private static bool IsJobAssignableRole(string? role) =>
         JobAssignmentPolicy.CanReceiveAssignment(role);
 
+    private async Task QueueDuplicatedJobAssignmentNotificationsAsync(
+        JobReportResponse primaryJob,
+        IReadOnlyList<Guid> createdJobIds,
+        Guid? actorId,
+        CancellationToken cancellationToken)
+    {
+        foreach (var createdJobId in createdJobIds)
+        {
+            var job = createdJobId == primaryJob.Id
+                ? primaryJob
+                : await _jobRepository.GetSingleJobAsync(
+                    createdJobId,
+                    primaryJob.OrganizationId,
+                    cancellationToken);
+            if (job is null)
+            {
+                logger.LogError(
+                    "Duplicated job lookup failed before assignment notification. JobId: {JobId}. OrganizationId: {OrganizationId}.",
+                    createdJobId,
+                    primaryJob.OrganizationId);
+                continue;
+            }
+
+            var reportNumber = job.ReportNumber ?? "Uden nummer";
+            var address = job.DestinationAddress ?? job.Customer?.Address ?? "Ingen adresse angivet";
+            foreach (var assignedUser in job.AssignedUsers)
+            {
+                if (assignedUser.Id == actorId)
+                    continue;
+
+                try
+                {
+                    await notificationService.QueueJobAssignedAsync(
+                        assignedUser.Id,
+                        assignedUser.DisplayName,
+                        job.Id,
+                        reportNumber,
+                        address,
+                        cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    // Job creation is already committed and idempotency must not be
+                    // aborted because a secondary notification could not be queued.
+                    logger.LogError(
+                        exception,
+                        "Failed to queue duplicated job assignment notification. JobId: {JobId}. UserId: {UserId}.",
+                        job.Id,
+                        assignedUser.Id);
+                }
+            }
+        }
+    }
+
     private static List<ValidationError> MapValidationErrors(ValidationResult result) =>
         result.Errors
             .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
@@ -993,8 +1096,8 @@ public sealed class JobService(
 
     private void LogJobCreated(JobReportResponse job) =>
         logger.LogInformation(
-            "Job created. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKindId: {WorkKindId}. AssignedUserCount: {AssignedUserCount}. InstallationTypeCount: {InstallationTypeCount}.",
-            job.Id, job.OrganizationId, job.Status, job.ReportNumber, job.WorkKind?.Id, job.AssignedUsers.Count, job.InstallationTypes.Count);
+            "Job creation completed. PrimaryJobId: {PrimaryJobId}. CreatedJobCount: {CreatedJobCount}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKindId: {WorkKindId}. AssignedUserCount: {AssignedUserCount}. InstallationTypeCount: {InstallationTypeCount}.",
+            job.Id, job.CreatedJobIds?.Count ?? 1, job.OrganizationId, job.Status, job.ReportNumber, job.WorkKind?.Id, job.AssignedUsers.Count, job.InstallationTypes.Count);
 
     private void LogJobUpdated(JobReportResponse job) =>
         logger.LogInformation(

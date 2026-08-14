@@ -25,9 +25,11 @@ type CreateJobRequestWithSnapshot = CreateJobRequest & {
   createCustomerFromSnapshot?: boolean;
   jobType: 'KLS' | 'Diverse' | 'Unknown';
   assignedUserIds?: string[];
+  duplicatePerAssignedUser?: boolean;
+  linkedJobIds?: string[];
 };
 
-export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: JobForm) {
+export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?: JobForm) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
@@ -40,6 +42,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
   const [linkedJobIds, setLinkedJobIds] = useState<string[]>([]);
   const [assignedUserIdsDraft, setAssignedUserIdsDraft] = useState<string[] | null>(null);
   const assignedUserIds = assignedUserIdsDraft ?? defaultAssignedUserIds;
+  const [duplicatePerAssignedUser, setDuplicatePerAssignedUser] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [linksStatus, setLinksStatus] = useTimedStatus();
   const [assignmentStatus, setAssignmentStatus] = useTimedStatus();
@@ -49,9 +52,12 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
       onSuccess: (response) => {
         const jobId = response.id;
         const reportNumber = response.reportNumber;
+        const createdJobIds = response.createdJobIds?.length ? response.createdJobIds : [jobId];
         const promises: Promise<unknown>[] = [];
 
-        if (linkedJobIds.length > 0) {
+        // Atomic linking is part of the current create contract. Keep a single-job
+        // fallback only for a short frontend-before-backend deployment skew.
+        if (response.createdJobIds === undefined && linkedJobIds.length > 0) {
           promises.push(linkMutation.mutateAsync({ id: jobId, data: { targetReportIds: linkedJobIds } }));
         }
 
@@ -62,7 +68,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
         const assignmentAlreadyPersisted =
           persistedAssignedIds.size === assignedUserIds.length
           && assignedUserIds.every((id) => persistedAssignedIds.has(id));
-        if (!assignmentAlreadyPersisted) {
+        if (createdJobIds.length === 1 && !assignmentAlreadyPersisted) {
           promises.push(assignMutation.mutateAsync({ id: jobId, data: { userIds: assignedUserIds } }));
         }
 
@@ -70,13 +76,15 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
           queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
           queryClient.invalidateQueries({ queryKey: ['worksheets'] });
           setIsSaving(false);
-          notify.success(reportNumber ? `Sag ${reportNumber} er oprettet` : 'Sagen er oprettet');
-          onCreated(jobId);
+          notify.success(createdJobIds.length > 1
+            ? `${createdJobIds.length} sager er oprettet`
+            : reportNumber ? `Sag ${reportNumber} er oprettet` : 'Sagen er oprettet');
+          onCreated(createdJobIds);
         }).catch((error) => {
           setIsSaving(false);
           notify.error('Sagen er oprettet, men tildeling eller sammenkædning mislykkedes', { id: 'job-create-followup-error' });
           console.error('Job create follow-up failed:', error);
-          onCreated(jobId);
+          onCreated(createdJobIds);
         });
       },
       onError: (error) => {
@@ -193,7 +201,13 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
   const updateAssignedUsers = (userIds: string[]) => {
     if (!isAdmin) return;
     setAssignedUserIdsDraft(userIds);
+    if (userIds.length < 2) setDuplicatePerAssignedUser(false);
     setAssignmentStatus('idle');
+  };
+
+  const updateDuplicatePerAssignedUser = (value: boolean) => {
+    if (!isAdmin || assignedUserIds.length < 2) return;
+    setDuplicatePerAssignedUser(value);
   };
 
   const updateWorkCategories = (categoryIds: string[]) => {
@@ -265,6 +279,8 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
       destinationCity: targetForm.destinationCity.trim() || null,
       jobType: targetForm.jobType,
       assignedUserIds,
+      duplicatePerAssignedUser: duplicatePerAssignedUser && assignedUserIds.length > 1,
+      linkedJobIds,
       work: null,
       observations: {
         reportDate: null,
@@ -306,6 +322,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     }));
     setLinkedJobIds([]);
     setAssignedUserIdsDraft(null);
+    setDuplicatePerAssignedUser(false);
     setIsSaving(false);
     setLinksStatus('idle');
     setAssignmentStatus('idle');
@@ -315,6 +332,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     form,
     linkedJobIds,
     assignedUserIds,
+    duplicatePerAssignedUser,
     assignableUsers,
     isSaving,
     canSave,
@@ -338,6 +356,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     updateTechnicalObservations,
     updateLinkedJobs,
     updateAssignedUsers,
+    updateDuplicatePerAssignedUser,
     updateWorkCategories,
     updateWorkKind,
     updateCustomWorkKind,

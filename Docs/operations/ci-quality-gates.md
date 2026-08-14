@@ -23,7 +23,7 @@ The required merge signal is the `CI Gate` job. It succeeds only when these jobs
 
 - `Backend` — full Release restore, build and backend test suite.
 - `Frontend + API contract` — no-new-errors ESLint ratchet, branch-matched OpenAPI/Orval generation, Vitest and production frontend build.
-- `Contracts + docs` — production release-policy checks, Playwright source checks, synthetic-auth tests, Postman JSON validation and `python tools/docs/check_docs.py`.
+- `Contracts + docs` — production release-policy checks, release-runner and synthetic-auth fail-closed tests, Playwright source checks, Postman JSON validation and `python tools/docs/check_docs.py`.
 
 The full backend suite is blocking. Do not replace it with a filtered allowlist, skips or `continue-on-error` to make CI green; repair failing regression tests or production code instead.
 
@@ -78,7 +78,7 @@ There is no release-branch handoff between CI and deployment.
 
 Production infrastructure remains a separate manual operation through `.github/workflows/manual-production-infrastructure.yml`.
 
-Deployed Playwright scenarios remain available through `.github/workflows/playwright-prod-smoke.yml`. They are used when the changed risk requires target-environment evidence; they are not a substitute for the pre-merge CI gate.
+`.github/workflows/playwright-prod-smoke.yml` currently runs only the write-free public production smoke. Authenticated/destructive Playwright evidence is blocked until the isolated staging target and approved test authentication are completed; it is never a substitute for the pre-merge CI gate.
 
 GitHub Pages remains an independent site/docs deployment concern.
 
