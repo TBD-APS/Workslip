@@ -21,6 +21,7 @@ import '../../features/superadmin/organizationSession.css';
 import '../../authenticated-base.css';
 import '../../App.css';
 import '../../features/jobs/jobWizardTheme.css';
+import '../../farvelab-theme.css';
 import './AppLayout.focus.css';
 import {
   AppScrollRestoreBoundary,
