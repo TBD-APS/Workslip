@@ -526,7 +526,21 @@
               ]
             }
           },
-          "response": []
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('current-user shape is current', function () { pm.expect(json).to.include.all.keys('id', 'displayName', 'email', 'phone', 'role', 'organization'); });",
+                  "pm.test('organization shape is current', function () { pm.expect(json.organization).to.include.all.keys('id', 'name', 'cvr'); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "/api/auth/entra-login",
@@ -1181,6 +1195,11 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Required by this mutation endpoint; a fresh GUID per request avoids unintended idempotent replay across collection runs."
               }
             ],
             "url": {
@@ -1576,7 +1595,7 @@
                 "exec": [
                   "const token = pm.collectionVariables.get('inviteToken');",
                   "if (!token) {",
-                  "  pm.test('skipped — no invite token captured', function () { pm.expect(true).to.eql(true); });",
+                  "  console.warn('Skipping /api/auth/invite/{token}/open assertions: no invite token was captured (the /api/auth/invite request did not return an inviteLink this run).');",
                   "} else {",
                   "  pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "}"
@@ -1650,6 +1669,11 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Required by this mutation endpoint; a fresh GUID per request avoids unintended idempotent replay across collection runs."
               }
             ],
             "url": {
@@ -1716,6 +1740,7 @@
                   "const internalFields = ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'];",
                   "pm.test('job summary view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
                   "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
+                  "pm.test('create response identifies every created job', function () { pm.expect(json.createdJobIds).to.deep.eql([json.id]); });",
                   "pm.collectionVariables.set('jobId', json.id);",
                   "pm.test('customer email echoed', function () { pm.expect(json.customer.email).to.eql(pm.variables.get('customerEmail')); });",
                   "pm.test('installation types include selected categories and control points', function () {",
@@ -1866,6 +1891,42 @@
         },
         {
           "name": "/api/jobs/my-assigned",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/my-assigned",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "my-assigned"
+              ]
+            },
+            "description": "Lists jobs assigned to the current user."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('my-assigned list uses private revalidation', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('private'); });",
+                  "pm.test('my-assigned list sends ETag', function () { pm.expect(pm.response.headers.get('ETag')).to.match(/^W\\/\"[a-f0-9]+\"$/); });",
+                  "pm.collectionVariables.set('assignedJobsEtag', pm.response.headers.get('ETag'));",
+                  "const json = pm.response.json();",
+                  "pm.test('response is an array', function () { pm.expect(json).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/jobs/my-assigned with If-None-Match",
           "request": {
             "method": "GET",
             "header": [
@@ -2062,6 +2123,11 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Required by this mutation endpoint; a fresh GUID per request avoids unintended idempotent replay across collection runs."
               }
             ],
             "url": {
@@ -2108,6 +2174,11 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Required by this mutation endpoint; a fresh GUID per request avoids unintended idempotent replay across collection runs."
               }
             ],
             "url": {
@@ -2385,12 +2456,12 @@
           ]
         },
         {
-          "name": "/api/jobs?customerNameSearch",
+          "name": "/api/jobs?customerName",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/jobs/?customerNameSearch=test",
+              "raw": "{{baseUrl}}/api/jobs/?customerName=test",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2400,12 +2471,12 @@
               ],
               "query": [
                 {
-                  "key": "customerNameSearch",
+                  "key": "customerName",
                   "value": "test"
                 }
               ]
             },
-            "description": "Tests customer name search filter on the job list endpoint."
+            "description": "Tests customer name filter (customerName query param) on the job list endpoint."
           },
           "response": [],
           "event": [
@@ -2416,9 +2487,7 @@
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
-                  "pm.test('response is an array', function () {",
-                  "  pm.expect(json).to.be.an('array');",
-                  "});"
+                  "pm.test('response has items and totalCount', function () { pm.expect(json.items).to.be.an('array'); pm.expect(json.totalCount).to.be.a('number'); });"
                 ]
               }
             }

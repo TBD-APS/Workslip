@@ -1,16 +1,35 @@
 export function createDomainHelpers(env, c) {
   const { APP_URL, API_TIMEOUT, UI_TIMEOUT, postman } = env;
   const {
-    postmanBody, pickReferenceSelection, valueOf, candidates, unwrapCollection,
+    postmanBody, pickReferenceSelection, valueOf, candidates,
     fillIfVisible, waitForEnabled, waitForWizardStep, currentWizardStep, clickNext,
-    clickByTextCandidates, checkRadioByCandidates, waitForApiResponse, escapeRegex
+    clickByTextCandidates, checkRadioByCandidates, waitForApiResponse, escapeRegex,
+    sectionByHeading
   } = c;
 
-async function createKlsDraftViaUi(session, { role }) {
+async function createKlsDraftViaUi(session, { role, assignedUsers = [], duplicatePerAssignedUser = false }) {
   return session.step('create KLS draft through UI', async () => {
     await session.page.goto(`${APP_URL}/app/job/new`, { waitUntil: 'domcontentloaded' });
     await session.page.getByRole('heading', { name: 'Ny sag', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await fillOverviewFields(session, { customerName: session.data.customerName, address: session.address });
+    if (assignedUsers.length > 0) {
+      const trigger = sectionByHeading(session.page, 'Tildelte medarbejdere').locator('button.multi-select-trigger');
+      await waitForEnabled(trigger, 'assignment selector');
+      await trigger.click();
+      const selectedOptions = session.page.locator('[role="option"][aria-selected="true"]');
+      while (await selectedOptions.count()) await selectedOptions.first().click();
+      for (const assignedUser of assignedUsers) {
+        await session.page.getByRole('option', { name: assignedUser.displayName, exact: true }).click();
+      }
+      await trigger.click();
+      if (duplicatePerAssignedUser) {
+        const duplicate = session.page.getByRole('checkbox', {
+          name: /Opret en kopi af sagen til hver medarbejder/,
+        });
+        await duplicate.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+        await duplicate.check();
+      }
+    }
     const responsePromise = session.page.waitForResponse((response) =>
       response.request().method() === 'POST' && ['/api/jobs', '/api/jobs/'].includes(new URL(response.url()).pathname),
     { timeout: API_TIMEOUT });
@@ -21,10 +40,13 @@ async function createKlsDraftViaUi(session, { role }) {
     if (!response.ok()) throw new Error(`KLS draft creation returned HTTP ${response.status()}.`);
     const created = await response.json();
     if (!created?.id) throw new Error('KLS draft response had no id.');
-    session.fixtures.jobs.push(created.id);
-    session.scenarioReport.generatedFixtures.push({ type: 'job', id: created.id, source: 'UI + runtime API/DAWA data' });
-    await session.page.getByRole('heading', { name: 'Sagen er oprettet', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    return { id: created.id, reportNumber: created.reportNumber, customerName: session.data.customerName, role };
+    const createdJobIds = created.createdJobIds?.length ? created.createdJobIds : [created.id];
+    session.fixtures.jobs.push(...createdJobIds);
+    for (const id of createdJobIds) {
+      session.scenarioReport.generatedFixtures.push({ type: 'job', id, source: 'UI + runtime API/DAWA data' });
+    }
+    await session.page.getByRole('heading', { name: /sag(?:en|er) er oprettet/i }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    return { id: created.id, createdJobIds, reportNumber: created.reportNumber, customerName: session.data.customerName, role };
   });
 }
 
@@ -55,7 +77,6 @@ async function fillOverviewFields(session, { customerName, address }) {
 
 async function completeAndSubmitKlsViaUi(session, job) {
   await session.step('complete KLS wizard and submit', async () => {
-    await session.page.getByRole('button', { name: 'Til sagslisten', exact: true }).click();
     await session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded' });
     await waitForWizardStep(session.page, 'Sagsdetaljer');
     const referenceData = session.referenceData ?? await session.getReferenceData();
@@ -77,8 +98,11 @@ async function completeAndSubmitKlsViaUi(session, job) {
     }
 
     await clickNext(session.page, 'Timesedler');
-    const users = session.runtimeUsers?.length ? session.runtimeUsers : await ensureAssignableUsers(session, 1);
-    await addWorksheetViaUi(session, users[0], '1');
+    const currentUser = session.auth.user;
+    if (!currentUser?.id || !currentUser?.displayName) {
+      throw new Error('Authenticated user identity is unavailable for the worksheet.');
+    }
+    await addWorksheetViaUi(session, currentUser, '1');
 
     await clickNext(session.page, 'Afslutning');
     await clickByTextCandidates(session.page.locator('button'), candidates(selection.closureFlag), 'closure flag');
@@ -87,7 +111,8 @@ async function completeAndSubmitKlsViaUi(session, job) {
     const response = waitForApiResponse(session.page, 'POST', `/api/jobs/${job.id}/status`, [200]);
     await session.page.getByRole('button', { name: 'Attestér og indsend', exact: true }).click();
     await response;
-    await session.page.getByRole('heading', { name: 'Sag sendt til kontoret', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await session.page.waitForURL((url) => url.pathname === `/app/completed/${job.id}`, { timeout: UI_TIMEOUT });
+    await session.page.getByRole('heading', { name: 'Sagsoverblik', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   });
 }
 
@@ -138,20 +163,16 @@ async function approveJobViaUi(session, jobId) {
   await response;
 }
 
-async function rejectJobViaUi(session, jobId) {
+async function rejectJobViaUi(session, jobId, rejectionNote = 'Mangler dokumentation for udført arbejde.') {
   await session.page.goto(`${APP_URL}/app/completed/${jobId}`, { waitUntil: 'domcontentloaded' });
   await session.page.getByRole('heading', { name: 'Sagsoverblik', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await session.page.locator('button:visible').filter({ hasText: /^Afvis$/ }).last().click();
   const dialog = session.page.getByRole('dialog', { name: 'Afvis sag' });
   await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await dialog.locator('#rejection-note').fill(rejectionNote);
   const response = waitForApiResponse(session.page, 'POST', `/api/jobs/${jobId}/status`, [200]);
   await dialog.getByRole('button', { name: 'Afvis', exact: true }).click();
   await response;
-  session.scenarioReport.coverageNotes.push({
-    area: 'Rejection reason',
-    status: 'product-gap',
-    detail: 'The current rejection dialog and status contract contain no rejection-reason field.',
-  });
 }
 
 async function createCustomerViaUi(session) {
@@ -227,28 +248,6 @@ async function createMinimalJobFixtureViaApi(session, customer) {
   return created;
 }
 
-async function ensureAssignableUsers(session, count) {
-  const bodyTemplate = postmanBody(postman, '/api/users');
-  const requiredRole = String(bodyTemplate.role);
-  if (!requiredRole) throw new Error('Postman /api/users request must define a role.');
-  let users = unwrapCollection(await session.apiExpect('GET', '/api/users/', undefined, [200]))
-    .filter((user) => user.id && user.email && user.displayName && String(user.role).toLowerCase() === requiredRole.toLowerCase());
-  while (users.length < count) {
-    const index = users.length + 1;
-    const body = {
-      ...bodyTemplate,
-      email: session.data.userEmail(index),
-      displayName: `${session.data.userDisplayName} ${index}`,
-      phone: session.data.phone,
-      role: requiredRole,
-    };
-    const created = await session.apiExpect('POST', '/api/users/', body, [200, 201]);
-    session.fixtures.users.push(created.id);
-    users.push(created);
-  }
-  return users.slice(0, count);
-}
-
 async function addWorksheetViaUi(session, user, hours) {
   const page = session.page;
   const add = page.getByRole('button', { name: 'Tilføj timeseddel', exact: true });
@@ -257,13 +256,23 @@ async function addWorksheetViaUi(session, user, hours) {
   const form = page.locator('.worksheet-form');
   const trigger = form.locator('button.multi-select-trigger');
   if (await trigger.isVisible().catch(() => false)) {
+    await waitForEnabled(trigger, 'worksheet assignee selector');
     await trigger.click();
     const option = page.getByRole('option', { name: user.displayName, exact: true });
-    if (await option.isVisible().catch(() => false)) await option.click();
+    await option.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    if ((await option.getAttribute('aria-selected')) !== 'true') {
+      await option.click();
+    }
     await trigger.click();
   }
   await page.getByLabel('Timer', { exact: true }).fill(hours);
+  const responsePromise = page.waitForResponse((response) =>
+    response.request().method() === 'POST'
+      && new URL(response.url()).pathname.startsWith('/api/worksheets/jobs/'),
+  { timeout: API_TIMEOUT });
   await page.getByRole('button', { name: 'Tilføj', exact: true }).click();
+  const response = await responsePromise;
+  if (!response.ok()) throw new Error(`Worksheet creation returned HTTP ${response.status()}.`);
   await form.waitFor({ state: 'hidden', timeout: API_TIMEOUT });
 }
 
@@ -277,7 +286,6 @@ async function addWorksheetViaUi(session, user, hours) {
     createCustomerViaUi,
     createCustomerFixtureViaApi,
     createMinimalJobFixtureViaApi,
-    ensureAssignableUsers,
     addWorksheetViaUi
   };
 }

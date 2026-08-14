@@ -16,7 +16,7 @@ Use these sources in order:
 3. `Postman/postman_collection.json` for executable examples and smoke assertions;
 4. this page for shared semantics.
 
-OpenAPI, Scalar and `/api/dev/*` are release-testing surfaces. They are registered only when the current release-testing policy enables them; do not assume they exist in every environment.
+`/api/dev/*` is an ASP.NET Development-only surface. OpenAPI and Scalar are controlled separately by the resolved release-testing policy and may therefore be available outside Development only while that policy explicitly enables them. Do not assume any of these reference/test surfaces exist in every environment.
 
 ## Authentication and tenant authority
 

@@ -14,12 +14,113 @@ public sealed class InfrastructureConfigurationTests
     private const string ManagedIdentityClientId = "11111111-2222-3333-4444-555555555555";
 
     [Fact]
-    public void ConfigureInfrastructure_InDevelopment_UsesDeveloperAzureIdentityForSql()
+    public void ResolveDevelopmentConnectionString_RemoteOnWindows_UsesWorkslipLocalDb()
     {
-        var builder = CreateBuilder(Environments.Development);
-        builder.Configuration[SqlConnectionStringKey] = CreateManagedIdentityConnectionString();
+        var resolved = InfrastructureConfiguration.ResolveDevelopmentConnectionString(
+            CreateManagedIdentityConnectionString(),
+            isWindows: true);
 
-        builder.ConfigureInfrastructure([]);
+        var connectionString = new SqlConnectionStringBuilder(resolved);
+        Assert.Equal(@"(localdb)\MSSQLLocalDB", connectionString.DataSource);
+        Assert.Equal("WorkslipLocal", connectionString.InitialCatalog);
+        Assert.True(connectionString.IntegratedSecurity);
+    }
+
+    [Fact]
+    public void ResolveDevelopmentConnectionString_InvalidOnWindows_UsesWorkslipLocalDb()
+    {
+        var resolved = InfrastructureConfiguration.ResolveDevelopmentConnectionString(
+            "this is not a SQL connection string",
+            isWindows: true);
+
+        var connectionString = new SqlConnectionStringBuilder(resolved);
+        Assert.Equal(@"(localdb)\MSSQLLocalDB", connectionString.DataSource);
+        Assert.Equal("WorkslipLocal", connectionString.InitialCatalog);
+    }
+
+    [Fact]
+    public void ConfigureInfrastructure_InDevelopment_AllowsLocalSql()
+    {
+        var localConnectionString = CreateLocalConnectionString();
+        var args = new[] { $"--{SqlConnectionStringKey}={localConnectionString}" };
+        var builder = CreateBuilder(Environments.Development, args);
+
+        builder.ConfigureInfrastructure(args);
+
+        var connectionString = new SqlConnectionStringBuilder(builder.Configuration[SqlConnectionStringKey]);
+        Assert.Equal("localhost,1433", connectionString.DataSource);
+        Assert.Equal("WorkslipLocal", connectionString.InitialCatalog);
+    }
+
+    [Fact]
+    public void ResolveDevelopmentConnectionString_MissingOnWindows_UsesWorkslipLocalDb()
+    {
+        var resolved = InfrastructureConfiguration.ResolveDevelopmentConnectionString(
+            configuredConnectionString: null,
+            isWindows: true);
+
+        var connectionString = new SqlConnectionStringBuilder(resolved);
+        Assert.Equal(@"(localdb)\MSSQLLocalDB", connectionString.DataSource);
+        Assert.Equal("WorkslipLocal", connectionString.InitialCatalog);
+        Assert.True(connectionString.IntegratedSecurity);
+    }
+
+    [Fact]
+    public void ResolveDevelopmentConnectionString_MissingOnNonWindows_RequiresExplicitLocalSql()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            InfrastructureConfiguration.ResolveDevelopmentConnectionString(
+                configuredConnectionString: null,
+                isWindows: false));
+
+        Assert.Contains("requires a local SQL connection string", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ResolveDevelopmentConnectionString_RemoteOnNonWindows_FailsClosed()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            InfrastructureConfiguration.ResolveDevelopmentConnectionString(
+                CreateManagedIdentityConnectionString(),
+                isWindows: false));
+
+        Assert.Contains("not provably local", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ResolveDevelopmentConnectionString_ConfiguredLocalValue_IsPreserved()
+    {
+        var configured = CreateLocalConnectionString();
+
+        var resolved = InfrastructureConfiguration.ResolveDevelopmentConnectionString(
+            configured,
+            isWindows: true);
+
+        Assert.Equal(configured, resolved);
+    }
+
+    [Fact]
+    public void ConfigureInfrastructure_OpenApiGeneration_DoesNotRequireSql()
+    {
+        var args = new[] { $"--{DatabaseStartup.GenerateOpenApiOnlyKey}=true" };
+        var builder = CreateBuilder(Environments.Development, args);
+
+        builder.ConfigureInfrastructure(args);
+
+        Assert.True(builder.Configuration.GetValue<bool>(DatabaseStartup.GenerateOpenApiOnlyKey));
+    }
+
+    [Fact]
+    public void ConfigureInfrastructure_ExplicitBootstrapInDevelopment_AllowsRemoteSqlWithDeveloperAzureIdentity()
+    {
+        var args = new[]
+        {
+            $"--{PlatformIdentityBootstrapCommand.ConfigurationKey}={PlatformIdentityBootstrapCommand.OperationName}",
+            $"--{SqlConnectionStringKey}={CreateManagedIdentityConnectionString()}"
+        };
+        var builder = CreateBuilder(Environments.Development, args);
+
+        builder.ConfigureInfrastructure(args);
 
         var connectionString = new SqlConnectionStringBuilder(builder.Configuration[SqlConnectionStringKey]);
         Assert.Equal(SqlAuthenticationMethod.ActiveDirectoryDefault, connectionString.Authentication);
@@ -45,11 +146,13 @@ public sealed class InfrastructureConfigurationTests
     public void ConfigureInfrastructure_RestoresCommandLineAsHighestOperatorOverride()
     {
         const string key = "Workslip:StartupDiagnosticsProbe";
-        var args = new[] { $"--{key}=command-line" };
+        var args = new[]
+        {
+            $"--{key}=command-line",
+            $"--{SqlConnectionStringKey}={CreateLocalConnectionString()}"
+        };
         var builder = CreateBuilder(Environments.Development, args);
 
-        // Simulate a provider added after the default WebApplication configuration,
-        // as Azure App Configuration is during ConfigureInfrastructure.
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [key] = "remote-configuration"
@@ -66,6 +169,12 @@ public sealed class InfrastructureConfigurationTests
             EnvironmentName = environmentName,
             Args = args ?? []
         });
+
+    private static string CreateLocalConnectionString() =>
+        "Server=localhost,1433;" +
+        "Initial Catalog=WorkslipLocal;" +
+        "Integrated Security=true;" +
+        "Encrypt=False;TrustServerCertificate=True;Connection Timeout=5;";
 
     private static string CreateManagedIdentityConnectionString() =>
         $"Server=tcp:db-mrsoftware-prod-server.database.windows.net,1433;" +

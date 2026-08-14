@@ -7,27 +7,21 @@ public static class JobAssignmentPolicy
         || string.Equals(role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase);
 
     public static bool CanReceiveAssignment(string? role) =>
-        string.Equals(role, Roles.User, StringComparison.OrdinalIgnoreCase);
+        string.Equals(role, Roles.User, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(role, Roles.Admin, StringComparison.OrdinalIgnoreCase);
 
-    public static bool CanReceiveAssignment(
-        string? role,
-        Guid assigneeId,
-        Guid? actorId,
-        string? actorRole) =>
-        CanReceiveAssignment(role)
-        || (actorId.HasValue
-            && actorId.Value == assigneeId
-            && string.Equals(role, Roles.Admin, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(actorRole, Roles.Admin, StringComparison.OrdinalIgnoreCase));
+    /// <summary>
+    /// Regular employees must only access jobs assigned to themselves. Administrators
+    /// retain organization-wide access so they can review and approve submitted work.
+    /// </summary>
+    public static bool RequiresAssignedJobScope(string? role) =>
+        string.Equals(role, Roles.User, StringComparison.OrdinalIgnoreCase);
 
     public static bool CanReceiveAssignmentInFilial(
         string? role,
-        Guid assigneeId,
-        Guid? actorId,
-        string? actorRole,
         Guid userFilialId,
         Guid jobFilialId) =>
-        CanReceiveAssignment(role, assigneeId, actorId, actorRole)
+        CanReceiveAssignment(role)
         && userFilialId != Guid.Empty
         && jobFilialId != Guid.Empty
         && userFilialId == jobFilialId;
@@ -37,7 +31,7 @@ public static class JobAssignmentPolicy
         Guid? actorId,
         string? actorRole)
     {
-        if (requestedUserIds is not null)
+        if (requestedUserIds is not null && CanManageAssignments(actorRole))
         {
             return requestedUserIds
                 .Where(id => id != Guid.Empty)
@@ -45,7 +39,7 @@ public static class JobAssignmentPolicy
                 .ToArray();
         }
 
-        return actorId.HasValue && CanReceiveAssignment(actorRole, actorId.Value, actorId, actorRole)
+        return actorId.HasValue && CanReceiveAssignment(actorRole)
             ? [actorId.Value]
             : Array.Empty<Guid>();
     }

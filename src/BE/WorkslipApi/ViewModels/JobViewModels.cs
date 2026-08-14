@@ -60,7 +60,10 @@ public sealed record JobReportSummaryViewModel(
     int? TotalOutlay,
     bool SoftDeleted,
     string JobType,
-    string? RejectionNote);
+    string? RejectionNote)
+{
+    public IReadOnlyList<Guid>? CreatedJobIds { get; init; }
+}
 
 public sealed record JobLinkViewModel(
     Guid Id,
@@ -114,7 +117,10 @@ public static class JobViewModelBuilder
         summary.TotalOutlay,
         summary.SoftDeleted,
         summary.JobType,
-        summary.RejectionNote);
+        summary.RejectionNote)
+    {
+        CreatedJobIds = summary.CreatedJobIds
+    };
 
     public static JobLinkViewModel ToLink(JobLinkResponse link) => new(
         link.Id,

@@ -10,10 +10,13 @@ namespace Workslip.Api.Configuration;
 public static class InfrastructureConfiguration
 {
     private const string SqlConnectionStringKey = "Azure:Sql:ConnectionString";
+    private const string DefaultWindowsLocalDbConnectionString =
+        "Server=(localdb)\\MSSQLLocalDB;Initial Catalog=WorkslipLocal;Integrated Security=true;TrustServerCertificate=true;MultipleActiveResultSets=true";
 
     public static WebApplicationBuilder ConfigureInfrastructure(this WebApplicationBuilder builder, string[] args)
     {
         var configuration = builder.Configuration;
+        var platformBootstrapRequested = PlatformIdentityBootstrapCommand.IsRequested(args);
 
         Log.Information("[STARTUP 02.1] Configure Azure credential - START");
         var azureCredential = CreateAzureCredential(configuration);
@@ -24,8 +27,15 @@ public static class InfrastructureConfiguration
                 : "managed identity");
 
         AddAzureAppConfiguration(configuration, azureCredential);
-        RestoreOperatorOverrides(builder.Environment, configuration, args);
-        ConfigureDevelopmentSqlAuthentication(builder.Environment, configuration);
+        RestoreOperatorOverrides(
+            builder.Environment,
+            configuration,
+            args,
+            platformBootstrapRequested);
+        EnforceDevelopmentSqlIsolation(
+            builder.Environment,
+            configuration,
+            platformBootstrapRequested);
 
         builder.Services.AddSingleton<TokenCredential>(azureCredential);
 
@@ -83,17 +93,26 @@ public static class InfrastructureConfiguration
     private static void RestoreOperatorOverrides(
         IHostEnvironment environment,
         ConfigurationManager configuration,
-        string[] args)
+        string[] args,
+        bool platformBootstrapRequested)
     {
         Log.Information("[STARTUP 02.3] Restore local operator configuration overrides - START");
 
-        // Azure App Configuration supplies shared environment defaults. Local
-        // development settings, environment variables and command-line values
-        // retain the normal ASP.NET Core higher-precedence override behavior.
-        if (environment.IsDevelopment())
+        // Shared Azure configuration may be loaded before local overrides. Normal
+        // Development startup deliberately reapplies the tracked safe baseline,
+        // followed by machine-local settings, environment variables and command-line
+        // values so a production SQL value from App Configuration cannot win by accident.
+        // The explicit platform bootstrap operation is the only Development-mode path
+        // that may intentionally target remote SQL, so it uses operator-supplied Azure
+        // configuration plus environment/command-line overrides instead of local files.
+        if (environment.IsDevelopment() && !platformBootstrapRequested)
         {
             configuration.AddJsonFile(
                 "appsettings.Development.json",
+                optional: true,
+                reloadOnChange: true);
+            configuration.AddJsonFile(
+                "appsettings.Local.json",
                 optional: true,
                 reloadOnChange: true);
         }
@@ -108,44 +127,113 @@ public static class InfrastructureConfiguration
         Log.Information("[STARTUP 02.3] Restore local operator configuration overrides - OK");
     }
 
-    private static void ConfigureDevelopmentSqlAuthentication(
+    private static void EnforceDevelopmentSqlIsolation(
         IHostEnvironment environment,
-        ConfigurationManager configuration)
+        ConfigurationManager configuration,
+        bool platformBootstrapRequested)
     {
         if (!environment.IsDevelopment())
         {
-            Log.Information("[STARTUP 02.4] Configure development SQL authentication - SKIPPED (non-development environment)");
+            Log.Information("[STARTUP 02.4] Enforce development SQL isolation - SKIPPED (non-development environment)");
+            return;
+        }
+
+        if (DatabaseStartup.IsOpenApiGeneration(configuration))
+        {
+            Log.Information("[STARTUP 02.4] Enforce development SQL isolation - SKIPPED (OpenAPI generation mode)");
             return;
         }
 
         var connectionString = configuration[SqlConnectionStringKey];
-        if (string.IsNullOrWhiteSpace(connectionString))
+
+        if (platformBootstrapRequested)
         {
-            Log.Information("[STARTUP 02.4] Configure development SQL authentication - SKIPPED (SQL connection is not configured)");
+            
+            ConfigureExplicitOperatorSqlAuthentication(configuration, connectionString);
+            Log.Information("[STARTUP 02.4] Enforce development SQL isolation - EXPLICIT OPERATOR EXCEPTION (bootstrap-superadmins)");
             return;
         }
 
+        var isWindows = OperatingSystem.IsWindows();
+        var resolvedConnectionString = ResolveDevelopmentConnectionString(
+            connectionString,
+            isWindows);
+
+        if (!string.Equals(connectionString, resolvedConnectionString, StringComparison.Ordinal))
+        {
+            configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [SqlConnectionStringKey] = resolvedConnectionString
+            });
+
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                Log.Information(
+                    "[STARTUP 02.4] Enforce development SQL isolation - using default Windows LocalDB target ({DatabaseName})",
+                    "WorkslipLocal");
+            }
+            else
+            {
+                Log.Warning(
+                    "[STARTUP 02.4] Enforce development SQL isolation - ignored non-local/invalid configured SQL target and substituted default Windows LocalDB ({DatabaseName})",
+                    "WorkslipLocal");
+            }
+        }
+
+        if (!LocalDevelopmentDatabaseMigrationRunner.IsLocalSqlTarget(resolvedConnectionString))
+        {
+            throw new InvalidOperationException(
+                "Development startup refused Azure:Sql:ConnectionString because the SQL target is not provably local. Use localhost/loopback, LocalDB, '.', or '(local)'. Remote/Azure SQL is allowed only for an explicit operator operation, not normal local startup.");
+        }
+
+        Log.Information("[STARTUP 02.4] Enforce development SQL isolation - OK (local SQL target verified)");
+    }
+
+    internal static string ResolveDevelopmentConnectionString(
+        string? configuredConnectionString,
+        bool isWindows)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredConnectionString) &&
+            LocalDevelopmentDatabaseMigrationRunner.IsLocalSqlTarget(configuredConnectionString))
+        {
+            return configuredConnectionString;
+        }
+
+        if (isWindows)
+            return DefaultWindowsLocalDbConnectionString;
+
+        if (string.IsNullOrWhiteSpace(configuredConnectionString))
+        {
+            throw new InvalidOperationException(
+                "Development startup requires a local SQL connection string on this platform. Configure Azure:Sql:ConnectionString in appsettings.Local.json or an environment variable. Remote/Azure SQL is not allowed for normal Development startup.");
+        }
+
+        throw new InvalidOperationException(
+            "Development startup refused Azure:Sql:ConnectionString because the SQL target is not provably local. Use localhost/loopback, LocalDB, '.', or '(local)'. Remote/Azure SQL is allowed only for an explicit operator operation, not normal local startup.");
+    }
+
+    private static void ConfigureExplicitOperatorSqlAuthentication(
+        ConfigurationManager configuration,
+        string connectionString)
+    {
         SqlConnectionStringBuilder connectionStringBuilder;
         try
         {
             connectionStringBuilder = new SqlConnectionStringBuilder(connectionString);
         }
-        catch (ArgumentException)
+        catch (ArgumentException exception)
         {
-            Log.Warning("[STARTUP 02.4] Configure development SQL authentication - SKIPPED (SQL connection configuration could not be parsed)");
-            return;
+            throw new InvalidOperationException(
+                "The explicit operator SQL connection string could not be parsed.",
+                exception);
         }
 
         if (connectionStringBuilder.Authentication != SqlAuthenticationMethod.ActiveDirectoryManagedIdentity)
-        {
-            Log.Information("[STARTUP 02.4] Configure development SQL authentication - OK (no local adaptation required)");
             return;
-        }
 
-        // App Configuration and Key Vault still own the server/database connection
-        // details. Only the Azure-host-only authentication mode is adapted locally.
-        // Active Directory Default uses the developer's Azure CLI/Visual Studio
-        // identity and does not require a local SQL connection string or password.
+        // A developer workstation cannot use the App Service managed identity. The
+        // explicit bootstrap operation therefore preserves the remote target but uses
+        // the authenticated developer Azure identity instead.
         connectionStringBuilder.Authentication = SqlAuthenticationMethod.ActiveDirectoryDefault;
         connectionStringBuilder.Remove("User ID");
 
@@ -153,7 +241,5 @@ public static class InfrastructureConfiguration
         {
             [SqlConnectionStringKey] = connectionStringBuilder.ConnectionString
         });
-
-        Log.Information("[STARTUP 02.4] Configure development SQL authentication - OK (developer Azure identity enabled)");
     }
 }

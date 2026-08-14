@@ -11,11 +11,11 @@ This page is for running and diagnosing integrations. Shared HTTP semantics belo
 
 Use localhost or an isolated release-test/staging environment with synthetic data. Do not run destructive integration suites against live customer production.
 
-The repository release policy determines whether release-testing endpoints are enabled in a deployed environment. `/api/dev/token` is test tooling, not an integration authentication mechanism.
+The repository release policy controls published API reference tooling outside local development. `/api/dev/token` is mapped only in ASP.NET Development; it is not a release-test or integration authentication mechanism.
 
 ## Authenticate
 
-Use the authentication flow appropriate to the integration/runtime contract. Current browser/user flows include Microsoft/Entra login and Workslip token exchange; local/release-test tooling may expose additional shortcuts when explicitly enabled.
+Use the authentication flow appropriate to the integration/runtime contract. Current browser/user flows include Microsoft/Entra login and Workslip token exchange. Local development may expose development-only shortcuts; an isolated staging environment must use its approved normal test-authentication path.
 
 For repeatable isolated API testing, a pre-issued token can be supplied to the Postman runner through its supported environment variable rather than embedding credentials in files or commands committed to the repository.
 

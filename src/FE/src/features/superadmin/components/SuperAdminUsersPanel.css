@@ -1,0 +1,190 @@
+.superadmin-users-panel {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.superadmin-users-header,
+.superadmin-users-toolbar,
+.superadmin-user-form-header,
+.superadmin-user-card,
+.superadmin-users-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.superadmin-users-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+
+.superadmin-users-heading h2,
+.superadmin-user-form h3 {
+  margin: 0;
+}
+
+.superadmin-users-heading p,
+.superadmin-user-form-header p {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.superadmin-users-toolbar {
+  margin: 1.25rem 0;
+}
+
+.superadmin-users-toolbar > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.superadmin-users-count {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.superadmin-user-form {
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-input);
+}
+
+.superadmin-user-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.superadmin-user-form-grid .form-field {
+  min-width: 0;
+}
+
+.superadmin-user-form-grid .form-field > span {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.superadmin-user-form-grid .form-input {
+  width: 100%;
+}
+
+.superadmin-user-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.superadmin-user-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.superadmin-user-card {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-input);
+}
+
+.superadmin-user-card-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.superadmin-user-card-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.superadmin-user-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.superadmin-user-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.superadmin-user-card-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.superadmin-user-card-actions .danger {
+  color: var(--danger);
+}
+
+.superadmin-users-pagination {
+  justify-content: flex-end;
+  margin-top: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 720px) {
+  .superadmin-users-panel {
+    padding: 1rem;
+  }
+
+  .superadmin-users-header,
+  .superadmin-users-toolbar,
+  .superadmin-user-form-header,
+  .superadmin-user-card,
+  .superadmin-users-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .superadmin-users-header > .btn,
+  .superadmin-user-form-header > .btn,
+  .superadmin-user-form-actions .btn,
+  .superadmin-users-pagination .btn {
+    width: 100%;
+  }
+
+  .superadmin-user-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .superadmin-user-card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .superadmin-user-card-actions .btn {
+    justify-content: center;
+  }
+
+  .superadmin-users-count {
+    align-self: flex-start;
+  }
+}

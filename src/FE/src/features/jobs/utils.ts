@@ -43,6 +43,7 @@ export const emptyForm: JobForm = {
     customWorkKind: '',
     controlPointSelections: {},
     irrelevantCategoryIds: [],
+    allIrrelevantReason: '',
     closureFlags: [],
   },
   jobType: 'KLS',
@@ -83,7 +84,6 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
     }
   }
 
-  // Get timesheets from job if available
   const timesheets = job.worksheets?.map(ws => ({
     workDate: ws.workDate,
     userId: ws.userId,
@@ -115,6 +115,7 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
       customWorkKind: job.work.workKind?.customWorkKind ?? '',
       controlPointSelections,
       irrelevantCategoryIds,
+      allIrrelevantReason: job.work.remarks ?? '',
       closureFlags: job.work.closureFlags ? job.work.closureFlags.map((flag) => flag.normalizedLabel) : [],
     },
     jobType: job.jobType === 'Diverse' ? 'Diverse' : 'KLS',
@@ -130,18 +131,11 @@ export function toUpdateRequest(
   options: { includeWork?: boolean } = {},
 ): UpdateJobRequestWithSnapshot {
   const includeWork = options.includeWork ?? true;
-
-  // Once the backend has returned a different customer ID, a previous
-  // "Gem som ny kunde" request has already succeeded. Keep later edits
-  // attached to that customer without creating another duplicate.
   const customerCreationAlreadyPersisted =
     form.createCustomer &&
     initial.customerId !== null &&
     initial.customerId !== form.customerId;
   const shouldCreateCustomer = form.createCustomer && !customerCreationAlreadyPersisted;
-
-  // Creating a customer requires the snapshot even when its values are
-  // unchanged from the latest autosaved job snapshot.
   const shouldSendCustomerSnapshot =
     shouldCreateCustomer ||
     (hasSnapshotData(form.customerSnapshot) && !sameSnapshot(initial.customerSnapshot, form.customerSnapshot));
@@ -204,8 +198,22 @@ export function toWorkRequest(
     workKind: form.work.workKind || null,
     customWorkKind: form.work.customWorkKind.trim() || null,
     closureFlags: form.work.closureFlags || [],
-    remarks: null,
+    remarks: areAllSelectedCategoriesIrrelevant(form, referenceData)
+      ? form.work.allIrrelevantReason.trim() || null
+      : null,
   };
+}
+
+export function areAllSelectedCategoriesIrrelevant(
+  form: JobForm,
+  referenceData: ReferenceDataResponse | null,
+) {
+  const selectedCategories = referenceData?.installationTypes
+    .filter((type) => form.work.categoryIds.includes(type.id))
+    .flatMap((type) => type.categories.map((category) => `${type.id}-${category.id}`)) ?? [];
+
+  return selectedCategories.length > 0 &&
+    selectedCategories.every((id) => form.work.irrelevantCategoryIds.includes(id));
 }
 
 export function sameForm(left: JobForm, right: JobForm) {
@@ -214,9 +222,6 @@ export function sameForm(left: JobForm, right: JobForm) {
 }
 
 export function sameFormWithoutWork(left: JobForm, right: JobForm) {
-  // The server replaces the old/null customer ID with the newly created
-  // customer ID. Treat that response as confirmation that the one-shot
-  // createCustomer flag has been persisted, so the draft can be cleared.
   const customerCreationWasPersisted =
     right.createCustomer &&
     left.customerId !== null &&
@@ -265,8 +270,6 @@ export function sameWork(left: JobForm, right: JobForm) {
 }
 
 export function isValidJobForm(form: JobForm, options?: { reportNumberReadOnly?: boolean; requireDestinationAddress?: boolean }) {
-  // Destination address is optional for all roles. Keep the legacy option in
-  // the signature until the remaining callers are cleaned up.
   if (form.jobType === 'Diverse') {
     return options?.reportNumberReadOnly || form.reportNumber.trim().length > 0;
   }

@@ -19,8 +19,8 @@ ROOT = Path(__file__).resolve().parents[2]
 MAINTAINED_DOC_PATTERNS = (
     "README.md",
     "AGENTS.md",
-    "Docs/README.md",
-    "Docs/AGENTS.md",
+    ".github/pull_request_template.md",
+    "Docs/*.md",
     "Docs/agents/*.md",
     "Docs/api/*.md",
     "Docs/architecture/*.md",
@@ -29,6 +29,7 @@ MAINTAINED_DOC_PATTERNS = (
     "Docs/operations/*.md",
     "Docs/release/*.md",
     "Docs/testing/*.md",
+    "site/*.md",
     "src/FE/README.md",
     "src/FE/AGENTS.md",
     "src/BE/WorkslipApi/README.md",
@@ -36,6 +37,7 @@ MAINTAINED_DOC_PATTERNS = (
     "src/BE/WorkslipApi/Postman/README.md",
     "src/BE/infrastructure/README.md",
     "src/BE/infrastructure/AGENTS.md",
+    "src/BE/infrastructure/database/migrations/README.md",
 )
 
 ACTIVE_AGENT_FILES = (
@@ -52,6 +54,24 @@ RETIRED_ARTIFACT_PATTERNS = (
     ".github/workflows/update-repomix-after-release.yml",
 )
 
+RETIRED_DOCUMENTATION_PATTERNS = (
+    "Docs/superpowers/**/*",
+    "Docs/10-Projects/Workslip/**/*",
+    "Docs/50 - Docs/**/*",
+    "Docs/brugerguide-pwa/**/*",
+    "src/docs/**/*",
+)
+
+RETIRED_DOCUMENTATION_PATHS = (
+    "Docs/agents/OPERATING_CONTRACT.md",
+    "Docs/api/endpoint-catalog.md",
+    "Docs/testing/full-stack-validation.md",
+    "Docs/release/documentation-gate.md",
+    "Docs/release/documentation-waiver.md",
+    "Docs/operations/go-live-production-data-cleanup.md",
+    "src/BE/infrastructure/GITHUB_INFRASTRUCTURE_OIDC.md",
+)
+
 INDEXED_DOC_SETS = (
     ("Docs/api/README.md", "Docs/api", "*.md"),
     ("Docs/architecture/README.md", "Docs/architecture", "*.md"),
@@ -65,6 +85,7 @@ ISSUE_STATUS_LANGUAGE_RE = re.compile(
 )
 NPM_RUN_RE = re.compile(r"\bnpm\s+run\s+([A-Za-z0-9:_-]+)")
 BULLET_RE = re.compile(r"^\s*-\s+(.+?)\s*$")
+HTML_H1_RE = re.compile(r"<h1(?:\s[^>]*)?>.*?</h1>", re.IGNORECASE)
 
 
 def error(path: Path, message: str, line: int = 1) -> None:
@@ -72,6 +93,7 @@ def error(path: Path, message: str, line: int = 1) -> None:
         relative = path.relative_to(ROOT).as_posix()
     except ValueError:
         relative = path.as_posix()
+    print(f"{relative}:{line}: {message}")
     print(f"::error file={relative},line={line}::{message}")
 
 
@@ -118,8 +140,9 @@ def validate_markdown(path: Path) -> int:
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
 
-    if not any(re.match(r"^#\s+\S", line) for line in lines):
-        error(path, "Expected at least one H1 heading.")
+    has_h1 = any(re.match(r"^#\s+\S", line) or HTML_H1_RE.search(line) for line in lines)
+    if not has_h1:
+        error(path, "Expected at least one Markdown or HTML H1 heading.")
         failures += 1
 
     fence_count = sum(1 for line in lines if re.match(r"^\s*(?:```|~~~)", line))
@@ -166,6 +189,46 @@ def validate_retired_artifacts() -> int:
             seen.add(path)
             error(path, "Retired duplicated repository-snapshot artifact must not be reintroduced.")
             failures += 1
+    return failures
+
+
+def validate_retired_documentation() -> int:
+    failures = 0
+    seen: set[Path] = set()
+
+    for pattern in RETIRED_DOCUMENTATION_PATTERNS:
+        for path in ROOT.glob(pattern):
+            if not path.is_file() or path in seen:
+                continue
+            seen.add(path)
+            error(
+                path,
+                "Historical implementation plans/specs and retired documentation assets belong in Git/Linear history, not beside current documentation.",
+            )
+            failures += 1
+
+    for relative in RETIRED_DOCUMENTATION_PATHS:
+        path = ROOT / relative
+        if not path.is_file() or path in seen:
+            continue
+        seen.add(path)
+        error(path, "Superseded documentation must not be reintroduced as repository guidance.")
+        failures += 1
+
+    return failures
+
+
+def validate_docs_are_classified(documents: list[Path]) -> int:
+    maintained = {path.resolve() for path in documents}
+    failures = 0
+    for path in sorted((ROOT / "Docs").rglob("*.md")):
+        if not path.is_file() or path.resolve() in maintained:
+            continue
+        error(
+            path,
+            "Markdown under Docs/ must be part of the maintained documentation set; use Git/Linear for historical issue plans.",
+        )
+        failures += 1
     return failures
 
 
@@ -291,6 +354,8 @@ def main() -> int:
     failures = 0
     failures += validate_entrypoints()
     failures += validate_retired_artifacts()
+    failures += validate_retired_documentation()
+    failures += validate_docs_are_classified(documents)
     failures += sum(validate_markdown(path) for path in documents)
     failures += validate_directory_indexes()
     failures += validate_frontend_commands()

@@ -1,79 +1,55 @@
 # Synthetic test identities
 
-**Status:** Temporary; automated authenticated execution is blocked until an approved inbox reader exists
+**Status:** Authentication boundary defined; authenticated execution is blocked pending isolated staging and approved test auth
 
 **Owner:** Workslip product and release maintainers
 
-**Source of truth:** GitHub environment variables, deployed `/api/auth` behavior, and Playwright run evidence
+**Source of truth:** approved environment configuration, deployed `/api/auth` behavior, and Playwright run evidence
 
-**Review cadence:** Before every authenticated release-test run and when the identity or inbox strategy changes
+**Review cadence:** Before any authenticated release-test run or identity strategy change
 
-## Purpose
+## Stable role identities
 
-Authenticated Playwright release tests temporarily use four existing non-production Workslip users and the normal one-time-code authentication flow. The historical `WORKSLIP_SYNTHETIC_*_EMAIL` names are retained so operations can replace an address without a source change.
-
-The actual addresses are personal configuration data. Keep them in the approved GitHub environment or the operator's local process environment, never in repository files, reports, screenshots, command examples, or logs.
-
-## Identity model
-
-Configure exactly one stable identity for each role:
+The authenticated Playwright code expects one stable identity for each role in the isolated test organization:
 
 - `WORKSLIP_SYNTHETIC_USER_EMAIL`
 - `WORKSLIP_SYNTHETIC_AUDITOR_EMAIL`
 - `WORKSLIP_SYNTHETIC_ADMIN_EMAIL`
 - `WORKSLIP_SYNTHETIC_SUPERADMIN_EMAIL`
 
-These users already exist. This harness does not create users, mutate their roles, or accept a privileged setup token. The Auditor identity may be a disposable test-role account. A missing variable fails with the variable name, and a mismatch between the configured role and `/api/auth/me` rejects the login without logging the address.
+Addresses are personal/security configuration data. Keep them only in the approved environment or an operator's local process environment — never in repository files, commands, reports, screenshots, or logs.
 
-The Admin inbox must receive any derived plus-address used by scenarios that create an isolated secondary organization. Verify that behavior manually before running `role-tenant-isolation`.
+The harness verifies each configured role through `/api/auth/me`. The configured assignment identities must also have distinct display names, because that is the accessible UI selector. It does not create, delete, or change the four stable identities in order to make a scenario pass. In particular, the assignment-duplication scenario uses the existing `User` and `Admin` identities rather than inventing random employees that cannot actually log in.
 
-## Authentication flow
+## Current fail-closed boundary
 
-`playwright-prod-smoke.mjs` drives the real deployed UI:
+There is no approved automated inbox reader or CI authentication grant today. Consequently:
 
-1. Open `/login`.
-2. Select the one-time-code login.
-3. Submit the synthetic email through `/api/auth/send-code`.
-4. The local operator reads the delivered code and enters it directly in the visible Workslip browser field.
-5. The page submits `/api/auth/verify-code/{code}` and stores the normal short-lived application JWT.
-6. The harness calls `/api/auth/me` with that token and verifies the expected role.
+- `public-smoke` needs no identities and sends no mail;
+- every authenticated non-interactive run stops before `/api/auth/send-code`;
+- GitHub Actions runs only `public-smoke` and receives no synthetic email variables;
+- there is no static application token, dev-token route, hidden browser state, or login bypass;
+- production is never an allowed target for an authenticated or destructive flow.
 
-The Node harness never reads the code field or verify URL. Login screenshots mask the OTC field, and the email address and code must not be written to console output or retained artifacts.
+This is intentional. Adding mailbox credentials, a provider API, a browser profile, another external processor, or a CI authentication grant requires a separate security/privacy review and the isolated target tracked by WOR-309 and WOR-357.
 
-## Fail-closed automation boundary
+## Future local interactive staging run
 
-There is currently no approved automated inbox reader for these addresses. Therefore:
-
-- `public-smoke` runs without identity configuration and sends no authentication mail;
-- every authenticated non-interactive run fails at startup before `/api/auth/send-code`;
-- GitHub Actions does not enable interactive mode and cannot run authenticated scenarios successfully;
-- there is no fallback authentication path, durable application token, or privileged identity setup path.
-
-This boundary is intentional. Adding mailbox credentials, a provider API, a browser session, another external processor, or a CI authentication grant requires explicit approval and a separate security/privacy review.
-
-## Explicit local interactive run
-
-An operator who can access all inboxes needed by the selected scenario may run it locally from an interactive terminal. Set the four role variables without printing their values, then opt in:
+Once an isolated staging target is configured and explicitly allowed by the committed release policy, an operator with approved access to the required inboxes may opt into a headed TTY run:
 
 ```powershell
 $env:WORKSLIP_PLAYWRIGHT_INTERACTIVE_OTC = 'true'
 powershell -ExecutionPolicy Bypass -File .\tools\playwright\run-critical-local.ps1 `
   -Mode Direct `
-  -Target Production `
+  -Target Staging `
   -Scenario auth-session
 Remove-Item Env:WORKSLIP_PLAYWRIGHT_INTERACTIVE_OTC
 ```
 
-The harness requires both the exact opt-in value `true` and a TTY, and launches Chromium headed. For each login, enter the delivered code only in the browser and submit the visible form. Do not paste a code into the terminal. Target safety rules in `src/FE/config/release-environments.json` still apply.
+This command is deliberately rejected today because staging is not configured. When it becomes available, enter each delivered code only in the visible browser; never paste it into the terminal. The harness requires both the exact `true` opt-in and a TTY.
 
-## Data and security rules
+## Artifact controls
 
-The four identities must be limited to the designated non-production/release-test context and keep one stable Workslip role each. Test-generated customers, jobs, users, and worksheets follow the existing Playwright cleanup policy; these existing identities are not deleted by scenario cleanup.
+Tokens and OTC values remain in process memory. The harness redacts bearer tokens, OTC paths, query secrets, and email addresses from JSON reports and failure summaries. Authenticated scenarios do not save screenshots or traces while the test environment is being completed.
 
-Email addresses and authentication artifacts are personal/security data. Limit access to repository/environment maintainers, do not expose them in source or artifacts, and follow the approved retention and access policy for GitHub variables and local shell history. This document records technical minimization controls, not proof of legal compliance.
-
-## Remaining validation and merge boundary
-
-The helper's source tests cover the deterministic pre-send failure, the explicit headed/TTY gate, and OTC URL redaction. They do not prove deployed email delivery or OTC login.
-
-Before PR #403 can leave draft, run an authenticated scenario against the deployed release-test target, verify the real send and verify endpoints plus `/api/auth/me`, record browser/viewport and scenario outcome without addresses or codes, and confirm the resulting report, screenshots, console output, and network-failure summary contain no sensitive values. Until then the authenticated suite is **implemented but Playwright-unvalidated**.
+Source tests prove this pre-send fail-closed behavior and redaction. They do not prove real email delivery, user provisioning, or a successful deployed OTC login. Until a permitted staging run succeeds, state that limitation explicitly as **implemented but Playwright-unvalidated**.

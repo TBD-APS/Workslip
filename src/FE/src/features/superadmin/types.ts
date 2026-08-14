@@ -44,3 +44,59 @@ export interface InviteOrganizationAdminInput {
   displayName: string;
   phone: string;
 }
+
+export interface SuperAdminUser {
+  id: string;
+  organizationId: string;
+  organizationName: string;
+  filialId: string;
+  filialName: string;
+  email: string;
+  displayName: string;
+  phone: string;
+  role: string;
+  userKind: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SuperAdminUserList {
+  users: SuperAdminUser[];
+  total: number;
+}
+
+export interface SuperAdminFilialOption {
+  id: string;
+  name: string;
+  isDefault: boolean;
+}
+
+export interface SuperAdminOrganizationOption {
+  id: string;
+  name: string;
+  filials: SuperAdminFilialOption[];
+}
+
+export interface SuperAdminUserOptions {
+  organizations: SuperAdminOrganizationOption[];
+  roles: string[];
+  userKinds: string[];
+}
+
+export interface CreateSuperAdminUserInput {
+  organizationId: string;
+  filialId: string;
+  email: string;
+  displayName: string;
+  phone: string;
+  role: string;
+  userKind?: string;
+}
+
+export interface UpdateSuperAdminUserInput {
+  displayName?: string;
+  phone?: string;
+  role?: string;
+  filialId?: string;
+  userKind?: string;
+}

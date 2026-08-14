@@ -1,0 +1,223 @@
+name: Playwright local assignment lifecycle
+
+on:
+  pull_request:
+    branches:
+      - 'release-*'
+      - 'release/**'
+    paths:
+      - '.github/workflows/playwright-local-assignment.yml'
+      - 'src/BE/WorkslipApi/Workslip.Application/Jobs/**'
+      - 'src/BE/WorkslipApi/Workslip.Application/Worksheets/**'
+      - 'src/BE/WorkslipApi/Workslip.Domain/JobAssignmentPolicy.cs'
+      - 'src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/**'
+      - 'src/BE/WorkslipApi/Workslip.Infrastructure/Seeding/**'
+      - 'src/FE/src/features/jobs/**'
+      - 'src/FE/scripts/playwright-critical-contract.mjs'
+      - 'src/FE/scripts/playwright-critical-domain.mjs'
+      - 'src/FE/scripts/playwright-scenarios-admin.mjs'
+      - 'src/FE/scripts/playwright-local-assignment.mjs'
+      - 'src/FE/scripts/playwright-local-assignment.test.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: playwright-local-assignment-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '24'
+  PLAYWRIGHT_VERSION: '1.55.0'
+
+jobs:
+  assignment-lifecycle:
+    name: Assignment lifecycle (isolated local)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Restore backend
+        run: dotnet restore src/BE/WorkslipApi/Workslip.Api.csproj --nologo
+
+      - name: Install frontend dependencies
+        working-directory: src/FE
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Install isolated Playwright runtime
+        working-directory: src/FE
+        run: |
+          npm install \
+            --prefix scripts \
+            --no-save \
+            --package-lock=false \
+            --ignore-scripts \
+            --no-audit \
+            --no-fund \
+            "playwright@${PLAYWRIGHT_VERSION}"
+          node scripts/node_modules/playwright/cli.js install --with-deps chromium
+
+      - name: Validate focused Playwright sources
+        working-directory: src/FE
+        run: |
+          node --check scripts/playwright-local-assignment.mjs
+          node --test scripts/playwright-local-assignment.test.mjs
+          node --test scripts/playwright-scenarios-admin.test.mjs
+
+      - name: Generate branch-matched frontend assets
+        working-directory: src/FE
+        run: |
+          npm run generate:api:local -- --no-restore
+          npm run sync:fonts
+
+      - name: Start ephemeral SQL Server
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sql_password="Workslip$(openssl rand -hex 16)!A1"
+          jwt_key="$(openssl rand -hex 32)"
+          echo "::add-mask::${sql_password}"
+          echo "::add-mask::${jwt_key}"
+          echo "WORKSLIP_SQL_PASSWORD=${sql_password}" >> "${GITHUB_ENV}"
+          echo "WORKSLIP_JWT_KEY=${jwt_key}" >> "${GITHUB_ENV}"
+
+          docker run --detach \
+            --name workslip-actions-sql \
+            --publish 1433:1433 \
+            --env ACCEPT_EULA=Y \
+            --env MSSQL_PID=Developer \
+            --env "MSSQL_SA_PASSWORD=${sql_password}" \
+            mcr.microsoft.com/mssql/server:2022-latest
+
+          ready=false
+          for attempt in $(seq 1 60); do
+            if docker exec workslip-actions-sql bash -lc \
+              "if [ -x /opt/mssql-tools18/bin/sqlcmd ]; then /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${sql_password}' -C -Q 'SELECT 1'; else /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P '${sql_password}' -Q 'SELECT 1'; fi" \
+              >/dev/null 2>&1; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "${ready}" != true ]; then
+            docker logs workslip-actions-sql
+            echo "::error::Ephemeral SQL Server did not become ready."
+            exit 1
+          fi
+
+      - name: Start Development backend
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export ASPNETCORE_ENVIRONMENT=Development
+          export ASPNETCORE_URLS=http://127.0.0.1:5262
+          export Azure__AppConfiguration__Endpoint=''
+          export Azure__Sql__ConnectionString="Server=localhost,1433;Initial Catalog=WorkslipActions;User Id=sa;Password=${WORKSLIP_SQL_PASSWORD};Encrypt=false;TrustServerCertificate=true;MultipleActiveResultSets=true"
+          export Jwt__Issuer=workslip-actions-local
+          export Jwt__Audience=workslip-actions-local
+          export Jwt__SigningKey="${WORKSLIP_JWT_KEY}"
+          export Workslip__ApplyLocalMigrations=true
+          export Workslip__SeedDevelopmentData=true
+          export Workslip__SeedDevelopmentEntraIdentities=false
+
+          nohup dotnet run \
+            --project src/BE/WorkslipApi/Workslip.Api.csproj \
+            --no-launch-profile \
+            --no-restore \
+            >"${RUNNER_TEMP}/workslip-backend.log" 2>&1 &
+          echo "$!" > "${RUNNER_TEMP}/workslip-backend.pid"
+
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent http://127.0.0.1:5262/health >/dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$(cat "${RUNNER_TEMP}/workslip-backend.pid")" 2>/dev/null; then
+              cat "${RUNNER_TEMP}/workslip-backend.log"
+              echo "::error::Backend exited before /health became ready."
+              exit 1
+            fi
+            sleep 1
+          done
+
+          cat "${RUNNER_TEMP}/workslip-backend.log"
+          echo "::error::Backend /health did not become ready."
+          exit 1
+
+      - name: Start local frontend
+        shell: bash
+        working-directory: src/FE
+        run: |
+          set -Eeuo pipefail
+          nohup node node_modules/vite/bin/vite.js \
+            --host 127.0.0.1 \
+            --port 5270 \
+            >"${RUNNER_TEMP}/workslip-frontend.log" 2>&1 &
+          echo "$!" > "${RUNNER_TEMP}/workslip-frontend.pid"
+
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:5270/login >/dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$(cat "${RUNNER_TEMP}/workslip-frontend.pid")" 2>/dev/null; then
+              cat "${RUNNER_TEMP}/workslip-frontend.log"
+              echo "::error::Frontend exited before /login became ready."
+              exit 1
+            fi
+            sleep 1
+          done
+
+          cat "${RUNNER_TEMP}/workslip-frontend.log"
+          echo "::error::Frontend /login did not become ready."
+          exit 1
+
+      - name: Run authenticated assignment lifecycle
+        working-directory: src/FE
+        env:
+          WORKSLIP_LOCAL_APP_URL: http://127.0.0.1:5270
+          WORKSLIP_LOCAL_API_URL: http://127.0.0.1:5262
+          WORKSLIP_ALLOW_LOCAL_DEV_TOKEN: 'true'
+          WORKSLIP_SYNTHETIC_USER_EMAIL: user@17v3ygzs.mailosaur.net
+          WORKSLIP_SYNTHETIC_ADMIN_EMAIL: admin@17v3ygzs.mailosaur.net
+        run: node scripts/playwright-local-assignment.mjs
+
+      - name: Upload isolated runtime evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-local-assignment-${{ github.run_id }}
+          path: |
+            artifacts/playwright-local-assignment
+            ${{ runner.temp }}/workslip-backend.log
+            ${{ runner.temp }}/workslip-frontend.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Stop isolated runtime
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          if [ -f "${RUNNER_TEMP}/workslip-frontend.pid" ]; then
+            kill "$(cat "${RUNNER_TEMP}/workslip-frontend.pid")" 2>/dev/null || true
+          fi
+          if [ -f "${RUNNER_TEMP}/workslip-backend.pid" ]; then
+            kill "$(cat "${RUNNER_TEMP}/workslip-backend.pid")" 2>/dev/null || true
+          fi
+          docker rm --force workslip-actions-sql >/dev/null 2>&1 || true
