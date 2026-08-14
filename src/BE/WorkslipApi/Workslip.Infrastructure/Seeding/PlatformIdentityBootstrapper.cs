@@ -2,6 +2,7 @@ using System.Data;
 using System.Runtime.ExceptionServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Users;
 using Workslip.Domain;
@@ -12,46 +13,34 @@ namespace Workslip.Infrastructure.Schema;
 public sealed class PlatformIdentityBootstrapper(
     SqlDbContext db,
     ISuperadminEntraService entraService,
+    IConfiguration configuration,
     ILogger<PlatformIdentityBootstrapper> logger)
 {
-    private static readonly CanonicalSuperadminDefinition[] CanonicalSuperadmins =
+    internal const string SuperadminEmailConfigurationKey = "WORKSLIP_SYNTHETIC_SUPERADMIN_EMAIL";
+
+    internal static readonly Guid RotatableSuperadminId =
+        new("F6F6F6F6-DA5B-4CC4-BBEB-07B40CAB806F");
+
+    private static readonly Guid[] LegacySuperadminIds =
     [
-        new(
-            new Guid("92779E5B-DA5B-4CC4-BBEB-07B40CAB806F"),
-            "Rasmus Bak Jakobsen",
-            "rasmusvm6@hotmail.com",
-            "28929173"),
-        new(
-            new Guid("D4D4D4D4-DA5B-4CC4-BBEB-07B40CAB806F"),
-            "Mahad",
-            "mahad8@outlook.dk",
-            string.Empty),
-        new(
-            new Guid("E5E5E5E5-DA5B-4CC4-BBEB-07B40CAB806F"),
-            "Mathias Lambæk",
-            "mathiaslt1@hotmail.dk",
-            string.Empty)
+        new("92779E5B-DA5B-4CC4-BBEB-07B40CAB806F"),
+        new("D4D4D4D4-DA5B-4CC4-BBEB-07B40CAB806F"),
+        new("E5E5E5E5-DA5B-4CC4-BBEB-07B40CAB806F")
     ];
 
-    private static readonly Guid[] CanonicalSuperadminIds =
-        CanonicalSuperadmins.Select(definition => definition.Id).ToArray();
+    private static readonly Guid[] ReservedSuperadminIds =
+        [RotatableSuperadminId, .. LegacySuperadminIds];
 
-    private static readonly string[] CanonicalSuperadminEmails =
-        CanonicalSuperadmins.Select(definition => definition.Email).ToArray();
+    private const string RotatableDisplayName = "Workslip Test Superadmin";
 
     public async Task BootstrapAsync(CancellationToken cancellationToken = default)
     {
-        // Bootstrap owns the unit of work. Discard caller tracking state so an
-        // existing tenant-bound row can be moved without EF treating the
-        // organization component of its alternate key as an in-place key edit.
+        var configuredEmail = ResolveConfiguredEmail();
         db.ChangeTracker.Clear();
 
         IDbContextTransaction? transaction = null;
-        var createdEntraUserIds = new List<string>();
-        var createdEntraUserIdSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CreateEntraUserResult? configuredEntraUser = null;
         var previousIsSeeding = db.IsSeeding;
-        IReadOnlyList<ResolvedSuperadmin>? resolvedSuperadmins = null;
-        IReadOnlyDictionary<Guid, CreateEntraUserResult>? entraUsers = null;
 
         db.IsSeeding = true;
         try
@@ -63,58 +52,43 @@ public sealed class PlatformIdentityBootstrapper(
                     cancellationToken);
             }
 
-            resolvedSuperadmins = await PreflightCanonicalSuperadminsAsync(cancellationToken);
-            var resolvedSuperadminIds = resolvedSuperadmins
-                .Select(resolved => resolved.EffectiveId)
-                .ToArray();
-            var platformOrganization = await PreflightPlatformOrganizationAsync(
-                resolvedSuperadminIds,
-                cancellationToken);
-
-            StagePlatformOrganization(platformOrganization);
+            var preflight = await PreflightAsync(configuredEmail, cancellationToken);
+            StagePlatformOrganization(preflight.PlatformOrganization);
             await db.SaveChangesAsync(cancellationToken);
 
-            var resolvedEntraUsers = new Dictionary<Guid, CreateEntraUserResult>();
-            foreach (var resolvedSuperadmin in resolvedSuperadmins)
+            configuredEntraUser = await entraService.EnsureSuperadminAsync(
+                configuredEmail,
+                RotatableDisplayName,
+                cancellationToken);
+            ValidateEntraResult(configuredEntraUser);
+            await EnsureEntraIdentityIsNotOwnedByAnotherUserAsync(
+                configuredEntraUser.EntraUserId,
+                preflight.TargetUser?.Id,
+                cancellationToken);
+
+            var staleEntraIds = preflight.ReservedUsers
+                .Where(user => preflight.TargetUser is null || user.Id != preflight.TargetUser.Id)
+                .Select(user => user.EntraId)
+                .Append(preflight.TargetUser?.EntraId ?? string.Empty)
+                .Where(entraId =>
+                    !string.IsNullOrWhiteSpace(entraId) &&
+                    !string.Equals(
+                        entraId,
+                        configuredEntraUser.EntraUserId,
+                        StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            foreach (var staleEntraId in staleEntraIds)
             {
-                var definition = resolvedSuperadmin.Definition;
-                var entraUser = await entraService.EnsureSuperadminAsync(
-                    definition.Email,
-                    definition.DisplayName,
-                    cancellationToken);
-
-                // Record every usable newly-created identity before any later
-                // validation can fail so compensation cannot lose it.
-                if (entraUser.Created &&
-                    !string.IsNullOrWhiteSpace(entraUser.EntraUserId) &&
-                    createdEntraUserIdSet.Add(entraUser.EntraUserId))
-                {
-                    createdEntraUserIds.Add(entraUser.EntraUserId);
-                }
-
-                ValidateEntraIdentity(resolvedSuperadmin, entraUser, resolvedEntraUsers.Values);
-                if (!string.IsNullOrWhiteSpace(resolvedSuperadmin.ExistingUser?.EntraId))
-                {
-                    entraUser = entraUser with
-                    {
-                        EntraUserId = resolvedSuperadmin.ExistingUser.EntraId
-                    };
-                }
-
-                resolvedEntraUsers.Add(definition.Id, entraUser);
+                await entraService.RevokeSuperadminAsync(staleEntraId, cancellationToken);
             }
 
-            entraUsers = resolvedEntraUsers;
-            await ValidateEntraIdentityOwnershipAsync(resolvedSuperadmins, entraUsers, cancellationToken);
-
-            foreach (var resolvedSuperadmin in resolvedSuperadmins)
-            {
-                await StageSuperadminReconciliationAsync(
-                    resolvedSuperadmin,
-                    entraUsers[resolvedSuperadmin.Definition.Id],
-                    cancellationToken);
-            }
-
+            await StageConfiguredSuperadminAsync(
+                preflight,
+                configuredEmail,
+                configuredEntraUser,
+                cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
 
             if (transaction is not null)
@@ -137,23 +111,25 @@ public sealed class PlatformIdentityBootstrapper(
                 {
                     logger.LogError(
                         rollbackException,
-                        "Platform identity bootstrap database rollback failed.");
+                        "Rotatable platform Superadmin database rollback failed.");
                     failures.Add(rollbackException);
                 }
             }
 
-            for (var index = createdEntraUserIds.Count - 1; index >= 0; index--)
+            if (configuredEntraUser?.Created == true &&
+                !string.IsNullOrWhiteSpace(configuredEntraUser.EntraUserId))
             {
-                var entraUserId = createdEntraUserIds[index];
                 try
                 {
-                    await entraService.DeleteUserAsync(entraUserId, CancellationToken.None);
+                    await entraService.DeleteUserAsync(
+                        configuredEntraUser.EntraUserId,
+                        CancellationToken.None);
                 }
                 catch (Exception compensationException)
                 {
                     logger.LogError(
                         compensationException,
-                        "Platform Superadmin Entra compensation failed.");
+                        "Rotatable platform Superadmin Entra compensation failed.");
                     failures.Add(compensationException);
                 }
             }
@@ -161,7 +137,7 @@ public sealed class PlatformIdentityBootstrapper(
             if (failures.Count > 1)
             {
                 throw new AggregateException(
-                    "Platform identity bootstrap failed and one or more rollback operations also failed.",
+                    "Rotatable platform Superadmin bootstrap failed and rollback was incomplete.",
                     failures);
             }
 
@@ -177,25 +153,95 @@ public sealed class PlatformIdentityBootstrapper(
             }
         }
 
-        if (resolvedSuperadmins is null || entraUsers is null)
-        {
-            return;
-        }
-
-        foreach (var resolvedSuperadmin in resolvedSuperadmins)
-        {
-            var definition = resolvedSuperadmin.Definition;
-            var entraUser = entraUsers[definition.Id];
-            logger.LogInformation(
-                "Platform Superadmin reconciled. UserId: {UserId}. OrganizationId: {OrganizationId}. EntraIdentityCreated: {EntraIdentityCreated}.",
-                resolvedSuperadmin.EffectiveId,
-                PlatformOrganization.Id,
-                entraUser.Created);
-        }
+        logger.LogInformation(
+            "Rotatable platform Superadmin reconciled. OrganizationId: {OrganizationId}. UserId: {UserId}. EntraIdentityCreated: {EntraIdentityCreated}.",
+            PlatformOrganization.Id,
+            RotatableSuperadminId,
+            configuredEntraUser?.Created ?? false);
     }
 
-    private async Task<OrganizationRow?> PreflightPlatformOrganizationAsync(
-        IReadOnlyCollection<Guid> resolvedSuperadminIds,
+    private string ResolveConfiguredEmail()
+    {
+        var email = configuration[SuperadminEmailConfigurationKey]?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            throw new InvalidOperationException(
+                $"Platform Superadmin bootstrap requires '{SuperadminEmailConfigurationKey}'. No fallback identity is allowed.");
+        }
+
+        var at = email.IndexOf('@');
+        if (at <= 0 || at != email.LastIndexOf('@') || at == email.Length - 1)
+        {
+            throw new InvalidOperationException(
+                $"Platform Superadmin bootstrap configuration '{SuperadminEmailConfigurationKey}' is not a valid email address.");
+        }
+
+        return email;
+    }
+
+    private async Task<BootstrapPreflight> PreflightAsync(
+        string configuredEmail,
+        CancellationToken cancellationToken)
+    {
+        var platformOrganization = await ResolvePlatformOrganizationAsync(cancellationToken);
+
+        var relevantUsers = await db.Users
+            .AsNoTracking()
+            .Where(user =>
+                ReservedSuperadminIds.Contains(user.Id) ||
+                user.OrganizationId == PlatformOrganization.Id ||
+                (user.Email != null && user.Email.ToLower() == configuredEmail))
+            .ToListAsync(cancellationToken);
+
+        var emailOwners = relevantUsers
+            .Where(user => NormalizeEmail(user.Email) == configuredEmail)
+            .ToArray();
+        if (emailOwners.Length > 1)
+        {
+            throw new InvalidOperationException(
+                "Configured platform Superadmin email identifies more than one Workslip user.");
+        }
+
+        var emailOwner = emailOwners.SingleOrDefault();
+        if (emailOwner is not null && !ReservedSuperadminIds.Contains(emailOwner.Id))
+        {
+            throw new InvalidOperationException(
+                "Configured platform Superadmin email is already owned by a non-bootstrap Workslip user. Bootstrap refused to escalate or move that user.");
+        }
+
+        var unknownPlatformUser = relevantUsers.FirstOrDefault(user =>
+            user.OrganizationId == PlatformOrganization.Id &&
+            !ReservedSuperadminIds.Contains(user.Id));
+        if (unknownPlatformUser is not null)
+        {
+            throw PlatformContamination("non-bootstrap users");
+        }
+
+        var rotatable = relevantUsers.SingleOrDefault(user => user.Id == RotatableSuperadminId);
+        if (rotatable is not null && emailOwner is not null && emailOwner.Id != rotatable.Id)
+        {
+            throw new InvalidOperationException(
+                "Configured platform Superadmin email conflicts with the existing rotatable platform identity.");
+        }
+
+        var target = rotatable ?? emailOwner;
+        var reservedUsers = relevantUsers
+            .Where(user => ReservedSuperadminIds.Contains(user.Id))
+            .ToArray();
+
+        foreach (var user in reservedUsers)
+        {
+            if (user.OrganizationId != PlatformOrganization.Id)
+            {
+                await EnsureNoTenantBoundReferencesAsync(user.Id, cancellationToken);
+            }
+        }
+
+        await EnsurePlatformOrganizationHasNoOperationalDataAsync(cancellationToken);
+        return new BootstrapPreflight(platformOrganization, target, reservedUsers);
+    }
+
+    private async Task<OrganizationRow?> ResolvePlatformOrganizationAsync(
         CancellationToken cancellationToken)
     {
         var reservedMatches = await db.Organizations
@@ -219,156 +265,36 @@ public sealed class PlatformIdentityBootstrapper(
                 $"Reserved platform organization identity conflict: ID '{PlatformOrganization.Id}' and CVR '{PlatformOrganization.Cvr}' must identify the same organization.");
         }
 
-        await EnsurePlatformOrganizationIsUncontaminatedAsync(
-            resolvedSuperadminIds,
-            cancellationToken);
         return platformOrganization;
     }
 
-    private async Task EnsurePlatformOrganizationIsUncontaminatedAsync(
-        IReadOnlyCollection<Guid> resolvedSuperadminIds,
+    private async Task EnsurePlatformOrganizationHasNoOperationalDataAsync(
         CancellationToken cancellationToken)
     {
-        if (await db.Users.AnyAsync(
-                user =>
-                    user.OrganizationId == PlatformOrganization.Id &&
-                    !resolvedSuperadminIds.Contains(user.Id),
-                cancellationToken))
-        {
-            throw PlatformContamination("non-canonical users");
-        }
-
-        if (await db.Customers.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.Customers.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("customers");
-        }
-
-        if (await db.JobReports.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.JobReports.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("job reports");
-        }
-
-        if (await db.JobAssignments.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.JobAssignments.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("job assignments");
-        }
-
-        if (await db.JobReportLinks.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.JobReportLinks.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("job report links");
-        }
-
-        if (await db.JobEvents.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.JobEvents.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("job events");
-        }
-
-        if (await db.InviteTokens.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.InviteTokens.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("invite tokens");
-        }
-
-        if (await db.Worksheets.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.Worksheets.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("worksheets");
-        }
-
-        if (await db.JobReportClosureFlags.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.JobReportClosureFlags.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("job closure selections");
-        }
-
-        if (await db.JobReportInstallations.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.JobReportInstallations.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("job installations");
-        }
-
-        if (await db.ControlCategoryRow.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.ControlCategoryRow.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("control categories");
-        }
-
-        if (await db.ControlPointRow.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.ControlPointRow.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("control points");
-        }
-
-        if (await db.InstallationTypeDefinitions.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.InstallationTypeDefinitions.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("installation definitions");
-        }
-    }
-
-    private async Task<IReadOnlyList<ResolvedSuperadmin>> PreflightCanonicalSuperadminsAsync(
-        CancellationToken cancellationToken)
-    {
-        var matchingUsers = await db.Users
-            .AsNoTracking()
-            .Where(user =>
-                CanonicalSuperadminIds.Contains(user.Id) ||
-                (user.Email != null &&
-                 CanonicalSuperadminEmails.Contains(user.Email.Trim().ToLower())))
-            .ToListAsync(cancellationToken);
-
-        var resolvedSuperadmins = new List<ResolvedSuperadmin>(CanonicalSuperadmins.Length);
-        foreach (var definition in CanonicalSuperadmins)
-        {
-            var userWithCanonicalId = matchingUsers.SingleOrDefault(user => user.Id == definition.Id);
-            var usersWithCanonicalEmail = matchingUsers
-                .Where(user => NormalizeEmail(user.Email) == definition.Email)
-                .ToArray();
-
-            if (usersWithCanonicalEmail.Length > 1 ||
-                (userWithCanonicalId is not null &&
-                 usersWithCanonicalEmail.Any(user => user.Id != userWithCanonicalId.Id)))
-            {
-                throw CanonicalIdentityConflict(definition);
-            }
-
-            var existingUser = userWithCanonicalId ?? usersWithCanonicalEmail.SingleOrDefault();
-            if (userWithCanonicalId is not null &&
-                NormalizeEmail(userWithCanonicalId.Email) != definition.Email)
-            {
-                throw CanonicalIdentityConflict(definition);
-            }
-
-            if (existingUser is null)
-            {
-                resolvedSuperadmins.Add(new ResolvedSuperadmin(definition, ExistingUser: null));
-                continue;
-            }
-
-            await EnsureNoTenantBoundReferencesAsync(existingUser.Id, cancellationToken);
-            resolvedSuperadmins.Add(new ResolvedSuperadmin(
-                definition,
-                UserSnapshot.From(existingUser)));
-        }
-
-        return resolvedSuperadmins;
     }
 
     private async Task EnsureNoTenantBoundReferencesAsync(
@@ -378,23 +304,86 @@ public sealed class PlatformIdentityBootstrapper(
         if (await db.JobAssignments.AnyAsync(
                 row => row.UserId == userId || row.AssignedByUserId == userId,
                 cancellationToken))
-        {
             throw TenantReferenceConflict(userId, "job assignments");
-        }
-
-        if (await db.JobEvents.AnyAsync(
-                row => row.ActorId == userId,
-                cancellationToken))
-        {
+        if (await db.JobEvents.AnyAsync(row => row.ActorId == userId, cancellationToken))
             throw TenantReferenceConflict(userId, "job events");
+        if (await db.Worksheets.AnyAsync(row => row.UserId == userId, cancellationToken))
+            throw TenantReferenceConflict(userId, "worksheets");
+    }
+
+    private async Task EnsureEntraIdentityIsNotOwnedByAnotherUserAsync(
+        string entraUserId,
+        Guid? targetUserId,
+        CancellationToken cancellationToken)
+    {
+        var conflictingOwner = await db.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                user =>
+                    user.EntraId == entraUserId &&
+                    (!targetUserId.HasValue || user.Id != targetUserId.Value) &&
+                    !LegacySuperadminIds.Contains(user.Id),
+                cancellationToken);
+
+        if (conflictingOwner is not null)
+        {
+            throw new InvalidOperationException(
+                $"Configured platform Superadmin Entra identity is already linked to Workslip user '{conflictingOwner.Id}'.");
+        }
+    }
+
+    private async Task StageConfiguredSuperadminAsync(
+        BootstrapPreflight preflight,
+        string configuredEmail,
+        CreateEntraUserResult entraUser,
+        CancellationToken cancellationToken)
+    {
+        var trackedReservedUsers = await db.Users
+            .Where(user => ReservedSuperadminIds.Contains(user.Id))
+            .ToListAsync(cancellationToken);
+
+        var targetId = preflight.TargetUser?.Id ?? RotatableSuperadminId;
+        foreach (var staleUser in trackedReservedUsers.Where(user => user.Id != targetId).ToArray())
+        {
+            await DeleteEphemeralReferencesAsync(staleUser.Id, cancellationToken);
+            db.Users.Remove(staleUser);
         }
 
-        if (await db.Worksheets.AnyAsync(
-                row => row.UserId == userId,
-                cancellationToken))
+        var target = trackedReservedUsers.SingleOrDefault(user => user.Id == targetId);
+        var now = DateTimeOffset.UtcNow;
+        if (target is null)
         {
-            throw TenantReferenceConflict(userId, "worksheets");
+            db.Users.Add(new UserDataRow
+            {
+                Id = RotatableSuperadminId,
+                OrganizationId = PlatformOrganization.Id,
+                FilialId = PlatformOrganization.Id,
+                DisplayName = RotatableDisplayName,
+                Email = configuredEmail,
+                Phone = string.Empty,
+                Role = Roles.Superadmin,
+                EntraId = entraUser.EntraUserId,
+                EntraEmail = entraUser.EntraMail,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+            return;
         }
+
+        if (target.OrganizationId != PlatformOrganization.Id)
+        {
+            await DeleteEphemeralReferencesAsync(target.Id, cancellationToken);
+        }
+
+        target.OrganizationId = PlatformOrganization.Id;
+        target.FilialId = PlatformOrganization.Id;
+        target.DisplayName = RotatableDisplayName;
+        target.Email = configuredEmail;
+        target.Phone = string.Empty;
+        target.Role = Roles.Superadmin;
+        target.EntraId = entraUser.EntraUserId;
+        target.EntraEmail = entraUser.EntraMail;
+        target.UpdatedAt = now;
     }
 
     private async Task DeleteEphemeralReferencesAsync(
@@ -403,15 +392,9 @@ public sealed class PlatformIdentityBootstrapper(
     {
         if (db.Database.IsRelational())
         {
-            await db.JobViews
-                .Where(view => view.UserId == userId)
-                .ExecuteDeleteAsync(cancellationToken);
-            await db.PushSubscriptions
-                .Where(subscription => subscription.UserId == userId)
-                .ExecuteDeleteAsync(cancellationToken);
-            await db.NotificationQueue
-                .Where(notification => notification.UserId == userId)
-                .ExecuteDeleteAsync(cancellationToken);
+            await db.JobViews.Where(view => view.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+            await db.PushSubscriptions.Where(subscription => subscription.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+            await db.NotificationQueue.Where(notification => notification.UserId == userId).ExecuteDeleteAsync(cancellationToken);
             return;
         }
 
@@ -422,7 +405,7 @@ public sealed class PlatformIdentityBootstrapper(
 
     private void StagePlatformOrganization(OrganizationRow? platformOrganization)
     {
-        var timestamp = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.UtcNow;
         if (platformOrganization is null)
         {
             db.Organizations.Add(new OrganizationRow
@@ -430,248 +413,38 @@ public sealed class PlatformIdentityBootstrapper(
                 Id = PlatformOrganization.Id,
                 Name = PlatformOrganization.Name,
                 Cvr = PlatformOrganization.Cvr,
-                CreatedAt = timestamp,
-                UpdatedAt = timestamp
+                CreatedAt = now,
+                UpdatedAt = now
             });
             return;
         }
 
-        if (platformOrganization.Name == PlatformOrganization.Name)
+        if (platformOrganization.Name != PlatformOrganization.Name)
         {
-            return;
-        }
-
-        var entry = db.Entry(platformOrganization);
-        entry.Property(organization => organization.Name).CurrentValue = PlatformOrganization.Name;
-        entry.Property(organization => organization.UpdatedAt).CurrentValue = timestamp;
-    }
-
-    private async Task ValidateEntraIdentityOwnershipAsync(
-        IReadOnlyList<ResolvedSuperadmin> resolvedSuperadmins,
-        IReadOnlyDictionary<Guid, CreateEntraUserResult> entraUsers,
-        CancellationToken cancellationToken)
-    {
-        var canonicalIds = resolvedSuperadmins
-            .Select(resolved => resolved.EffectiveId)
-            .ToArray();
-        var entraUserIds = entraUsers.Values
-            .Select(user => user.EntraUserId)
-            .ToArray();
-
-        var conflictingOwner = await db.Users
-            .AsNoTracking()
-            .FirstOrDefaultAsync(
-                user =>
-                    !canonicalIds.Contains(user.Id) &&
-                    entraUserIds.Contains(user.EntraId),
-                cancellationToken);
-
-        if (conflictingOwner is not null)
-        {
-            throw new InvalidOperationException(
-                $"Platform Superadmin Entra identity '{conflictingOwner.EntraId}' is already linked to a different Workslip user '{conflictingOwner.Id}'.");
+            platformOrganization.Name = PlatformOrganization.Name;
+            platformOrganization.UpdatedAt = now;
         }
     }
 
-    private async Task StageSuperadminReconciliationAsync(
-        ResolvedSuperadmin resolvedSuperadmin,
-        CreateEntraUserResult entraUser,
-        CancellationToken cancellationToken)
+    private static void ValidateEntraResult(CreateEntraUserResult entraUser)
     {
-        var definition = resolvedSuperadmin.Definition;
-        var timestamp = DateTimeOffset.UtcNow;
-        if (resolvedSuperadmin.ExistingUser is null)
-        {
-            db.Users.Add(new UserDataRow
-            {
-                Id = definition.Id,
-                OrganizationId = PlatformOrganization.Id,
-                FilialId = PlatformOrganization.Id,
-                DisplayName = definition.DisplayName,
-                Email = definition.Email,
-                Phone = definition.Phone,
-                Role = Roles.Superadmin,
-                EntraId = entraUser.EntraUserId,
-                EntraEmail = entraUser.EntraMail,
-                CreatedAt = timestamp,
-                UpdatedAt = timestamp
-            });
-            return;
-        }
-
-        var existing = resolvedSuperadmin.ExistingUser;
-        if (existing.OrganizationId != PlatformOrganization.Id)
-        {
-            await DeleteEphemeralReferencesAsync(existing.Id, cancellationToken);
-        }
-
-        var requiresUpdate = !existing.MatchesDesired(definition, entraUser);
-        var reconciledUpdatedAt = requiresUpdate ? timestamp : existing.UpdatedAt;
-        if (db.Database.IsRelational())
-        {
-            var affectedRows = await db.Users
-                .Where(user =>
-                    user.Id == existing.Id &&
-                    user.OrganizationId == existing.OrganizationId &&
-                    user.DisplayName == existing.DisplayName &&
-                    user.Email == existing.Email &&
-                    user.Phone == existing.Phone &&
-                    user.Role == existing.Role &&
-                    user.EntraId == existing.EntraId &&
-                    user.EntraEmail == existing.EntraEmail &&
-                    user.UpdatedAt == existing.UpdatedAt)
-                .ExecuteUpdateAsync(
-                    setters => setters
-                        .SetProperty(user => user.OrganizationId, PlatformOrganization.Id)
-                        .SetProperty(user => user.FilialId, PlatformOrganization.Id)
-                        .SetProperty(user => user.DisplayName, definition.DisplayName)
-                        .SetProperty(user => user.Email, definition.Email)
-                        .SetProperty(user => user.Phone, definition.Phone)
-                        .SetProperty(user => user.Role, Roles.Superadmin)
-                        .SetProperty(user => user.EntraId, entraUser.EntraUserId)
-                        .SetProperty(user => user.EntraEmail, entraUser.EntraMail)
-                        .SetProperty(user => user.UpdatedAt, reconciledUpdatedAt),
-                    cancellationToken);
-
-            if (affectedRows != 1)
-            {
-                throw ConcurrentCanonicalUserChange(existing.Id);
-            }
-
-            return;
-        }
-
-        var trackedUser = await db.Users.SingleOrDefaultAsync(
-            user => user.Id == existing.Id,
-            cancellationToken);
-        if (trackedUser is null || !existing.Matches(trackedUser))
-        {
-            throw ConcurrentCanonicalUserChange(existing.Id);
-        }
-
-        if (!requiresUpdate)
-        {
-            return;
-        }
-
-        trackedUser.OrganizationId = PlatformOrganization.Id;
-        trackedUser.FilialId = PlatformOrganization.Id;
-        trackedUser.DisplayName = definition.DisplayName;
-        trackedUser.Email = definition.Email;
-        trackedUser.Phone = definition.Phone;
-        trackedUser.Role = Roles.Superadmin;
-        trackedUser.EntraId = entraUser.EntraUserId;
-        trackedUser.EntraEmail = entraUser.EntraMail;
-        trackedUser.UpdatedAt = reconciledUpdatedAt;
-    }
-
-    private static void ValidateEntraIdentity(
-        ResolvedSuperadmin resolvedSuperadmin,
-        CreateEntraUserResult entraUser,
-        IEnumerable<CreateEntraUserResult> alreadyResolvedUsers)
-    {
-        var definition = resolvedSuperadmin.Definition;
         if (string.IsNullOrWhiteSpace(entraUser.EntraUserId))
-        {
-            throw new InvalidOperationException(
-                $"Graph returned no Entra user ID for platform Superadmin '{resolvedSuperadmin.EffectiveId}'.");
-        }
-
-        var existingEntraId = resolvedSuperadmin.ExistingUser?.EntraId;
-        if (!string.IsNullOrWhiteSpace(existingEntraId) &&
-            !string.Equals(existingEntraId, entraUser.EntraUserId, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException(
-                $"Graph resolved Entra user ID '{entraUser.EntraUserId}' for platform Superadmin '{resolvedSuperadmin.EffectiveId}', but the Workslip row is already bound to '{existingEntraId}'. The existing binding was preserved.");
-        }
-
-        if (alreadyResolvedUsers.Any(
-                resolved => string.Equals(
-                    resolved.EntraUserId,
-                    entraUser.EntraUserId,
-                    StringComparison.OrdinalIgnoreCase)))
-        {
-            throw new InvalidOperationException(
-                $"Graph returned Entra user ID '{entraUser.EntraUserId}' for more than one platform Superadmin.");
-        }
+            throw new InvalidOperationException("Graph returned no Entra user ID for the configured platform Superadmin.");
+        if (string.IsNullOrWhiteSpace(entraUser.EntraMail))
+            throw new InvalidOperationException("Graph returned no Entra mail identity for the configured platform Superadmin.");
     }
 
-    private static string NormalizeEmail(string email) =>
-        email.Trim().ToLowerInvariant();
+    private static string NormalizeEmail(string? email) =>
+        email?.Trim().ToLowerInvariant() ?? string.Empty;
 
     private static InvalidOperationException PlatformContamination(string relation) =>
-        new(
-            $"Reserved platform organization '{PlatformOrganization.Id}' contains {relation}. Remove the customer or operational data before running platform identity bootstrap.");
-
-    private static InvalidOperationException CanonicalIdentityConflict(
-        CanonicalSuperadminDefinition definition) =>
-        new(
-            $"Platform Superadmin identity conflict: reserved create ID '{definition.Id}' and normalized email '{definition.Email}' identify different Workslip users.");
+        new($"Reserved platform organization '{PlatformOrganization.Id}' contains {relation}. Bootstrap refused to mix platform identity with tenant data.");
 
     private static InvalidOperationException TenantReferenceConflict(Guid userId, string relation) =>
-        new(
-            $"Platform Superadmin '{userId}' has tenant-bound references in {relation} and cannot be moved to '{PlatformOrganization.Name}'.");
+        new($"Legacy platform Superadmin '{userId}' has tenant-bound references in {relation}; rotation was refused.");
 
-    private static InvalidOperationException ConcurrentCanonicalUserChange(Guid userId) =>
-        new(
-            $"Platform Superadmin '{userId}' changed after bootstrap preflight; reconciliation was aborted.");
-
-    private sealed record CanonicalSuperadminDefinition(
-        Guid Id,
-        string DisplayName,
-        string Email,
-        string Phone);
-
-    private sealed record ResolvedSuperadmin(
-        CanonicalSuperadminDefinition Definition,
-        UserSnapshot? ExistingUser)
-    {
-        internal Guid EffectiveId => ExistingUser?.Id ?? Definition.Id;
-    }
-
-    private sealed record UserSnapshot(
-        Guid Id,
-        Guid OrganizationId,
-        string DisplayName,
-        string Email,
-        string Phone,
-        string Role,
-        string EntraId,
-        string EntraEmail,
-        DateTimeOffset UpdatedAt)
-    {
-        internal static UserSnapshot From(UserDataRow user) =>
-            new(
-                user.Id,
-                user.OrganizationId,
-                user.DisplayName,
-                user.Email,
-                user.Phone,
-                user.Role,
-                user.EntraId,
-                user.EntraEmail,
-                user.UpdatedAt);
-
-        internal bool Matches(UserDataRow user) =>
-            user.Id == Id &&
-            user.OrganizationId == OrganizationId &&
-            user.DisplayName == DisplayName &&
-            user.Email == Email &&
-            user.Phone == Phone &&
-            user.Role == Role &&
-            user.EntraId == EntraId &&
-            user.EntraEmail == EntraEmail &&
-            user.UpdatedAt == UpdatedAt;
-
-        internal bool MatchesDesired(
-            CanonicalSuperadminDefinition definition,
-            CreateEntraUserResult entraUser) =>
-            OrganizationId == PlatformOrganization.Id &&
-            DisplayName == definition.DisplayName &&
-            Email == definition.Email &&
-            Phone == definition.Phone &&
-            Role == Roles.Superadmin &&
-            EntraId == entraUser.EntraUserId &&
-            EntraEmail == entraUser.EntraMail;
-    }
+    private sealed record BootstrapPreflight(
+        OrganizationRow? PlatformOrganization,
+        UserDataRow? TargetUser,
+        IReadOnlyList<UserDataRow> ReservedUsers);
 }
