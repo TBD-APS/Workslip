@@ -39,6 +39,7 @@ export const AppLayout = () => {
   const canViewCustomers = useCan('customer:view');
   const canEditCustomers = useCan('customer:edit');
   const canCreateJobs = useCan('job:create');
+  const canViewAllJobs = useCan('job:viewAll');
   const canManageOrganization = useCan('organization:manage');
   const organizationSession = getOrganizationSession();
   const appHomePath = getAuthenticatedHomePath(user?.role);
@@ -201,6 +202,8 @@ export const AppLayout = () => {
         homeLabel={isAuditorSession ? 'Rapporter' : 'Sager'}
         canUseAppCommands={canUseAppCommands}
         canSearchJobs={canUseAppCommands && canViewTimer}
+        canViewAllJobs={canViewAllJobs}
+        currentUserId={user?.id}
         canViewTimer={canUseAppCommands && canViewTimer}
         canManageUsers={canUseAppCommands && canManageUsers}
         canViewCustomers={canUseAppCommands && canViewCustomers}
