@@ -212,8 +212,8 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      issues: write
       pull-requests: read
+      statuses: write
     env:
       PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
       HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
@@ -238,12 +238,14 @@ jobs:
         run: cat ai-review-body.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Post or update review through personal account
+        id: post
         if: env.PERSONAL_REVIEW_TOKEN != ''
         env:
           REVIEW_TOKEN: ${{ env.PERSONAL_REVIEW_TOKEN }}
         run: node .github/ai-review/post-review.mjs
 
       - name: Require personal review token configuration
+        id: token
         if: env.PERSONAL_REVIEW_TOKEN == ''
         shell: bash
         run: |
@@ -251,8 +253,44 @@ jobs:
           exit 1
 
       - name: Surface consensus blockers
+        id: blocker
         if: steps.aggregate.outputs.blocking == 'true'
         shell: bash
         run: |
           echo 'OpenAI and Claude independently reported a matching high/critical high-confidence finding.' >&2
           exit 1
+
+      - name: Publish exact-head AI review status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BLOCKING: ${{ steps.aggregate.outputs.blocking }}
+          PROVIDERS: ${{ steps.aggregate.outputs.providers }}
+          POST_OUTCOME: ${{ steps.post.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          state=success
+          description='OpenAI + Claude review completed'
+
+          if [ -z "${PERSONAL_REVIEW_TOKEN}" ]; then
+            state=error
+            description='Personal review token is not configured'
+          elif [ "${POST_OUTCOME}" = "failure" ]; then
+            state=error
+            description='AI review generated but PR comment failed'
+          elif [ "${PROVIDERS:-0}" = "0" ]; then
+            state=error
+            description='No AI review provider was available'
+          elif [ "${BLOCKING}" = "true" ]; then
+            state=failure
+            description='OpenAI + Claude found a consensus blocker'
+          elif [ "${PROVIDERS}" = "1" ]; then
+            description='AI review completed in degraded one-provider mode'
+          fi
+
+          gh api --method POST "/repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+            -f state="$state" \
+            -f context='AI PR Review' \
+            -f description="$description" \
+            -f target_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
