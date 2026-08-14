@@ -176,7 +176,19 @@ async function fillIfVisible(locator, value) { if (await locator.isVisible().cat
 async function waitForEnabled(locator, description, timeout = UI_TIMEOUT) { await locator.waitFor({ state: 'visible', timeout }); const start = Date.now(); while (await locator.isDisabled()) { if (Date.now() - start > timeout) throw new Error(`${description} remained disabled.`); await new Promise((resolve) => setTimeout(resolve, 150)); } }
 async function waitForWizardStep(page, label) { await page.getByRole('button', { name: `${label} - aktuelt trin`, exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT }); }
 async function currentWizardStep(page) { for (const label of ['Sagsdetaljer', 'Anlægstyper', 'Kontrolpunkter', 'Timesedler', 'Afslutning', 'Attestering']) if (await page.getByRole('button', { name: `${label} - aktuelt trin`, exact: true }).isVisible().catch(() => false)) return label; return null; }
-async function clickNext(page, nextStep) { const button = page.getByRole('button', { name: 'Næste', exact: true }); await waitForEnabled(button, `Næste before ${nextStep}`); await button.click(); await waitForWizardStep(page, nextStep); }
+async function revealStepNavigation(page) {
+  const button = page.getByRole('button', { name: 'Næste', exact: true });
+  if (await button.isVisible().catch(() => false)) return button;
+  const shell = page.locator('.app-shell').first();
+  if (await shell.count()) {
+    await shell.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  } else {
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  }
+  await page.waitForTimeout(150);
+  return button;
+}
+async function clickNext(page, nextStep) { const button = await revealStepNavigation(page); await waitForEnabled(button, `Næste before ${nextStep}`); await button.click(); await waitForWizardStep(page, nextStep); }
 async function clickWizardStep(page, label) { const button = page.getByRole('button', { name: new RegExp(`^${escapeRegex(label)}`) }); await button.click(); await waitForWizardStep(page, label); }
 async function clickByTextCandidates(locator, values, description) { for (const value of values) { const match = locator.filter({ hasText: value }).first(); if (await match.isVisible().catch(() => false)) { await match.click(); return; } } throw new Error(`No visible ${description} matched runtime values: ${values.join(', ')}.`); }
 async function checkRadioByCandidates(page, values, description) {
