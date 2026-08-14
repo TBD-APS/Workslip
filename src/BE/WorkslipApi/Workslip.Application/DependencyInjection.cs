@@ -41,6 +41,7 @@ public static IServiceCollection AddWorkslipApplication(this IServiceCollection 
     services.AddScoped<IReferenceDataService, ReferenceDataService>();
     services.AddScoped<ICustomerService, CustomerService>();
     services.AddScoped<IDocumentService, DocumentService>();
+    services.AddScoped<IDocumentAttachmentService, DocumentAttachmentService>();
     services.AddScoped<IImageService, ImageService>();
     services.AddScoped<INotificationService, NotificationService>();
     services.AddScoped<IPushSubscriptionService, PushSubscriptionService>();

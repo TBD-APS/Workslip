@@ -13,7 +13,7 @@ public sealed class DocumentServiceTests
     public async Task List_without_organization_fails_closed()
     {
         var repository = new RecordingRepository();
-        var service = CreateService(repository, new TestCurrentUserContext(Guid.NewGuid(), null, "Admin"));
+        var service = CreateService(repository, new RecordingAttachmentStorage(), new TestCurrentUserContext(Guid.NewGuid(), null, "Admin"));
 
         var result = await service.ListAsync(null, null, null, CancellationToken.None);
 
@@ -27,7 +27,7 @@ public sealed class DocumentServiceTests
         var organizationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var repository = new RecordingRepository();
-        var service = CreateService(repository, new TestCurrentUserContext(userId, organizationId, "Admin"));
+        var service = CreateService(repository, new RecordingAttachmentStorage(), new TestCurrentUserContext(userId, organizationId, "Admin"));
 
         var result = await service.CreateAsync(
             new CreateDocumentRequest("  Driftshåndbog  ", "Indhold", [" Drift ", "drift", " Vagt "]),
@@ -48,6 +48,7 @@ public sealed class DocumentServiceTests
         var repository = new RecordingRepository { ThrowRevisionConflict = true };
         var service = CreateService(
             repository,
+            new RecordingAttachmentStorage(),
             new TestCurrentUserContext(Guid.NewGuid(), organizationId, "Admin"));
 
         var result = await service.UpdateAsync(
@@ -59,9 +60,31 @@ public sealed class DocumentServiceTests
         Assert.Equal(organizationId, repository.LastOrganizationId);
     }
 
-    private static DocumentService CreateService(RecordingRepository repository, ICurrentUserContext currentUser) =>
+    [Fact]
+    public async Task Delete_cleans_attachment_storage_after_document_delete()
+    {
+        var organizationId = Guid.NewGuid();
+        var documentId = Guid.NewGuid();
+        var repository = new RecordingRepository();
+        var storage = new RecordingAttachmentStorage();
+        var service = CreateService(
+            repository,
+            storage,
+            new TestCurrentUserContext(Guid.NewGuid(), organizationId, "Admin"));
+
+        var result = await service.DeleteAsync(documentId, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal((organizationId, documentId), storage.LastDeletedDocument);
+    }
+
+    private static DocumentService CreateService(
+        RecordingRepository repository,
+        IDocumentAttachmentStorage attachmentStorage,
+        ICurrentUserContext currentUser) =>
         new(
             repository,
+            attachmentStorage,
             currentUser,
             new CreateDocumentRequestValidator(),
             new UpdateDocumentRequestValidator(),
@@ -126,6 +149,26 @@ public sealed class DocumentServiceTests
         {
             LastOrganizationId = organizationId;
             return Task.FromResult(true);
+        }
+    }
+
+    private sealed class RecordingAttachmentStorage : IDocumentAttachmentStorage
+    {
+        public (Guid OrganizationId, Guid DocumentId)? LastDeletedDocument { get; private set; }
+
+        public Task UploadAsync(Guid organizationId, Guid documentId, Guid attachmentId, Stream content, string contentType, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task<DocumentAttachmentStoredFile?> GetAsync(Guid organizationId, Guid documentId, Guid attachmentId, CancellationToken cancellationToken) =>
+            Task.FromResult<DocumentAttachmentStoredFile?>(null);
+
+        public Task DeleteAsync(Guid organizationId, Guid documentId, Guid attachmentId, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task DeleteDocumentAsync(Guid organizationId, Guid documentId, CancellationToken cancellationToken)
+        {
+            LastDeletedDocument = (organizationId, documentId);
+            return Task.CompletedTask;
         }
     }
 }

@@ -1,10 +1,12 @@
 import { customAxiosInstance } from '../../api/fetcherOrval';
 import type {
   CreateDocumentRequest,
+  DocumentAttachmentInfoResponse,
   DocumentDetailResponse,
   DocumentListResponse,
   UpdateDocumentRequest,
 } from '../../api/generated/models';
+import { apiClient } from '../../lib/axios';
 
 export type DocumentListParams = {
   limit?: number;
@@ -48,4 +50,39 @@ export function deleteDocument(id: string) {
     url: `/api/docs/${id}`,
     method: 'DELETE',
   });
+}
+
+export function listDocumentAttachments(documentId: string) {
+  return customAxiosInstance<DocumentAttachmentInfoResponse[]>({
+    url: `/api/docs/${documentId}/attachments`,
+    method: 'GET',
+  });
+}
+
+export function uploadDocumentAttachment(documentId: string, file: File) {
+  const data = new FormData();
+  data.append('file', file);
+  return customAxiosInstance<DocumentAttachmentInfoResponse>({
+    url: `/api/docs/${documentId}/attachments`,
+    method: 'POST',
+    data,
+  });
+}
+
+export function deleteDocumentAttachment(documentId: string, attachmentId: string) {
+  return customAxiosInstance<void>({
+    url: `/api/docs/${documentId}/attachments/${attachmentId}`,
+    method: 'DELETE',
+  });
+}
+
+export async function downloadDocumentAttachment(documentId: string, attachmentId: string): Promise<Blob> {
+  const response = await apiClient.get<Blob>(
+    `/api/docs/${documentId}/attachments/${attachmentId}`,
+    {
+      responseType: 'blob',
+      skipGlobalErrorToast: true,
+    },
+  );
+  return response.data;
 }

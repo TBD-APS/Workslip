@@ -44,5 +44,31 @@ public sealed record DocumentDetailResponse(
     string? UpdatedByDisplayName,
     long Revision);
 
+public sealed record DocumentAttachmentInfoResponse(
+    Guid Id,
+    Guid DocumentId,
+    string FileName,
+    string ContentType,
+    long SizeBytes,
+    DateTimeOffset CreatedAt,
+    Guid? UploadedByUserId,
+    string? UploadedByDisplayName);
+
+public sealed record DocumentAttachmentUpload(
+    Stream Content,
+    long ContentLength,
+    string FileName,
+    string ContentType);
+
+public sealed record DocumentAttachmentFileResponse(
+    Stream Content,
+    long ContentLength,
+    string FileName,
+    string ContentType);
+
+public sealed record DocumentAttachmentStoredFile(
+    Stream Content,
+    long ContentLength);
+
 public sealed class DocumentRevisionConflictException(Guid documentId)
     : Exception($"Document '{documentId}' was updated by another request.");

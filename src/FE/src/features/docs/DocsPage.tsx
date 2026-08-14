@@ -17,6 +17,7 @@ import type { DocumentDetailResponse } from '../../api/generated/models';
 import { ErrorState } from '../../components/ErrorState';
 import { notify } from '../../lib/toast';
 import { useCan } from '../../providers/permissions/usePermissions';
+import { DocumentAttachments } from './DocumentAttachments';
 import {
   createDocument,
   deleteDocument,
@@ -25,6 +26,7 @@ import {
   updateDocument,
 } from './docsApi';
 import './docs.css';
+import './docsAttachments.css';
 
 type Draft = {
   title: string;
@@ -436,6 +438,10 @@ export const DocsPage = () => {
                 </footer>
               </div>
             ) : null}
+
+            {selectedDocument && (
+              <DocumentAttachments documentId={selectedDocument.id} canEdit={canEdit} />
+            )}
           </article>
         )}
       </main>

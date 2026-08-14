@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Workslip.Api.Helpers;
 using Workslip.Api.Services;
 using Workslip.Application.Auth;
@@ -7,6 +8,8 @@ namespace Workslip.Api.Endpoints;
 
 public static class DocumentEndpoints
 {
+    private const long AttachmentRequestSizeLimit = DocumentAttachmentService.MaxAttachmentSizeBytes + (1024 * 1024);
+
     public static IEndpointRouteBuilder MapDocumentEndpoints(this IEndpointRouteBuilder app)
     {
         var readGroup = app.MapReadGroup("/api/docs", "docs");
@@ -22,6 +25,35 @@ public static class DocumentEndpoints
             HttpCacheHeaders.SetNoStore(httpContext);
             return ResultExtensions.ToHttpResult(await service.GetByIdAsync(id, cancellationToken));
         }).Produces<DocumentDetailResponse>();
+
+        readGroup.MapGet("/{id:guid}/attachments", async (
+            Guid id,
+            HttpContext httpContext,
+            IDocumentAttachmentService service,
+            CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            return ResultExtensions.ToHttpResult(await service.ListAsync(id, cancellationToken));
+        }).Produces<IReadOnlyList<DocumentAttachmentInfoResponse>>();
+
+        readGroup.MapGet("/{id:guid}/attachments/{attachmentId:guid}", async (
+            Guid id,
+            Guid attachmentId,
+            HttpContext httpContext,
+            IDocumentAttachmentService service,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await service.GetAsync(id, attachmentId, cancellationToken);
+            if (!result.IsSuccess)
+                return ResultExtensions.ToHttpResult(result);
+
+            HttpCacheHeaders.SetNoStore(httpContext);
+            return Results.Stream(
+                result.Value.Content,
+                result.Value.ContentType,
+                fileDownloadName: result.Value.FileName,
+                enableRangeProcessing: false);
+        });
 
         var adminGroup = app.MapAdminGroup("/api/docs", "docs");
 
@@ -67,6 +99,44 @@ public static class DocumentEndpoints
         {
             HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.DeleteAsync(id, cancellationToken);
+            return result.IsSuccess ? Results.NoContent() : ResultExtensions.ToHttpResult(result);
+        });
+
+        adminGroup.MapPost("/{id:guid}/attachments", async (
+            Guid id,
+            [FromForm] IFormFile file,
+            HttpContext httpContext,
+            IDocumentAttachmentService service,
+            CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            if (file is null)
+                return Results.BadRequest(new { error = "No attachment uploaded." });
+
+            await using var stream = file.OpenReadStream();
+            var result = await service.UploadAsync(
+                id,
+                new DocumentAttachmentUpload(
+                    stream,
+                    file.Length,
+                    file.FileName,
+                    file.ContentType),
+                cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        })
+        .DisableAntiforgery()
+        .WithMetadata(new RequestSizeLimitAttribute(AttachmentRequestSizeLimit))
+        .Produces<DocumentAttachmentInfoResponse>();
+
+        adminGroup.MapDelete("/{id:guid}/attachments/{attachmentId:guid}", async (
+            Guid id,
+            Guid attachmentId,
+            HttpContext httpContext,
+            IDocumentAttachmentService service,
+            CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            var result = await service.DeleteAsync(id, attachmentId, cancellationToken);
             return result.IsSuccess ? Results.NoContent() : ResultExtensions.ToHttpResult(result);
         });
 

@@ -34,6 +34,7 @@ public sealed class SqlDocumentRepositoryTenantIsolationTests
             .Options;
         await using var dbContext = new SqlDbContext(options);
         var repository = new SqlDocumentRepository(dbContext, new NoRetryPolicy());
+        var attachmentRepository = new SqlDocumentAttachmentRepository(dbContext, new NoRetryPolicy());
 
         var organizationA = Guid.NewGuid();
         var organizationB = Guid.NewGuid();
@@ -49,6 +50,22 @@ public sealed class SqlDocumentRepositoryTenantIsolationTests
         Assert.Null(await repository.GetByIdAsync(organizationB, created.Id, CancellationToken.None));
         Assert.Empty(await repository.ListAsync(organizationB, 50, 0, null, CancellationToken.None));
         Assert.Equal(0, await repository.CountAsync(organizationB, null, CancellationToken.None));
+
+        var attachmentId = Guid.NewGuid();
+        var attachment = await attachmentRepository.CreateAsync(
+            organizationA,
+            created.Id,
+            attachmentId,
+            "completion.mp3",
+            "audio/mpeg",
+            2048,
+            actor,
+            CancellationToken.None);
+        Assert.Equal(attachmentId, attachment.Id);
+        Assert.Single(await attachmentRepository.ListAsync(organizationA, created.Id, CancellationToken.None));
+        Assert.Empty(await attachmentRepository.ListAsync(organizationB, created.Id, CancellationToken.None));
+        Assert.Null(await attachmentRepository.GetAsync(organizationB, created.Id, attachmentId, CancellationToken.None));
+        Assert.False(await attachmentRepository.DeleteAsync(organizationB, created.Id, attachmentId, CancellationToken.None));
 
         var crossTenantUpdate = await repository.UpdateAsync(
             organizationB,
@@ -109,7 +126,24 @@ public sealed class SqlDocumentRepositoryTenantIsolationTests
                 CreatedAt TEXT NOT NULL,
                 UpdatedAt TEXT NOT NULL,
                 Revision INTEGER NOT NULL,
-                PRIMARY KEY (Id)
+                PRIMARY KEY (Id),
+                UNIQUE (OrganizationId, Id)
+            );
+
+            CREATE TABLE KnowledgeDocumentAttachments
+            (
+                Id TEXT NOT NULL,
+                OrganizationId TEXT NOT NULL,
+                DocumentId TEXT NOT NULL,
+                FileName TEXT NOT NULL,
+                ContentType TEXT NOT NULL,
+                SizeBytes INTEGER NOT NULL,
+                UploadedByUserId TEXT NULL,
+                CreatedAt TEXT NOT NULL,
+                PRIMARY KEY (Id),
+                FOREIGN KEY (OrganizationId, DocumentId)
+                    REFERENCES KnowledgeDocuments(OrganizationId, Id)
+                    ON DELETE CASCADE
             );
             """;
         await command.ExecuteNonQueryAsync();

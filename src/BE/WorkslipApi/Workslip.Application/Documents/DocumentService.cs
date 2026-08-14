@@ -7,6 +7,7 @@ namespace Workslip.Application.Documents;
 
 public sealed class DocumentService(
     IDocumentRepository documentRepository,
+    IDocumentAttachmentStorage attachmentStorage,
     ICurrentUserContext currentUser,
     IValidator<CreateDocumentRequest> createValidator,
     IValidator<UpdateDocumentRequest> updateValidator,
@@ -115,6 +116,22 @@ public sealed class DocumentService(
         var deleted = await documentRepository.DeleteAsync(organizationId, id, cancellationToken);
         if (!deleted)
             return Result.NotFound();
+
+        try
+        {
+            await attachmentStorage.DeleteDocumentAsync(organizationId, id, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            // The SQL delete is authoritative and cascades attachment metadata.
+            // Remaining blob objects are unreachable and can be cleaned up
+            // operationally without resurrecting the deleted document.
+            logger.LogWarning(
+                exception,
+                "Failed to clean up attachment blobs for deleted internal document {DocumentId} in org {OrgId}",
+                id,
+                organizationId);
+        }
 
         logger.LogInformation("Deleted internal document {DocumentId} in org {OrgId}", id, organizationId);
         return Result.Success();
