@@ -12,7 +12,7 @@
   border: 2px solid var(--bg);
   border-radius: var(--radius-pill);
   background: var(--danger);
-  color: white;
+  color: var(--on-primary, white);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -33,10 +33,11 @@
 }
 
 .notifications-toolbar button {
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.35rem 0.45rem;
+  padding: 0.35rem 0.6rem;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -85,7 +86,7 @@
   flex-direction: column;
   align-items: stretch;
   gap: 0.35rem;
-  padding: 0.85rem 2.75rem 0.85rem 0.85rem;
+  padding: 0.85rem 3.5rem 0.85rem 0.85rem;
   border: 0;
   background: transparent;
   color: inherit;
@@ -100,8 +101,8 @@
 
 .notification-item-main:focus-visible,
 .notification-delete:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
+  outline: 3px solid var(--focus-ring);
+  outline-offset: -3px;
 }
 
 .notification-item-main:disabled,
@@ -126,7 +127,7 @@
   padding: 0.15rem 0.4rem;
   border-radius: var(--radius-pill);
   background: var(--primary);
-  color: white;
+  color: var(--on-primary, white);
   font-size: var(--fs-xs);
   font-weight: 600;
 }
@@ -152,13 +153,13 @@
 
 .notification-delete {
   position: absolute;
-  top: 0.45rem;
-  right: 0.45rem;
+  top: 0.25rem;
+  right: 0.25rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-pill);
@@ -195,6 +196,7 @@
 }
 
 .notification-error button {
+  min-height: 44px;
   flex-shrink: 0;
   border: 0;
   background: transparent;
