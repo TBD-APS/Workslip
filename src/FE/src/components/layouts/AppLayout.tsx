@@ -1,5 +1,5 @@
 import { useNavigate, useLocation, NavLink, Navigate, Outlet } from 'react-router-dom';
-import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell } from 'lucide-react';
+import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell, Search } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can, useCan, useIsSuperAdmin } from '../../providers/permissions';
 import { useRef, useState } from 'react';
@@ -7,6 +7,7 @@ import { DropdownProvider } from '../../providers/DropdownContext';
 import { useTheme } from '../../providers/ThemeProvider';
 import { CreateBottomSheet } from '../common/CreateBottomSheet';
 import { NotificationsDrawer } from '../common/NotificationsDrawer';
+import { QuickNavigator } from '../common/QuickNavigator';
 import { ProfileAvatar } from '../../features/images/ProfileAvatar';
 import {
   AUDITOR_AUTHENTICATED_PATH,
@@ -33,13 +34,23 @@ export const AppLayout = () => {
   const { logout, user } = useAuth();
   const isSuperadmin = useIsSuperAdmin();
   const canUseNotifications = useCan('notification:use');
+  const canViewTimer = useCan('worksheet:view');
+  const canManageUsers = useCan('user:manage');
+  const canViewCustomers = useCan('customer:view');
+  const canEditCustomers = useCan('customer:edit');
+  const canCreateJobs = useCan('job:create');
+  const canViewAllJobs = useCan('job:viewAll');
+  const canManageOrganization = useCan('organization:manage');
   const organizationSession = getOrganizationSession();
   const appHomePath = getAuthenticatedHomePath(user?.role);
   const isAuditorSession = appHomePath === AUDITOR_AUTHENTICATED_PATH;
+  const canUseAppCommands = !isSuperadmin || Boolean(organizationSession);
+  const canSearchJobs = canUseAppCommands && !isAuditorSession;
 
   const { theme, toggle: toggleTheme } = useTheme();
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [quickNavigatorOpen, setQuickNavigatorOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -103,6 +114,17 @@ export const AppLayout = () => {
             <User size={16} />
             <span>{user?.displayName ?? user?.email ?? ''}</span>
           </span>
+          <button
+            type="button"
+            onClick={() => setQuickNavigatorOpen(true)}
+            className="user-avatar quick-nav-header-trigger"
+            aria-label="Hurtig navigation"
+            aria-haspopup="dialog"
+            aria-expanded={quickNavigatorOpen}
+            title="Hurtig navigation (Ctrl+K)"
+          >
+            <Search size={18} />
+          </button>
           {canUseNotifications && (
             <button
               type="button"
@@ -175,6 +197,25 @@ export const AppLayout = () => {
         </div>
       </header>
 
+      <QuickNavigator
+        isOpen={quickNavigatorOpen}
+        onOpen={() => setQuickNavigatorOpen(true)}
+        onClose={() => setQuickNavigatorOpen(false)}
+        homePath={appHomePath}
+        homeLabel={isAuditorSession ? 'Rapporter' : 'Sager'}
+        canUseAppCommands={canUseAppCommands}
+        canSearchJobs={canSearchJobs}
+        canViewAllJobs={canViewAllJobs}
+        currentUserId={user?.id}
+        canViewTimer={canUseAppCommands && canViewTimer}
+        canManageUsers={canUseAppCommands && canManageUsers}
+        canViewCustomers={canUseAppCommands && canViewCustomers}
+        canEditCustomers={canUseAppCommands && canEditCustomers}
+        canCreateJobs={canUseAppCommands && canCreateJobs}
+        canManageOrganization={canManageOrganization}
+        showProfile={canUseAppCommands && !isSuperadmin}
+      />
+
       {isSuperadmin && organizationSession && (
         <div className="organization-session-banner" role="status">
           <span>
@@ -216,6 +257,17 @@ export const AppLayout = () => {
             <span>Kunder</span>
           </NavLink>
         </Can>
+        <button
+          type="button"
+          className={`nav-item quick-nav-mobile-trigger ${quickNavigatorOpen ? 'active' : ''}`}
+          onClick={() => setQuickNavigatorOpen(true)}
+          aria-label="Hurtig navigation"
+          aria-haspopup="dialog"
+          aria-expanded={quickNavigatorOpen}
+        >
+          <Search size={24} />
+          <span>Søg</span>
+        </button>
       </nav>
 
       {/* Floating Create Button - only on Sager list */}
