@@ -1,0 +1,55 @@
+name: AI Review Self-test
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/ai-review/**'
+      - '.github/workflows/ai-pr-review.yml'
+      - '.github/workflows/ai-pr-review-selftest.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/ai-review/**'
+      - '.github/workflows/ai-pr-review.yml'
+      - '.github/workflows/ai-pr-review-selftest.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  static-validation:
+    name: AI review static validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Validate review sources
+        run: |
+          set -euo pipefail
+          python3 -m json.tool .github/ai-review/schema.json >/dev/null
+          python3 -m py_compile .github/ai-review/build-context.py
+          node --check .github/ai-review/normalize-review.mjs
+          node --check .github/ai-review/aggregate.mjs
+          node --check .github/ai-review/post-review.mjs
+          node --test .github/ai-review/aggregate.test.mjs
+
+      - name: Verify secret-boundary invariants
+        run: |
+          set -euo pipefail
+          workflow=.github/workflows/ai-pr-review.yml
+          grep -Fq 'TRUSTED_BRANCH: main' "$workflow"
+          grep -Fq 'persist-credentials: false' "$workflow"
+          grep -Fq 'openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56' "$workflow"
+          grep -Fq 'anthropics/claude-code-action/base-action@239e3a730883eeb5c53db12b0fc9573b3024b126' "$workflow"
+          grep -Fq -- '--allowedTools Read,Grep,Glob' "$workflow"
+          if grep -Fq 'ref: ${{ needs.prepare.outputs.head_sha }}' "$workflow"; then
+            echo 'Secret-bearing review job must not checkout the PR head.' >&2
+            exit 1
+          fi
