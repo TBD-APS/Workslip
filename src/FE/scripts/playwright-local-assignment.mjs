@@ -222,7 +222,7 @@ async function main() {
       signal: AbortSignal.timeout(API_TIMEOUT),
     });
     const tokenPayload = await directTokenResponse.json().catch(() => null);
-    if (!directTokenResponse.ok() || !tokenPayload?.token || !tokenPayload?.user) {
+    if (!directTokenResponse.ok || !tokenPayload?.token || !tokenPayload?.user) {
       throw new Error(`Development token contract for ${role} returned HTTP ${directTokenResponse.status}.`);
     }
 
