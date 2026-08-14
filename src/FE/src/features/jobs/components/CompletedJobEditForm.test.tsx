@@ -93,23 +93,23 @@ describe('CompletedJobEditForm', () => {
     expect(screen.queryByText('customer-details')).not.toBeInTheDocument();
     expect(screen.queryByText('assignment')).not.toBeInTheDocument();
     expect(screen.queryByText('linked-jobs')).not.toBeInTheDocument();
-    expect(screen.queryByText('textarea:Kundeinfo')).not.toBeInTheDocument();
-    expect(screen.queryByText('textarea:Teknisk')).not.toBeInTheDocument();
+    expect(screen.queryByText('textarea:Oplysninger til kunden')).not.toBeInTheDocument();
+    expect(screen.queryByText('textarea:Skriv en kommentar til sagen')).not.toBeInTheDocument();
     expect(screen.queryByText('work-category:work-kind')).not.toBeInTheDocument();
     expect(screen.queryByText('work-category:categories')).not.toBeInTheDocument();
     expect(screen.queryByText('control-points')).not.toBeInTheDocument();
     expect(screen.queryByText('job-completion')).not.toBeInTheDocument();
   });
 
-  it('preserves the existing KLS edit fields', () => {
+  it('preserves the existing KLS edit fields with the current note labels', () => {
     render(<CompletedJobEditForm details={createDetails('KLS')} onCancel={vi.fn()} onSave={vi.fn()} />);
 
     expect(screen.getByText('customer-details')).toBeInTheDocument();
     expect(screen.getByText('assignment')).toBeInTheDocument();
     expect(screen.getByText('linked-jobs')).toBeInTheDocument();
-    expect(screen.getByText('textarea:Opgave')).toBeInTheDocument();
-    expect(screen.getByText('textarea:Kundeinfo')).toBeInTheDocument();
-    expect(screen.getByText('textarea:Teknisk')).toBeInTheDocument();
+    expect(screen.getByText('textarea:Opgavebeskrivelse')).toBeInTheDocument();
+    expect(screen.getByText('textarea:Oplysninger til kunden')).toBeInTheDocument();
+    expect(screen.getByText('textarea:Skriv en kommentar til sagen')).toBeInTheDocument();
     expect(screen.getByText('work-category:work-kind')).toBeInTheDocument();
     expect(screen.getByText('work-category:categories')).toBeInTheDocument();
     expect(screen.getByText('control-points')).toBeInTheDocument();
