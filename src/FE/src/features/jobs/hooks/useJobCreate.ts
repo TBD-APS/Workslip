@@ -52,12 +52,19 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
       onSuccess: (response) => {
         const jobId = response.id;
         const reportNumber = response.reportNumber;
-        const createdJobIds = response.createdJobIds?.length ? response.createdJobIds : [jobId];
+        // Vercel generates its client from the deployed API during its build. During
+        // a backend/frontend rollout, that schema can briefly be one revision behind
+        // the runtime response. Keep this one optional additive field compatible with
+        // both schemas instead of making a production frontend build depend on deploy order.
+        const rolloutCompatibleResponse = response as typeof response & { createdJobIds?: string[] | null };
+        const createdJobIds = rolloutCompatibleResponse.createdJobIds?.length
+          ? rolloutCompatibleResponse.createdJobIds
+          : [jobId];
         const promises: Promise<unknown>[] = [];
 
         // Atomic linking is part of the current create contract. Keep a single-job
         // fallback only for a short frontend-before-backend deployment skew.
-        if (response.createdJobIds === undefined && linkedJobIds.length > 0) {
+        if (rolloutCompatibleResponse.createdJobIds === undefined && linkedJobIds.length > 0) {
           promises.push(linkMutation.mutateAsync({ id: jobId, data: { targetReportIds: linkedJobIds } }));
         }
 
