@@ -256,13 +256,23 @@ async function addWorksheetViaUi(session, user, hours) {
   const form = page.locator('.worksheet-form');
   const trigger = form.locator('button.multi-select-trigger');
   if (await trigger.isVisible().catch(() => false)) {
+    await waitForEnabled(trigger, 'worksheet assignee selector');
     await trigger.click();
     const option = page.getByRole('option', { name: user.displayName, exact: true });
-    if (await option.isVisible().catch(() => false)) await option.click();
+    await option.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    if ((await option.getAttribute('aria-selected')) !== 'true') {
+      await option.click();
+    }
     await trigger.click();
   }
   await page.getByLabel('Timer', { exact: true }).fill(hours);
+  const responsePromise = page.waitForResponse((response) =>
+    response.request().method() === 'POST'
+      && new URL(response.url()).pathname === `/api/worksheets/jobs/${session.auth.role === 'Admin' ? session.assignmentCopies?.get(user.id)?.id ?? '' : session.fixtures.jobs.find(Boolean) ?? ''}`,
+  { timeout: API_TIMEOUT }).catch(() => null);
   await page.getByRole('button', { name: 'Tilføj', exact: true }).click();
+  const response = await responsePromise;
+  if (response && !response.ok()) throw new Error(`Worksheet creation returned HTTP ${response.status()}.`);
   await form.waitFor({ state: 'hidden', timeout: API_TIMEOUT });
 }
 
