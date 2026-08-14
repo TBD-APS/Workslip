@@ -66,6 +66,7 @@ export function QuickNavigator({
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const [query, setQuery] = useState('');
   const [jobs, setJobs] = useState<JobListItemViewModel[]>([]);
+  const [jobResultTerm, setJobResultTerm] = useState('');
   const [isSearchingJobs, setIsSearchingJobs] = useState(false);
   const [jobSearchFailed, setJobSearchFailed] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -105,16 +106,21 @@ export function QuickNavigator({
   }, [commands, query]);
 
   const jobSearchTerm = getQuickJobSearchTerm(query);
-  const visibleJobs = jobSearchTerm ? jobs : [];
-  const results = useMemo<QuickNavigatorResult[]>(() => [
+  const hasCurrentJobResults = Boolean(jobSearchTerm) && jobResultTerm === jobSearchTerm;
+  const visibleJobs = hasCurrentJobResults ? jobs : [];
+  const results: QuickNavigatorResult[] = [
     ...filteredCommands.map((command) => ({ type: 'command' as const, command })),
     ...visibleJobs.map((job) => ({ type: 'job' as const, job })),
-  ], [filteredCommands, visibleJobs]);
+  ];
   const safeActiveIndex = Math.min(activeIndex, Math.max(results.length - 1, 0));
+  const isPendingJobSearch = Boolean(jobSearchTerm) && jobResultTerm !== jobSearchTerm;
+  const showSearchingJobs = Boolean(jobSearchTerm) && (isPendingJobSearch || isSearchingJobs);
+  const showJobSearchError = hasCurrentJobResults && jobSearchFailed;
 
   const resetAndClose = () => {
     setQuery('');
     setJobs([]);
+    setJobResultTerm('');
     setJobSearchFailed(false);
     setIsSearchingJobs(false);
     setActiveIndex(0);
@@ -155,6 +161,8 @@ export function QuickNavigator({
 
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
+      setJobResultTerm(jobSearchTerm);
+      setJobs([]);
       setIsSearchingJobs(true);
       setJobSearchFailed(false);
 
@@ -244,7 +252,6 @@ export function QuickNavigator({
   const resultCountText = results.length === 0
     ? 'Ingen resultater'
     : `${results.length} ${results.length === 1 ? 'resultat' : 'resultater'}`;
-  const showJobSearchStatus = Boolean(jobSearchTerm);
 
   return (
     <div
@@ -292,7 +299,7 @@ export function QuickNavigator({
 
         <div className="quick-nav-meta" aria-live="polite">
           <span>{hasSearchQuery ? resultCountText : 'Genveje'}</span>
-          {showJobSearchStatus && isSearchingJobs && <span className="quick-nav-searching"><LoaderCircle size={14} /> Søger sager…</span>}
+          {showSearchingJobs && <span className="quick-nav-searching"><LoaderCircle size={14} /> Søger sager…</span>}
         </div>
 
         <div className="quick-nav-results">
@@ -339,7 +346,7 @@ export function QuickNavigator({
             );
           })}
 
-          {!showJobSearchStatus && !isSearchingJobs && results.length === 0 && (
+          {!jobSearchTerm && !isSearchingJobs && results.length === 0 && (
             <div className="quick-nav-empty">
               <Search size={22} aria-hidden="true" />
               <strong>Ingen resultater</strong>
@@ -347,7 +354,7 @@ export function QuickNavigator({
             </div>
           )}
 
-          {showJobSearchStatus && !isSearchingJobs && results.length === 0 && !jobSearchFailed && (
+          {hasCurrentJobResults && !isSearchingJobs && results.length === 0 && !jobSearchFailed && (
             <div className="quick-nav-empty">
               <Search size={22} aria-hidden="true" />
               <strong>Ingen sager fundet</strong>
@@ -355,7 +362,7 @@ export function QuickNavigator({
             </div>
           )}
 
-          {showJobSearchStatus && jobSearchFailed && (
+          {showJobSearchError && (
             <div className="quick-nav-search-error" role="status">
               Sager kunne ikke søges lige nu. Navigationen ovenfor virker stadig.
             </div>
