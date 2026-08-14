@@ -1,34 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import {
-  ArrowRight,
-  Building2,
-  CalendarDays,
-  ClipboardList,
-  FileText,
-  LoaderCircle,
-  PlusCircle,
-  Search,
-  Settings,
-  ShieldCheck,
-  UserCircle,
-  Users,
-  X,
-  type LucideIcon,
-} from 'lucide-react';
+import { ArrowRight, FileText, LoaderCircle, Search, X } from 'lucide-react';
 import { JobStatus, type JobListItemViewModel } from '../../api/generated/models';
 import { apiClient } from '../../lib/axios';
+import { buildQuickNavigatorCommands, type QuickNavigatorCommand } from './quickNavigatorCommands';
 import { filterQuickNavigationJobs, getQuickJobSearchTerm } from './quickNavigatorSearch';
 import './QuickNavigator.css';
-
-type QuickNavigatorCommand = {
-  id: string;
-  label: string;
-  description: string;
-  path: string;
-  keywords: string[];
-  icon: LucideIcon;
-};
 
 type QuickNavigatorResult =
   | { type: 'command'; command: QuickNavigatorCommand }
@@ -93,110 +70,18 @@ export function QuickNavigator({
   const [jobSearchFailed, setJobSearchFailed] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const commands = useMemo<QuickNavigatorCommand[]>(() => {
-    const items: QuickNavigatorCommand[] = [];
-
-    if (canUseAppCommands) {
-      items.push({
-        id: 'home',
-        label: homeLabel,
-        description: homeLabel === 'Rapporter' ? 'Åbn rapportoversigten' : 'Åbn sagsoversigten',
-        path: homePath,
-        keywords: ['hjem', 'oversigt', 'sag', 'sager', 'rapport', 'rapporter'],
-        icon: ClipboardList,
-      });
-    }
-
-    if (canViewTimer) {
-      items.push({
-        id: 'timer',
-        label: 'Timer',
-        description: 'Åbn timer og timesedler',
-        path: '/app/timer',
-        keywords: ['timer', 'tid', 'timeseddel', 'arbejdstid'],
-        icon: CalendarDays,
-      });
-    }
-
-    if (canManageUsers) {
-      items.push({
-        id: 'users',
-        label: 'Folk',
-        description: 'Åbn medarbejdere og brugere',
-        path: '/app/users',
-        keywords: ['folk', 'bruger', 'brugere', 'medarbejder', 'medarbejdere'],
-        icon: Users,
-      });
-    }
-
-    if (canViewCustomers) {
-      items.push({
-        id: 'customers',
-        label: 'Kunder',
-        description: 'Åbn kundelisten',
-        path: '/app/customers',
-        keywords: ['kunde', 'kunder', 'firma', 'virksomhed'],
-        icon: Building2,
-      });
-    }
-
-    if (canCreateJobs) {
-      items.push({
-        id: 'new-job',
-        label: 'Opret sag',
-        description: 'Start oprettelse af en ny sag',
-        path: '/app/create',
-        keywords: ['ny sag', 'opret sag', 'opgave', 'create'],
-        icon: PlusCircle,
-      });
-    }
-
-    if (canEditCustomers) {
-      items.push({
-        id: 'new-customer',
-        label: 'Opret kunde',
-        description: 'Opret en ny kunde',
-        path: '/app/customers/new',
-        keywords: ['ny kunde', 'opret kunde', 'firma', 'virksomhed'],
-        icon: Building2,
-      });
-    }
-
-    if (canManageUsers) {
-      items.push({
-        id: 'settings',
-        label: 'Indstillinger',
-        description: 'Åbn administrative indstillinger',
-        path: '/app/settings',
-        keywords: ['indstillinger', 'settings', 'administration', 'admin'],
-        icon: Settings,
-      });
-    }
-
-    if (showProfile) {
-      items.push({
-        id: 'profile',
-        label: 'Profil',
-        description: 'Åbn din profil',
-        path: '/app/profil',
-        keywords: ['profil', 'mig', 'konto'],
-        icon: UserCircle,
-      });
-    }
-
-    if (canManageOrganization) {
-      items.push({
-        id: 'superadmin',
-        label: 'Superadmin',
-        description: 'Åbn organisationsadministration',
-        path: '/superadmin',
-        keywords: ['superadmin', 'organisation', 'organization'],
-        icon: ShieldCheck,
-      });
-    }
-
-    return items;
-  }, [
+  const commands = useMemo(() => buildQuickNavigatorCommands({
+    homePath,
+    homeLabel,
+    canUseAppCommands,
+    canViewTimer,
+    canManageUsers,
+    canViewCustomers,
+    canEditCustomers,
+    canCreateJobs,
+    canManageOrganization,
+    showProfile,
+  }), [
     canCreateJobs,
     canEditCustomers,
     canManageOrganization,
