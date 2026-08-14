@@ -266,13 +266,14 @@ public static class DatabaseSeeder
                     continue;
                 }
 
-                var link = new AutoFaker<JobReportLinkRow>()
-                    .RuleFor(x => x.Id, f => f.Random.Guid())
-                    .RuleFor(x => x.OrganizationId, _ => job.OrganizationId)
-                    .RuleFor(x => x.SourceReportId, _ => job.Id)
-                    .RuleFor(x => x.TargetReportId, _ => targetReport.Id)
-                    .RuleFor(x => x.CreatedAt, f => f.Date.PastOffset(1))
-                    .Generate();
+                var link = new JobReportLinkRow
+                {
+                    Id = Guid.NewGuid(),
+                    OrganizationId = job.OrganizationId,
+                    SourceReportId = job.Id,
+                    TargetReportId = targetReport.Id,
+                    CreatedAt = random.Date.PastOffset(1)
+                };
 
                 jobLinks.Add(link);
             }

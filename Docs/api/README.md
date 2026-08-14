@@ -10,7 +10,6 @@
 - [`contract.md`](contract.md) — shared HTTP/auth/error/idempotency contract.
 - [`change-policy.md`](change-policy.md) — compatibility and API-change rules.
 - [`integration-guide.md`](integration-guide.md) — integration usage and operational expectations.
-- [`endpoint-catalog.md`](endpoint-catalog.md) — historical pointer; the hand-maintained route catalog has been retired.
 - `src/BE/WorkslipApi/Endpoints/` — current route registrations.
 - runtime OpenAPI — generated contract for the running build when enabled for the target environment.
 - `src/BE/WorkslipApi/Postman/` — executable verification/examples, not a competing contract source.

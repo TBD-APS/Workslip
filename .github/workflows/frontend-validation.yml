@@ -207,13 +207,17 @@ jobs:
         working-directory: src/FE
         run: |
           node --check scripts/playwright-release-runner.mjs
+          node --check scripts/playwright-release-policy.mjs
           node --check scripts/playwright-prod-smoke.mjs
-          node --check scripts/playwright-notification-navigation.mjs
           node --check scripts/playwright-critical-contract.mjs
           node --check scripts/playwright-critical-domain.mjs
           node --check scripts/playwright-scenarios-core.mjs
           node --check scripts/playwright-scenarios-admin.mjs
           node --check scripts/playwright-synthetic-auth.mjs
+          node --check scripts/playwright-release-runner.test.mjs
+          node --check scripts/playwright-scenarios-admin.test.mjs
+          node --test scripts/playwright-release-runner.test.mjs
+          node --test scripts/playwright-scenarios-admin.test.mjs
           node --test scripts/playwright-synthetic-auth.test.mjs
 
       - name: Validate Postman collection

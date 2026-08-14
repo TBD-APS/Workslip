@@ -2,256 +2,77 @@
 
 **Status:** Active  
 **Owner:** Workslip maintainers  
-**Source of truth:** `DiagnosticsEndpoints`, `ApplicationInsightsErrorDiagnosticsService`, frontend Application Insights bootstrap, Azure monitoring configuration, the Superadmin diagnostics UI and `supportSnapshot.ts`  
-**Review cadence:** On telemetry, Azure RBAC, KQL schema, error-handling, support-export or incident-process changes
+**Source of truth:** `DiagnosticsEndpoints`, `ApplicationInsightsErrorDiagnosticsService`, frontend telemetry bootstrap, Azure monitoring configuration, the Superadmin diagnostics UI and `supportSnapshot.ts`  
+**Review cadence:** On telemetry, Azure RBAC, diagnostics contract, support-export or incident-process changes
 
 ## Purpose
 
-The Superadmin error dashboard gives an operational view of recent Workslip frontend and backend failures without requiring Azure Portal access. It is read-only and complements, but does not replace, Azure Monitor alerts, Application Insights investigation or the incident process.
+The Superadmin error dashboard gives a read-only operational view of recent Workslip frontend and backend failures without requiring Azure Portal access. It complements Azure Monitor/Application Insights investigation; it is not the authoritative telemetry store or alerting system.
 
-The dashboard is loaded only when a Superadmin opens it. Ordinary tenant users and normal application routes do not query Log Analytics.
+## Security boundary
+
+`GET /api/admin/diagnostics/errors` is protected by the Superadmin authorization policy and the `diagnostics-read` rate limiter. The response is `Cache-Control: no-store`.
+
+The API, not the browser, queries the configured Log Analytics workspace. Azure credentials, workspace access tokens, KQL, raw telemetry rows, stack traces, request/response bodies, headers and arbitrary custom dimensions must not be returned to the browser.
+
+The API managed identity should have only the workspace-scoped read access required by the current infrastructure definition. `Azure:ApplicationInsights:WorkspaceId` is configuration, not a secret. Do not replace the managed-identity boundary with a workspace key or broad administrator credential.
 
 ## Trust invariant
 
-The dashboard may report **current**, **partial**, **stale** or **unavailable** data. It must never silently convert an invalid, incomplete or failed Azure response into a trustworthy-looking zero or empty list.
+The dashboard distinguishes **current**, **partial**, **stale** and **unavailable** data. Failed or malformed Azure responses must never be presented as a trustworthy zero or empty list.
 
-A zero error count is trustworthy only when all of these conditions are true:
+A complete result requires the current diagnostics service contract to consider all required query sections valid and non-partial. When a complete prior snapshot is available, a later query failure may be shown as stale according to the service's current cache policy. The running service/tests own exact retry, timeout, grouping and cache durations; do not copy those implementation constants into this runbook.
 
-- the summary query completed and passed schema validation;
-- the detail query completed and passed schema validation;
-- Azure did not mark any result as partial;
-- telemetry-health data was queried successfully;
-- the UI contract passed runtime validation;
-- the view is not marked stale.
+Frontend/backend telemetry last-seen timestamps are health signals only. Missing or old telemetry does not prove there were no errors.
 
-Frontend and backend telemetry timestamps are displayed separately. A missing or old timestamp means that the corresponding pipeline has not recently been observed; it does not prove that the application has no errors.
+## Diagnostics contract
 
-No in-app dashboard can remain current during a total Azure/query outage. During such an outage Workslip shows the last complete in-memory snapshot for up to one hour, clearly marked stale. If no complete snapshot exists, the dashboard shows partial or unavailable state rather than fabricated data. The in-memory snapshot is lost when the API restarts.
+The current endpoint accepts only the allowlisted range/source/limit values defined by `ApplicationInsightsErrorDiagnosticsService`; it does not accept client-supplied KQL.
 
-## Data flow and trust boundary
+Returned data is deliberately reduced to operational metadata such as:
 
-1. A minimal HTML listener captures up to 20 errors that occur before JavaScript modules finish evaluating.
-2. The frontend installs sanitized global error handlers before React renders.
-3. Application Insights initialization is deferred for startup performance, retries twice after transient initialization failures, then flushes buffered errors.
-4. The frontend emits a sanitized heartbeat at initialization, every five minutes while visible and when the app becomes visible again.
-5. The API records Application Insights request telemetry and structured Serilog traces with correlation metadata.
-6. The API managed identity obtains an Azure token for the Log Analytics query API.
-7. The API executes fixed, version-controlled KQL against the configured workspace.
-8. The API validates Azure response shape, detects partial results, maps only allowlisted columns, sanitizes fields again and groups repeated failures by a non-reversible fingerprint.
-9. The frontend validates the complete API response at runtime before rendering it.
+- availability/completeness/staleness/truncation state;
+- generation/data timestamps and summary counts;
+- frontend/backend telemetry health timestamps;
+- sanitized source, severity, error type and message;
+- stable non-reversible grouping fingerprint;
+- normalized route/operation/release context;
+- safe correlation/trace identifiers when they satisfy the current output policy;
+- grouped occurrence/context counts.
 
-The browser never receives Azure credentials, workspace access tokens, KQL, raw table rows, stack traces, request or response bodies, headers or complete custom dimensions.
+The contract must not expose raw exception objects, stack traces, payloads, headers, authorization values, cookies, e-mail addresses, phone numbers, tenant/entity identifiers or complete telemetry properties.
 
-## Authorization and Azure RBAC
+Exact query tables, grouping logic, response-schema validation and retry behavior are implementation details owned by the diagnostics service and its focused tests. Change this document only when an operator/security invariant changes.
 
-`GET /api/admin/diagnostics/errors` requires the existing Superadmin policy and the `diagnostics-read` rate-limit policy. The response is marked `Cache-Control: no-store`.
+## Support snapshot
 
-The API managed identity receives the built-in **Log Analytics Data Reader** role scoped to the Workslip Log Analytics workspace. The workspace customer ID is stored as non-secret configuration under:
+The Superadmin UI can copy a versioned, allowlisted diagnostics snapshot to the clipboard after a validated response exists. The copy action does not itself transmit data to ChatGPT or another service.
 
-`Azure:ApplicationInsights:WorkspaceId`
+The snapshot must preserve stale/partial/unavailable state and exclude unexpected runtime object properties by default. Clipboard failure must not fall back to persistent storage, download or network transmission.
 
-Do not replace this with a workspace key, shared secret or administrator credential. Do not widen the role assignment to the resource group or subscription without a verified need.
-
-## Query contract
-
-The client may select only:
-
-- range: `1h`, `24h` or `7d`;
-- source: `all`, `frontend` or `backend`;
-- limit: `10` through `100`.
-
-The service rejects any other value before contacting Azure. It does not accept client-supplied KQL.
-
-Three independent queries are executed concurrently:
-
-1. error summary;
-2. grouped error details;
-3. telemetry-pipeline health.
-
-A failure in one query does not erase successful sections. Missing sections are explicitly unavailable and are never replaced with zero or an empty list.
-
-### Error sources
-
-The fixed queries use:
-
-- `AppExceptions` for frontend exceptions emitted by Workslip browser telemetry;
-- `AppTraces` at error or critical severity for explicit backend errors;
-- structured Serilog request-completion traces with HTTP status `>= 500` for controlled backend failures that may not throw an exception.
-
-A request-completion 5xx event is excluded when the same Application Insights operation already has an explicit backend error trace, preventing double counting.
-
-Counts use Application Insights `ItemCount` as their weight. This preserves occurrence totals when ingestion sampling represents multiple original telemetry items with one stored row.
-
-The source filter applies to both summary and details. Details are grouped in KQL, sanitized again in the API and grouped once more by safe fingerprint after redaction. The API detects when its bounded result set is truncated and exposes that state to the UI.
-
-### Stable error grouping
-
-The selected time range is applied before grouping. Summary values continue to count every weighted occurrence, while the detail list counts stable error groups and displays each group's total occurrences separately.
-
-The API groups recurring failures after sanitization using a stable, non-reversible signature:
-
-- frontend: source, normalized error class and sanitized message fingerprint;
-- backend: source, sanitized error type and sanitized normalized message.
-
-Timestamp, route, operation, release, correlation ID and trace ID do not split the main group. Frontend minified frame names such as `at Ta` and `at wa` therefore remain one group when the sanitized message fingerprint is unchanged.
-
-Each group returns the earliest and latest observed timestamps within the selected range, total weighted occurrences, the latest representative route/operation/release/correlation context and the number of distinct sanitized releases, routes and operations represented by the group. If any grouped occurrence is critical, the group remains critical even when the latest representative occurrence is only error severity.
-
-Generic messages such as `Resource load error` can only be grouped as precisely as the allowlisted telemetry category permits. Do not add raw asset URLs, stack traces or arbitrary custom properties merely to improve grouping; extend the sanitized telemetry category through the reviewed diagnostics contract instead.
-
-### Pipeline health
-
-Pipeline health uses:
-
-- `AppEvents` with event name `telemetry.heartbeat` for frontend activity;
-- `AppRequests` for backend request telemetry.
-
-The API returns the latest observed UTC timestamp for each pipeline. Null timestamps are valid query results and are displayed as “not observed”, not as query failures.
-
-Health age is calculated against the API-generated UTC timestamp, not the user device clock.
-
-## Azure response handling
-
-The Logs Query API may return HTTP 200 while also marking the result with `error.code = PartialError`. Workslip detects this and marks the dashboard incomplete.
-
-Every query response must contain a valid `PrimaryResult` table with all expected columns and correctly typed rows. Missing columns, malformed rows, invalid timestamps, invalid enum values or invalid counts result in `invalid_response`. They are never interpreted as empty data.
-
-Transient network errors and HTTP 408, 429 or 5xx responses are retried once where bounded retry is safe. Request cancellation propagates immediately. Query timeouts are not multiplied through repeated 15-second attempts.
-
-Raw Azure error bodies are neither logged nor returned.
-
-## Last-known-good behavior
-
-A dashboard snapshot is cached only when summary, details and telemetry health all complete successfully and Azure does not report a partial result.
-
-The cache key includes selected range, source and limit. A complete snapshot remains available in API memory for one hour.
-
-When a later refresh fails:
-
-- the last complete snapshot remains visible;
-- `isStale` becomes true;
-- `isComplete` becomes false;
-- the original data retrieval timestamp remains unchanged;
-- the current failure reason is displayed;
-- the UI explicitly says that values are not current.
-
-Partial results never replace the last complete snapshot.
-
-## Returned fields
-
-The API contract may contain only:
-
-- availability, completeness, stale and truncation state;
-- UTC generation and data-retrieval timestamps;
-- summary counts;
-- frontend/backend telemetry last-seen timestamps;
-- representative error timestamp plus first- and last-seen timestamps;
-- source (`frontend` or `backend`);
-- normalized severity;
-- sanitized error type;
-- non-reversible fingerprint;
-- sanitized message;
-- latest normalized route or operation;
-- latest release identifier;
-- distinct sanitized release, route and operation counts;
-- safe hexadecimal correlation ID or trace ID from the latest representative occurrence;
-- grouped occurrence count.
-
-It must never return raw exception objects, stack traces, request or response bodies, headers, authorization values, cookies, e-mail addresses, phone numbers, tenant IDs, entity IDs or complete Application Insights properties.
-
-## Explicit support export
-
-A Superadmin can use **Kopiér til ChatGPT** after a validated dashboard response has loaded. The action writes a versioned JSON support snapshot to the local clipboard. It does not call another endpoint, create a file, persist the snapshot, emit a telemetry event or transmit data to ChatGPT or another service.
-
-The export serializer reconstructs the payload from an explicit field allowlist instead of serializing the runtime object directly. Unexpected future properties on the API object or error items are therefore excluded by default. The snapshot contains only:
-
-- schema version and non-sensitive source identifier;
-- export timestamp;
-- selected range and source filters;
-- the already validated and sanitized `ErrorDiagnosticsDashboard` fields listed above.
-
-Current, partial, stale, unavailable and truncated states remain part of the snapshot. A copied stale or incomplete snapshot must not be presented as current data.
-
-Clipboard access requires a secure browser context and explicit user action. If clipboard access is unavailable or denied, the UI reports a generic failure and does not fall back to DOM selection, downloads, browser storage or network transmission.
-
-Copying is a deliberate disclosure by the signed-in Superadmin to a destination they choose. Do not paste support snapshots into public issues, unrestricted chats or external tools unless that use is approved for Workslip operational data. The export control reduces accidental over-sharing but does not replace access policy, retention, processor approval or incident handling.
-
-## Redaction and correlation identifiers
-
-Redaction is performed in two places:
-
-1. frontend telemetry sanitizes browser exceptions before ingestion;
-2. the diagnostics API sanitizes every returned field regardless of source.
-
-The API removes or normalizes:
-
-- bearer/basic credentials and common secret keys;
-- token query parameters and long token-like values;
-- e-mail addresses and phone numbers;
-- GUID and numeric route segments;
-- line breaks and excessive length;
-- arbitrary or token-like correlation identifiers.
-
-The correlation middleware accepts only 16–64 hexadecimal/hyphen characters from `X-Correlation-ID`. Any other value is replaced with a server-generated ID before logging or reflection. The dashboard applies the same restrictive output rule to historical telemetry.
-
-Backend detail queries prefer the Serilog message template over the rendered message to reduce the risk of returning structured property values. Redaction remains mandatory after query parsing.
-
-## Availability states
-
-| Reason | Meaning | Operator action |
-|---|---|---|
-| `not_configured` | Workspace ID is missing | Verify App Configuration deployment and API refresh |
-| `permission_denied` | Managed identity lacks query access | Verify workspace-scoped role assignment and propagation |
-| `throttled` | Azure returned a rate-limit response | Retry and inspect query frequency if recurring |
-| `timeout` | A query exceeded its bounded timeout | Check Azure health and workspace response time |
-| `token_unavailable` | API could not obtain its managed-identity token | Check managed identity and Azure identity availability |
-| `invalid_response` | Azure schema or row data could not be validated | Inspect the live workspace schema before changing parsers |
-| `partial_result` | Azure returned only part of a result | Treat values as incomplete and investigate in Azure Portal |
-| `query_failed` | Other sanitized query failure | Use Azure Portal, alerts and correlation logs for diagnosis |
-
-## Required deployment validation
-
-The PR must remain draft until all items below are documented:
-
-1. Build the backend in Release mode and run focused diagnostics/middleware tests.
-2. Run frontend lint, TypeScript checking and production build.
-3. Build Bicep and review Azure what-if output.
-4. Confirm the role assignment is scoped only to the Log Analytics workspace.
-5. Deploy configuration and allow RBAC propagation.
-6. Verify the endpoint rejects non-Superadmin callers.
-7. Execute each fixed KQL query against the production workspace and verify exact table/column behavior.
-8. Generate one controlled frontend exception containing no customer data.
-9. Generate one controlled backend exception in a safe internal flow.
-10. Generate one controlled HTTP 5xx result without an unhandled exception and confirm it appears once.
-11. Confirm weighted counts match a direct Azure query using `sum(ItemCount)`.
-12. Confirm recurring frontend and backend errors group across timestamp, route and release while different sanitized signatures remain separate.
-13. Confirm first/last seen, occurrences and affected context counts match direct Azure results within each selected range.
-14. Confirm frontend startup/module errors captured before React render are flushed after telemetry initialization.
-15. Stop or misconfigure one query in a safe environment and verify stale, partial and unavailable states.
-16. Verify that malformed and Azure `PartialError` responses never display as zero or empty.
-17. Confirm frontend and backend pipeline timestamps update after real traffic.
-18. Confirm no token, e-mail, phone, GUID, payload, arbitrary correlation ID or stack trace appears in the API response or browser.
-19. Validate loading, current, empty, partial, stale, unavailable, retry, truncation, grouping, filter and narrow-mobile states with Playwright.
-20. Verify the dashboard error boundary cannot take down organization administration.
-21. Verify the copy action is disabled before a validated response exists, copies the active range/source snapshot, preserves grouping and incomplete-state warnings and excludes unexpected object fields.
-22. Verify clipboard denial shows a generic failure without persistence, download or network fallback.
-
-Do not generate destructive exceptions against real customer cases.
+A copied snapshot is still operational data. Do not paste it into public issues or unapproved external systems.
 
 ## Incident usage
 
-Use the dashboard to identify:
+Use the dashboard to answer:
 
-- whether failures are frontend or backend;
-- whether both telemetry pipelines have recently been observed;
-- when a recurring error was first and last observed in the selected range;
-- the latest affected route, operation and release plus how many sanitized contexts are represented;
-- repeated error fingerprints and total weighted occurrences;
-- correlation IDs for deeper investigation;
-- whether data is current, partial, stale or truncated.
+- is the observed failure frontend or backend;
+- are telemetry pipelines being observed recently;
+- is an error recurring and over what observed interval;
+- which sanitized route/operation/release context is represented;
+- which correlation identifier can be used for deeper authorized investigation;
+- is the dashboard current, partial, stale or truncated.
 
-Use Azure Monitor alerts for notification and Azure Portal/Application Insights for full authorized investigation. Follow the maintained incident and privacy-breach process where customer data or security may be affected.
+Use Azure Portal/Application Insights for full authorized telemetry investigation and Azure Monitor for alerting. Follow the maintained incident/privacy process when customer data or security may be affected.
 
-## Rollback
+## Validation when this area changes
 
-Revert the application PR and infrastructure role/configuration additions. Removing the dashboard does not remove existing telemetry or Azure Monitor alerts. If the role assignment is removed separately, the dashboard shows `permission_denied` until the application change is also rolled back.
+Follow [`../agents/VALIDATION.md`](../agents/VALIDATION.md) and validate the risk that changed. Diagnostics changes normally require:
+
+- backend Release build and focused authorization/query/redaction tests;
+- frontend tests/build for changed dashboard or support-export behavior;
+- infrastructure validation when workspace/RBAC/configuration changes;
+- safe HTTP/browser validation for authorization, current/partial/stale/unavailable states when user-visible behavior changes;
+- inspection that sensitive data is not introduced into API responses or retained browser evidence.
+
+Do not generate destructive failures against real customer cases merely to prove telemetry.

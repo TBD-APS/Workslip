@@ -71,6 +71,25 @@ Prefer one coherent feature flow over many microscopic endpoint tests. A useful 
 5. exercise the highest-value authorization, tenant or error path when that is part of the changed risk.
 
 Use Postman for:
+## Release-candidate aggregation
+
+A temporary release candidate combines risks that were introduced by multiple PRs. Its readiness evidence must therefore be the union of the still-relevant gates for those changes, not merely one new green aggregate CI run.
+
+Before promoting a release candidate:
+
+- identify the exact candidate SHA and actual diff from the accepted production boundary;
+- verify deterministic CI on that exact candidate SHA;
+- carry forward unresolved validation from included PRs instead of erasing it when the code is merged into the candidate;
+- require SQL Server/relational evidence for migration, constraint, transaction or provider-specific behaviour;
+- require HTTP authorization evidence for changed authorization/tenant boundaries;
+- require Playwright/browser evidence for changed user-visible critical flows, including narrow viewport evidence where mobile behaviour changed;
+- require plan/what-if or equivalent infrastructure evidence for deployment-definition changes;
+- verify migration ordering, compatibility windows, temporary triggers/workarounds and rollback dependencies explicitly;
+- record any explicit exception with owner, risk and scope before promotion.
+
+A release CI run proves that the combined source builds and passes the deterministic repository suite. It does **not** retroactively prove an unexecuted integration, relational, browser, infrastructure or deployed check from an included change.
+
+## Test selection
 
 - request → service → persistence → response behavior;
 - authorization and permission boundaries;

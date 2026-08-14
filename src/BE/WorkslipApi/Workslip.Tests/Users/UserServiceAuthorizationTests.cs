@@ -75,7 +75,7 @@ public sealed class UserServiceAuthorizationTests
     }
 
     [Fact]
-    public async Task CreateAsync_SuperadminCanCreateSuperadmin()
+    public async Task CreateAsync_SuperadminCanCreateSuperadminAndDefaultsToMemberAudience()
     {
         var repository = new FakeUserRepository();
         var entra = new FakeEntraService();
@@ -89,12 +89,13 @@ public sealed class UserServiceAuthorizationTests
         Assert.Equal(1, repository.CreateCalls);
         Assert.Equal(1, entra.CreateCalls);
         Assert.Equal(Roles.Superadmin, result.Value!.Role);
+        Assert.Equal(UserKinds.Member, repository.LastCreated?.UserKind);
     }
 
     [Fact]
-    public async Task CreateAsync_AdminCanStillCreateAdmin()
+    public async Task CreateAsync_MemberAdminCreatesMemberUser()
     {
-        var repository = new FakeUserRepository();
+        var repository = new FakeUserRepository { ActorUserKind = UserKinds.Member };
         var entra = new FakeEntraService();
         var service = CreateService(Roles.Admin, repository, entra);
 
@@ -104,19 +105,72 @@ public sealed class UserServiceAuthorizationTests
 
         Assert.Equal(ResultStatus.Ok, result.Status);
         Assert.Equal(1, repository.CreateCalls);
-        Assert.Equal(1, entra.CreateCalls);
-        Assert.Equal(Roles.Admin, result.Value!.Role);
+        Assert.Equal(UserKinds.Member, repository.LastCreated?.UserKind);
+    }
+
+    [Fact]
+    public async Task CreateAsync_InternalTestAdminCreatesInternalTestUser()
+    {
+        var repository = new FakeUserRepository { ActorUserKind = UserKinds.InternalTest };
+        var entra = new FakeEntraService();
+        var service = CreateService(Roles.Admin, repository, entra);
+
+        var result = await service.CreateAsync(
+            new CreateUserRequest("qa@example.test", "QA", "+4512345678", Roles.User),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Ok, result.Status);
+        Assert.Equal(UserKinds.InternalTest, repository.LastCreated?.UserKind);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenUserIsUpdated_InvalidatesAuthorizationCache()
+    {
+        var target = CreateUser(Roles.Admin);
+        var repository = new FakeUserRepository { ExistingById = target };
+        var claimsCache = new FakeClaimsCacheInvalidator();
+        var service = CreateService(Roles.Admin, repository, new FakeEntraService(), claimsCache);
+
+        var result = await service.UpdateAsync(
+            target.Id,
+            new UpdateUserRequest(null, null, Roles.User),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Ok, result.Status);
+        Assert.Equal(1, claimsCache.Calls);
+        Assert.Equal(target.EntraId, claimsCache.EntraId);
+        Assert.Equal(target.Email, claimsCache.Email);
+        Assert.Equal(target.EntraEmail, claimsCache.EntraEmail);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenUserIsDeleted_InvalidatesAuthorizationCache()
+    {
+        var target = CreateUser(Roles.User);
+        var repository = new FakeUserRepository { ExistingById = target };
+        var claimsCache = new FakeClaimsCacheInvalidator();
+        var service = CreateService(Roles.Admin, repository, new FakeEntraService(), claimsCache);
+
+        var result = await service.DeleteAsync(target.Id, CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NoContent, result.Status);
+        Assert.Equal(1, claimsCache.Calls);
+        Assert.Equal(target.EntraId, claimsCache.EntraId);
+        Assert.Equal(target.Email, claimsCache.Email);
+        Assert.Equal(target.EntraEmail, claimsCache.EntraEmail);
     }
 
     private static UserService CreateService(
         string actorRole,
         FakeUserRepository repository,
-        FakeEntraService entra) =>
+        FakeEntraService entra,
+        FakeClaimsCacheInvalidator? claimsCache = null) =>
         new(
             repository,
             new CreateUserRequestValidator(),
             new UpdateUserRequestValidator(),
             entra,
+            claimsCache ?? new FakeClaimsCacheInvalidator(),
             new FakeCurrentUserContext(actorRole),
             NullLogger<UserService>.Instance);
 
@@ -129,6 +183,7 @@ public sealed class UserServiceAuthorizationTests
             DisplayName = "Target",
             Phone = "+4512345678",
             Role = role,
+            UserKind = UserKinds.Member,
             EntraId = "entra-target",
             EntraEmail = "target@example.test",
             CreatedAt = DateTimeOffset.UtcNow,
@@ -138,7 +193,8 @@ public sealed class UserServiceAuthorizationTests
     private sealed class FakeCurrentUserContext(string role) : ICurrentUserContext
     {
         public static readonly Guid Organization = Guid.Parse("11111111-1111-1111-1111-111111111111");
-        public Guid? UserId { get; } = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        public static readonly Guid Actor = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        public Guid? UserId { get; } = Actor;
         public Guid? OrganizationId { get; } = Organization;
         public string? Role { get; } = role;
     }
@@ -159,15 +215,41 @@ public sealed class UserServiceAuthorizationTests
         public Task DeleteUserAsync(string entraUserId, CancellationToken ct) => Task.CompletedTask;
     }
 
+    private sealed class FakeClaimsCacheInvalidator : IUserClaimsCacheInvalidator
+    {
+        public int Calls { get; private set; }
+        public string? EntraId { get; private set; }
+        public string? Email { get; private set; }
+        public string? EntraEmail { get; private set; }
+
+        public void Invalidate(string? entraId, string? email, string? entraEmail)
+        {
+            Calls++;
+            EntraId = entraId;
+            Email = email;
+            EntraEmail = entraEmail;
+        }
+    }
+
     private sealed class FakeUserRepository : IUserRepository
     {
         public UserDataRow? ExistingById { get; init; }
+        public string ActorUserKind { get; init; } = UserKinds.Member;
+        public UserDataRow? LastCreated { get; private set; }
         public int CreateCalls { get; private set; }
         public int UpdateCalls { get; private set; }
         public int DeleteCalls { get; private set; }
 
         public Task<UserDataRow?> GetAuthenticatedActorAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult<UserDataRow?>(null);
+            Task.FromResult<UserDataRow?>(id == FakeCurrentUserContext.Actor
+                ? new UserDataRow
+                {
+                    Id = FakeCurrentUserContext.Actor,
+                    OrganizationId = FakeCurrentUserContext.Organization,
+                    Role = Roles.Admin,
+                    UserKind = ActorUserKind
+                }
+                : null);
 
         public Task<UserDataRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(ExistingById?.Id == id ? ExistingById : null);
@@ -187,6 +269,7 @@ public sealed class UserServiceAuthorizationTests
         public Task<Guid> CreateAsync(UserDataRow user, CancellationToken cancellationToken)
         {
             CreateCalls++;
+            LastCreated = user;
             return Task.FromResult(user.Id);
         }
 

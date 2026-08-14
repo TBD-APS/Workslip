@@ -30,6 +30,18 @@ public sealed class EfJobAssignmentScopeRepository(SqlDbContext dbContext) : IJo
             .SingleOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<string?> GetUserKindAsync(
+        Guid organizationId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.Users
+            .AsNoTracking()
+            .Where(user => user.OrganizationId == organizationId && user.Id == userId)
+            .Select(user => user.UserKind)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<JobAssignmentUserScope>> GetUserScopesAsync(
         Guid organizationId,
         IReadOnlyList<Guid> userIds,
@@ -44,7 +56,7 @@ public sealed class EfJobAssignmentScopeRepository(SqlDbContext dbContext) : IJo
         return await dbContext.Users
             .AsNoTracking()
             .Where(user => user.OrganizationId == organizationId && normalizedUserIds.Contains(user.Id))
-            .Select(user => new JobAssignmentUserScope(user.Id, user.FilialId, user.Role))
+            .Select(user => new JobAssignmentUserScope(user.Id, user.FilialId, user.Role, user.UserKind))
             .ToArrayAsync(cancellationToken);
     }
 }

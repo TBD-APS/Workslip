@@ -50,7 +50,9 @@ const SimpleJobCreate = () => {
   const linkableJobs = getLinkableJobs(jobsData, undefined);
 
   const statusMutation = usePostApiJobsIdStatus();
-  const create = useJobCreate((jobId) => {
+  const create = useJobCreate((jobIds) => {
+    const jobId = jobIds[0];
+    if (!jobId) return;
     statusMutation.mutate(
       { id: jobId, data: { status: JobStatus.InReview } },
       {

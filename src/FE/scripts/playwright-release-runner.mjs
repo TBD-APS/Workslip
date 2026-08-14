@@ -1,35 +1,17 @@
+import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+import { validateReleaseRunEnvironment } from './playwright-release-policy.mjs';
 
-const scenario = process.env.SCENARIO ?? 'public-smoke';
-const phase = process.env.WORKSLIP_RELEASE_PHASE ?? '';
-const target = process.env.WORKSLIP_TEST_TARGET ?? '';
-const allowDestructive = process.env.WORKSLIP_ALLOW_DESTRUCTIVE_PLAYWRIGHT === 'true';
-const appUrl = process.env.PROD_URL ?? '';
-const isPublicSmoke = scenario === 'public-smoke';
+const scriptPath = fileURLToPath(import.meta.url);
 
-if (phase !== 'prelive' && phase !== 'live') {
-  throw new Error('WORKSLIP_RELEASE_PHASE must be prelive or live.');
-}
-if (target !== 'production' && target !== 'staging') {
-  throw new Error('WORKSLIP_TEST_TARGET must be production or staging.');
-}
-if (!appUrl.startsWith('https://')) {
-  throw new Error('PROD_URL must be a configured HTTPS release-test target.');
-}
-if (!isPublicSmoke && !allowDestructive) {
-  throw new Error(
-    `Scenario ${scenario} requires an authenticated release-test environment and is blocked for the configured ${target} environment.`,
-  );
-}
-if (target === 'production' && phase === 'live' && !isPublicSmoke) {
-  throw new Error('Live production permits only the write-free public-smoke scenario.');
-}
-if (target === 'staging' && phase !== 'live') {
-  throw new Error('Staging release testing is enabled only after the two-environment live transition.');
-}
+export { validateReleaseRunEnvironment } from './playwright-release-policy.mjs';
 
-if (scenario === 'notification-navigation') {
-  await import('./playwright-notification-navigation.mjs');
-} else {
+async function main() {
+  validateReleaseRunEnvironment();
   await import('./playwright-prod-smoke.mjs');
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === scriptPath) {
+  await main();
 }

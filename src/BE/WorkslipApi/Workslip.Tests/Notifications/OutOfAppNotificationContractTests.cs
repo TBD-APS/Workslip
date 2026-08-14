@@ -67,7 +67,8 @@ public sealed class OutOfAppNotificationContractTests
         var arneId = Guid.NewGuid();
         var nielsId = Guid.NewGuid();
         var currentSubscription = CreateSubscription(nielsId, "shared-device");
-        var repository = new ContractRepository(nielsId, currentSubscription);
+        var otherUsersSubscription = CreateSubscription(arneId, "arnes-device");
+        var repository = new ContractRepository(nielsId, currentSubscription, otherUsersSubscription);
         var service = new NotificationService(repository);
         await service.QueueJobDeniedAsync(
             nielsId,
@@ -90,9 +91,7 @@ public sealed class OutOfAppNotificationContractTests
 
         Assert.Single(sender.SubscriptionIds);
         Assert.Equal(currentSubscription.Id, sender.SubscriptionIds[0]);
-        Assert.DoesNotContain(
-            repository.Subscriptions,
-            subscription => subscription.UserId == arneId);
+        Assert.DoesNotContain(otherUsersSubscription.Id, sender.SubscriptionIds);
     }
 
     private static Task QueueAsync(

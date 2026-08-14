@@ -20,7 +20,7 @@ public sealed record JobAssignmentValidationResult(
     public static JobAssignmentValidationResult JobNotFound() => new(JobAssignmentValidationStatus.JobNotFound);
     public static JobAssignmentValidationResult InvalidAssignee() => new(
         JobAssignmentValidationStatus.InvalidAssignee,
-        "Sager kan kun tildeles medarbejdere i samme filial eller administratoren selv.");
+        "Sager kan kun tildeles medarbejdere eller administratorer i samme filial.");
 }
 
 public interface IJobAssignmentValidator
@@ -118,6 +118,28 @@ public sealed class JobAssignmentValidator(
             return JobAssignmentValidationResult.Valid();
         }
 
+        string? actorUserKind = null;
+        var isSuperadmin = string.Equals(
+            currentUser.Role,
+            Roles.Superadmin,
+            StringComparison.OrdinalIgnoreCase);
+        if (!isSuperadmin)
+        {
+            if (currentUser.UserId is not Guid actorId)
+            {
+                return JobAssignmentValidationResult.Unauthorized();
+            }
+
+            actorUserKind = UserKinds.Normalize(await repository.GetUserKindAsync(
+                organizationId,
+                actorId,
+                cancellationToken));
+            if (actorUserKind is null)
+            {
+                return JobAssignmentValidationResult.Unauthorized();
+            }
+        }
+
         var users = await repository.GetUserScopesAsync(
             organizationId,
             normalizedUserIds,
@@ -128,13 +150,16 @@ public sealed class JobAssignmentValidator(
             return JobAssignmentValidationResult.InvalidAssignee();
         }
 
-        return users.All(user => JobAssignmentPolicy.CanReceiveAssignmentInFilial(
-                user.Role,
-                user.Id,
-                currentUser.UserId,
-                currentUser.Role,
-                user.FilialId,
-                filialId))
+        return users.All(user =>
+                UserVisibilityPolicy.CanAccess(
+                    currentUser.Role,
+                    actorUserKind,
+                    user.Role,
+                    user.UserKind)
+                && JobAssignmentPolicy.CanReceiveAssignmentInFilial(
+                    user.Role,
+                    user.FilialId,
+                    filialId))
             ? JobAssignmentValidationResult.Valid()
             : JobAssignmentValidationResult.InvalidAssignee();
     }

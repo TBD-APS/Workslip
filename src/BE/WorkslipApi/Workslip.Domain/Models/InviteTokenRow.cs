@@ -7,6 +7,7 @@ public sealed class InviteTokenRow
     public string Email { get; set; } = string.Empty;
     public string Token { get; set; } = string.Empty;
     public string? Role { get; set; }
+    public string UserKind { get; set; } = UserKinds.Member;
     public DateTimeOffset ExpiresAt { get; set; }
     public bool Consumed { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

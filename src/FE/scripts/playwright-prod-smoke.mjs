@@ -1,15 +1,16 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { chromium, devices } from 'playwright';
 import { createContractHelpers } from './playwright-critical-contract.mjs';
 import { createDomainHelpers } from './playwright-critical-domain.mjs';
 import { createCoreScenarioHandlers } from './playwright-scenarios-core.mjs';
 import { createAdminScenarioHandlers } from './playwright-scenarios-admin.mjs';
+import { validateReleaseRunEnvironment } from './playwright-release-policy.mjs';
 import { createSyntheticAuth } from './playwright-synthetic-auth.mjs';
 
-const APP_URL = (process.env.PROD_URL ?? '').replace(/\/+$/, '');
-const SCENARIO = process.env.SCENARIO ?? 'public-smoke';
+const releaseRun = validateReleaseRunEnvironment();
+const APP_URL = releaseRun.appUrl;
+const SCENARIO = releaseRun.scenario;
 const VIEWPORT_NAME = 'iPhone 13';
 const ARTIFACT_DIR = path.resolve(process.cwd(), '../../artifacts/playwright-prod-smoke');
 const POSTMAN_PATH = path.resolve(process.cwd(), '../BE/WorkslipApi/Postman/postman_collection.json');
@@ -33,12 +34,13 @@ const CRITICAL_SCENARIOS = [
 ];
 const SUPPORTED_SCENARIOS = ['public-smoke', ...CRITICAL_SCENARIOS, 'all-critical'];
 
-if (!APP_URL) throw new Error('PROD_URL is required.');
 if (!SUPPORTED_SCENARIOS.includes(SCENARIO)) throw new Error(`Unsupported scenario: ${SCENARIO}`);
 
 const syntheticAuth = createSyntheticAuth();
 syntheticAuth.assertScenarioReady(SCENARIO);
+const { chromium, devices } = await import('playwright');
 
+await rm(ARTIFACT_DIR, { recursive: true, force: true });
 await mkdir(ARTIFACT_DIR, { recursive: true });
 const postman = JSON.parse(await readFile(POSTMAN_PATH, 'utf8'));
 
@@ -54,18 +56,35 @@ const report = {
   },
   dataPolicy: SCENARIO === 'public-smoke'
     ? 'Public smoke does not authenticate or send one-time codes.'
-    : 'Authenticated flows use configured non-production identities and the normal Workslip one-time-code login. Codes are entered only in the visible browser. Generated test identifiers follow Postman collection templates.',
+    : 'Authenticated flows use configured non-production identities and the normal Workslip one-time-code login. Codes are entered only in the visible browser. Screenshots are disabled to avoid retaining identity or customer data. Generated test identifiers follow Postman collection templates.',
   scenarios: [],
   retainedFixtures: [],
   cleanupFailures: [],
 };
 
-const browser = await chromium.launch(syntheticAuth.browserLaunchOptions(SCENARIO));
+const browserLaunchOptions = syntheticAuth.browserLaunchOptions(SCENARIO);
+const configuredProxy = resolveOptionalProxy(process.env.WORKSLIP_PLAYWRIGHT_PROXY);
+const ignoreUntrustedProxyCertificate = resolveProxyCertificateOverride(
+  process.env.WORKSLIP_PLAYWRIGHT_IGNORE_HTTPS_ERRORS,
+  configuredProxy,
+);
+if (configuredProxy) browserLaunchOptions.proxy = { server: configuredProxy };
+const browser = await chromium.launch(browserLaunchOptions);
 const helperEnv = { APP_URL, API_TIMEOUT, UI_TIMEOUT, VIEWPORT_NAME, ARTIFACT_DIR, postman, browser, devices, report };
 const contractHelpers = createContractHelpers(helperEnv);
 const domainHelpers = createDomainHelpers(helperEnv, contractHelpers);
 const helpers = { ...contractHelpers, ...domainHelpers };
-const { buildPostmanContract, buildDataFactory, validateContract, serializeError, redact, safeUrl, fileSafe, assertNoBrowserErrors } = contractHelpers;
+const {
+  buildPostmanContract,
+  buildDataFactory,
+  validateContract,
+  serializeError,
+  redact,
+  safeUrl,
+  fileSafe,
+  assertNoBrowserErrors,
+  unwrapCollection,
+} = contractHelpers;
 const postmanContract = buildPostmanContract(postman);
 const dataFactory = SCENARIO === 'public-smoke'
   ? { forScenario: () => ({}) }
@@ -105,6 +124,41 @@ try {
 }
 
 if (suiteFailure) throw suiteFailure;
+
+function resolveOptionalProxy(value) {
+  const proxy = String(value ?? '').trim();
+  if (!proxy) return null;
+
+  let url;
+  try {
+    url = new URL(proxy);
+  } catch {
+    throw new Error('WORKSLIP_PLAYWRIGHT_PROXY must be an HTTP(S) proxy origin.');
+  }
+  if (
+    !['http:', 'https:'].includes(url.protocol)
+    || url.username
+    || url.password
+    || url.search
+    || url.hash
+    || (url.pathname !== '/' && url.pathname !== '')
+  ) {
+    throw new Error('WORKSLIP_PLAYWRIGHT_PROXY must be an HTTP(S) proxy origin without credentials, path, query, or fragment.');
+  }
+
+  return url.origin;
+}
+
+function resolveProxyCertificateOverride(value, configuredProxy) {
+  if (!value) return false;
+  if (value !== 'true') {
+    throw new Error('WORKSLIP_PLAYWRIGHT_IGNORE_HTTPS_ERRORS must be exactly true when explicitly enabled.');
+  }
+  if (!configuredProxy) {
+    throw new Error('WORKSLIP_PLAYWRIGHT_IGNORE_HTTPS_ERRORS is allowed only with WORKSLIP_PLAYWRIGHT_PROXY.');
+  }
+  return true;
+}
 
 async function runScenario(name) {
   const scenarioReport = {
@@ -176,11 +230,13 @@ async function createSession(name, scenarioReport) {
     ...devices[VIEWPORT_NAME],
     locale: 'da-DK',
     timezoneId: 'Europe/Copenhagen',
+    ignoreHTTPSErrors: ignoreUntrustedProxyCertificate,
   });
   const page = await context.newPage();
   const fixtures = { jobs: [], customers: [], users: [] };
   const auth = { token: null, user: null, apiBase: null, openApi: null, role: null };
   let captureAuthenticatedNetwork = false;
+  let cachedAdminToken = null;
 
   page.on('console', (message) => {
     if (message.type() === 'error') scenarioReport.consoleErrors.push(redact(message.text()));
@@ -212,6 +268,7 @@ async function createSession(name, scenarioReport) {
     api,
     apiExpect,
     getReferenceData,
+    getConfiguredUsers,
     getAddress,
     cleanup,
     setAuthenticatedNetworkCapture(value) { captureAuthenticatedNetwork = value; },
@@ -237,6 +294,7 @@ async function createSession(name, scenarioReport) {
   }
 
   async function screenshot(label) {
+    if (SCENARIO !== 'public-smoke') return;
     await page.screenshot({
       path: path.join(ARTIFACT_DIR, `${fileSafe(name)}-${fileSafe(label)}.png`),
       fullPage: true,
@@ -268,6 +326,7 @@ async function createSession(name, scenarioReport) {
     const me = await apiExpect('GET', '/api/auth/me', undefined, [200]);
     auth.user = me;
     auth.role = me.role;
+    if (String(me.role).toLowerCase() === 'admin') cachedAdminToken = auth.token;
     return me;
   }
 
@@ -328,6 +387,34 @@ async function createSession(name, scenarioReport) {
     return data;
   }
 
+  async function getConfiguredUsers(roles) {
+    if (!Array.isArray(roles) || roles.length === 0) {
+      throw new Error('At least one configured role is required to resolve assignment users.');
+    }
+
+    const users = unwrapCollection(await apiExpect('GET', '/api/users/', undefined, [200]));
+    const resolved = roles.map((role) => {
+      const expectedEmail = syntheticAuth.emailForRole(role).trim().toLowerCase();
+      const user = users.find((candidate) =>
+        String(candidate?.email ?? '').trim().toLowerCase() === expectedEmail &&
+        String(candidate?.role ?? '').toLowerCase() === String(role).toLowerCase(),
+      );
+      if (!user?.id || !user.displayName) {
+        throw new Error(`Configured ${role} identity is not a visible member of the active organization.`);
+      }
+      return user;
+    });
+
+    if (new Set(resolved.map((user) => user.id)).size !== resolved.length) {
+      throw new Error('Configured assignment identities must resolve to distinct users.');
+    }
+    if (new Set(resolved.map((user) => String(user.displayName).trim().toLocaleLowerCase('da-DK'))).size !== resolved.length) {
+      throw new Error('Configured assignment identities must have distinct display names.');
+    }
+
+    return resolved;
+  }
+
   async function getAddress() {
     const query = encodeURIComponent(session.data.addressQuery);
     const response = await fetch(`https://dawa.aws.dk/adresser/autocomplete?q=${query}&per_side=5`, {
@@ -358,11 +445,18 @@ async function createSession(name, scenarioReport) {
 
     let cleanupContext = null;
     try {
-      cleanupContext = await browser.newContext({ ...devices[VIEWPORT_NAME], locale: 'da-DK' });
-      const cleanupPage = await cleanupContext.newPage();
-      const adminEmail = syntheticAuth.emailForRole('Admin');
-      const { tokenPayload } = await authenticatePage(cleanupPage, adminEmail);
-      const cleanupToken = tokenPayload.token;
+      let cleanupToken = cachedAdminToken;
+      if (!cleanupToken) {
+        cleanupContext = await browser.newContext({
+          ...devices[VIEWPORT_NAME],
+          locale: 'da-DK',
+          ignoreHTTPSErrors: ignoreUntrustedProxyCertificate,
+        });
+        const cleanupPage = await cleanupContext.newPage();
+        const adminEmail = syntheticAuth.emailForRole('Admin');
+        const { tokenPayload } = await authenticatePage(cleanupPage, adminEmail);
+        cleanupToken = tokenPayload.token;
+      }
 
       for (const jobId of [...fixtures.jobs].reverse()) {
         try {

@@ -45,11 +45,19 @@ public sealed class EfJobRepository : IJobRepository
         await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
-        var reportId = Guid.NewGuid();
-        
-        // Generate sequential report number
-        var nextSequenceNumber = await GetNextReportNumberAsync(organizationId, cancellationToken);
-        var reportNumber = nextSequenceNumber.ToString("D4");
+        var normalizedUserIds = assignedUserIds
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToArray();
+        var duplicatePerAssignedUser = request.DuplicatePerAssignedUser == true && normalizedUserIds.Length > 1;
+        IReadOnlyList<Guid[]> assignmentGroups = duplicatePerAssignedUser
+            ? normalizedUserIds.Select(userId => new[] { userId }).ToArray()
+            : [normalizedUserIds];
+        var reportIds = assignmentGroups.Select(_ => Guid.NewGuid()).ToArray();
+
+        // Reserve one consecutive report number per copy while the organization
+        // allocation lock is held by the surrounding transaction.
+        var firstSequenceNumber = await GetNextReportNumberAsync(organizationId, cancellationToken);
 
         var customerSnapshot = request.CustomerSnapshot is null
             ? null
@@ -78,59 +86,93 @@ public sealed class EfJobRepository : IJobRepository
             workKindId = matched?.Id;
         }
 
-        _dbContext.JobReports.Add(new JobReportRow
+        for (var index = 0; index < assignmentGroups.Count; index++)
         {
-            Id = reportId,
-            OrganizationId = organizationId,
-            CustomerId = customerId,
-            CustomerName = customerSnapshot?.Name,
-            CustomerEmail = customerSnapshot?.Email,
-            CustomerPhone = customerSnapshot?.Phone,
-            CustomerAddress = customerSnapshot?.Address,
-            DestinationAddress = request.DestinationAddress,
-            DestinationZipCode = request.DestinationZipCode,
-            DestinationCity = request.DestinationCity,
-            ReportNumber = reportNumber,
-            Status = JobStatus.Draft.ToString(),
-            JobType = Enum.TryParse<JobType>(request.JobType, out var jobType) ? jobType : JobType.Unknown,
-            ReportDate = ToDateTime(request.Observations?.ReportDate),
-            TaskDescription = request.Observations?.TaskDescription,
-            CustomerObservations = request.Observations?.CustomerObservations,
-            TechnicalObservations = request.Observations?.TechnicalObservations,
-            WorkKindId = workKindId,
-            CustomWorkKind = request.Work?.CustomWorkKind,
-            Remarks = request.Work?.Remarks,
-            CreatedAt = now,
-            UpdatedAt = now
-        });
+            var reportId = reportIds[index];
+            var reportNumber = (firstSequenceNumber + index).ToString("D4");
+            _dbContext.JobReports.Add(new JobReportRow
+            {
+                Id = reportId,
+                OrganizationId = organizationId,
+                CustomerId = customerId,
+                CustomerName = customerSnapshot?.Name,
+                CustomerEmail = customerSnapshot?.Email,
+                CustomerPhone = customerSnapshot?.Phone,
+                CustomerAddress = customerSnapshot?.Address,
+                CustomerContactPerson = customerSnapshot?.ContactPerson,
+                DestinationAddress = request.DestinationAddress,
+                DestinationZipCode = request.DestinationZipCode,
+                DestinationCity = request.DestinationCity,
+                ReportNumber = reportNumber,
+                Status = JobStatus.Draft.ToString(),
+                JobType = Enum.TryParse<JobType>(request.JobType, out var jobType) ? jobType : JobType.Unknown,
+                ReportDate = ToDateTime(request.Observations?.ReportDate),
+                TaskDescription = request.Observations?.TaskDescription,
+                CustomerObservations = request.Observations?.CustomerObservations,
+                TechnicalObservations = request.Observations?.TechnicalObservations,
+                WorkKindId = workKindId,
+                CustomWorkKind = request.Work?.CustomWorkKind,
+                Remarks = request.Work?.Remarks,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
 
-        if (request.Work?.InstallationTypes?.Count > 0)
-        {
-            await AddSelectedInstallationsAsync(organizationId, reportId, request.Work.InstallationTypes, now, cancellationToken);
+            if (request.Work?.InstallationTypes?.Count > 0)
+            {
+                await AddSelectedInstallationsAsync(organizationId, reportId, request.Work.InstallationTypes, now, cancellationToken);
+            }
+
+            if (request.Work?.ClosureFlags?.Count > 0)
+            {
+                await AddClosureFlagsAsync(organizationId, reportId, request.Work.ClosureFlags, cancellationToken);
+            }
+
+            var requestedTimesheets = request.Timesheets;
+            if (requestedTimesheets is { Count: > 0 })
+            {
+                IReadOnlyList<CreateTimesheetRequest> timesheets = duplicatePerAssignedUser
+                    ? requestedTimesheets
+                        .Where(timesheet => Guid.TryParse(timesheet.UserId, out var userId)
+                            && userId == assignmentGroups[index][0])
+                        .ToArray()
+                    : requestedTimesheets;
+                AddTimesheets(organizationId, reportId, timesheets, now);
+            }
+
+            await _assignmentRepo.AddAssignedUsersAsync(
+                organizationId,
+                reportId,
+                assignmentGroups[index],
+                actorId,
+                now,
+                cancellationToken);
         }
 
-        if (request.Work?.ClosureFlags?.Count > 0)
+        var linkedJobIds = request.LinkedJobIds?
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToArray() ?? [];
+        if (linkedJobIds.Length > 0)
         {
-            await AddClosureFlagsAsync(organizationId, reportId, request.Work.ClosureFlags, cancellationToken);
+            _dbContext.JobReportLinks.AddRange(
+                reportIds.SelectMany(reportId => linkedJobIds.Select(linkedJobId => new JobReportLinkRow
+                {
+                    Id = Guid.NewGuid(),
+                    OrganizationId = organizationId,
+                    SourceReportId = reportId,
+                    TargetReportId = linkedJobId,
+                    CreatedAt = now
+                })));
         }
-
-        // Create timesheets if provided (before saving to ensure transaction atomicity)
-        if (request.Timesheets?.Count > 0)
-        {
-            await CreateTimesheetsAsync(organizationId, reportId, request.Timesheets, now, cancellationToken);
-        }
-
-        var normalizedUserIds = assignedUserIds.Where(id => id != Guid.Empty).Distinct().ToArray();
-        await _assignmentRepo.AddAssignedUsersAsync(organizationId, reportId, normalizedUserIds, actorId, now, cancellationToken);
         
         await _dbContext.SaveChangesAsync(cancellationToken);        
         await tx.CommitAsync(cancellationToken);
 
-        var job = await GetSingleJobAsync(reportId, organizationId, cancellationToken);
-        return job!;
+        var primaryJob = await GetSingleJobAsync(reportIds[0], organizationId, cancellationToken);
+        return primaryJob! with { CreatedJobIds = reportIds };
     }
 
-private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, IReadOnlyList<CreateTimesheetRequest> timesheets, DateTimeOffset now, CancellationToken cancellationToken)
+    private void AddTimesheets(Guid organizationId, Guid jobReportId, IReadOnlyList<CreateTimesheetRequest> timesheets, DateTimeOffset now)
     {
         var worksheetRows = timesheets.Select(ts => new WorksheetRow
         {
@@ -146,7 +188,6 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
         }).ToList();
 
         _dbContext.Worksheets.AddRange(worksheetRows);
-        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private async Task SyncTimesheetsAsync(Guid organizationId, Guid jobReportId, IReadOnlyList<CreateTimesheetRequest> timesheets, CancellationToken cancellationToken)
@@ -183,12 +224,19 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
     {
         _dbContext.ChangeTracker.Clear();
 
-        var statuses = query.Statuses?.Select(x => x.ToString()).Distinct() ?? [];       
+        var statuses = query.Statuses is { Count: > 0 }
+            ? query.Statuses.Select(x => x.ToString()).Distinct().ToArray()
+            : null;
+        var assignedToUserId = query.AssignedToUserId;
 
         var baseQuery =
             from job in _dbContext.JobReports.AsNoTracking()
             where job.OrganizationId == query.OrganizationId
-            where statuses.Contains(job.Status)
+            where statuses == null || statuses.Contains(job.Status)
+            where !assignedToUserId.HasValue || _dbContext.JobAssignments.Any(assignment =>
+                assignment.OrganizationId == query.OrganizationId
+                && assignment.ReportId == job.Id
+                && assignment.UserId == assignedToUserId.Value)
             where job.IsSoftDeleted == false
             where query.ReportNumber == null || (job.ReportNumber != null && job.ReportNumber.Contains(query.ReportNumber))
             where query.CustomerName == null || (job.CustomerName != null && job.CustomerName.Contains(query.CustomerName))
@@ -875,7 +923,7 @@ if (request.Work.ClosureFlags is not null)
 
     private async Task<int> GetNextReportNumberAsync(Guid organizationId, CancellationToken cancellationToken)
     {
-        if (!_dbContext.Database.IsRelational())
+        if (!_dbContext.Database.IsSqlServer())
         {
             var nonRelationalMaxReportNumber = await _dbContext.JobReports
                 .AsNoTracking()

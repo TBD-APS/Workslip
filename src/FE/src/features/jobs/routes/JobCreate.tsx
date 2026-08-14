@@ -34,7 +34,7 @@ export const JobCreate = () => {
     : undefined;
   const [initialFormBaseline, setInitialFormBaseline] = useState<JobForm>(() => initialForm ?? emptyForm);
 
-  const [createdJobId, setCreatedJobId] = useState<string | null>(null);
+  const [createdJobIds, setCreatedJobIds] = useState<string[]>([]);
   const { data: jobsData, isLoading: isLoadingJobs } = useQuery({
     queryKey: getGetApiJobsQueryKey({ status: [JobStatus.Draft, JobStatus.Approved, JobStatus.InReview], limit: 200 }),
     queryFn: async () => {
@@ -44,7 +44,7 @@ export const JobCreate = () => {
   });
   const linkableJobs = getLinkableJobs(jobsData, undefined);
 
-  const create = useJobCreate((jobId) => setCreatedJobId(jobId), initialForm);
+  const create = useJobCreate(setCreatedJobIds, initialForm);
 
   useEffect(() => {
     document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -62,16 +62,16 @@ export const JobCreate = () => {
       customerId: preservedCustomerId,
       customerSnapshot: preservedSnapshot,
     });
-    setCreatedJobId(null);
+    setCreatedJobIds([]);
     document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleGoToCreatedJob = () => {
-    if (!createdJobId) return;
-    navigate(`/app/job/${createdJobId}`, { replace: true, state: { from: '/app' } });
+    if (createdJobIds.length === 0) return;
+    navigate(`/app/job/${createdJobIds[0]}`, { replace: true, state: { from: '/app' } });
   };
 
-  const hasUnsavedChanges = createdJobId === null && (!sameForm(create.form, initialFormBaseline) || create.linkedJobIds.length > 0);
+  const hasUnsavedChanges = createdJobIds.length === 0 && (!sameForm(create.form, initialFormBaseline) || create.linkedJobIds.length > 0);
 
   return (
     <div className="page-container">
@@ -105,8 +105,9 @@ export const JobCreate = () => {
         </button>
       </div>
 
-      {createdJobId && (
+      {createdJobIds.length > 0 && (
         <CreateSuccessDialog
+          createdJobCount={createdJobIds.length}
           onCreateAnother={handleCreateAnother}
           onGoToJobList={() => navigate('/app')}
           onGoToJob={handleGoToCreatedJob}
@@ -117,10 +118,12 @@ export const JobCreate = () => {
 };
 
 function CreateSuccessDialog({
+  createdJobCount,
   onCreateAnother,
   onGoToJobList,
   onGoToJob,
 }: {
+  createdJobCount: number;
   onCreateAnother: () => void;
   onGoToJobList: () => void;
   onGoToJob: () => void;
@@ -128,7 +131,9 @@ function CreateSuccessDialog({
   return createPortal(
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="create-success-title">
       <div className="modal-card">
-        <h3 id="create-success-title">Sagen er oprettet</h3>
+        <h3 id="create-success-title">
+          {createdJobCount > 1 ? `${createdJobCount} sager er oprettet` : 'Sagen er oprettet'}
+        </h3>
         <div className="modal-actions modal-actions--triple">
           <button className="btn btn-secondary" onClick={onCreateAnother}>
             Opret en mere
@@ -137,7 +142,7 @@ function CreateSuccessDialog({
             Til sagslisten
           </button>
           <button className="btn btn-primary" onClick={onGoToJob}>
-            Til sagen
+            {createdJobCount > 1 ? 'Til første sag' : 'Til sagen'}
           </button>
         </div>
       </div>

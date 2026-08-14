@@ -28,7 +28,6 @@ packages/
 .env.*
 !.env.example
 !.env.sample
-appsettings.Development.json
 appsettings.Local.json
 appsettings.*.local.json
 secrets.json
@@ -92,6 +91,9 @@ dev-dist/
 
 # Obsidian local/plugin state (notes stay tracked)
 Docs/.obsidian/
+
+# Retired customer export: real customer/person data must never be a docs fixture
+/Docs/customerdata.csv
 
 # Windows reserved names
 nul
