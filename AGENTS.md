@@ -8,7 +8,8 @@ This file contains the repository-wide rules that implementation agents must fol
 2. Read the closest applicable scoped `AGENTS.md` file.
 3. Inspect the current implementation, tests, configuration, schema and active ADRs before making assumptions.
 4. Read [`Docs/agents/VALIDATION.md`](Docs/agents/VALIDATION.md) when implementing or validating a change.
-5. Read [`Docs/compliance/GDPR_AI_ACT_BASELINE.md`](Docs/compliance/GDPR_AI_ACT_BASELINE.md) only when personal-data processing, an external processor, or an AI system is affected.
+5. Read [`Docs/agents/DELIVERY_HANDOFFS.md`](Docs/agents/DELIVERY_HANDOFFS.md) when work is handed between agents/sessions or when planning, reviewing or release-gating a change.
+6. Read [`Docs/compliance/GDPR_AI_ACT_BASELINE.md`](Docs/compliance/GDPR_AI_ACT_BASELINE.md) only when personal-data processing, an external processor, or an AI system is affected.
 
 Do not begin editing until the branch belongs to one cohesive issue and the affected implementation is understood.
 
@@ -37,6 +38,7 @@ When documentation disagrees with implementation, fix the maintained documentati
 - Do not create multiple parallel PRs against `main` or a release branch when the changes belong to the same delivery sequence, touch shared implementation, or have an intended merge order. Extend the existing stack instead.
 - Use a standalone PR directly from `main` or a release branch only when the change is genuinely independent, has no relevant dependency or overlap with an active stack, and can be reviewed, merged and deployed in any order.
 - Before opening a new PR, inspect related active branches/PRs and attach the work to the existing stack when one exists.
+- When multiple agents or sessions are active, inspect expected file/scope overlap before editing. If overlap exists, coordinate in a durable Linear or PR comment and choose one owner instead of creating competing implementations.
 - Keep the stack order explicit in PR descriptions. As parent layers merge, rebase or retarget the next layer instead of recreating equivalent parallel PRs unless a verified GitHub limitation makes replacement unavoidable.
 - Do not mix unrelated cleanup into feature work.
 - Improve nearby technical debt only when it is required for correctness, materially lowers risk, or removes duplication inside the task boundary.
@@ -56,7 +58,7 @@ Urgent security, tenant-isolation, data-loss, compliance and production-correctn
 
 ## Delivery loop
 
-For implementation batches, keep the execution loop short and deterministic:
+For implementation batches, keep the execution loop short and deterministic. Use [`Docs/agents/DELIVERY_HANDOFFS.md`](Docs/agents/DELIVERY_HANDOFFS.md) for role boundaries, the standard handoff, adversarial review and release-readiness decisions.
 
 1. verify the problem against current source/runtime evidence;
 2. confirm the owning Linear issue and exact scope for implementation work; do not create a new Linear issue unless explicitly requested;
@@ -94,14 +96,14 @@ Stop and escalate before destructive production operations, irreversible data se
 
 Run the smallest validation set that proves the changed risk. Follow [`Docs/agents/VALIDATION.md`](Docs/agents/VALIDATION.md) for the required level.
 
-Report evidence precisely: static review, build, automated tests, integration tests, Playwright, deployed smoke and compliance/operational evidence are different things. Do not say “done”, “works” or “validated” without stating what actually ran and what remains unverified.
+Report evidence precisely: static review, build, Unit, Postman feature/API, Playwright, narrow provider-specific evidence, deployed smoke and compliance/operational evidence are different things. Do not say “done”, “works” or “validated” without stating what actually ran and what remains unverified.
 
 Before calling implementation complete, confirm all of the following that apply:
 
 - the final PR body reflects completed CI/test/browser/deployment evidence rather than planned evidence;
 - Linear status and delivery notes match what was actually merged;
 - superseded or duplicate PRs are closed with a pointer to the replacement;
-- known validation gaps are named explicitly, especially missing Playwright/browser evidence for user-visible critical flows;
+- known validation gaps are named explicitly, especially missing Postman runtime evidence for backend feature boundaries or Playwright/browser evidence for user-visible critical flows;
 - deployment status is checked when deployment is part of the requested outcome.
 
 ## Documentation and decisions
