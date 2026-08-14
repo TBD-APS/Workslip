@@ -117,8 +117,10 @@ export const AppLayout = () => {
           <button
             type="button"
             onClick={() => setQuickNavigatorOpen(true)}
-            className="user-avatar"
+            className="user-avatar quick-nav-header-trigger"
             aria-label="Hurtig navigation"
+            aria-haspopup="dialog"
+            aria-expanded={quickNavigatorOpen}
             title="Hurtig navigation (Ctrl+K)"
           >
             <Search size={18} />
@@ -255,6 +257,17 @@ export const AppLayout = () => {
             <span>Kunder</span>
           </NavLink>
         </Can>
+        <button
+          type="button"
+          className={`nav-item quick-nav-mobile-trigger ${quickNavigatorOpen ? 'active' : ''}`}
+          onClick={() => setQuickNavigatorOpen(true)}
+          aria-label="Hurtig navigation"
+          aria-haspopup="dialog"
+          aria-expanded={quickNavigatorOpen}
+        >
+          <Search size={24} />
+          <span>Søg</span>
+        </button>
       </nav>
 
       {/* Floating Create Button - only on Sager list */}
