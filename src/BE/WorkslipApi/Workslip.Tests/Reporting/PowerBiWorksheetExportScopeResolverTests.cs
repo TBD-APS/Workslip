@@ -48,6 +48,25 @@ public sealed class PowerBiWorksheetExportScopeResolverTests
         Assert.Null(result);
     }
 
+    [Fact]
+    public async Task ResolveOrganizationIdAsync_RejectsMatchingNonAdminUser()
+    {
+        await using var dbContext = CreateDbContext();
+        var organizationId = Guid.NewGuid();
+        var user = User(organizationId, "powerbi@example.com", "entra-reader");
+        user.Role = "User";
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+        var resolver = new PowerBiWorksheetExportScopeResolver(dbContext);
+
+        var result = await resolver.ResolveOrganizationIdAsync(
+            "powerbi@example.com",
+            "entra-reader",
+            CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
     private static SqlDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<SqlDbContext>()
