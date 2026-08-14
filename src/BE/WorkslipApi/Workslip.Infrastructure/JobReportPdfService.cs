@@ -125,7 +125,10 @@ public sealed class JobReportPdfService : IJobReportPdfService
                 row.RelativeItem().Element(c => ComposeMetaSection(c, job));
             });
             col.Item().Element(c => ComposeTaskSection(c, job));
-            col.Item().Element(c => ComposeObservationsSection(c, job));
+            if (HasValue(job.Observations.TechnicalObservations) || HasValue(job.Observations.CustomerObservations))
+            {
+                col.Item().Element(c => ComposeObservationsSection(c, job));
+            }
             col.Item().Element(c => ComposeLinksSection(c, job, jobBaseUri));    
         });
     }
@@ -136,6 +139,10 @@ public sealed class JobReportPdfService : IJobReportPdfService
         {
             col.Spacing(18);
             col.Item().Element(c => ComposeWorkSection(c, job));
+            if (HasValue(job.Work.Remarks))
+            {
+                col.Item().Element(c => ComposeIrrelevanceReasonSection(c, job.Work.Remarks!));
+            }
             col.Item().Element(c => PageHeading(c, "ARBEJDSSEDLER", "A"));
             col.Item().Element(c => ComposeWorksheetsSection(c, job));
         });
@@ -330,13 +337,13 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
     private static void ComposeObservationsSection(IContainer container, JobReportSummaryResponse job)
     {
-        Section(container, "Observationer", "O", body =>
+        Section(container, "Noter", "N", body =>
         {
             body.Row(row =>
             {
-                row.RelativeItem().Element(c => LongText(c, "Tekniske observationer", job.Observations.TechnicalObservations));
+                row.RelativeItem().Element(c => LongText(c, "Kommentar til sagen", job.Observations.TechnicalObservations));
                 row.ConstantItem(12);
-                row.RelativeItem().Element(c => LongText(c, "Information til kunden", job.Observations.CustomerObservations));
+                row.RelativeItem().Element(c => LongText(c, "Oplysninger til kunden", job.Observations.CustomerObservations));
             });
         });
     }
@@ -347,12 +354,14 @@ public sealed class JobReportPdfService : IJobReportPdfService
         {
             col.Item().Element(c => PageHeading(c, "OPGAVEBESKRIVELSE", "B"));
             col.Item().PaddingTop(8).Text(Value(job.Observations.TaskDescription)).FontSize(PdfStyle.FieldValueSize);
-            col.Item().PaddingTop(16).Element(c => PageHeading(c, "UDFØRT ARBEJDE", "U"));
-            col.Item().PaddingTop(8).Background(PdfStyle.PrimaryLight).Padding(10)
-                .Text(HasValue(job.Work.Remarks)
-                    ? job.Work.Remarks!
-                    : "Se kontrolpunkter og arbejdssedler for udført arbejde.")
-                .FontSize(PdfStyle.FieldValueSize).FontColor(PdfStyle.TextMedium);
+        });
+    }
+
+    private static void ComposeIrrelevanceReasonSection(IContainer container, string remarks)
+    {
+        Section(container, "Begrundelse for irrelevante kontrolpunkter", "B", body =>
+        {
+            body.Text(remarks.Trim()).FontSize(PdfStyle.FieldValueSize).FontColor(PdfStyle.TextMedium);
         });
     }
 

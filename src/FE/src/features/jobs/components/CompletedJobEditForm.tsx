@@ -1,4 +1,4 @@
-import { FileText, MessageSquare, Wrench, FileCheck2, CheckCircle2, X, Save, Loader2 } from 'lucide-react';
+import { FileText, MessageCircle, MessageSquare, FileCheck2, CheckCircle2, X, Save, Loader2 } from 'lucide-react';
 import { AssignmentBlock, CustomerDetailsBlock, DestinationAddressBlock, LinkedJobsBlock, TextAreaBlock } from './JobDetailBlocks';
 import { ControlPointsStep } from './steps/ControlPointsStep';
 import { JobCompletionStep } from './steps/JobCompletionStep';
@@ -67,11 +67,11 @@ export function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJob
           <section className="detail-section attestation-summary-section">
             <div className="section-header-row attestation-compact-header">
               <FileCheck2 size={18} />
-              <h3>Observationer og noter</h3>
+              <h3>Noter</h3>
             </div>
             <TextAreaBlock
               icon={<FileText size={18} />}
-              title="Opgave"
+              title="Opgavebeskrivelse"
               value={details.form.taskDescription}
               onChange={details.updateTaskDescription}
               placeholder="Beskriv opgaven..."
@@ -79,18 +79,18 @@ export function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJob
             <div className="form-divider" />
             <TextAreaBlock
               icon={<MessageSquare size={18} />}
-              title="Kundeinfo"
+              title="Oplysninger til kunden"
               value={details.form.customerObservations}
               onChange={details.updateCustomerObservations}
               placeholder="Notér oplysninger til kunden..."
             />
             <div className="form-divider" />
             <TextAreaBlock
-              icon={<Wrench size={18} />}
-              title="Teknisk"
+              icon={<MessageCircle size={18} />}
+              title="Skriv en kommentar til sagen"
               value={details.form.technicalObservations}
               onChange={details.updateTechnicalObservations}
-              placeholder="Notér tekniske observationer..."
+              placeholder="Skriv en kommentar til sagen..."
             />
           </section>
 

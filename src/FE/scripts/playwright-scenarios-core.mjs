@@ -91,7 +91,7 @@ async function rejectionLoopFlow(session) {
     await session.login('User');
     await session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded' });
     await waitForWizardStep(session.page, 'Sagsdetaljer');
-    const technical = session.page.getByPlaceholder('Notér tekniske observationer...');
+    const technical = session.page.getByPlaceholder('Skriv en kommentar til sagen...');
     const correctionSave = waitForApiResponse(session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
     await technical.fill(session.data.correctedObservation);
     await correctionSave;
