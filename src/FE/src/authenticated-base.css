@@ -199,3 +199,13 @@
   color: var(--danger);
   background: var(--status-red-bg);
 }
+
+/* Legacy workflow selectors in App.css used a literal white selected surface.
+   Keep selected controls in the same semantic system in both themes. */
+body:has(.app-shell) .category-choice-grid .choice-card.selected,
+body:has(.app-shell) .work-kind-list .work-kind-option.selected,
+body:has(.app-shell) .control-points-list .multi-select-option.selected {
+  background: var(--surface-selected-strong);
+  border-color: var(--primary);
+  color: var(--text);
+}
