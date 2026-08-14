@@ -48,6 +48,7 @@ jobs:
           grep -Fq 'persist-credentials: false' "$workflow"
           grep -Fq 'openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56' "$workflow"
           grep -Fq 'anthropics/claude-code-action@239e3a730883eeb5c53db12b0fc9573b3024b126' "$workflow"
+          grep -Fq 'github_token:' "$workflow"
           grep -Fq -- '--allowedTools Read,Grep,Glob' "$workflow"
           grep -Fq 'OWNER|MEMBER|COLLABORATOR' "$workflow"
           grep -Fq 'statuses: write' "$workflow"
@@ -55,8 +56,8 @@ jobs:
             echo 'OpenAI actor restrictions must not be weakened with allow-users.' >&2
             exit 1
           fi
-          if grep -Fq 'contents: write' "$workflow" || grep -Fq 'pull-requests: write' "$workflow"; then
-            echo 'AI review workflow must not receive repository or PR write permissions.' >&2
+          if grep -Fq 'contents: write' "$workflow" || grep -Fq 'pull-requests: write' "$workflow" || grep -Fq 'id-token: write' "$workflow"; then
+            echo 'AI review workflow must not receive repository, PR or OIDC write permissions.' >&2
             exit 1
           fi
           if grep -Eq '^[[:space:]]*ref:.*needs\.prepare\.outputs\.head_sha' "$workflow"; then
