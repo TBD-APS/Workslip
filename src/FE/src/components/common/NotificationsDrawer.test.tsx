@@ -113,6 +113,36 @@ describe('NotificationsDrawer', () => {
     ]);
   });
 
+  it('filters the inbox to unread notifications and shows the all-clear state after marking all read', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue([readNotification, { ...unreadNotification, url: null }]);
+    vi.mocked(apiClient.post).mockResolvedValue(undefined);
+
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <MemoryRouter>
+          <NotificationsDrawer isOpen onClose={vi.fn()} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole('button', { name: 'Ny sag, ulæst' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Eksisterende' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /Ulæste/ }));
+
+    expect(screen.getByRole('button', { name: 'Ny sag, ulæst' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Eksisterende' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Marker alle som læst/ }));
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith(
+      '/api/notifications/read-all',
+      undefined,
+      { skipGlobalErrorToast: true },
+    ));
+    expect(await screen.findByText('Du er helt ajour')).toBeInTheDocument();
+  });
+
   it('clears a stale action error when the drawer closes', async () => {
     vi.mocked(apiClient.get).mockResolvedValue([
       { ...unreadNotification, url: null },
