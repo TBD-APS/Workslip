@@ -52,6 +52,13 @@ When documentation disagrees with implementation, fix the maintained documentati
 - After a temporary release candidate is promoted, retire its delivery artifacts and return new work to the accepted normal flow. Do not roll the release branch forward indefinitely without an explicit architecture decision.
 - Temporary validation PRs, branches, workflow edits, generated snapshots and one-off files must be removed or explicitly retained with an owner before the owning issue is completed.
 
+## Canonical local development
+
+- On a supported Windows developer machine, root `./dev.ps1` is the canonical full-stack bootstrap and smoke path. See [`Docs/operations/local-development.md`](Docs/operations/local-development.md).
+- Do not invent `appsettings.Local.json` values, copy production configuration, enable remote SQL, or route synthetic test users through Entra merely to make local development start.
+- If the canonical bootstrap fails on a clean supported machine, treat that as a Workslip setup defect and fix the maintained bootstrap/configuration instead of documenting tribal workarounds.
+- Backend-only/frontend-only manual commands remain valid for focused debugging, but they do not replace the fresh-machine full-stack runtime smoke.
+
 ## Delivery loop
 
 For implementation batches, keep the execution loop short and deterministic:
