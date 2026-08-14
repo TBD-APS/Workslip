@@ -1,5 +1,6 @@
 import { AlertCircle, CheckCircle2, Clock, Info, ListChecks, Send, ShieldCheck, EyeOff } from 'lucide-react';
 import { CollapsibleSection } from '../../../../components/forms/CollapsibleSection';
+import { triggerCompletionCelebration } from '../../../../components/common/GamificationFeedback';
 import { JobStatus } from '../../../../api/generated/models/jobStatus';
 import type { useJobDetails } from '../../hooks/useJobDetails';
 import { formatNumber, formatUnit, parseNullableNumber, capitalize } from '../../../../lib/formatUtils';
@@ -84,6 +85,7 @@ export function JobAttestationStep({
   const handleSubmit = async () => {
     try {
       await details.submitJob();
+      triggerCompletionCelebration();
       onSubmitted();
     } catch {
       return;
@@ -141,7 +143,7 @@ export function JobAttestationStep({
         </section>
       )}
 
-            {selectedClosureFlags.length > 0 && (
+      {selectedClosureFlags.length > 0 && (
         <section className="detail-section attestation-control-section compact">
           <div className="section-header-row attestation-compact-header">
             <CheckCircle2 size={18} />
@@ -230,48 +232,48 @@ export function JobAttestationStep({
           </div>
         )}
 
-          <label className={`attestation-confirm-row${confirmed || isInReview ? ' confirmed' : ''}${confirmationDisabled ? ' disabled' : ''}`}>
-            <span className="attestation-confirm-copy">
-              <span className="attestation-confirm-label">
-                Jeg bekræfter, at sagen er gennemgået og klar til indsendelse
-              </span>
-              <span className="attestation-confirm-description">
-                Attestering kan ikke fortrydes efter indsendelse.
-              </span>
+        <label className={`attestation-confirm-row${confirmed || isInReview ? ' confirmed' : ''}${confirmationDisabled ? ' disabled' : ''}`}>
+          <span className="attestation-confirm-copy">
+            <span className="attestation-confirm-label">
+              Jeg bekræfter, at sagen er gennemgået og klar til indsendelse
             </span>
-            <input
-              type="checkbox"
-              checked={confirmed || isInReview}
-              disabled={confirmationDisabled}
-              onChange={(event) => onConfirmedChange(event.target.checked)}
-            />
-          </label>
+            <span className="attestation-confirm-description">
+              Attestering kan ikke fortrydes efter indsendelse.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            checked={confirmed || isInReview}
+            disabled={confirmationDisabled}
+            onChange={(event) => onConfirmedChange(event.target.checked)}
+          />
+        </label>
 
-          {isInReview ? (
-            <div className="attestation-submitted-badge" role="status" aria-live="polite">
-              <CheckCircle2 size={20} aria-hidden="true" />
-              <div>
-                <span className="attestation-submitted-badge-title">Sagen er attesteret</span>
-                <span className="attestation-submitted-badge-subtitle">
-                  Status er opdateret hos backend. Du kan ikke indsende sagen igen.
-                </span>
-              </div>
+        {isInReview ? (
+          <div className="attestation-submitted-badge" role="status" aria-live="polite">
+            <CheckCircle2 size={20} aria-hidden="true" />
+            <div>
+              <span className="attestation-submitted-badge-title">Sagen er attesteret</span>
+              <span className="attestation-submitted-badge-subtitle">
+                Status er opdateret hos backend. Du kan ikke indsende sagen igen.
+              </span>
             </div>
-          ) : (
-            <div className="attestation-submit-row">
-              <button
-                type="button"
-                className={confirmed ? 'btn btn-primary attestation-submit-button' : 'btn attestation-submit-button attestation-submit-button-locked'}
-                onClick={handleSubmit}
-                disabled={!confirmed || confirmationDisabled}
-                title={!confirmed ? 'Bekræft først at sagen er gennemgået' : undefined}
-                aria-disabled={!confirmed || confirmationDisabled}
-              >
-                <ShieldCheck size={18} />
-                <span>Attestér og indsend</span>
-              </button>
-            </div>
-          )}
+          </div>
+        ) : (
+          <div className="attestation-submit-row">
+            <button
+              type="button"
+              className={confirmed ? 'btn btn-primary attestation-submit-button' : 'btn attestation-submit-button attestation-submit-button-locked'}
+              onClick={handleSubmit}
+              disabled={!confirmed || confirmationDisabled}
+              title={!confirmed ? 'Bekræft først at sagen er gennemgået' : undefined}
+              aria-disabled={!confirmed || confirmationDisabled}
+            >
+              <ShieldCheck size={18} />
+              <span>Attestér og indsend</span>
+            </button>
+          </div>
+        )}
       </section>
     </>
   );
