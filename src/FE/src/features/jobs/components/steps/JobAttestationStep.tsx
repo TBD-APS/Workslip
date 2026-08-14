@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, Clock, Info, ListChecks, Send, ShieldCheck, EyeOff } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, EyeOff, FileText, Info, ListChecks, Send, ShieldCheck } from 'lucide-react';
 import { CollapsibleSection } from '../../../../components/forms/CollapsibleSection';
 import { JobStatus } from '../../../../api/generated/models/jobStatus';
 import type { useJobDetails } from '../../hooks/useJobDetails';
@@ -109,38 +109,42 @@ export function JobAttestationStep({
         </div>
       </section>
 
-      {(summaryItems.length > 0 || observationItems.length > 0) && (
+      {summaryItems.length > 0 && (
         <section className="detail-section attestation-summary-section">
           <div className="section-header-row attestation-compact-header">
             <Info size={18} />
             <h3>Information</h3>
           </div>
 
-          {summaryItems.length > 0 && (
-            <dl className="attestation-data-list">
-              {summaryItems.map((item) => (
-                <div key={item.label} className="attestation-data-pair">
-                  <dt>{item.label}</dt>
-                  <dd>{item.value}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-
-          {observationItems.length > 0 && (
-            <div className="attestation-observations-list">
-              {observationItems.map((item) => (
-                <div key={item.label} className="attestation-data-pair observation">
-                  <dt>{item.label}</dt>
-                  <dd>{item.value}</dd>
-                </div>
-              ))}
-            </div>
-          )}
+          <dl className="attestation-data-list">
+            {summaryItems.map((item) => (
+              <div key={item.label} className="attestation-data-pair">
+                <dt>{item.label}</dt>
+                <dd>{item.value}</dd>
+              </div>
+            ))}
+          </dl>
         </section>
       )}
 
-            {selectedClosureFlags.length > 0 && (
+      {observationItems.length > 0 && (
+        <section className="detail-section attestation-summary-section">
+          <div className="section-header-row attestation-compact-header">
+            <FileText size={18} />
+            <h3>Noter</h3>
+          </div>
+          <div className="attestation-observations-list">
+            {observationItems.map((item) => (
+              <div key={item.label} className="attestation-data-pair observation">
+                <dt>{item.label}</dt>
+                <dd>{item.value}</dd>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {selectedClosureFlags.length > 0 && (
         <section className="detail-section attestation-control-section compact">
           <div className="section-header-row attestation-compact-header">
             <CheckCircle2 size={18} />
@@ -235,48 +239,48 @@ export function JobAttestationStep({
           </div>
         )}
 
-          <label className={`attestation-confirm-row${confirmed || isInReview ? ' confirmed' : ''}${confirmationDisabled ? ' disabled' : ''}`}>
-            <span className="attestation-confirm-copy">
-              <span className="attestation-confirm-label">
-                Jeg bekræfter, at sagen er gennemgået og klar til indsendelse
-              </span>
-              <span className="attestation-confirm-description">
-                Attestering kan ikke fortrydes efter indsendelse.
-              </span>
+        <label className={`attestation-confirm-row${confirmed || isInReview ? ' confirmed' : ''}${confirmationDisabled ? ' disabled' : ''}`}>
+          <span className="attestation-confirm-copy">
+            <span className="attestation-confirm-label">
+              Jeg bekræfter, at sagen er gennemgået og klar til indsendelse
             </span>
-            <input
-              type="checkbox"
-              checked={confirmed || isInReview}
-              disabled={confirmationDisabled}
-              onChange={(event) => onConfirmedChange(event.target.checked)}
-            />
-          </label>
+            <span className="attestation-confirm-description">
+              Attestering kan ikke fortrydes efter indsendelse.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            checked={confirmed || isInReview}
+            disabled={confirmationDisabled}
+            onChange={(event) => onConfirmedChange(event.target.checked)}
+          />
+        </label>
 
-          {isInReview ? (
-            <div className="attestation-submitted-badge" role="status" aria-live="polite">
-              <CheckCircle2 size={20} aria-hidden="true" />
-              <div>
-                <span className="attestation-submitted-badge-title">Sagen er attesteret</span>
-                <span className="attestation-submitted-badge-subtitle">
-                  Status er opdateret hos backend. Du kan ikke indsende sagen igen.
-                </span>
-              </div>
+        {isInReview ? (
+          <div className="attestation-submitted-badge" role="status" aria-live="polite">
+            <CheckCircle2 size={20} aria-hidden="true" />
+            <div>
+              <span className="attestation-submitted-badge-title">Sagen er attesteret</span>
+              <span className="attestation-submitted-badge-subtitle">
+                Status er opdateret hos backend. Du kan ikke indsende sagen igen.
+              </span>
             </div>
-          ) : (
-            <div className="attestation-submit-row">
-              <button
-                type="button"
-                className={confirmed ? 'btn btn-primary attestation-submit-button' : 'btn attestation-submit-button attestation-submit-button-locked'}
-                onClick={handleSubmit}
-                disabled={!confirmed || confirmationDisabled}
-                title={!confirmed ? 'Bekræft først at sagen er gennemgået' : undefined}
-                aria-disabled={!confirmed || confirmationDisabled}
-              >
-                <ShieldCheck size={18} />
-                <span>Attestér og indsend</span>
-              </button>
-            </div>
-          )}
+          </div>
+        ) : (
+          <div className="attestation-submit-row">
+            <button
+              type="button"
+              className={confirmed ? 'btn btn-primary attestation-submit-button' : 'btn attestation-submit-button attestation-submit-button-locked'}
+              onClick={handleSubmit}
+              disabled={!confirmed || confirmationDisabled}
+              title={!confirmed ? 'Bekræft først at sagen er gennemgået' : undefined}
+              aria-disabled={!confirmed || confirmationDisabled}
+            >
+              <ShieldCheck size={18} />
+              <span>Attestér og indsend</span>
+            </button>
+          </div>
+        )}
       </section>
     </>
   );
