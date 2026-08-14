@@ -179,7 +179,24 @@ async function currentWizardStep(page) { for (const label of ['Sagsdetaljer', 'A
 async function clickNext(page, nextStep) { const button = page.getByRole('button', { name: 'Næste', exact: true }); await waitForEnabled(button, `Næste before ${nextStep}`); await button.click(); await waitForWizardStep(page, nextStep); }
 async function clickWizardStep(page, label) { const button = page.getByRole('button', { name: new RegExp(`^${escapeRegex(label)}`) }); await button.click(); await waitForWizardStep(page, label); }
 async function clickByTextCandidates(locator, values, description) { for (const value of values) { const match = locator.filter({ hasText: value }).first(); if (await match.isVisible().catch(() => false)) { await match.click(); return; } } throw new Error(`No visible ${description} matched runtime values: ${values.join(', ')}.`); }
-async function checkRadioByCandidates(page, values, description) { for (const value of values) { const radio = page.getByRole('radio', { name: value, exact: true }); if (await radio.isVisible().catch(() => false)) { await radio.check(); return; } const label = page.locator('label').filter({ hasText: value }).first(); if (await label.isVisible().catch(() => false)) { await label.click(); return; } } throw new Error(`No visible ${description} matched runtime values: ${values.join(', ')}.`); }
+async function checkRadioByCandidates(page, values, description) {
+  for (const value of values) {
+    const radio = page.getByRole('radio', { name: value, exact: true });
+    const label = page.locator('label').filter({ has: radio }).first();
+    if (await label.isVisible().catch(() => false)) {
+      await label.scrollIntoViewIfNeeded();
+      await label.click();
+      if (await radio.isChecked()) return;
+      throw new Error(`Visible ${description} label did not select its radio: ${value}.`);
+    }
+    if (await radio.isVisible().catch(() => false)) {
+      await radio.check();
+      if (await radio.isChecked()) return;
+      throw new Error(`Visible ${description} radio did not become checked: ${value}.`);
+    }
+  }
+  throw new Error(`No visible ${description} matched runtime values: ${values.join(', ')}.`);
+}
 async function waitForApiResponse(page, method, pathname, statuses) { const response = await page.waitForResponse((candidate) => candidate.request().method() === method && new URL(candidate.url()).pathname.replace(/\/$/, '') === pathname.replace(/\/$/, ''), { timeout: API_TIMEOUT }); if (!statuses.includes(response.status())) throw new Error(`${method} ${pathname} returned HTTP ${response.status()}.`); return response; }
 function assertNoBrowserErrors(session) { if (session.scenarioReport.pageErrors.length) throw new Error(`Unhandled page errors: ${session.scenarioReport.pageErrors.join(' | ')}`); const failedApi = session.scenarioReport.failedApiResponses.filter((item) => !item.expected); if (failedApi.length) throw new Error(`Unexpected failed API responses: ${JSON.stringify(failedApi)}`); }
 function serializeError(error) { return { message: redact(error instanceof Error ? error.message : String(error)), stack: redact(error instanceof Error ? error.stack ?? '' : '') }; }
