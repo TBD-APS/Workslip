@@ -92,7 +92,7 @@
 .job-type-selector {
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
 }
 
 .job-type-label {
@@ -106,7 +106,7 @@
 .job-type-tabs {
   display: flex;
   gap: 0.5rem;
-  background: var(--surface-hover);
+  background: var(--surface-raised);
   padding: 0.25rem;
   border-radius: 8px;
 }
@@ -135,7 +135,7 @@
 
 .job-type-tab.active {
   background: var(--primary);
-  color: white;
+  color: var(--on-primary, white);
 }
 
 .job-type-tab svg {
@@ -154,7 +154,7 @@
 .worksheet-inline-section {
   margin-top: 1.5rem;
   padding-top: 1.5rem;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border);
 }
 
 .worksheet-inline-section .section-header-row {
@@ -180,7 +180,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 0.5rem 0.75rem;
-  background: var(--surface-hover);
+  background: var(--surface-raised);
   border-radius: 6px;
   margin-bottom: 0.5rem;
   font-size: 0.875rem;
@@ -197,5 +197,5 @@
 
 .timesheet-summary-row .btn-icon:hover {
   color: var(--danger);
-  background: var(--danger-bg);
+  background: var(--status-red-bg);
 }
