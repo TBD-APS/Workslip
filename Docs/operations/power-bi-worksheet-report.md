@@ -63,7 +63,7 @@ Use the existing deployment entry point. Supply values at deployment time; do no
   -EnablePowerBiExport
 ```
 
-This creates a private container whose name is derived from the Entra reader identity, grants only **Storage Blob Data Reader** on that container to that user, writes the non-secret runtime configuration to App Configuration and starts the exporter after the next API deployment. The runtime matches both the UPN and Entra object ID to exactly one Workslip organization and verifies that the identity-bound container name still matches; zero, multiple or drifted matches stop the export.
+This creates a private container whose name is derived from the Entra reader identity, grants only **Storage Blob Data Reader** on that container to that user, writes the non-secret runtime configuration to App Configuration and starts the exporter after the next API deployment. The runtime matches both the UPN and Entra object ID to exactly one Workslip Admin and verifies that the identity-bound container name still matches; zero, multiple, non-Admin or drifted matches stop the export.
 
 ## Power Query
 
@@ -148,6 +148,12 @@ Use Import mode and schedule Power BI refresh after the Workslip export cadence,
 
 Share the report only with named people or an approved Entra security group. Do not grant Build or Reshare unless required. A hidden visual or column is not a security boundary; Power BI report access also grants access to the underlying semantic model.
 
+## Workslip report link
+
+After the report is published, store its normal Power BI Service report URL in the runtime configuration key `PowerBiReport:Url`. The value is not a secret, but it must be the authenticated `https://app.powerbi.com/...` report URL; never use a `Publish to web` URL.
+
+Workslip exposes the configured value through `GET /api/worksheets/all/report/power-bi`, which requires the Admin policy. The endpoint validates HTTPS and the exact `app.powerbi.com` host and otherwise returns `url: null`. The admin Timer page only renders **Åbn Power BI** when a valid URL is configured. This makes removing the key an immediate application-level rollback for the link without affecting worksheet capture or the export worker.
+
 Current Microsoft documentation:
 
 - Azure Blob connector and organizational authentication: https://learn.microsoft.com/en-us/power-query/connectors/azure-blob-storage
@@ -163,7 +169,9 @@ Current Microsoft documentation:
 4. Confirm the header has exactly 13 columns and excludes address and GUID fields.
 5. Sign in to the Azure Blob connector with the intended organizational account and run **Refresh now**.
 6. Confirm KPI totals against Workslip for one synthetic or approved test month.
-7. Confirm an unauthorized Entra user cannot open the blob or report.
-8. Confirm the copied report link works in a private browser window for an explicitly authorized viewer.
+7. Confirm an unauthorized Entra user cannot open the blob, report, or `/api/worksheets/all/report/power-bi` endpoint.
+8. Set `PowerBiReport:Url` to the published authenticated report URL and confirm **Åbn Power BI** appears for an Admin on `/app/timer`.
+9. Confirm the copied report link works in a private browser window for an explicitly authorized viewer.
+10. Remove `PowerBiReport:Url` and confirm the Workslip button disappears without affecting worksheet operations.
 
 The previously shared Workslip bearer token must never be used in this setup. Log out of old Workslip sessions and sign in again to invalidate/replace that session material.
