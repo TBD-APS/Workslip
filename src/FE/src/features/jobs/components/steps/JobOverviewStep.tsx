@@ -86,10 +86,10 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
       />
       <TextAreaBlock
         icon={<Wrench size={18} />}
-        title="Tekniske observationer"
+        title="Kommentar til sagen"
         value={details.form.technicalObservations}
         onChange={details.updateTechnicalObservations}
-        placeholder="Notér tekniske observationer..."
+        placeholder="Skriv en kommentar til sagen..."
       />
       {details.job?.id && (
         <JobImagesSection jobId={details.job.id} allowManage />
