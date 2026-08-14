@@ -1,4 +1,4 @@
-import { FileText, MessageSquare, Wrench, FileCheck2, CheckCircle2, X, Save, Loader2 } from 'lucide-react';
+import { FileText, MessageCircle, MessageSquare, FileCheck2, CheckCircle2, X, Save, Loader2 } from 'lucide-react';
 import { AssignmentBlock, CustomerDetailsBlock, DestinationAddressBlock, LinkedJobsBlock, TextAreaBlock } from './JobDetailBlocks';
 import { ControlPointsStep } from './steps/ControlPointsStep';
 import { JobCompletionStep } from './steps/JobCompletionStep';
@@ -86,8 +86,8 @@ export function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJob
             />
             <div className="form-divider" />
             <TextAreaBlock
-              icon={<Wrench size={18} />}
-              title="Kommentar til sagen"
+              icon={<MessageCircle size={18} />}
+              title="Skriv en kommentar til sagen"
               value={details.form.technicalObservations}
               onChange={details.updateTechnicalObservations}
               placeholder="Skriv en kommentar til sagen..."
