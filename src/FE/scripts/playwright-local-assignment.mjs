@@ -205,16 +205,26 @@ async function main() {
 
     captureAuthenticatedNetwork = false;
     await page.goto(`${runtime.appUrl}/login`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    const tokenResponsePromise = page.waitForResponse((response) =>
+    const browserTokenResponsePromise = page.waitForResponse((response) =>
       response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/dev/token',
     { timeout: API_TIMEOUT });
     await page.getByRole('button', { name: `Dev Login · ${role}`, exact: true }).click();
-    const tokenResponse = await tokenResponsePromise;
-    const tokenPayload = await tokenResponse.json().catch(() => null);
-    if (!tokenResponse.ok() || !tokenPayload?.token || !tokenPayload?.user) {
-      throw new Error(`Development login for ${role} returned HTTP ${tokenResponse.status()}.`);
+    const browserTokenResponse = await browserTokenResponsePromise;
+    if (!browserTokenResponse.ok()) {
+      throw new Error(`Development login UI for ${role} returned HTTP ${browserTokenResponse.status()}.`);
     }
     await page.waitForURL((url) => url.pathname.startsWith('/app'), { timeout: API_TIMEOUT });
+
+    const directTokenResponse = await fetch(`${runtime.apiUrl}/api/dev/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ email }),
+      signal: AbortSignal.timeout(API_TIMEOUT),
+    });
+    const tokenPayload = await directTokenResponse.json().catch(() => null);
+    if (!directTokenResponse.ok() || !tokenPayload?.token || !tokenPayload?.user) {
+      throw new Error(`Development token contract for ${role} returned HTTP ${directTokenResponse.status}.`);
+    }
 
     auth.token = tokenPayload.token;
     auth.user = tokenPayload.user;
