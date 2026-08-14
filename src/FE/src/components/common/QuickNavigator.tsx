@@ -346,7 +346,7 @@ export function QuickNavigator({
             );
           })}
 
-          {!jobSearchTerm && !isSearchingJobs && results.length === 0 && (
+          {!jobSearchTerm && results.length === 0 && (
             <div className="quick-nav-empty">
               <Search size={22} aria-hidden="true" />
               <strong>Ingen resultater</strong>
