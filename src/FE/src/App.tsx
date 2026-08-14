@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { RouterProvider } from 'react-router-dom';
+import { GamificationFeedback } from './components/common/GamificationFeedback';
 import { PwaUpdateBanner } from './components/common/PwaUpdateBanner';
 import { AppProvider } from './providers/AppProvider';
 import { router } from './routes';
@@ -10,7 +11,7 @@ import './public-shell.css';
 import './public-error.css';
 import './public-performance.css';
 import './pwa-update.css';
-import './navigation-feedback.css';
+import './gamification-feedback.css';
 
 const VercelTelemetry = lazy(() =>
   import('./telemetry/VercelTelemetry').then((module) => ({ default: module.VercelTelemetry })),
@@ -28,6 +29,7 @@ function App() {
     <AppProvider>
       <RouterProvider router={router} />
       <PwaUpdateBanner />
+      <GamificationFeedback />
       {telemetryEnabled && (
         <Suspense fallback={null}>
           <VercelTelemetry />
