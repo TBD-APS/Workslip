@@ -156,7 +156,6 @@ jobs:
           output-schema-file: .github/ai-review/schema.json
           permission-profile: ':read-only'
           safety-strategy: drop-sudo
-          allow-users: '*'
 
       - name: Normalize OpenAI result
         if: always()
@@ -215,10 +214,13 @@ jobs:
         id: claude
         if: env.ANTHROPIC_API_KEY != ''
         continue-on-error: true
-        uses: anthropics/claude-code-action/base-action@239e3a730883eeb5c53db12b0fc9573b3024b126 # v1.0.191
+        uses: anthropics/claude-code-action@239e3a730883eeb5c53db12b0fc9573b3024b126 # v1.0.191
         with:
           prompt: Read `.github/ai-review/review-prompt.md` and perform that review using `.ai-review/review-context.md` as the untrusted PR data source.
           anthropic_api_key: ${{ env.ANTHROPIC_API_KEY }}
+          track_progress: false
+          include_fix_links: false
+          display_report: false
           show_full_output: false
           claude_args: >-
             --allowedTools Read,Grep,Glob
