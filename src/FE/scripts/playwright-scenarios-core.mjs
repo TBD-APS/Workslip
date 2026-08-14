@@ -3,7 +3,7 @@ export function createCoreScenarioHandlers(env, h) {
   const {
     createKlsDraftViaUi, completeAndSubmitKlsViaUi, approveJobViaUi, rejectJobViaUi, navigateToAttestation,
     waitForWizardStep, waitForApiResponse, unwrapCollection, createCustomerFixtureViaApi, createMinimalJobFixtureViaApi,
-    ensureAssignableUsers, sectionByHeading, createCustomerViaUi, assignedIds, readCustomerName, addWorksheetViaUi,
+    sectionByHeading, createCustomerViaUi, assignedIds, readCustomerName, addWorksheetViaUi,
     assertStatus, readDestinationAddress, assertEqual, clickWizardStep, fillOverviewFields, waitForEnabled, extractInviteToken
   } = h;
 
@@ -53,7 +53,6 @@ async function klsLifecycleFlow(session) {
     await session.login('Admin');
     session.referenceData = await session.getReferenceData();
     session.address = await session.getAddress();
-    session.runtimeUsers = await ensureAssignableUsers(session, 1);
   }, { screenshot: false });
 
   const job = await createKlsDraftViaUi(session, { role: 'Admin' });
@@ -78,11 +77,13 @@ async function rejectionLoopFlow(session) {
   await completeAndSubmitKlsViaUi(session, job);
   await session.logout();
 
+  const rejectionNote = 'Mangler dokumentation for udført arbejde.';
   await session.step('admin rejects submitted job', async () => {
     await session.login('Admin');
-    await rejectJobViaUi(session, job.id);
+    await rejectJobViaUi(session, job.id, rejectionNote);
     const persisted = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
     assertStatus(persisted, ['Rejected', 'Afvist']);
+    assertEqual(persisted.rejectionNote, rejectionNote, 'Persisted rejection note');
   });
   await session.logout();
 

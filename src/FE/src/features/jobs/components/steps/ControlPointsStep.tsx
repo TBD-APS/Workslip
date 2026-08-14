@@ -3,6 +3,7 @@ import { ChevronRight, ClipboardList } from 'lucide-react';
 import { Checkbox } from '../../../../components/forms/Checkbox';
 import type { JobForm } from '../../types';
 import type { ReferenceDataResponse } from '../../../../api/generated/models';
+import { areAllSelectedCategoriesIrrelevant } from '../../utils';
 
 
 type ControlPointsStepProps = {
@@ -10,6 +11,7 @@ type ControlPointsStepProps = {
   referenceData: ReferenceDataResponse;
   onToggleControlPoint: (cpId: string) => void;
   onToggleCategoryIrrelevant: (typeId: string, categoryId: string) => void;
+  onAllIrrelevantReasonChange: (value: string) => void;
 };
 
 function bySortOrder(a: { sortOrder: string | number }, b: { sortOrder: string | number }) {
@@ -26,6 +28,7 @@ export function ControlPointsStep({
   referenceData,
   onToggleControlPoint,
   onToggleCategoryIrrelevant,
+  onAllIrrelevantReasonChange,
 }: ControlPointsStepProps) {
   const [validationError] = useState<string | null>(null);
 
@@ -43,6 +46,7 @@ export function ControlPointsStep({
   }
 
   const selectedTypes = referenceData.installationTypes.filter((t) => form.work.categoryIds.includes(t.id));
+  const allCategoriesIrrelevant = areAllSelectedCategoriesIrrelevant(form, referenceData);
 
   if (selectedTypes.length === 0) {
     return (
@@ -114,6 +118,20 @@ export function ControlPointsStep({
           })}
         </InstallationTypeCard>
       ))}
+
+      {allCategoriesIrrelevant && (
+        <div className="form-field control-points-all-irrelevant-reason">
+          <label htmlFor="all-irrelevant-reason">Kommentar – hvorfor var ingen kontrolpunkter relevante?</label>
+          <textarea
+            id="all-irrelevant-reason"
+            className="form-input form-textarea"
+            value={form.work.allIrrelevantReason}
+            onChange={(event) => onAllIrrelevantReasonChange(event.target.value)}
+            placeholder="Tilføj en kort begrundelse"
+            rows={3}
+          />
+        </div>
+      )}
     </section>
   );
 }

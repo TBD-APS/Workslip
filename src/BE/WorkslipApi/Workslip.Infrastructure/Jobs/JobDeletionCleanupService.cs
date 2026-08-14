@@ -1,7 +1,10 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Workslip.Application.Images;
 using Workslip.Application.Jobs;
+using Workslip.Infrastructure.Schema;
 
 namespace Workslip.Infrastructure.Jobs;
 
@@ -48,7 +51,25 @@ public sealed class JobDeletionCleanupService(
     {
         using var scope = scopeFactory.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<IJobRepository>();
-        var deletedCount = await repository.PurgeDeletionScheduledBeforeAsync(DateTimeOffset.UtcNow, cancellationToken);
+        var dbContext = scope.ServiceProvider.GetRequiredService<SqlDbContext>();
+        var imageStorage = scope.ServiceProvider.GetRequiredService<IImageStorage>();
+        var cutoff = DateTimeOffset.UtcNow;
+
+        var dueJobs = await dbContext.JobReports
+            .AsNoTracking()
+            .Where(report => report.DeletionScheduledAt != null && report.DeletionScheduledAt <= cutoff)
+            .Select(report => new { report.OrganizationId, report.Id })
+            .ToArrayAsync(cancellationToken);
+
+        foreach (var job in dueJobs)
+        {
+            await imageStorage.DeleteJobImagesAsync(
+                job.OrganizationId,
+                job.Id,
+                cancellationToken);
+        }
+
+        var deletedCount = await repository.PurgeDeletionScheduledBeforeAsync(cutoff, cancellationToken);
 
         if (deletedCount > 0)
         {

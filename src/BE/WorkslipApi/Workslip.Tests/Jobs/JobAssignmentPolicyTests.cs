@@ -22,46 +22,46 @@ public sealed class JobAssignmentPolicyTests
         Assert.False(JobAssignmentPolicy.CanManageAssignments(role));
     }
 
-    [Fact]
-    public void CanReceiveAssignment_allows_employee_role()
+    [Theory]
+    [InlineData(Roles.User)]
+    [InlineData(Roles.Admin)]
+    public void CanReceiveAssignment_allows_user_and_admin_roles(string role)
     {
-        Assert.True(JobAssignmentPolicy.CanReceiveAssignment(Roles.User));
+        Assert.True(JobAssignmentPolicy.CanReceiveAssignment(role));
     }
 
     [Theory]
-    [InlineData(Roles.Admin)]
     [InlineData(Roles.Auditor)]
     [InlineData(Roles.Superadmin)]
     [InlineData(null)]
     [InlineData("")]
-    public void CanReceiveAssignment_without_actor_context_rejects_non_employee_roles(string? role)
+    public void CanReceiveAssignment_rejects_non_assignment_roles(string? role)
     {
         Assert.False(JobAssignmentPolicy.CanReceiveAssignment(role));
     }
 
-    [Fact]
-    public void CanReceiveAssignment_allows_admin_only_when_admin_actor_assigns_self()
+    [Theory]
+    [InlineData(Roles.User, true)]
+    [InlineData(Roles.Admin, false)]
+    [InlineData(Roles.Superadmin, false)]
+    [InlineData(Roles.Auditor, false)]
+    [InlineData(null, false)]
+    public void RequiresAssignedJobScope_limits_only_regular_users(string? role, bool expected)
     {
-        var adminId = Guid.NewGuid();
-
-        Assert.True(JobAssignmentPolicy.CanReceiveAssignment(Roles.Admin, adminId, adminId, Roles.Admin));
-        Assert.False(JobAssignmentPolicy.CanReceiveAssignment(Roles.Admin, Guid.NewGuid(), adminId, Roles.Admin));
-        Assert.False(JobAssignmentPolicy.CanReceiveAssignment(Roles.Admin, adminId, adminId, Roles.Superadmin));
-        Assert.False(JobAssignmentPolicy.CanReceiveAssignment(Roles.Superadmin, adminId, adminId, Roles.Superadmin));
+        Assert.Equal(expected, JobAssignmentPolicy.RequiresAssignedJobScope(role));
     }
 
     [Fact]
-    public void CanReceiveAssignmentInFilial_requires_allowed_target_and_matching_filial()
+    public void CanReceiveAssignmentInFilial_requires_allowed_role_and_matching_filial()
     {
         var filialId = Guid.NewGuid();
-        var employeeId = Guid.NewGuid();
-        var adminId = Guid.NewGuid();
 
-        Assert.True(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, employeeId, adminId, Roles.Admin, filialId, filialId));
-        Assert.True(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.Admin, adminId, adminId, Roles.Admin, filialId, filialId));
-        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.Admin, Guid.NewGuid(), adminId, Roles.Admin, filialId, filialId));
-        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, employeeId, adminId, Roles.Admin, Guid.NewGuid(), filialId));
-        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, employeeId, adminId, Roles.Admin, Guid.Empty, filialId));
+        Assert.True(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, filialId, filialId));
+        Assert.True(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.Admin, filialId, filialId));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.Auditor, filialId, filialId));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.Superadmin, filialId, filialId));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, Guid.NewGuid(), filialId));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.Admin, Guid.Empty, filialId));
     }
 
     [Fact]
@@ -73,6 +73,19 @@ public sealed class JobAssignmentPolicyTests
         var result = JobAssignmentPolicy.ResolveInitialAssignments([assignedId], actorId, Roles.Admin);
 
         Assert.Equal([assignedId], result);
+    }
+
+    [Fact]
+    public void ResolveInitialAssignments_ignores_explicit_assignment_for_regular_user()
+    {
+        var actorId = Guid.NewGuid();
+
+        var result = JobAssignmentPolicy.ResolveInitialAssignments(
+            [Guid.NewGuid()],
+            actorId,
+            Roles.User);
+
+        Assert.Equal([actorId], result);
     }
 
     [Theory]

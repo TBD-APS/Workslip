@@ -7,6 +7,7 @@ import { DropdownProvider } from '../../providers/DropdownContext';
 import { useTheme } from '../../providers/ThemeProvider';
 import { CreateBottomSheet } from '../common/CreateBottomSheet';
 import { NotificationsDrawer } from '../common/NotificationsDrawer';
+import { ProfileAvatar } from '../../features/images/ProfileAvatar';
 import {
   AUDITOR_AUTHENTICATED_PATH,
   getAuthenticatedHomePath,
@@ -158,13 +159,7 @@ export const AppLayout = () => {
               aria-label="Profil"
               title="Profil"
             >
-              {user?.displayName ? (
-                <span className="user-avatar-initial">
-                  {user.displayName.charAt(0).toUpperCase()}
-                </span>
-              ) : (
-                <User size={18} />
-              )}
+              <ProfileAvatar userId={user?.id} displayName={user?.displayName} />
             </button>
           )}
           <button

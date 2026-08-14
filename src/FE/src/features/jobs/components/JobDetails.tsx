@@ -222,6 +222,7 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
             referenceData={details.referenceData}
             onToggleControlPoint={details.toggleControlPoint}
             onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
+            onAllIrrelevantReasonChange={details.updateAllIrrelevantReason}
           />
         )}
         {details.currentStep === 3 && (

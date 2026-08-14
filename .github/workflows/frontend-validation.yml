@@ -30,8 +30,57 @@ env:
   BACKEND_SOLUTION: src/BE/WorkslipApi/Workslip.slnx
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.detect.outputs.code }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect non-documentation changes
+        id: detect
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+          # Fail-safe: anything uncertain runs the full pipeline (code=true).
+          if [[ "${EVENT_NAME}" == 'pull_request' ]]; then
+            base="${PR_BASE_SHA}"
+          else
+            base="${PUSH_BEFORE_SHA}"
+          fi
+          if [[ -z "${base}" || "${base}" =~ ^0+$ ]] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "No usable base ref; running full CI (fail-safe)."
+            echo "code=true" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          files="$(git diff --name-only "${base}" "${HEAD_SHA}")"
+          echo "Changed files:"
+          printf '%s\n' "${files}"
+          code=false
+          while IFS= read -r f; do
+            [[ -z "${f}" ]] && continue
+            case "${f}" in
+              *.md|*.markdown|*.mdx|*.txt|*.rst|*.adoc|Docs/*|docs/*|LICENSE|CHANGELOG*) ;;
+              *) code=true ;;
+            esac
+          done <<< "${files}"
+          echo "code=${code}" >> "${GITHUB_OUTPUT}"
+          echo "Non-documentation changes: ${code}"
+
   backend:
     name: Backend
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -58,6 +107,8 @@ jobs:
 
   frontend:
     name: Frontend + API contract
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
@@ -207,13 +258,17 @@ jobs:
         working-directory: src/FE
         run: |
           node --check scripts/playwright-release-runner.mjs
+          node --check scripts/playwright-release-policy.mjs
           node --check scripts/playwright-prod-smoke.mjs
-          node --check scripts/playwright-notification-navigation.mjs
           node --check scripts/playwright-critical-contract.mjs
           node --check scripts/playwright-critical-domain.mjs
           node --check scripts/playwright-scenarios-core.mjs
           node --check scripts/playwright-scenarios-admin.mjs
           node --check scripts/playwright-synthetic-auth.mjs
+          node --check scripts/playwright-release-runner.test.mjs
+          node --check scripts/playwright-scenarios-admin.test.mjs
+          node --test scripts/playwright-release-runner.test.mjs
+          node --test scripts/playwright-scenarios-admin.test.mjs
           node --test scripts/playwright-synthetic-auth.test.mjs
 
       - name: Validate Postman collection
@@ -231,6 +286,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     needs:
+      - changes
       - backend
       - frontend
       - contracts
@@ -238,17 +294,35 @@ jobs:
       - name: Verify required checks
         shell: bash
         env:
+          CODE_CHANGED: ${{ needs.changes.outputs.code }}
           BACKEND_RESULT: ${{ needs.backend.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
         run: |
           set -Eeuo pipefail
 
-          if [[ "${BACKEND_RESULT}" != 'success' ||
-                "${FRONTEND_RESULT}" != 'success' ||
-                "${CONTRACTS_RESULT}" != 'success' ]]; then
-            echo "::error::One or more required CI jobs failed."
+          # Documentation validation (contracts) always runs and must pass.
+          if [[ "${CONTRACTS_RESULT}" != 'success' ]]; then
+            echo "::error::Contracts + docs job did not succeed."
             exit 1
           fi
 
-          echo "All required CI checks succeeded."
+          if [[ "${CODE_CHANGED}" == 'true' ]]; then
+            # Non-documentation change: backend and frontend must have run and succeeded.
+            if [[ "${BACKEND_RESULT}" != 'success' || "${FRONTEND_RESULT}" != 'success' ]]; then
+              echo "::error::One or more required CI jobs failed."
+              exit 1
+            fi
+            echo "All required CI checks succeeded."
+          else
+            # Documentation-only change: backend/frontend are skipped by design.
+            if [[ "${BACKEND_RESULT}" != 'skipped' && "${BACKEND_RESULT}" != 'success' ]]; then
+              echo "::error::Backend job unexpectedly '${BACKEND_RESULT}' on a documentation-only change."
+              exit 1
+            fi
+            if [[ "${FRONTEND_RESULT}" != 'skipped' && "${FRONTEND_RESULT}" != 'success' ]]; then
+              echo "::error::Frontend job unexpectedly '${FRONTEND_RESULT}' on a documentation-only change."
+              exit 1
+            fi
+            echo "Documentation-only change: backend/frontend skipped by design; documentation validated."
+          fi

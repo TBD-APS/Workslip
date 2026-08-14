@@ -2,10 +2,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Workslip.Application;
 using Workslip.Application.Common;
 using Workslip.Application.Customers;
 using Workslip.Application.Diagnostics;
+using Workslip.Application.Images;
 using Workslip.Application.Invitations;
 using Workslip.Application.Jobs;
 using Workslip.Application.Notifications;
@@ -20,6 +22,7 @@ using Workslip.Infrastructure.Notifications;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
+using Workslip.Infrastructure.Storage;
 using Workslip.Infrastructure.Transactions;
 
 namespace Workslip.Infrastructure;
@@ -38,6 +41,7 @@ public static class DependencyInjection
         services.AddScoped<JobStatusTransitionInterceptor>();
         services.AddScoped<AuditInterceptor>();
         services.AddScoped<WorksheetDailyHoursInterceptor>();
+        services.AddScoped<WorksheetFinalizationGuard>();
 
         services.AddDbContext<SqlDbContext>((sp, options) =>
         {
@@ -49,11 +53,13 @@ public static class DependencyInjection
             var transitionInterceptor = sp.GetRequiredService<JobStatusTransitionInterceptor>();
             var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
             var worksheetDailyHoursInterceptor = sp.GetRequiredService<WorksheetDailyHoursInterceptor>();
+            var worksheetFinalizationGuard = sp.GetRequiredService<WorksheetFinalizationGuard>();
             options.AddInterceptors(
                 tenantIntegrityInterceptor,
                 transitionInterceptor,
                 auditInterceptor,
-                worksheetDailyHoursInterceptor);
+                worksheetDailyHoursInterceptor,
+                worksheetFinalizationGuard);
 
             options.ConfigureWarnings(warnings =>
                 warnings.Throw(RelationalEventId.MultipleCollectionIncludeWarning));
@@ -66,18 +72,30 @@ public static class DependencyInjection
         services.AddScoped<IInvitationStatusRepository, EfInviteRepository>();
         services.AddScoped<IJobLinkRepository, EfJobLinkRepository>();
         services.AddScoped<EfJobRepository>();
-        services.AddScoped<IJobRepository, AssignmentAwareJobRepository>();
+        services.AddScoped<AssignmentAwareJobRepository>();
+        services.AddScoped<IJobRepository, BillingAwareJobRepository>();
         services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
         services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();
+        services.AddScoped<ISuperAdminUserRepository, EfSuperAdminUserRepository>();
+        services.AddScoped<SqlUserBillingRepository>();
+        services.AddScoped<IUserBillingRepository, HistorySafeUserBillingRepository>();
         services.AddScoped<IWorksheetRepository, EfWorksheetRepository>();
-        services.AddSingleton<IMonthlyHoursPdfGenerator, MonthlyHoursPdfGenerator>();
+        services.AddSingleton<IMonthlyHoursPdfGenerator, MonthlyCostingPdfGenerator>();
         services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
         services.AddScoped<INotificationRepository, EfNotificationRepository>();
         services.AddScoped<IJobViewRepository, EfJobViewRepository>();
         services.AddScoped<InstallationBaselineProvisioner>();
         services.AddScoped<PlatformIdentityBootstrapper>();
         services.AddScoped<DevelopmentDatabaseSeeder>();
+
+        services.AddSingleton<IImageStorage>(serviceProvider =>
+        {
+            var environment = serviceProvider.GetRequiredService<IHostEnvironment>();
+            return environment.IsDevelopment()
+                ? ActivatorUtilities.CreateInstance<LocalImageStorage>(serviceProvider)
+                : ActivatorUtilities.CreateInstance<AzureBlobImageStorage>(serviceProvider);
+        });
 
         services.AddHttpClient<IErrorDiagnosticsService, ApplicationInsightsErrorDiagnosticsService>(client =>
         {

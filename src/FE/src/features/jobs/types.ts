@@ -11,6 +11,7 @@ export type JobWorkForm = {
   customWorkKind: string;
   controlPointSelections: Record<string, boolean>;
   irrelevantCategoryIds: string[];
+  allIrrelevantReason: string;
   closureFlags: string[];
 };
 

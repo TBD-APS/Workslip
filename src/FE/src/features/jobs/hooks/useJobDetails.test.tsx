@@ -120,6 +120,7 @@ vi.mock('../utils', () => {
       controlPointSelections: {},
       customWorkKind: '',
       irrelevantCategoryIds: [],
+      allIrrelevantReason: '',
       workKind: '',
     },
   };

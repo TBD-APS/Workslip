@@ -80,9 +80,9 @@ public sealed class UserEntraService(
             InvitedUserDisplayName = displayName
         };
 
-        var createdInvitation = await CreateExternalInviteAsync(invitation, email, ct);
+        var createdInvitation = await CreateExternalInviteAsync(invitation, ct);
         var invitedUser = createdInvitation.InvitedUser
-            ?? throw new InvalidOperationException($"Graph did not return invited user for {email}.");
+            ?? throw new InvalidOperationException("Graph did not return the invited user.");
 
         try
         {
@@ -210,10 +210,10 @@ public sealed class UserEntraService(
               ?? user.UserPrincipalName
               ?? fallbackEmail;
 
-    private async Task<Invitation> CreateExternalInviteAsync(Invitation invitation, string email, CancellationToken ct)
+    private async Task<Invitation> CreateExternalInviteAsync(Invitation invitation, CancellationToken ct)
     {
-        logger.LogInformation("Graph inviting external user. CorrelationId={CorrelationId} Email={Email}",
-            correlationIdAccessor.CorrelationId, email);
+        logger.LogInformation("Graph inviting external user. CorrelationId={CorrelationId}",
+            correlationIdAccessor.CorrelationId);
 
         Invitation? createdInvitation;
         try
@@ -222,20 +222,20 @@ public sealed class UserEntraService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Graph external invite failed. CorrelationId={CorrelationId} Email={Email}",
-                correlationIdAccessor.CorrelationId, email);
+            logger.LogError(ex, "Graph external invite failed. CorrelationId={CorrelationId}",
+                correlationIdAccessor.CorrelationId);
             throw;
         }
 
         if (createdInvitation == null)
         {
-            logger.LogError("Graph external invite returned null. CorrelationId={CorrelationId} Email={Email}",
-                correlationIdAccessor.CorrelationId, email);
-            throw new InvalidOperationException($"User {email} could not be invited");
+            logger.LogError("Graph external invite returned null. CorrelationId={CorrelationId}",
+                correlationIdAccessor.CorrelationId);
+            throw new InvalidOperationException("External user could not be invited.");
         }
 
-        logger.LogInformation("Graph external user invited. CorrelationId={CorrelationId} Email={Email} EntraId={EntraId}",
-            correlationIdAccessor.CorrelationId, email, createdInvitation.InvitedUser?.Id);
+        logger.LogInformation("Graph external user invited. CorrelationId={CorrelationId} EntraId={EntraId}",
+            correlationIdAccessor.CorrelationId, createdInvitation.InvitedUser?.Id);
 
         return createdInvitation;
     }

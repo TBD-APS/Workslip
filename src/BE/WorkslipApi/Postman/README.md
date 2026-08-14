@@ -12,11 +12,13 @@ Purpose: run the active `Workslip.Api` contract against a non-production API bef
 Use these together:
 
 1. endpoint and contract source under `src/BE/WorkslipApi`;
-2. runtime `/openapi/v1.json` for the exact deployed build;
+2. runtime `/openapi/v1.json` for the exact deployed build when API reference endpoints are enabled;
 3. `postman_collection.json` for executable examples and assertions;
-4. `Docs/api` for conventions, endpoint catalog and integration guidance.
+4. `Docs/api` for shared semantics, compatibility policy and integration guidance.
 
-The application currently maps OpenAPI, Scalar and `/api/dev/*` through `ConfigureDevEnvironment`, but the environment guard is commented out. This production exposure is tracked by WOR-182. Do not use development endpoints as production integration authentication.
+Do not maintain or depend on a separate hand-written endpoint catalog. Endpoint registrations and runtime OpenAPI own the route inventory.
+
+Development/release-test exposure is fail-closed in `ConfigureDevEnvironment`: `/api/dev/*` is mapped only in ASP.NET Development, while OpenAPI/Scalar are additionally controlled by the resolved release-testing policy. Do not use development endpoints as production integration authentication.
 
 ## Environment contract
 
@@ -64,7 +66,7 @@ WORKSLIP_AUTH_TOKEN=<token> \
 
 The runner refuses URLs that do not look like localhost/test/staging unless `ALLOW_PRODUCTION_INTEGRATION_TESTS=true` is explicitly set. That override is not approved for normal use.
 
-There is no active GitHub Actions integration-test workflow. Any future automation must use a dedicated isolated environment and must be introduced as a reviewed workflow rather than relying on deleted historical configuration.
+There is currently no merged GitHub Actions workflow that executes Newman against an isolated integration target. Any such automation must use a dedicated isolated environment and must be introduced as a reviewed workflow rather than relying on unmerged or historical configuration.
 
 ## Coverage expectation
 

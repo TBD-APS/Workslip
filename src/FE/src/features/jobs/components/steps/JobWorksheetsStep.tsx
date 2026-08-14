@@ -44,6 +44,11 @@ type LocalModeProps = BaseProps & {
 
 type JobWorksheetsStepProps = ServerModeProps | LocalModeProps;
 
+type WorksheetUserOption = {
+  id: string;
+  displayName: string;
+};
+
 function draftToResponse(draft: WorksheetDraft): WorksheetResponse {
   return {
     id: draft.id ?? '',
@@ -67,33 +72,36 @@ export function JobWorksheetsStep({
   const jobQuery = useGetApiJobsId(localMode ? '' : rest.jobId, {
     query: { enabled: !localMode && canPickUser },
   });
-  const assignedUserIds = useMemo(
-    () => new Set((jobQuery.data?.assignedUsers ?? []).map((assignedUser) => assignedUser.id)),
-    [jobQuery.data?.assignedUsers],
-  );
-  const selectableUsers = useMemo(
-    () => localMode
-      ? assignableUsers
-      : assignableUsers.filter((candidate) => assignedUserIds.has(candidate.id)),
-    [localMode, assignableUsers, assignedUserIds],
-  );
-  const resolvedUsers = useMemo(
-    () => (canPickUser
-      ? (selectableUsers.length > 0 ? selectableUsers : null)
-      : []) ?? [],
-    [canPickUser, selectableUsers],
-  );
+  const resolvedUsers = useMemo<WorksheetUserOption[]>(() => {
+    if (!canPickUser) return [];
+    if (localMode) {
+      return assignableUsers.map((candidate) => ({
+        id: candidate.id,
+        displayName: candidate.displayName,
+      }));
+    }
+
+    // The job's assignment list is the authority for who may receive a worksheet on
+    // this job. Do not intersect it with the separate organization-wide user query:
+    // that creates two competing server-state sources and can hide a valid assignee.
+    return (jobQuery.data?.assignedUsers ?? []).map((assignedUser) => ({
+      id: assignedUser.id,
+      displayName: assignedUser.displayName,
+    }));
+  }, [canPickUser, localMode, assignableUsers, jobQuery.data?.assignedUsers]);
   const defaultUserId = localMode
     ? (user?.id && resolvedUsers.some((candidate) => candidate.id === user.id) ? user.id : (resolvedUsers[0]?.id ?? ''))
     : canPickUser
-      ? (user?.email ? (resolvedUsers.find((u) => u.email === user.email)?.id ?? resolvedUsers[0]?.id ?? '') : (resolvedUsers[0]?.id ?? ''))
+      ? (user?.id && resolvedUsers.some((candidate) => candidate.id === user.id) ? user.id : (resolvedUsers[0]?.id ?? ''))
       : (user?.id ?? '');
   const userOptions = resolvedUsers.map((u) => ({ id: u.id, label: u.displayName }));
   const currentUserName = user?.displayName ?? user?.email ?? 'dig';
 
   const displayNameFor = (userId: string): string => {
     if (!canPickUser) return currentUserName;
-    return assignableUsers.find((u) => u.id === userId)?.displayName ?? userId.slice(0, 8);
+    return resolvedUsers.find((u) => u.id === userId)?.displayName
+      ?? assignableUsers.find((u) => u.id === userId)?.displayName
+      ?? userId.slice(0, 8);
   };
 
   const [uiState, dispatch] = useReducer(worksheetUiReducer, defaultUserId, initialWorksheetUiState);
@@ -113,7 +121,9 @@ export function JobWorksheetsStep({
   const totalOutlay = localMode ? localTotalOutlay : rest.totalOutlay;
   const isSaving = localMode ? false : rest.isSaving;
   const isDeleting = localMode ? false : rest.isDeleting;
-  const worksheetUsersLoading = isLoadingUsers || (!localMode && canPickUser && jobQuery.isLoading);
+  const worksheetUsersLoading = localMode
+    ? isLoadingUsers
+    : canPickUser && jobQuery.isLoading;
 
   const isDetailList = variant === 'list';
   const sortedWorksheets = useMemo(

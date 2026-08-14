@@ -4,6 +4,7 @@ using FluentValidation.Results;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
+using Workslip.Domain;
 
 namespace Workslip.Application.Worksheets;
 
@@ -179,6 +180,12 @@ public class WorksheetService : IWorksheetService
             return Result<JobReportSummaryResponse>.Unauthorized();
         }
 
+        if (JobAssignmentPolicy.RequiresAssignedJobScope(_currentUserContext.Role)
+            && _currentUserContext.UserId != request.UserId)
+        {
+            return Result<JobReportSummaryResponse>.Forbidden();
+        }
+
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
 
         if (!validationResult.IsValid)
@@ -240,6 +247,28 @@ public class WorksheetService : IWorksheetService
             if (organizationId is null)
             {
                 return Result<JobReportSummaryResponse>.Unauthorized();
+            }
+
+            var jobResult = await _jobService.GetSingleJobAsync(jobId, cancellationToken);
+            if (jobResult.Status == ResultStatus.Unauthorized)
+            {
+                return Result<JobReportSummaryResponse>.Unauthorized();
+            }
+            if (!jobResult.IsSuccess)
+            {
+                return Result<JobReportSummaryResponse>.NotFound();
+            }
+
+            if (JobAssignmentPolicy.RequiresAssignedJobScope(_currentUserContext.Role))
+            {
+                var currentUserId = _currentUserContext.UserId;
+                var isOwnWorksheet = currentUserId.HasValue
+                    && (await _repository.ListByJobAsync(jobId, cancellationToken))
+                        .Any(worksheet => worksheet.Id == worksheetId && worksheet.UserId == currentUserId.Value);
+                if (!isOwnWorksheet)
+                {
+                    return Result<JobReportSummaryResponse>.NotFound();
+                }
             }
 
             await _repository.DeleteAsync(worksheetId, jobId, cancellationToken);

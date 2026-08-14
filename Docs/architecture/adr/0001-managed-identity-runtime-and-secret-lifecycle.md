@@ -1,6 +1,6 @@
 # ADR 0001: Managed-identity runtime and explicit secret lifecycle
 
-**Status:** Accepted  
+**Status:** Accepted; database-DDL portion superseded by ADR 0006  
 **Date:** 2026-07-27  
 **Owner:** Workslip architecture owner  
 **Linear:** WOR-190
@@ -29,6 +29,8 @@ Multiple overlapping wrapper scripts also made it unclear which deployment comma
 10. The deployment-created OAuth application client secret is removed. Future server-side confidential-client flows require a separate ADR and scoped credential lifecycle.
 11. Every supported Azure infrastructure deployment selects the verified `mrsoftware.dk` ACS email domain, provisions `noreply`, and writes `noreply@mrsoftware.dk` to App Configuration. The deployment entry points expose no activation parameter. The Azure-managed domain remains linked only as an emergency rollback resource.
 
+The original rollout temporarily left schema-management rights on the API runtime identity while schema mutation still happened at startup. **ADR 0006 supersedes that transitional part of this decision:** production schema migrations are now deployment-time work performed by a dedicated migration identity, and the ordinary API runtime identity must not be a member of `db_ddladmin`.
+
 ## Required Graph permissions
 
 The API runtime identity receives only the permissions demonstrated by current code:
@@ -48,7 +50,7 @@ Deployment scripts do not assign a second competing set.
 - Recreating the managed identity changes its client ID; SQL provisioning must replace a stale contained user SID.
 - JWT rotation invalidates outstanding local Workslip JWTs.
 - Operators must preserve access to the deployment-only SQL administrator secret and install `sqlcmd`.
-- `db_ddladmin` remains temporarily assigned because schema mutation still occurs during API startup. WOR-136 must remove startup migration and then remove this role.
+- Production schema mutation is no longer an API-startup responsibility; ADR 0006 owns the dedicated migration identity, migration runner and DDL permission boundary.
 - Vercel cache purge must be configured and operated separately from Azure infrastructure deployment.
 - The production custom email domain must remain verified; normal deployment no longer offers a sender-selection toggle.
 - Production execution, secret migration and smoke-test evidence remain operator responsibilities after merge.
