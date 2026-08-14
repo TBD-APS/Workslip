@@ -46,6 +46,8 @@ interface QuickNavigatorProps {
   homeLabel: string;
   canUseAppCommands: boolean;
   canSearchJobs: boolean;
+  canViewAllJobs: boolean;
+  currentUserId?: string;
   canViewTimer: boolean;
   canManageUsers: boolean;
   canViewCustomers: boolean;
@@ -72,6 +74,8 @@ export function QuickNavigator({
   homeLabel,
   canUseAppCommands,
   canSearchJobs,
+  canViewAllJobs,
+  currentUserId,
   canViewTimer,
   canManageUsers,
   canViewCustomers,
@@ -279,7 +283,12 @@ export function QuickNavigator({
           params: { search, limit: 5, offset: 0 },
           signal: controller.signal,
         }) as JobSearchResponse;
-        setJobs(response.items ?? []);
+        const visibleJobs = canViewAllJobs
+          ? (response.items ?? [])
+          : (response.items ?? []).filter((job) =>
+              Boolean(currentUserId) && job.assignedUsers.some((assignedUser) => assignedUser.id === currentUserId),
+            );
+        setJobs(visibleJobs);
       } catch {
         if (!controller.signal.aborted) {
           setJobs([]);
@@ -294,7 +303,7 @@ export function QuickNavigator({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [canSearchJobs, isOpen, query]);
+  }, [canSearchJobs, canViewAllJobs, currentUserId, isOpen, query]);
 
   useEffect(() => {
     setActiveIndex((current) => Math.min(current, Math.max(results.length - 1, 0)));
