@@ -7,39 +7,70 @@
 
 Validation should answer one question: **what evidence is needed to make the changed risk believable?**
 
-Static inspection, compilation, automated tests, browser tests and deployed smoke are different evidence. Report them separately. Unexecuted tests are intended coverage, not evidence.
+Do not optimize for test count or coverage percentage. Use the smallest evidence set that proves the real regression risk.
 
-## Validation ladder
+Engineering gates and product regression evidence are different things. Build, lint, typecheck, OpenAPI generation/consistency, migration/schema validation and documentation checks can be mandatory without justifying more product tests.
 
-Use only the levels relevant to the change, but do not skip a lower level when it covers a distinct risk.
+## Default regression-test tools
 
-1. **Static review** — inspect source, diff, configuration, contracts, boundaries and failure paths.
-2. **Build/static tooling** — restore/build, lint/typecheck, analyzers, generated-artifact and documentation checks.
-3. **Focused automated tests** — regression tests for the changed rules and edge cases.
-4. **Integration** — real HTTP/relational/integration boundaries where behaviour depends on them.
-5. **Playwright** — actual changed user flow in a running browser application.
-6. **Deployed smoke** — non-destructive verification in the target environment when deployment is in scope.
-7. **Operational/compliance evidence** — only when the change affects data lifecycle, processors, legal controls or AI governance.
+Workslip uses three default regression-test tools:
 
-## Minimum by change type
+1. **Unit** — business rules, calculations, important state transitions and deterministic edge cases.
+2. **Postman feature/API** — primary backend feature verification across HTTP, authorization, persistence and coherent multi-endpoint workflows.
+3. **Playwright** — critical changed user-visible browser flows.
 
-| Change | Minimum evidence |
+Use another test shape only when one of these cannot prove a concrete risk efficiently, for example a narrow relational/provider-specific test for SQL translation, constraints, transaction semantics or concurrency.
+
+## Selection rule
+
+Before adding a test, name the production failure it protects against. Then choose the cheapest strong evidence.
+
+| Risk | Preferred evidence |
 |---|---|
-| Documentation only | source review + `python tools/docs/check_docs.py` |
-| Backend business rule | Release build + focused tests |
-| Authorization/tenant boundary | Release build + focused auth/tenant tests + HTTP integration |
-| EF Core/schema/transaction | Release build + relational tests + production-data impact review |
-| API contract | Release build + focused endpoint tests + OpenAPI/client consistency + HTTP smoke |
-| Background service | Release build + focused lifecycle/failure tests; hosted smoke when useful |
-| Frontend, no visible behaviour change | lint + tests where useful + production build |
-| User-visible frontend | lint + production build + relevant Playwright flow |
-| Auth/routing/forms/session/cache/critical flow | Playwright success/failure/recovery plus relevant network/cache checks |
-| Infrastructure | syntax/template validation + plan/what-if; deployment smoke only when deployment is in scope |
-| External integration | boundary tests + retry/partial-failure review + safe isolated smoke when justified |
-| Personal data / processor / AI system | this document **plus** [`../compliance/GDPR_AI_ACT_BASELINE.md`](../compliance/GDPR_AI_ACT_BASELINE.md) |
+| Pure calculation or branching business rule | Unit |
+| Important deterministic state transition | Unit |
+| Backend feature through public/internal HTTP contract | Postman feature/API |
+| Authorization, role or tenant boundary exposed through API | Postman feature/API, plus a narrow Unit policy test only when it adds distinct value |
+| Multi-endpoint workflow with persisted result | Postman feature/API |
+| User-visible critical changed journey | Playwright |
+| Browser routing/session/cache/mobile behavior | Playwright |
+| SQL/provider behavior not reliably observable through the API | Narrow relational/provider-specific test |
+| External integration failure with material side effects | Focused boundary test or safe isolated smoke, only for the failure direction the design claims to handle |
 
-The matrix is a floor, not a checklist to maximize. Add validation when the actual risk demands it.
+If there is no meaningful regression risk, do not add a test solely because code changed.
 
+## Unit tests
+
+Use Unit tests for logic that is clearer and cheaper to prove without HTTP or a browser:
+
+- calculations and rounding;
+- meaningful business branching;
+- important state transitions;
+- deterministic edge cases;
+- isolated authorization/domain policies where a policy-level test gives value beyond the API flow.
+
+Do not add Unit tests for:
+
+- trivial getters/setters;
+- simple mappings;
+- framework behavior;
+- CRUD pass-through;
+- implementation details with no credible regression risk;
+- mocked end-to-end flows that a Postman feature test proves more directly.
+
+## Postman feature/API tests
+
+Postman is the primary backend feature boundary.
+
+Prefer one coherent feature flow over many microscopic endpoint tests. A useful flow normally contains only the steps needed to prove the risk:
+
+1. establish synthetic non-production context and authentication;
+2. perform the feature action through the API;
+3. assert the response contract;
+4. read back or otherwise prove the persisted/state result when relevant;
+5. exercise the highest-value authorization, tenant or error path when that is part of the changed risk.
+
+Use Postman for:
 ## Release-candidate aggregation
 
 A temporary release candidate combines risks that were introduced by multiple PRs. Its readiness evidence must therefore be the union of the still-relevant gates for those changes, not merely one new green aggregate CI run.
@@ -60,53 +91,84 @@ A release CI run proves that the combined source builds and passes the determini
 
 ## Test selection
 
-Add regression tests for behaviour with meaningful breakage risk:
+- request → service → persistence → response behavior;
+- authorization and permission boundaries;
+- tenant-isolation probes;
+- validation, not-found and conflict behavior when materially changed;
+- workflows spanning multiple endpoints;
+- API contract regressions that need real HTTP evidence.
 
-- business rules, calculations and branching workflows;
-- authorization and tenant isolation;
-- state transitions and concurrency;
-- transactions, rollback, retries, idempotency and partial failure;
-- relational constraints/query behaviour;
-- external integration boundaries;
-- critical edge cases and verified bugs.
+Runtime evidence requires the collection/scripts to actually execute against an approved localhost, test or staging target. Parsing `postman_collection.json`, syntax-checking scripts or reading assertions is **not** runtime API evidence.
 
-Do not add tests for trivial getters, simple mappings, framework behaviour or CRUD pass-through solely to increase coverage.
+The active runner and environment rules live in [`../../src/BE/WorkslipApi/Postman/README.md`](../../src/BE/WorkslipApi/Postman/README.md). If an authenticated safe target is unavailable, report the missing Postman runtime evidence explicitly instead of marking it passed.
 
-Use a relational provider when SQL translation, constraints, transactions, cascade behaviour or concurrency matter. EF Core in-memory tests do not prove those properties.
+Do not run mutation-heavy feature suites against ordinary production data.
 
 ## Playwright
 
-A user-visible frontend change is not browser-validated until Playwright operates the changed control in a running app.
+Use Playwright when the regression lives in the browser experience rather than merely because frontend files changed.
 
-The relevant flow should:
+Use it for:
 
-- navigate as the user would;
-- interact with the changed controls rather than only load the page;
-- verify visible/persisted result and important loading/error/recovery states;
-- inspect console and failed/duplicated network requests where relevant;
-- exercise auth, redirect, browser-back, logout or cache isolation when those behaviours changed;
-- include a narrow viewport for mobile-sensitive changes;
-- use synthetic/non-production data and keep credentials/personal data out of artifacts.
+- critical changed user journeys;
+- auth, redirect, browser-back, session or cache behavior;
+- important loading, error and recovery behavior;
+- mobile-sensitive interaction when the changed behavior is mobile-sensitive;
+- UI behavior where persisted/visible state must be proven through the actual controls.
 
-If Playwright cannot run, report **implemented but Playwright-unvalidated**, name the missing prerequisite and keep the PR draft/blocked unless an explicit exception is approved.
+A relevant flow should navigate and interact as the user would and verify the important visible or persisted result. Inspect console or failed/duplicated network requests when they are part of the risk.
+
+Do not run a broad Playwright suite solely because a frontend component changed. Keep the scenario focused on the changed critical journey.
+
+Use synthetic/non-production data and keep credentials, OTC values, tokens and personal data out of artifacts.
+
+If required Playwright cannot run, report **implemented but Playwright-unvalidated**, name the missing prerequisite and keep the PR blocked/draft unless an explicit exception is approved.
 
 Reusable critical-flow details belong in [`../operations/playwright-critical-flows.md`](../operations/playwright-critical-flows.md), not duplicated here.
 
-## Backend and integrations
+## Engineering gates
 
-Validate the boundary that can actually fail:
+These checks are repository/engineering gates. Run the ones required by the changed surface, but do not convert each gate into another regression-test layer.
 
-- call HTTP endpoints when route/auth/error contracts changed;
-- use relational tests when persistence semantics changed;
-- verify two-tenant behaviour when tenant isolation is at risk;
-- cover retry/cancellation/conflict/partial completion when side effects make them material;
-- use fakes for destructive external operations, followed by safe isolated smoke only when useful and approved.
+1. **Static review** — inspect source, diff, configuration, contracts, boundaries and failure paths.
+2. **Build/static tooling** — restore/build, lint/typecheck, analyzers and generated-artifact checks.
+3. **Contract/schema checks** — OpenAPI/client consistency, migration validation, schema/provider checks when changed.
+4. **Documentation checks** — `python tools/docs/check_docs.py` for maintained docs.
+5. **Deployed smoke** — non-destructive verification in the target environment when deployment is in scope.
+6. **Operational/compliance evidence** — only when the change affects data lifecycle, processors, legal controls or AI governance.
 
-A successful external call does not prove persistence succeeded, and a committed database transaction does not prove an external side effect succeeded. Test the failure direction the design claims to handle.
+Compilation proves compilation. A JSON parse proves syntax. A deployed resource proves creation. Report each claim as the evidence it actually provides.
+
+## Minimum by change type
+
+| Change | Minimum evidence |
+|---|---|
+| Documentation only | source review + `python tools/docs/check_docs.py` |
+| Backend business rule without HTTP/persistence behavior change | Release build + focused Unit tests when the rule has meaningful regression risk |
+| Backend feature / API behavior | Release build + relevant Postman feature/API flow; OpenAPI/client consistency when the contract changed |
+| Authorization / tenant boundary | Release build + Postman authorization/tenant flow; narrow policy Unit test only when useful |
+| EF Core/schema/transaction | Release build + migration/schema review + narrow relational/provider-specific test only when the risky behavior cannot be proven adequately through the API |
+| Background service | Release build + focused lifecycle/failure test only for material behavior; hosted smoke when useful |
+| Frontend, no visible behavior change | lint/typecheck as applicable + production build; Unit only for meaningful frontend logic risk |
+| User-visible critical frontend flow | lint/typecheck as applicable + production build + relevant Playwright flow |
+| Auth/routing/forms/session/cache critical flow | relevant Playwright success/failure/recovery path |
+| Infrastructure | syntax/template validation + plan/what-if; deployment smoke only when deployment is in scope |
+| External integration | focused boundary/feature flow + retry/partial-failure review; safe isolated smoke only when justified |
+| Personal data / processor / AI system | this document **plus** [`../compliance/GDPR_AI_ACT_BASELINE.md`](../compliance/GDPR_AI_ACT_BASELINE.md) |
+
+The matrix is a floor for evidence, not a checklist to maximize.
+
+## Backend and integration failure directions
+
+A successful external call does not prove persistence succeeded, and a committed database transaction does not prove an external side effect succeeded.
+
+When partial failure, retry, cancellation, conflict, concurrency or idempotency is a material feature risk, test the specific failure direction the design claims to handle. Do not create a generic failure matrix for every endpoint.
+
+Use a relational provider only when SQL translation, constraints, transaction behavior, cascade behavior or concurrency is the actual thing being proven. EF Core in-memory tests do not prove those properties.
 
 ## Infrastructure
 
-Template compilation proves syntax, not deployment. Deployment proves resource creation, not application behaviour.
+Template compilation proves syntax, not deployment. Deployment proves resource creation, not application behavior.
 
 Validate the smallest relevant chain: template/script syntax → plan/what-if → deployment when explicitly in scope → affected runtime smoke.
 
@@ -124,11 +186,12 @@ For implementation work, state only the categories that apply:
 
 - static review performed;
 - exact build/lint/typecheck/docs commands run;
-- focused automated tests and result;
-- integration scenarios run;
-- Playwright scenarios, browser/viewport and result;
+- Unit scenarios run and result;
+- Postman feature/API scenarios actually executed and target class (localhost/test/staging), or the exact missing prerequisite;
+- Playwright scenarios, browser/viewport and result, or the exact missing prerequisite;
+- narrow relational/provider-specific evidence when it was genuinely needed;
 - deployed smoke performed;
 - compliance/operational evidence or approvals updated;
 - required validation not run, with the exact reason.
 
-Avoid generic “tests passed” or “validated” claims when they hide which level actually ran.
+Avoid generic “tests passed” or “validated” claims when they hide which evidence actually ran.
