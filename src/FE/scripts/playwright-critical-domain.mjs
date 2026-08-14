@@ -111,8 +111,8 @@ async function completeAndSubmitKlsViaUi(session, job) {
     const response = waitForApiResponse(session.page, 'POST', `/api/jobs/${job.id}/status`, [200]);
     await session.page.getByRole('button', { name: 'Attestér og indsend', exact: true }).click();
     await response;
-    const submittedStatus = session.page.getByRole('status').filter({ hasText: 'Sagen er attesteret' });
-    await submittedStatus.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await session.page.waitForURL((url) => url.pathname === `/app/completed/${job.id}`, { timeout: UI_TIMEOUT });
+    await session.page.getByRole('heading', { name: 'Sagsoverblik', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   });
 }
 
