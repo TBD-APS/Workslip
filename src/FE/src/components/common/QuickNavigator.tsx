@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { JobStatus, type JobListItemViewModel } from '../../api/generated/models';
 import { apiClient } from '../../lib/axios';
+import { filterQuickNavigationJobs, getQuickJobSearchTerm } from './quickNavigatorSearch';
 import './QuickNavigator.css';
 
 type QuickNavigatorCommand = {
@@ -59,9 +60,6 @@ interface QuickNavigatorProps {
 
 const normalize = (value: string) =>
   value.trim().toLocaleLowerCase('da-DK');
-
-const normalizeJobSearch = (value: string) =>
-  value.trim().replace(/^(sag|job)\s*#?\s*/i, '').trim();
 
 const isReadonlyState = (status: JobStatus) =>
   status === JobStatus.InReview || status === JobStatus.Approved;
@@ -265,8 +263,8 @@ export function QuickNavigator({
       return undefined;
     }
 
-    const search = normalizeJobSearch(query);
-    if (!canSearchJobs || search.length < 2) {
+    const search = getQuickJobSearchTerm(query);
+    if (!canSearchJobs || !search) {
       setJobs([]);
       setJobSearchFailed(false);
       setIsSearchingJobs(false);
@@ -283,12 +281,7 @@ export function QuickNavigator({
           params: { search, limit: 5, offset: 0 },
           signal: controller.signal,
         }) as JobSearchResponse;
-        const visibleJobs = canViewAllJobs
-          ? (response.items ?? [])
-          : (response.items ?? []).filter((job) =>
-              Boolean(currentUserId) && job.assignedUsers.some((assignedUser) => assignedUser.id === currentUserId),
-            );
-        setJobs(visibleJobs);
+        setJobs(filterQuickNavigationJobs(response.items ?? [], canViewAllJobs, currentUserId));
       } catch {
         if (!controller.signal.aborted) {
           setJobs([]);
