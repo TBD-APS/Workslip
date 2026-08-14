@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Workslip.Api.Configuration;
 using Workslip.Application.Users;
@@ -10,6 +11,8 @@ namespace Workslip.Tests.Configuration;
 
 public sealed class PlatformIdentityBootstrapCommandTests
 {
+    private const string SyntheticSuperadminEmail = "temporary-superadmin@example.test";
+
     [Theory]
     [InlineData("bootstrap-superadmins")]
     [InlineData(" BOOTSTRAP-SUPERADMINS ")]
@@ -53,11 +56,17 @@ public sealed class PlatformIdentityBootstrapCommandTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_RunsOnlyPlatformIdentityBootstrapAgainstReadyDatabase()
+    public async Task ExecuteAsync_RunsOnlyConfiguredRotatablePlatformIdentityBootstrap()
     {
         var services = new ServiceCollection();
         var databaseName = Guid.NewGuid().ToString();
         services.AddLogging();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["WORKSLIP_SYNTHETIC_SUPERADMIN_EMAIL"] = SyntheticSuperadminEmail
+            })
+            .Build());
         services.AddDbContext<SqlDbContext>(options =>
             options.UseInMemoryDatabase(databaseName));
         services.AddSingleton<ISuperadminEntraService, FakeSuperadminEntraService>();
@@ -69,12 +78,10 @@ public sealed class PlatformIdentityBootstrapCommandTests
         await using var scope = provider.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<SqlDbContext>();
         Assert.Single(await db.Organizations.ToListAsync());
-        Assert.Equal(3, await db.Users.CountAsync());
-        Assert.All(await db.Users.ToListAsync(), user =>
-        {
-            Assert.Equal(PlatformOrganization.Id, user.OrganizationId);
-            Assert.Equal(Roles.Superadmin, user.Role);
-        });
+        var user = Assert.Single(await db.Users.ToListAsync());
+        Assert.Equal(PlatformOrganization.Id, user.OrganizationId);
+        Assert.Equal(Roles.Superadmin, user.Role);
+        Assert.Equal(SyntheticSuperadminEmail, user.Email);
     }
 
     private sealed class FakeSuperadminEntraService : ISuperadminEntraService
@@ -91,6 +98,9 @@ public sealed class PlatformIdentityBootstrapCommandTests
                 displayName,
                 Created: false));
         }
+
+        public Task RevokeSuperadminAsync(string entraUserId, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
 
         public Task<CreateEntraUserResult> CreateUserAsync(
             string email,
