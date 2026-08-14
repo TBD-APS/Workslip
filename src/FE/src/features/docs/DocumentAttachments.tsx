@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, File, FileAudio, FileImage, FileText, Pause, Play, Plus, Trash2 } from 'lucide-react';
+import { Download, File as FileIcon, FileAudio, FileImage, FileText, Pause, Play, Plus, Trash2 } from 'lucide-react';
 import type { DocumentAttachmentInfoResponse } from '../../api/generated/models';
 import { notify } from '../../lib/toast';
 import {
@@ -13,9 +13,11 @@ import {
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 const ACCEPTED_FILES = '.mp3,.wav,.ogg,.mp4,.pdf,.png,.jpg,.jpeg,.webp,.txt,.md,.csv';
 
-const formatBytes = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} B`;
-  const kb = bytes / 1024;
+const formatBytes = (bytes: number | string): string => {
+  const value = Number(bytes);
+  if (!Number.isFinite(value) || value < 0) return 'Ukendt størrelse';
+  if (value < 1024) return `${value} B`;
+  const kb = value / 1024;
   if (kb < 1024) return `${kb.toLocaleString('da-DK', { maximumFractionDigits: 1 })} KB`;
   return `${(kb / 1024).toLocaleString('da-DK', { maximumFractionDigits: 1 })} MB`;
 };
@@ -32,7 +34,7 @@ const AttachmentIcon = ({ attachment }: { attachment: DocumentAttachmentInfoResp
   if (attachment.contentType === 'application/pdf' || attachment.contentType.startsWith('text/')) {
     return <FileText size={19} aria-hidden="true" />;
   }
-  return <File size={19} aria-hidden="true" />;
+  return <FileIcon size={19} aria-hidden="true" />;
 };
 
 type AudioPreview = {
@@ -186,7 +188,7 @@ export function DocumentAttachments({ documentId, canEdit }: DocumentAttachments
 
       {!attachmentsQuery.isLoading && !attachmentsQuery.isError && attachments.length === 0 && (
         <div className="docs-attachments-empty">
-          <File size={22} aria-hidden="true" />
+          <FileIcon size={22} aria-hidden="true" />
           <span>Ingen filer er vedhæftet endnu.</span>
         </div>
       )}
