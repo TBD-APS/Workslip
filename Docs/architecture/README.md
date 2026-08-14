@@ -9,6 +9,7 @@ Current implementation is the technical source of truth. This area records durab
 ## Current architecture views
 
 - [`domain-and-dataflows.md`](domain-and-dataflows.md) — tenant ownership and core data-integrity boundaries.
+- [`frontend-design-accessibility.md`](frontend-design-accessibility.md) — authenticated frontend visual system, semantic tokens and accessibility baseline.
 
 Useful future views, when they can be kept concise and stable:
 
