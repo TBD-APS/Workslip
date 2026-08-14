@@ -61,15 +61,14 @@ public sealed class PlatformIdentityBootstrapper(
                 RotatableDisplayName,
                 cancellationToken);
             ValidateEntraResult(configuredEntraUser);
+
             await EnsureEntraIdentityIsNotOwnedByAnotherUserAsync(
                 configuredEntraUser.EntraUserId,
-                preflight.TargetUser?.Id,
+                preflight.RotatableUser?.Id,
                 cancellationToken);
 
             var staleEntraIds = preflight.ReservedUsers
-                .Where(user => preflight.TargetUser is null || user.Id != preflight.TargetUser.Id)
                 .Select(user => user.EntraId)
-                .Append(preflight.TargetUser?.EntraId ?? string.Empty)
                 .Where(entraId =>
                     !string.IsNullOrWhiteSpace(entraId) &&
                     !string.Equals(
@@ -203,7 +202,13 @@ public sealed class PlatformIdentityBootstrapper(
         }
 
         var emailOwner = emailOwners.SingleOrDefault();
-        if (emailOwner is not null && !ReservedSuperadminIds.Contains(emailOwner.Id))
+        if (emailOwner is not null && LegacySuperadminIds.Contains(emailOwner.Id))
+        {
+            throw new InvalidOperationException(
+                "Configured platform Superadmin email still resolves to a legacy permanent bootstrap identity. Configure a separate rotatable synthetic identity instead.");
+        }
+
+        if (emailOwner is not null && emailOwner.Id != RotatableSuperadminId)
         {
             throw new InvalidOperationException(
                 "Configured platform Superadmin email is already owned by a non-bootstrap Workslip user. Bootstrap refused to escalate or move that user.");
@@ -217,14 +222,7 @@ public sealed class PlatformIdentityBootstrapper(
             throw PlatformContamination("non-bootstrap users");
         }
 
-        var rotatable = relevantUsers.SingleOrDefault(user => user.Id == RotatableSuperadminId);
-        if (rotatable is not null && emailOwner is not null && emailOwner.Id != rotatable.Id)
-        {
-            throw new InvalidOperationException(
-                "Configured platform Superadmin email conflicts with the existing rotatable platform identity.");
-        }
-
-        var target = rotatable ?? emailOwner;
+        var rotatableUser = relevantUsers.SingleOrDefault(user => user.Id == RotatableSuperadminId);
         var reservedUsers = relevantUsers
             .Where(user => ReservedSuperadminIds.Contains(user.Id))
             .ToArray();
@@ -238,7 +236,7 @@ public sealed class PlatformIdentityBootstrapper(
         }
 
         await EnsurePlatformOrganizationHasNoOperationalDataAsync(cancellationToken);
-        return new BootstrapPreflight(platformOrganization, target, reservedUsers);
+        return new BootstrapPreflight(platformOrganization, rotatableUser, reservedUsers);
     }
 
     private async Task<OrganizationRow?> ResolvePlatformOrganizationAsync(
@@ -313,7 +311,7 @@ public sealed class PlatformIdentityBootstrapper(
 
     private async Task EnsureEntraIdentityIsNotOwnedByAnotherUserAsync(
         string entraUserId,
-        Guid? targetUserId,
+        Guid? rotatableUserId,
         CancellationToken cancellationToken)
     {
         var conflictingOwner = await db.Users
@@ -321,7 +319,7 @@ public sealed class PlatformIdentityBootstrapper(
             .FirstOrDefaultAsync(
                 user =>
                     user.EntraId == entraUserId &&
-                    (!targetUserId.HasValue || user.Id != targetUserId.Value) &&
+                    (!rotatableUserId.HasValue || user.Id != rotatableUserId.Value) &&
                     !LegacySuperadminIds.Contains(user.Id),
                 cancellationToken);
 
@@ -342,14 +340,15 @@ public sealed class PlatformIdentityBootstrapper(
             .Where(user => ReservedSuperadminIds.Contains(user.Id))
             .ToListAsync(cancellationToken);
 
-        var targetId = preflight.TargetUser?.Id ?? RotatableSuperadminId;
-        foreach (var staleUser in trackedReservedUsers.Where(user => user.Id != targetId).ToArray())
+        foreach (var staleUser in trackedReservedUsers
+                     .Where(user => user.Id != RotatableSuperadminId)
+                     .ToArray())
         {
             await DeleteEphemeralReferencesAsync(staleUser.Id, cancellationToken);
             db.Users.Remove(staleUser);
         }
 
-        var target = trackedReservedUsers.SingleOrDefault(user => user.Id == targetId);
+        var target = trackedReservedUsers.SingleOrDefault(user => user.Id == RotatableSuperadminId);
         var now = DateTimeOffset.UtcNow;
         if (target is null)
         {
@@ -419,11 +418,14 @@ public sealed class PlatformIdentityBootstrapper(
             return;
         }
 
-        if (platformOrganization.Name != PlatformOrganization.Name)
+        if (platformOrganization.Name == PlatformOrganization.Name)
         {
-            platformOrganization.Name = PlatformOrganization.Name;
-            platformOrganization.UpdatedAt = now;
+            return;
         }
+
+        var entry = db.Entry(platformOrganization);
+        entry.Property(organization => organization.Name).CurrentValue = PlatformOrganization.Name;
+        entry.Property(organization => organization.UpdatedAt).CurrentValue = now;
     }
 
     private static void ValidateEntraResult(CreateEntraUserResult entraUser)
@@ -445,6 +447,6 @@ public sealed class PlatformIdentityBootstrapper(
 
     private sealed record BootstrapPreflight(
         OrganizationRow? PlatformOrganization,
-        UserDataRow? TargetUser,
+        UserDataRow? RotatableUser,
         IReadOnlyList<UserDataRow> ReservedUsers);
 }
