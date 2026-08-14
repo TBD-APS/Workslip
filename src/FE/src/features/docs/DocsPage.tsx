@@ -46,7 +46,7 @@ const toDraft = (document: DocumentDetailResponse): Draft => ({
   title: document.title,
   content: document.content,
   tagsText: (document.tags ?? []).join(', '),
-  revision: document.revision,
+  revision: Number(document.revision),
 });
 
 const parseTags = (value: string): string[] => {
