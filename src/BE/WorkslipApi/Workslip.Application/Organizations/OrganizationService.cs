@@ -70,9 +70,10 @@ public sealed class OrganizationService(
         }
 
         var normalizedCvr = OrganizationRequestValidator.NormalizeCvr(request.Cvr);
+        var cvrForLog = normalizedCvr.Replace("\r", " ").Replace("\n", " ");
         if (await repository.CvrExistsAsync(normalizedCvr, cancellationToken))
         {
-            logger.LogWarning("Organization create conflict. Reason: {Reason}. Cvr: {Cvr}.", "organization_cvr_exists", normalizedCvr);
+            logger.LogWarning("Organization create conflict. Reason: {Reason}. Cvr: {Cvr}.", "organization_cvr_exists", cvrForLog);
             return Result<OrganizationOnboardingResponse>.Conflict("organization_cvr_exists");
         }
 
@@ -93,7 +94,7 @@ public sealed class OrganizationService(
                 }
             }
 
-            logger.LogWarning("Organization create conflict after insert attempt. Cvr: {Cvr}.", normalizedCvr);
+            logger.LogWarning("Organization create conflict after insert attempt. Cvr: {Cvr}.", cvrForLog);
             return Result<OrganizationOnboardingResponse>.Conflict("organization_cvr_exists");
         }
 
@@ -101,7 +102,7 @@ public sealed class OrganizationService(
             "Organization created. OrganizationId: {OrganizationId}. UserId: {UserId}. Cvr: {Cvr}.",
             created.Organization.Id,
             created.User.Id,
-            normalizedCvr);
+            cvrForLog);
 
         return Result<OrganizationOnboardingResponse>.Success(created);
     }

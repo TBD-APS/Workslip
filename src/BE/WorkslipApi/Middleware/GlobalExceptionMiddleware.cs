@@ -17,8 +17,8 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
             var traceId = GetTraceId(context);
             var correlationId = context.Items["CorrelationId"]?.ToString() ?? traceId;
             logger.LogWarning("Request aborted by client. {Method} {Path}. CorrelationId: {CorrelationId} TraceId: {TraceId}",
-                context.Request.Method,
-                context.Request.Path,
+                context.Request.Method.Replace("\r", " ").Replace("\n", " "),
+                context.Request.Path.Value?.Replace("\r", " ").Replace("\n", " "),
                 correlationId,
                 traceId);
         }
@@ -35,8 +35,8 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
 
         logger.LogError(exception,
             "Unhandled exception while processing {Method} {Path}. ExceptionType: {ExceptionType} CorrelationId: {CorrelationId} TraceId: {TraceId}",
-            context.Request.Method,
-            context.Request.Path,
+            context.Request.Method.Replace("\r", " ").Replace("\n", " "),
+            context.Request.Path.Value?.Replace("\r", " ").Replace("\n", " "),
             exception.GetType().Name,
             correlationId,
             traceId);

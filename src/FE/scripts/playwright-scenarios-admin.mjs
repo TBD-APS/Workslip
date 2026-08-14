@@ -7,6 +7,11 @@ export function createAdminScenarioHandlers(env, h) {
     assertStatus, readDestinationAddress, assertEqual, clickWizardStep, fillOverviewFields, waitForEnabled, extractInviteToken
   } = h;
 
+  // Match the Microsoft login host exactly (apex or a real subdomain) instead of a
+  // substring check, so lookalike hosts such as `microsoftonline.com.evil.com` cannot pass.
+  const isMicrosoftLoginHost = (hostname) =>
+    hostname === 'microsoftonline.com' || hostname.endsWith('.microsoftonline.com');
+
 async function invitationOnboardingFlow(session) {
   await session.step('admin sends unique invite through UI', async () => {
     await session.login('Admin');
@@ -44,10 +49,10 @@ async function invitationOnboardingFlow(session) {
       const continueButton = page.getByRole('button', { name: 'Fortsæt med Microsoft', exact: true });
       await continueButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
       await continueButton.click();
-      await page.waitForURL((url) => url.hostname.includes('microsoftonline.com') || url.pathname.includes('/invite'), { timeout: API_TIMEOUT });
+      await page.waitForURL((url) => isMicrosoftLoginHost(url.hostname) || url.pathname.includes('/invite'), { timeout: API_TIMEOUT });
       session.scenarioReport.coverageNotes.push({
         area: 'Entra enrollment completion',
-        status: page.url().includes('microsoftonline.com') ? 'external-handoff-verified' : 'handoff-not-observed',
+        status: isMicrosoftLoginHost(new URL(page.url()).hostname) ? 'external-handoff-verified' : 'handoff-not-observed',
         detail: 'Completion requires a real isolated Microsoft identity session; no credentials or storage state are committed or uploaded.',
       });
     } finally {
