@@ -1,3 +1,6 @@
+using System.Data;
+using System.Globalization;
+using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Documents;
@@ -10,6 +13,15 @@ namespace Workslip.Tests.Documents;
 
 public sealed class SqlDocumentRepositoryTenantIsolationTests
 {
+    static SqlDocumentRepositoryTenantIsolationTests()
+    {
+        // SQL Server returns native Guid/DateTimeOffset values. SQLite's test
+        // provider materializes them as text; handlers keep this relational
+        // regression test focused on Workslip's SQL predicates/concurrency.
+        SqlMapper.AddTypeHandler(new GuidValueHandler());
+        SqlMapper.AddTypeHandler(new DateTimeOffsetValueHandler());
+    }
+
     [Fact]
     public async Task Document_operations_stay_tenant_scoped_and_reject_stale_revision()
     {
@@ -114,5 +126,31 @@ public sealed class SqlDocumentRepositoryTenantIsolationTests
             string operationName,
             Func<CancellationToken, Task<T>> operation,
             CancellationToken cancellationToken) => operation(cancellationToken);
+    }
+
+    private sealed class GuidValueHandler : SqlMapper.TypeHandler<Guid>
+    {
+        public override Guid Parse(object value) => value switch
+        {
+            Guid guid => guid,
+            string text => Guid.Parse(text),
+            byte[] bytes when bytes.Length == 16 => new Guid(bytes),
+            _ => throw new DataException($"Cannot convert {value.GetType().Name} to Guid.")
+        };
+
+        public override void SetValue(IDbDataParameter parameter, Guid value) => parameter.Value = value;
+    }
+
+    private sealed class DateTimeOffsetValueHandler : SqlMapper.TypeHandler<DateTimeOffset>
+    {
+        public override DateTimeOffset Parse(object value) => value switch
+        {
+            DateTimeOffset offset => offset,
+            DateTime dateTime => new DateTimeOffset(dateTime),
+            string text => DateTimeOffset.Parse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+            _ => throw new DataException($"Cannot convert {value.GetType().Name} to DateTimeOffset.")
+        };
+
+        public override void SetValue(IDbDataParameter parameter, DateTimeOffset value) => parameter.Value = value;
     }
 }
