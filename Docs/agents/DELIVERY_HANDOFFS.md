@@ -49,6 +49,15 @@ Reference source artifacts instead of copying long chat summaries.
 
 Customer-facing product triage is defined in [`CUSTOMER_VALUE_GATE.md`](CUSTOMER_VALUE_GATE.md). Test selection is defined in [`VALIDATION.md`](VALIDATION.md).
 
+## Delegation and speed
+
+Keep the delivery loop fast by protecting the coordinating session's context, not by cutting validation.
+
+- Delegate read-only scouting and bounded, well-scoped edits to cheaper, context-compressed sub-agents; reserve the coordinating session for synthesis, judgement and cross-finding decisions.
+- Prefer sub-agents whose output is compressed to `file:line` facts and one-line findings, so each result returned to the coordinating context stays small and the session lasts longer.
+- Keep each unit of work small enough to review quickly: a bounded edit that refuses to sprawl beyond its scope produces a smaller, faster PR.
+- This is an execution-speed convention, not a validation shortcut: the required evidence in [`VALIDATION.md`](VALIDATION.md) and the release-gate decision are unchanged.
+
 ## Builder finding rule
 
 When implementation reveals another problem:
