@@ -111,10 +111,10 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
 
           <TextAreaBlock
             icon={<Wrench size={18} />}
-            title="Tekniske observationer"
+            title="Kommentar til sagen"
             value={create.form.technicalObservations}
             onChange={create.updateTechnicalObservations}
-            placeholder="Notér tekniske observationer..."
+            placeholder="Skriv en kommentar til sagen..."
           />
         </>
       )}
