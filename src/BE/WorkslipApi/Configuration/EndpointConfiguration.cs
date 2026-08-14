@@ -21,6 +21,7 @@ public static class EndpointConfiguration
         app.MapJobEndpoints();
         app.MapImageEndpoints();
         app.MapCustomerEndpoints();
+        app.MapDocumentEndpoints();
         app.MapJobLinkEndpoints();
         app.MapWorkSheetEndpoints();
         app.MapReferenceDataEndpoints();

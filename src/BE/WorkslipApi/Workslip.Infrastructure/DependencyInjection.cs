@@ -7,6 +7,7 @@ using Workslip.Application;
 using Workslip.Application.Common;
 using Workslip.Application.Customers;
 using Workslip.Application.Diagnostics;
+using Workslip.Application.Documents;
 using Workslip.Application.Images;
 using Workslip.Application.Invitations;
 using Workslip.Application.Jobs;
@@ -68,6 +69,7 @@ public static class DependencyInjection
         services.AddScoped<IAssignmentRepository, EfAssignmentRepository>();
         services.AddScoped<IJobAssignmentScopeRepository, EfJobAssignmentScopeRepository>();
         services.AddScoped<ICustomerRepository, EfCustomerRepository>();
+        services.AddScoped<IDocumentRepository, SqlDocumentRepository>();
         services.AddScoped<IInviteRepository, EfInviteRepository>();
         services.AddScoped<IInvitationStatusRepository, EfInviteRepository>();
         services.AddScoped<IJobLinkRepository, EfJobLinkRepository>();
