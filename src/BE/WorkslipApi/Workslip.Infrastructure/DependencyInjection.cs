@@ -41,6 +41,7 @@ public static class DependencyInjection
         services.AddScoped<JobStatusTransitionInterceptor>();
         services.AddScoped<AuditInterceptor>();
         services.AddScoped<WorksheetDailyHoursInterceptor>();
+        services.AddScoped<WorksheetFinalizationGuard>();
 
         services.AddDbContext<SqlDbContext>((sp, options) =>
         {
@@ -52,11 +53,13 @@ public static class DependencyInjection
             var transitionInterceptor = sp.GetRequiredService<JobStatusTransitionInterceptor>();
             var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
             var worksheetDailyHoursInterceptor = sp.GetRequiredService<WorksheetDailyHoursInterceptor>();
+            var worksheetFinalizationGuard = sp.GetRequiredService<WorksheetFinalizationGuard>();
             options.AddInterceptors(
                 tenantIntegrityInterceptor,
                 transitionInterceptor,
                 auditInterceptor,
-                worksheetDailyHoursInterceptor);
+                worksheetDailyHoursInterceptor,
+                worksheetFinalizationGuard);
 
             options.ConfigureWarnings(warnings =>
                 warnings.Throw(RelationalEventId.MultipleCollectionIncludeWarning));
@@ -68,13 +71,17 @@ public static class DependencyInjection
         services.AddScoped<IInviteRepository, EfInviteRepository>();
         services.AddScoped<IInvitationStatusRepository, EfInviteRepository>();
         services.AddScoped<IJobLinkRepository, EfJobLinkRepository>();
-        services.AddScoped<IJobRepository, EfJobRepository>();
+        services.AddScoped<EfJobRepository>();
+        services.AddScoped<AssignmentAwareJobRepository>();
+        services.AddScoped<IJobRepository, BillingAwareJobRepository>();
         services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
         services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();
         services.AddScoped<ISuperAdminUserRepository, EfSuperAdminUserRepository>();
+        services.AddScoped<SqlUserBillingRepository>();
+        services.AddScoped<IUserBillingRepository, HistorySafeUserBillingRepository>();
         services.AddScoped<IWorksheetRepository, EfWorksheetRepository>();
-        services.AddSingleton<IMonthlyHoursPdfGenerator, MonthlyHoursPdfGenerator>();
+        services.AddSingleton<IMonthlyHoursPdfGenerator, MonthlyCostingPdfGenerator>();
         services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
         services.AddScoped<INotificationRepository, EfNotificationRepository>();
         services.AddScoped<IJobViewRepository, EfJobViewRepository>();

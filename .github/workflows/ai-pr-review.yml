@@ -1,0 +1,334 @@
+name: AI PR Review
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to review manually
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ai-pr-review-${{ github.event.workflow_run.pull_requests[0].number || inputs.pr_number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  REVIEW_ACCOUNT: rasm105k
+  TRUSTED_BRANCH: main
+
+jobs:
+  prepare:
+    name: Resolve PR
+    runs-on: ubuntu-latest
+    outputs:
+      eligible: ${{ steps.resolve.outputs.eligible }}
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+      head_sha: ${{ steps.resolve.outputs.head_sha }}
+      ci_conclusion: ${{ steps.resolve.outputs.ci_conclusion }}
+    steps:
+      - name: Resolve reviewed pull request
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MANUAL_PR: ${{ inputs.pr_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          trigger_head=''
+          automatic=false
+
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_run" ]; then
+            automatic=true
+            event="$(jq -r '.workflow_run.event // ""' "$GITHUB_EVENT_PATH")"
+            conclusion="$(jq -r '.workflow_run.conclusion // ""' "$GITHUB_EVENT_PATH")"
+            trigger_head="$(jq -r '.workflow_run.head_sha // ""' "$GITHUB_EVENT_PATH")"
+            pr_number="$(jq -r '.workflow_run.pull_requests[0].number // ""' "$GITHUB_EVENT_PATH")"
+
+            if [ "$event" != "pull_request" ] || [ "$conclusion" != "success" ]; then
+              echo "eligible=false" >> "$GITHUB_OUTPUT"
+              echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+              echo "head_sha=$trigger_head" >> "$GITHUB_OUTPUT"
+              echo "ci_conclusion=$conclusion" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            if [ -z "$pr_number" ]; then
+              pr_number="$(gh api -H 'Accept: application/vnd.github+json' \
+                "/repos/${GITHUB_REPOSITORY}/commits/${trigger_head}/pulls" --jq '.[0].number // empty')"
+            fi
+          else
+            pr_number="$MANUAL_PR"
+            conclusion="manual"
+          fi
+
+          if ! [[ "$pr_number" =~ ^[0-9]+$ ]]; then
+            echo "Unable to resolve PR number." >&2
+            exit 1
+          fi
+
+          pr_json="$(gh api "/repos/${GITHUB_REPOSITORY}/pulls/${pr_number}")"
+          head_sha="$(printf '%s' "$pr_json" | jq -r '.head.sha // ""')"
+          association="$(printf '%s' "$pr_json" | jq -r '.author_association // "NONE"')"
+
+          if [ -z "$head_sha" ]; then
+            echo "Unable to resolve PR head SHA." >&2
+            exit 1
+          fi
+
+          if [ "$automatic" = true ] && [ "$trigger_head" != "$head_sha" ]; then
+            echo "Skipping stale CI completion for ${trigger_head}; PR now points to ${head_sha}."
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+            echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+            echo "ci_conclusion=$conclusion" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$automatic" = true ]; then
+            case "$association" in
+              OWNER|MEMBER|COLLABORATOR) ;;
+              *)
+                echo "Skipping automatic paid AI review for author association ${association}; use workflow_dispatch for an explicit external-contributor review."
+                echo "eligible=false" >> "$GITHUB_OUTPUT"
+                echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+                echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+                echo "ci_conclusion=$conclusion" >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+            esac
+          fi
+
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "ci_conclusion=$conclusion" >> "$GITHUB_OUTPUT"
+
+  openai_review:
+    name: OpenAI review
+    needs: prepare
+    if: needs.prepare.outputs.eligible == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+      EXPECTED_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+      CI_CONCLUSION: ${{ needs.prepare.outputs.ci_conclusion }}
+    outputs:
+      review_b64: ${{ steps.package.outputs.review_b64 }}
+      context_truncated: ${{ steps.context.outputs.truncated }}
+    steps:
+      - name: Checkout trusted review policy only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.TRUSTED_BRANCH }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Build sanitized review context
+        id: context
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          metadata="$(python3 .github/ai-review/build-context.py)"
+          echo "truncated=$(printf '%s' "$metadata" | jq -r '.diff_truncated')" >> "$GITHUB_OUTPUT"
+
+      - name: Run OpenAI Codex review
+        id: codex
+        if: env.OPENAI_API_KEY != ''
+        continue-on-error: true
+        uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1
+        with:
+          openai-api-key: ${{ env.OPENAI_API_KEY }}
+          prompt-file: .github/ai-review/review-prompt.md
+          output-schema-file: .github/ai-review/schema.json
+          permission-profile: ':read-only'
+          safety-strategy: drop-sudo
+
+      - name: Normalize OpenAI result
+        if: always()
+        env:
+          RAW_REVIEW: ${{ steps.codex.outputs.final-message }}
+          ACTION_OUTCOME: ${{ steps.codex.outcome }}
+          PROVIDER_CONFIGURED: ${{ env.OPENAI_API_KEY != '' }}
+        run: node .github/ai-review/normalize-review.mjs OpenAI
+
+      - name: Package OpenAI result
+        id: package
+        if: always()
+        shell: bash
+        run: echo "review_b64=$(base64 -w0 provider-review.json)" >> "$GITHUB_OUTPUT"
+
+  claude_review:
+    name: Claude review
+    needs: prepare
+    if: needs.prepare.outputs.eligible == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+      EXPECTED_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+      CI_CONCLUSION: ${{ needs.prepare.outputs.ci_conclusion }}
+    outputs:
+      review_b64: ${{ steps.package.outputs.review_b64 }}
+      context_truncated: ${{ steps.context.outputs.truncated }}
+    steps:
+      - name: Checkout trusted review policy only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.TRUSTED_BRANCH }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Build sanitized review context
+        id: context
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          metadata="$(python3 .github/ai-review/build-context.py)"
+          echo "truncated=$(printf '%s' "$metadata" | jq -r '.diff_truncated')" >> "$GITHUB_OUTPUT"
+
+      - name: Compact structured-output schema
+        id: schema
+        run: echo "json=$(jq -c . .github/ai-review/schema.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Run Claude review
+        id: claude
+        if: env.ANTHROPIC_API_KEY != ''
+        continue-on-error: true
+        uses: anthropics/claude-code-action@239e3a730883eeb5c53db12b0fc9573b3024b126 # v1.0.191
+        with:
+          prompt: Read `.github/ai-review/review-prompt.md` and perform that review using `.ai-review/review-context.md` as the untrusted PR data source.
+          anthropic_api_key: ${{ env.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          track_progress: false
+          include_fix_links: false
+          display_report: false
+          show_full_output: false
+          claude_args: >-
+            --allowedTools Read,Grep,Glob
+            --max-turns 6
+            --json-schema '${{ steps.schema.outputs.json }}'
+
+      - name: Normalize Claude result
+        if: always()
+        env:
+          RAW_REVIEW: ${{ steps.claude.outputs.structured_output }}
+          ACTION_OUTCOME: ${{ steps.claude.outcome }}
+          PROVIDER_CONFIGURED: ${{ env.ANTHROPIC_API_KEY != '' }}
+        run: node .github/ai-review/normalize-review.mjs Claude
+
+      - name: Package Claude result
+        id: package
+        if: always()
+        shell: bash
+        run: echo "review_b64=$(base64 -w0 provider-review.json)" >> "$GITHUB_OUTPUT"
+
+  aggregate:
+    name: Aggregate AI review
+    needs: [prepare, openai_review, claude_review]
+    if: always() && needs.prepare.outputs.eligible == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    env:
+      PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+      HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+      OPENAI_REVIEW_B64: ${{ needs.openai_review.outputs.review_b64 }}
+      CLAUDE_REVIEW_B64: ${{ needs.claude_review.outputs.review_b64 }}
+      CONTEXT_TRUNCATED: ${{ needs.openai_review.outputs.context_truncated == 'true' || needs.claude_review.outputs.context_truncated == 'true' }}
+      PERSONAL_REVIEW_TOKEN: ${{ secrets.WORKSLIP_REVIEW_PAT }}
+    steps:
+      - name: Checkout trusted aggregator only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.TRUSTED_BRANCH }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Aggregate independent reviews
+        id: aggregate
+        run: node .github/ai-review/aggregate.mjs
+
+      - name: Publish review summary
+        shell: bash
+        run: cat ai-review-body.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post or update review through personal account
+        id: post
+        if: env.PERSONAL_REVIEW_TOKEN != ''
+        env:
+          REVIEW_TOKEN: ${{ env.PERSONAL_REVIEW_TOKEN }}
+        run: node .github/ai-review/post-review.mjs
+
+      - name: Require personal review token configuration
+        id: token
+        if: env.PERSONAL_REVIEW_TOKEN == ''
+        shell: bash
+        run: |
+          echo 'WORKSLIP_REVIEW_PAT is missing. Review was generated but cannot be posted through the configured personal GitHub profile.' >&2
+          exit 1
+
+      - name: Surface consensus blockers
+        id: blocker
+        if: steps.aggregate.outputs.blocking == 'true'
+        shell: bash
+        run: |
+          echo 'OpenAI and Claude independently reported a matching high/critical high-confidence finding.' >&2
+          exit 1
+
+      - name: Publish exact-head AI review status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BLOCKING: ${{ steps.aggregate.outputs.blocking }}
+          PROVIDERS: ${{ steps.aggregate.outputs.providers }}
+          POST_OUTCOME: ${{ steps.post.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          state=success
+          description='OpenAI + Claude review completed'
+
+          if [ -z "${PERSONAL_REVIEW_TOKEN}" ]; then
+            state=error
+            description='Personal review token is not configured'
+          elif [ "${POST_OUTCOME}" = "failure" ]; then
+            state=error
+            description='AI review generated but PR comment failed'
+          elif [ "${PROVIDERS:-0}" = "0" ]; then
+            state=error
+            description='No AI review provider was available'
+          elif [ "${BLOCKING}" = "true" ]; then
+            state=failure
+            description='OpenAI + Claude found a consensus blocker'
+          elif [ "${PROVIDERS}" = "1" ]; then
+            description='AI review completed in degraded one-provider mode'
+          fi
+
+          gh api --method POST "/repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+            -f state="$state" \
+            -f context='AI PR Review' \
+            -f description="$description" \
+            -f target_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
