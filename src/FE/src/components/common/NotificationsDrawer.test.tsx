@@ -140,7 +140,8 @@ describe('NotificationsDrawer', () => {
       undefined,
       { skipGlobalErrorToast: true },
     ));
-    expect(await screen.findByText('Du er helt ajour')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText('Du er helt ajour').length).toBeGreaterThan(0));
+    expect(screen.getByText('Der er ikke noget, der kræver din opmærksomhed lige nu.')).toBeInTheDocument();
   });
 
   it('clears a stale action error when the drawer closes', async () => {
