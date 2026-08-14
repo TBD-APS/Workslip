@@ -241,6 +241,12 @@ async function main() {
   }
 
   async function logout() {
+    const creationDialog = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: /sag(?:en|er) er oprettet/i }) });
+    if (await creationDialog.isVisible().catch(() => false)) {
+      await creationDialog.getByRole('button', { name: 'Til sagslisten', exact: true }).click();
+      await creationDialog.waitFor({ state: 'hidden', timeout: UI_TIMEOUT });
+    }
+
     const button = page.getByRole('button', { name: 'Log ud', exact: true });
     await button.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await button.click();
