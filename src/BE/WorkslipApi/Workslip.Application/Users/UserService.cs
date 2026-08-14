@@ -55,7 +55,7 @@ public sealed class UserService(
         var existing = await repository.GetByEmailAsync(normalizedEmail, cancellationToken);
         if (existing != null)
         {
-            logger.LogWarning("User create conflict: email already in use. Email: {Email}", normalizedEmail);
+            logger.LogWarning("User create conflict: email already in use.");
             return Result<UserResponse>.Conflict("email_in_use");
         }
 

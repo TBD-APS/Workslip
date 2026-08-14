@@ -636,7 +636,7 @@ public sealed class JobService(
             await InvalidateJobCachesAsync(affectedId, organizationId.Value, cancellationToken);
         }
 
-        logger.LogInformation("Job links deleted. LinkIds: {LinkIds}. ReportId: {ReportId}", request.LinkIds, reportId);
+        logger.LogInformation("Job links deleted. LinkIds: {LinkIds}. ReportId: {ReportId}", string.Join(", ", request.LinkIds).Replace("\r", " ").Replace("\n", " "), reportId);
         return Result.Success();
     }
 
@@ -726,7 +726,7 @@ public sealed class JobService(
          }
 
           await InvalidateJobCachesAsync(jobId, organizationId.Value, cancellationToken);
-          logger.LogInformation("Job assigned. JobId: {JobId}. AssignedUserCount: {Assigneds}.", jobId, userIds);
+          logger.LogInformation("Job assigned. JobId: {JobId}. AssignedUserCount: {Assigneds}.", jobId, userIds.Count);
 
            var address = job.DestinationAddress ?? job.Customer?.Address ?? "Ingen adresse angivet";
            var reportNumber = job.ReportNumber ?? "Uden nummer";

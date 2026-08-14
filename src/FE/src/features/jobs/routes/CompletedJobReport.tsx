@@ -289,10 +289,9 @@ export const CompletedJobReport = () => {
     { label: 'Email', value: job.customerSnapshot.email },
   ]);
   const observationPairs = compactPairs([
-    { label: 'Opgave', value: job.observations.taskDescription },
-    { label: 'Kundeinfo', value: job.observations.customerObservations },
-    { label: 'Teknisk', value: job.observations.technicalObservations },
-    { label: 'Bemærkninger', value: job.work.remarks },
+    { label: 'Opgavebeskrivelse', value: job.observations.taskDescription },
+    { label: 'Oplysninger til kunden', value: job.observations.customerObservations },
+    { label: 'Kommentar til sagen', value: job.observations.technicalObservations },
   ]);
 
   return (
@@ -454,11 +453,11 @@ export const CompletedJobReport = () => {
               <AssignedUsers users={job.assignedUsers} />
             </section>
 
-            {observationPairs.length > 0 ? (
+            {observationPairs.length > 0 && (
               <section className="detail-section attestation-summary-section">
                 <div className="section-header-row attestation-compact-header">
                   <FileCheck2 size={18} />
-                  <h3>Observationer og noter</h3>
+                  <h3>Noter</h3>
                 </div>
                 <div className="attestation-observations-list">
                   {observationPairs.map((item) => (
@@ -468,14 +467,6 @@ export const CompletedJobReport = () => {
                     </div>
                   ))}
                 </div>
-              </section>
-            ) : (
-              <section className="detail-section">
-                <div className="section-header-row attestation-compact-header">
-                  <FileCheck2 size={18} />
-                  <h3>Observationer og noter</h3>
-                </div>
-                <p className="empty-state-text">Ingen observationer registreret.</p>
               </section>
             )}
 
@@ -498,6 +489,12 @@ export const CompletedJobReport = () => {
             >
               <div className="attestation-control-section compact">
                 <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
+                {job.work.remarks?.trim() && (
+                  <div className="attestation-data-pair observation">
+                    <dt>Begrundelse for irrelevante kontrolpunkter</dt>
+                    <dd>{job.work.remarks.trim()}</dd>
+                  </div>
+                )}
               </div>
             </CollapsibleSection>
           )}

@@ -32,7 +32,7 @@ public sealed class EfJobViewRepository(ILogger<EfJobViewRepository> logger, Sql
         catch (DbUpdateException)
         {
             //Race condition guard 
-            logger.LogError("Failed to mark job {jobId} as-seen on user {userId} with type {ViewType}", jobId, userId, viewType);
+            logger.LogError("Failed to mark job {jobId} as-seen on user {userId} with type {ViewType}", jobId, userId, viewType.Replace("\r", " ").Replace("\n", " "));
         }
     }
 

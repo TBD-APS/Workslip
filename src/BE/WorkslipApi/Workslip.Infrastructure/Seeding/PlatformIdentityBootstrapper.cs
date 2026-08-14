@@ -153,8 +153,7 @@ public sealed class PlatformIdentityBootstrapper(
                 {
                     logger.LogError(
                         compensationException,
-                        "Platform Superadmin Entra compensation failed. EntraUserId: {EntraUserId}.",
-                        entraUserId);
+                        "Platform Superadmin Entra compensation failed.");
                     failures.Add(compensationException);
                 }
             }

@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, Clock, Info, ListChecks, Send, ShieldCheck, EyeOff } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, EyeOff, FileText, Info, ListChecks, Send, ShieldCheck } from 'lucide-react';
 import { CollapsibleSection } from '../../../../components/forms/CollapsibleSection';
 import { triggerCompletionCelebration } from '../../../../components/common/GamificationFeedback';
 import { JobStatus } from '../../../../api/generated/models/jobStatus';
@@ -67,10 +67,9 @@ export function JobAttestationStep({
     { label: 'Anlægstyper', value: selectedInstallationTypeNames.join(', ') },
   ]);
   const observationItems = compactObservations([
-    { label: 'Opgave', value: job.observations.taskDescription },
-    { label: 'Kundeinfo', value: job.observations.customerObservations },
-    { label: 'Teknisk', value: job.observations.technicalObservations },
-    { label: 'Bemærkninger', value: job.work.remarks },
+    { label: 'Opgavebeskrivelse', value: job.observations.taskDescription },
+    { label: 'Oplysninger til kunden', value: job.observations.customerObservations },
+    { label: 'Kommentar til sagen', value: job.observations.technicalObservations },
   ]);
   const totalHoursValue = parseNullableNumber(job.totalHours);
   const totalHoursLabel = (
@@ -112,34 +111,38 @@ export function JobAttestationStep({
         </div>
       </section>
 
-      {(summaryItems.length > 0 || observationItems.length > 0) && (
+      {summaryItems.length > 0 && (
         <section className="detail-section attestation-summary-section">
           <div className="section-header-row attestation-compact-header">
             <Info size={18} />
             <h3>Information</h3>
           </div>
 
-          {summaryItems.length > 0 && (
-            <dl className="attestation-data-list">
-              {summaryItems.map((item) => (
-                <div key={item.label} className="attestation-data-pair">
-                  <dt>{item.label}</dt>
-                  <dd>{item.value}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
+          <dl className="attestation-data-list">
+            {summaryItems.map((item) => (
+              <div key={item.label} className="attestation-data-pair">
+                <dt>{item.label}</dt>
+                <dd>{item.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
 
-          {observationItems.length > 0 && (
-            <div className="attestation-observations-list">
-              {observationItems.map((item) => (
-                <div key={item.label} className="attestation-data-pair observation">
-                  <dt>{item.label}</dt>
-                  <dd>{item.value}</dd>
-                </div>
-              ))}
-            </div>
-          )}
+      {observationItems.length > 0 && (
+        <section className="detail-section attestation-summary-section">
+          <div className="section-header-row attestation-compact-header">
+            <FileText size={18} />
+            <h3>Noter</h3>
+          </div>
+          <div className="attestation-observations-list">
+            {observationItems.map((item) => (
+              <div key={item.label} className="attestation-data-pair observation">
+                <dt>{item.label}</dt>
+                <dd>{item.value}</dd>
+              </div>
+            ))}
+          </div>
         </section>
       )}
 
@@ -207,6 +210,12 @@ export function JobAttestationStep({
                   </li>
                 ))}
               </ul>
+              {hasText(job.work.remarks) && (
+                <div className="attestation-data-pair observation">
+                  <dt>Begrundelse for irrelevante kontrolpunkter</dt>
+                  <dd>{job.work.remarks.trim()}</dd>
+                </div>
+              )}
             </CollapsibleSection>
           )}
         </section>
