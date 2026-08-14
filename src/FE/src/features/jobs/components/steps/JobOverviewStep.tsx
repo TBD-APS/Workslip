@@ -1,4 +1,4 @@
-import { FileText, MessageSquare, Wrench, } from 'lucide-react';
+import { FileText, MessageCircle, MessageSquare } from 'lucide-react';
 import type { useJobDetails } from '../../hooks/useJobDetails';
 import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock, AssignmentBlock, DestinationAddressBlock } from '../JobDetailBlocks';
 import { useCan } from '../../../../providers/permissions';
@@ -85,11 +85,11 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
         placeholder="Notér oplysninger til kunden..."
       />
       <TextAreaBlock
-        icon={<Wrench size={18} />}
-        title="Tekniske observationer"
+        icon={<MessageCircle size={18} />}
+        title="Skriv en kommentar til sagen"
         value={details.form.technicalObservations}
         onChange={details.updateTechnicalObservations}
-        placeholder="Notér tekniske observationer..."
+        placeholder="Skriv en kommentar til sagen..."
       />
       {details.job?.id && (
         <JobImagesSection jobId={details.job.id} allowManage />

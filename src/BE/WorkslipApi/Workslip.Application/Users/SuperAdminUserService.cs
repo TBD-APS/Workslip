@@ -213,7 +213,7 @@ public sealed class SuperAdminUserService(
                 created.Id,
                 created.OrganizationId,
                 created.FilialId,
-                created.Role,
+                created.Role.Replace("\r", " ").Replace("\n", " "),
                 created.UserKind);
 
             return Result<SuperAdminUserResponse>.Success(ToResponse(created));

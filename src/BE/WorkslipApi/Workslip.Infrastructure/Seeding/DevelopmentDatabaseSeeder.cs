@@ -133,8 +133,7 @@ public sealed class DevelopmentDatabaseSeeder(
                 {
                     logger.LogError(
                         compensationException,
-                        "Development Superadmin Entra compensation failed. EntraUserId: {EntraUserId}.",
-                        entraUserId);
+                        "Development Superadmin Entra compensation failed.");
                     failures.Add(compensationException);
                 }
             }
@@ -168,10 +167,9 @@ public sealed class DevelopmentDatabaseSeeder(
             var definition = resolvedSuperadmin.Definition;
             var entraUser = entraUsers[definition.Id];
             logger.LogInformation(
-                "Development platform Superadmin reconciled. UserId: {UserId}. OrganizationId: {OrganizationId}. EntraUserId: {EntraUserId}. EntraIdentityCreated: {EntraIdentityCreated}.",
+                "Development platform Superadmin reconciled. UserId: {UserId}. OrganizationId: {OrganizationId}. EntraIdentityCreated: {EntraIdentityCreated}.",
                 definition.Id,
                 PlatformOrganization.Id,
-                entraUser.EntraUserId,
                 entraUser.Created);
         }
     }
