@@ -268,11 +268,11 @@ async function addWorksheetViaUi(session, user, hours) {
   await page.getByLabel('Timer', { exact: true }).fill(hours);
   const responsePromise = page.waitForResponse((response) =>
     response.request().method() === 'POST'
-      && new URL(response.url()).pathname === `/api/worksheets/jobs/${session.auth.role === 'Admin' ? session.assignmentCopies?.get(user.id)?.id ?? '' : session.fixtures.jobs.find(Boolean) ?? ''}`,
-  { timeout: API_TIMEOUT }).catch(() => null);
+      && new URL(response.url()).pathname.startsWith('/api/worksheets/jobs/'),
+  { timeout: API_TIMEOUT });
   await page.getByRole('button', { name: 'Tilføj', exact: true }).click();
   const response = await responsePromise;
-  if (response && !response.ok()) throw new Error(`Worksheet creation returned HTTP ${response.status()}.`);
+  if (!response.ok()) throw new Error(`Worksheet creation returned HTTP ${response.status()}.`);
   await form.waitFor({ state: 'hidden', timeout: API_TIMEOUT });
 }
 
