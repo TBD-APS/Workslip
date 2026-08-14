@@ -49,7 +49,7 @@ jobs:
           grep -Fq 'openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56' "$workflow"
           grep -Fq 'anthropics/claude-code-action/base-action@239e3a730883eeb5c53db12b0fc9573b3024b126' "$workflow"
           grep -Fq -- '--allowedTools Read,Grep,Glob' "$workflow"
-          if grep -Fq 'ref: ${{ needs.prepare.outputs.head_sha }}' "$workflow"; then
+          if grep -Eq '^[[:space:]]*ref:.*needs\.prepare\.outputs\.head_sha' "$workflow"; then
             echo 'Secret-bearing review job must not checkout the PR head.' >&2
             exit 1
           fi
