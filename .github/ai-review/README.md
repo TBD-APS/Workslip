@@ -32,7 +32,7 @@ If GitHub changes the fine-grained permission required by the PR conversation-co
 
 `workflow_run` is used deliberately. The secret-bearing review jobs run from the trusted default-branch workflow definition after normal PR CI has completed. Contributor-controlled PR code is never checked out or executed in those jobs.
 
-The untrusted PR title/body/diff can contain prompt-injection text. The review prompt explicitly treats all PR content as data, and model jobs receive no write-capable GitHub token. Model actions are pinned to reviewed commit SHAs. Codex uses a read-only permission profile with sudo dropped; Claude receives only read/search tools.
+The untrusted PR title/body/diff can contain prompt-injection text. The review prompt explicitly treats all PR content as data, and model jobs receive no write-capable GitHub token. Model actions are pinned to reviewed commit SHAs. Codex uses a read-only permission profile with sudo dropped; Claude receives only read/search tools plus the workflow's explicit read-only `GITHUB_TOKEN`. The Claude job does not request `id-token: write`, preventing fallback to a broader GitHub App/OIDC credential path.
 
 The personal GitHub token is isolated to the aggregator job after model execution, so PR content is never supplied to a model in a process that also holds the personal posting credential. The aggregator's built-in `GITHUB_TOKEN` can only read repository/PR data and write commit statuses; the personal PAT is used only for the conversation comment.
 
