@@ -30,6 +30,18 @@ export function saveStatusFilter(sectionKey: string, statuses: string[]) {
   sessionStorage.setItem(`statusFilter:${sectionKey}`, JSON.stringify(statuses));
 }
 
+/** Prime a section before navigation so the destination reads the requested filter on first render. */
+export function activateStatusFilter(sectionKey: string, statuses: string[]) {
+  try {
+    const lastActive = sessionStorage.getItem(LAST_ACTIVE_KEY);
+    if (lastActive && lastActive !== sectionKey) {
+      sessionStorage.removeItem(`statusFilter:${lastActive}`);
+    }
+    sessionStorage.setItem(LAST_ACTIVE_KEY, sectionKey);
+    saveStatusFilter(sectionKey, statuses);
+  } catch {}
+}
+
 /** Call on mount on pages that are section boundaries (e.g. UserList, any page outside the filter's section). */
 export function announceSection(sectionKey: string) {
   const lastActive = sessionStorage.getItem(LAST_ACTIVE_KEY);
