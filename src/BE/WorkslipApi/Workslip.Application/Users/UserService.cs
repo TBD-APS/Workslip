@@ -62,8 +62,35 @@ public sealed class UserService(
         var entraUser = await entraService.CreateUserAsync(normalizedEmail, request.DisplayName, cancellationToken);
 
         var user = BuildUserRow(normalizedEmail, request, entraUser, organizationId.Value, userKind);
-        var userId = await repository.CreateAsync(user, cancellationToken);
-        user.Id = userId;
+        try
+        {
+            var userId = await repository.CreateAsync(user, cancellationToken);
+            user.Id = userId;
+        }
+        catch (Exception persistenceException)
+        {
+            if (entraUser.Created)
+            {
+                try
+                {
+                    await entraService.DeleteUserAsync(entraUser.EntraUserId, CancellationToken.None);
+                }
+                catch (Exception compensationException)
+                {
+                    logger.LogError(
+                        compensationException,
+                        "User create compensation failed after local persistence failure. OrganizationId: {OrganizationId}.",
+                        organizationId.Value);
+                }
+            }
+
+            logger.LogError(
+                persistenceException,
+                "User create persistence failed after Entra provisioning. OrganizationId: {OrganizationId}. EntraUserCreated: {EntraUserCreated}.",
+                organizationId.Value,
+                entraUser.Created);
+            throw;
+        }
 
         logger.LogInformation(
             "User created. UserId: {UserId}. OrganizationId: {OrganizationId}. Role: {Role}. UserKind: {UserKind}.",
