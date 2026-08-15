@@ -42,11 +42,13 @@ public sealed class ControlCenterReadServiceTests
         var observedAt = new DateTimeOffset(2026, 8, 15, 19, 0, 0, TimeSpan.Zero);
         var freshUntil = observedAt.AddMinutes(5);
         var signal = new ObservedSignal<PlatformHealthState>(
+            ControlCenterSignalKind.Health,
             PlatformHealthState.Healthy,
             observedAt,
             freshUntil,
             new EvidenceReference("fixture", "health://fixture"));
 
+        Assert.Equal(ControlCenterSignalKind.Health, signal.Kind);
         Assert.False(signal.IsStale(freshUntil));
         Assert.True(signal.IsStale(freshUntil.AddTicks(1)));
     }
