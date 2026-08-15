@@ -12,12 +12,30 @@ function Test-BelongsToCheckout([string]$Value) {
 }
 
 foreach ($port in @(5262, 5270)) {
-    $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue)
-    foreach ($listener in $listeners) {
-        $processId = [int]$listener.OwningProcess
+    $processIds = @(
+        Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty OwningProcess -Unique
+    )
+
+    foreach ($processIdValue in $processIds) {
+        $processId = [int]$processIdValue
         $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $processId" -ErrorAction SilentlyContinue
-        $commandLine = if ($null -ne $processInfo) { [string]$processInfo.CommandLine } else { '' }
-        $executablePath = if ($null -ne $processInfo) { [string]$processInfo.ExecutablePath } else { '' }
+
+        if ($null -eq $processInfo) {
+            $stillListening = @(
+                Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue |
+                    Where-Object { [int]$_.OwningProcess -eq $processId }
+            ).Count -gt 0
+
+            if ($stillListening) {
+                throw "Port $port bruges af PID $processId, men processen kan ikke inspiceres. Stop processen manuelt og prøv igen."
+            }
+
+            continue
+        }
+
+        $commandLine = [string]$processInfo.CommandLine
+        $executablePath = [string]$processInfo.ExecutablePath
 
         if (-not ((Test-BelongsToCheckout $commandLine) -or (Test-BelongsToCheckout $executablePath))) {
             throw "Port $port bruges af PID $processId, som ikke kan identificeres som denne Workslip-checkout. Stop processen manuelt og prøv igen."
