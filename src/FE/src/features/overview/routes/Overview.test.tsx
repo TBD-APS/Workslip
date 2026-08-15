@@ -43,9 +43,11 @@ describe('Overview', () => {
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(1));
     expect(apiClient.get).toHaveBeenCalledWith('/api/jobs/overview');
-    expect(screen.getByText('Aktive sager').previousElementSibling).toHaveTextContent('7');
-    expect(screen.getByText('Til gennemsyn').previousElementSibling).toHaveTextContent('3');
-    expect(screen.getByText('Godkendte sager').previousElementSibling).toHaveTextContent('11');
-    expect(screen.getByRole('button', { name: /2 afviste/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Aktive sager').previousElementSibling).toHaveTextContent('7');
+      expect(screen.getByText('Til gennemsyn').previousElementSibling).toHaveTextContent('3');
+      expect(screen.getByText('Godkendte sager').previousElementSibling).toHaveTextContent('11');
+      expect(screen.getByRole('button', { name: /2 afviste/i })).toBeInTheDocument();
+    });
   });
 });
