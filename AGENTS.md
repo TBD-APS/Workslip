@@ -10,6 +10,7 @@ This file contains the repository-wide rules that implementation agents must fol
 4. Read [`Docs/agents/VALIDATION.md`](Docs/agents/VALIDATION.md) when implementing or validating a change.
 5. Read [`Docs/agents/DELIVERY_HANDOFFS.md`](Docs/agents/DELIVERY_HANDOFFS.md) when work is handed between agents/sessions or when planning, reviewing or release-gating a change.
 6. Read [`Docs/compliance/GDPR_AI_ACT_BASELINE.md`](Docs/compliance/GDPR_AI_ACT_BASELINE.md) only when personal-data processing, an external processor, or an AI system is affected.
+7. Read [`Docs/strategy/WORKSLIP_STRATEGY.md`](Docs/strategy/WORKSLIP_STRATEGY.md) before cross-functional planning, broad feature prioritization, market-facing work or architecture work that requires product/strategy trade-offs.
 
 Do not begin editing until the branch belongs to one cohesive issue and the affected implementation is understood.
 
@@ -22,6 +23,8 @@ For implemented technical behaviour, use this order:
 3. accepted ADRs and maintained operational/compliance documentation;
 4. Linear for scope, priority, ownership and delivery status;
 5. dated plans/specifications for historical context only.
+
+For current product/company strategy, ICP, go-to-market direction and cross-functional ownership defaults, use [`Docs/strategy/WORKSLIP_STRATEGY.md`](Docs/strategy/WORKSLIP_STRATEGY.md). It does not override code/ADRs for technical truth or Linear for live issue status.
 
 Generated repository snapshots are not a source of truth. Inspect the current repository directly.
 
