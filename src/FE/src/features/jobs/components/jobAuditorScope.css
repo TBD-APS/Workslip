@@ -1,0 +1,129 @@
+.auditor-scope-card {
+  display: flex;
+  gap: 0.875rem;
+  margin: 0 auto 1rem;
+  max-width: 72rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color, #d8dee6);
+  border-radius: 0.875rem;
+  background: var(--surface-card, #fff);
+}
+
+.auditor-scope-card--internal {
+  border-style: dashed;
+}
+
+.auditor-scope-card--error {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.auditor-scope-card__icon {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface-muted, #f2f4f7);
+}
+
+.auditor-scope-card__body {
+  min-width: 0;
+  flex: 1;
+}
+
+.auditor-scope-card__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.auditor-scope-card__eyebrow {
+  display: block;
+  margin-bottom: 0.125rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #667085);
+}
+
+.auditor-scope-card h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.auditor-scope-card__description,
+.auditor-scope-card__reason {
+  margin: 0.5rem 0 0;
+  color: var(--text-muted, #667085);
+}
+
+.auditor-scope-card__reason {
+  overflow-wrap: anywhere;
+}
+
+.auditor-scope-card__editor {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.875rem;
+}
+
+.auditor-scope-card__editor label {
+  font-weight: 600;
+}
+
+.auditor-scope-card__editor textarea {
+  width: 100%;
+  min-height: 5.5rem;
+  resize: vertical;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color, #d8dee6);
+  border-radius: 0.625rem;
+  background: var(--surface-card, #fff);
+  color: inherit;
+  font: inherit;
+}
+
+.auditor-scope-card__editor textarea:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.auditor-scope-card__editor-footer,
+.auditor-scope-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.auditor-scope-card__editor-footer {
+  justify-content: space-between;
+  color: var(--text-muted, #667085);
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 640px) {
+  .auditor-scope-card {
+    margin-inline: 0.75rem;
+    padding: 0.875rem;
+  }
+
+  .auditor-scope-card__heading,
+  .auditor-scope-card__editor-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .auditor-scope-card__actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .auditor-scope-card__heading .btn,
+  .auditor-scope-card__actions .btn {
+    width: 100%;
+  }
+}
