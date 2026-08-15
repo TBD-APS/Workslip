@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,11 +14,33 @@ function requireSha(value) {
   return sha;
 }
 
-function requireRepository(owner, repo) {
-  if (!owner || !repo || /[\s/]/.test(owner) || /[\s/]/.test(repo)) {
-    throw new Error('Vercel Git repository metadata is missing or invalid.');
+function git(...args) {
+  try {
+    return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  } catch (error) {
+    const message = error?.stderr?.toString?.().trim() || error?.message || 'unknown git error';
+    throw new Error(`Unable to read deployment Git metadata: ${message}`);
   }
-  return `${owner}/${repo}`;
+}
+
+export function parseGitHubRepository(remoteUrl) {
+  const value = String(remoteUrl || '').trim();
+  const match = value.match(/github\.com[/:]([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i);
+  if (!match) throw new Error('Deployment Git remote is not a GitHub repository.');
+  return `${match[1]}/${match[2]}`;
+}
+
+function resolveRepository() {
+  const owner = process.env.VERCEL_GIT_REPO_OWNER;
+  const repo = process.env.VERCEL_GIT_REPO_SLUG;
+  if (owner && repo && !/[\s/]/.test(owner) && !/[\s/]/.test(repo)) {
+    return `${owner}/${repo}`;
+  }
+  return parseGitHubRepository(git('config', '--get', 'remote.origin.url'));
+}
+
+function resolveSha() {
+  return requireSha(process.env.VERCEL_GIT_COMMIT_SHA || git('rev-parse', 'HEAD'));
 }
 
 export function chooseRun(runs, expectedSha) {
@@ -99,15 +122,15 @@ function sleep(ms) {
 }
 
 async function main() {
-  if (process.env.VERCEL_ENV !== 'production') {
-    throw new Error(`Production gate invoked for VERCEL_ENV=${process.env.VERCEL_ENV || 'unset'}.`);
+  if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production') {
+    throw new Error(`Production gate invoked for VERCEL_ENV=${process.env.VERCEL_ENV}.`);
   }
-  if (process.env.VERCEL_GIT_COMMIT_REF !== 'main') {
-    throw new Error(`Vercel production may only release main, got ${process.env.VERCEL_GIT_COMMIT_REF || 'unset'}.`);
+  if (process.env.VERCEL_GIT_COMMIT_REF && process.env.VERCEL_GIT_COMMIT_REF !== 'main') {
+    throw new Error(`Vercel production may only release main, got ${process.env.VERCEL_GIT_COMMIT_REF}.`);
   }
 
-  const sha = requireSha(process.env.VERCEL_GIT_COMMIT_SHA);
-  const repository = requireRepository(process.env.VERCEL_GIT_REPO_OWNER, process.env.VERCEL_GIT_REPO_SLUG);
+  const sha = resolveSha();
+  const repository = resolveRepository();
   const waitSeconds = 1800;
   const pollSeconds = 120;
   const deadline = Date.now() + waitSeconds * 1000;
