@@ -19,7 +19,7 @@ npm ci
 npm run dev
 ```
 
-`npm run dev` generates the local Orval API client before starting Vite, so a fresh checkout does not require a separate generation command. Generation builds the backend OpenAPI document from `src/BE/WorkslipApi` in an isolated contract-generation pass, so it needs neither a running API process nor a database. `.github/actions/generate-frontend-api` runs the same generator, so the local and CI contracts cannot diverge.
+`npm run dev` generates the local Orval API client before starting Vite, so a fresh checkout does not require a separate generation command. Generation builds the backend OpenAPI document from `src/BE/WorkslipApi` in an isolated contract-generation pass, so it needs neither a running API process nor a database. `.github/actions/generate-frontend-api` runs the same generator and CI requires the generated files to be committed, so the client shipped by Vercel is the same-revision contract CI validated.
 
 `npm run generate:api:live` targets a running API over HTTP instead, using `VITE_API_BASE_URL` from `.env.local` and defaulting to `http://localhost:5262`. Setting `OPENAPI_DOCUMENT` to an already built document skips the backend build in every generation command.
 
@@ -34,16 +34,16 @@ The authoritative command list is `package.json`.
 | `npm run dev` | generate the local API client, sync required font assets and start Vite |
 | `npm run lint` | ESLint |
 | `npm run test -- --run` | run Vitest once |
-| `npm run build` | production type-check/build including service worker |
+| `npm run build` | production type-check/build including service worker; does not fetch a remote OpenAPI document |
 | `npm run preview` | preview the production build |
 | `npm run generate:api:local` | generate API client from the backend OpenAPI contract built in this working tree |
 | `npm run generate:api:live` | generate API client from a running API; defaults to `http://localhost:5262` |
-| `npm run generate:api:dev` | generate API client from development environment config |
-| `npm run generate:api:prod` | generate API client from production environment config |
+| `npm run generate:api:dev` | explicit operator/development generation from development environment config; not used by Vercel production |
+| `npm run generate:api:prod` | explicit generation from production environment config; not used by the normal Vercel production build |
 | `npm run typecheck:sw` | type-check the service worker |
 | `npm run sync:fonts` | materialize pinned local font files |
 
-Generated API code is derived from OpenAPI and must not be edited as the contract source.
+Generated API code is derived from OpenAPI and must not be edited as the contract source. When backend contract changes affect generated output, run `npm run generate:api:local` and commit the result; CI fails if branch-matched generation leaves `src/api/generated` dirty.
 
 ## Architecture landmarks
 
@@ -54,7 +54,7 @@ Generated API code is derived from OpenAPI and must not be edited as the contrac
 - `src/lib/axios.ts` — shared API transport/auth/correlation behaviour.
 - `src/sw.ts` and `src/registerSW.ts` — service-worker/update behaviour.
 - `vite.config.ts` — Vite/PWA/local proxy configuration.
-- `vercel.json` — frontend deployment/rewrite/cache policy.
+- `vercel.json` — frontend deployment/rewrite/cache policy, including the exact-SHA production eligibility gate.
 
 Use [`AGENTS.md`](AGENTS.md) for frontend implementation conventions. In particular, reuse shared form controls and use `NumericInput` instead of raw number inputs where applicable.
 
@@ -71,6 +71,12 @@ PWA update activation policy is an accepted product decision recorded in [`../..
 Only `VITE_` values are eligible for inclusion in browser code. Never place client secrets, database credentials, signing keys or privileged tokens in frontend environment files.
 
 `VITE_API_BASE_URL` is for local/non-Vercel API targeting. Local development defaults to `http://localhost:5262`. Vercel-hosted production traffic uses the same-origin `/api` rewrite defined by the deployed frontend configuration.
+
+## Production delivery
+
+Vercel Git deployment is enabled only for `main`. A production deployment record may be created by the Git integration when `main` moves, but the build command first runs `tools/release/verify-production-eligibility.mjs`. It proceeds only when that exact commit is still current `main` and its post-merge `CI Gate` completed successfully.
+
+The verifier uses Vercel's Git metadata and GitHub's public repository API; it does not require a Vercel-held GitHub API token. Red, cancelled, stale, missing or unresolved CI evidence blocks the build. See [`../../Docs/operations/ci-quality-gates.md`](../../Docs/operations/ci-quality-gates.md) for the complete production boundary.
 
 ## Validation
 
