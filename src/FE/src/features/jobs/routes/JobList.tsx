@@ -326,19 +326,31 @@ export const JobList = () => {
             ) : (
               desktopPageItems.map((job) => {
                 const address = job.destinationAddress || job.customer?.address;
+                const openJob = () => navigate(
+                  isReadonlyState(job.status) ? `/app/completed/${job.id}` : `/app/job/${job.id}`,
+                  { state: { from: '/app' } },
+                );
                 return (
               <tr
                 key={job.id}
                 className={`clickable${job.status === JobStatus.Rejected ? ' job-row--rejected' : ''}`}
-                onClick={() => navigate(isReadonlyState(job.status) ? `/app/completed/${job.id}` : `/app/job/${job.id}`, { state: { from: '/app' } })}
+                onClick={openJob}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return;
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openJob();
+                  }
+                }}
+                tabIndex={0}
               >
                 <td>
                   <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span>
-                  {shouldShowReviewDot(job.status) && <span className="review-dot" />}
-                  {job.status === JobStatus.Approved && <span className="approved-dot" />}
-                  {!job.isSeen && <span className="unread-dot" />}
-                  {job.isNewRejection && <span className="rejected-dot" />}
-                  {isAdmin && job.assignedUsers.length === 0 && <span className="unassigned-dot" />}
+                  {shouldShowReviewDot(job.status) && <span className="review-dot" aria-hidden="true" />}
+                  {job.status === JobStatus.Approved && <span className="approved-dot" aria-hidden="true" />}
+                  {!job.isSeen && <span className="unread-dot" role="img" aria-label="Ulæst" />}
+                  {job.isNewRejection && <span className="rejected-dot" role="img" aria-label="Ny afvisning" />}
+                  {isAdmin && job.assignedUsers.length === 0 && <span className="unassigned-dot" role="img" aria-label="Ikke tildelt" />}
                 </td>
                 <td><span className={`job-type-badge job-type-${job.jobType?.toLowerCase()}`}>{formatJobType(job.jobType)}</span></td>
                 <td>{job.customer?.name || job.taskDescription}</td>
@@ -361,7 +373,7 @@ export const JobList = () => {
                 <td className="cell-date">{formatDateLong(job.reportDate)}</td>
                 <td className="cell-date">{formatDateLong(job.updatedAt)}</td>
                 <td className="col-actions">
-                  <ChevronRight size={16} className="row-link-icon" />
+                  <ChevronRight size={16} className="row-link-icon" aria-hidden="true" />
                 </td>
               </tr>
                 );
@@ -453,7 +465,10 @@ export function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; o
       onClick={onOpen}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return;
-        if (event.key === 'Enter' || event.key === ' ') onOpen();
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onOpen();
+        }
       }}
       role="link"
       tabIndex={0}
@@ -461,17 +476,17 @@ export function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; o
       <div className="job-card-top">
         <div>
           <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}<span className="job-number-sep">&middot;</span>{formatJobType(job.jobType)}<span className="job-number-sep">&middot;</span><span className="job-number-status">{formatJobStatus(job.status)}</span></span>
-          {shouldShowReviewDot(job.status) && <span className="review-dot" />}
-          {job.status === JobStatus.Approved && <span className="approved-dot" />}
-          {!job.isSeen && <span className="unread-dot" />}
-          {job.isNewRejection && <span className="rejected-dot" />}
-          {isAdmin && job.assignedUsers.length === 0 && <span className="unassigned-dot" />}
+          {shouldShowReviewDot(job.status) && <span className="review-dot" aria-hidden="true" />}
+          {job.status === JobStatus.Approved && <span className="approved-dot" aria-hidden="true" />}
+          {!job.isSeen && <span className="unread-dot" role="img" aria-label="Ulæst" />}
+          {job.isNewRejection && <span className="rejected-dot" role="img" aria-label="Ny afvisning" />}
+          {isAdmin && job.assignedUsers.length === 0 && <span className="unassigned-dot" role="img" aria-label="Ikke tildelt" />}
           <h3 className="job-customer">{job.customer?.name || job.taskDescription}</h3>
         </div>
       </div>
 
       <p className="job-address-row">
-        <MapPin size={14} />
+        <MapPin size={14} aria-hidden="true" />
         <span className="job-address">{address || 'Ingen adresse angivet'}</span>
         <CopyAddressButton address={address} />
       </p>
@@ -480,17 +495,17 @@ export function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; o
         <span className="meta-item"><InstallationTypeTags types={job.installationTypes} /></span>
         {job.totalHours != null && (
           <span className="meta-item meta-hours">
-            <Timer size={14} /> {job.totalHours} 
+            <Timer size={14} aria-hidden="true" /> {job.totalHours}
           </span>
         )}
         <span className="meta-item meta-updated">
-          <Clock size={14} /> Opdateret {formatDateTimeShort(job.updatedAt)}
+          <Clock size={14} aria-hidden="true" /> Opdateret {formatDateTimeShort(job.updatedAt)}
         </span>
       </div>
 
       <div className="job-card-footer">
         <AssignedUsers users={job.assignedUsers} />
-        <span className="btn-icon" aria-label="Åbn sag">
+        <span className="btn-icon" aria-hidden="true">
           <ChevronRight size={20} />
         </span>
       </div>
@@ -502,7 +517,7 @@ function AssignedUsers({ users }: { users: AssignedUserResponse[] }) {
   if (users.length === 0) {
     return (
       <span className="unassigned">
-        <User size={12} />
+        <User size={12} aria-hidden="true" />
         <span>Ikke tildelt</span>
       </span>
     );

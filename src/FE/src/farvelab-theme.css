@@ -1,0 +1,570 @@
+@charset "UTF-8";
+
+/*
+ * WOR-452 — Farvelab visual system
+ *
+ * The authenticated theme is scoped from body rather than only .app-shell.
+ * Several existing dialogs and action menus intentionally portal to document.body;
+ * keeping the semantic tokens on the authenticated body makes those overlays part
+ * of the same visual and accessibility system without duplicating feature CSS.
+ */
+
+body:has(.app-shell) {
+  /* Core canvas */
+  --bg: #0b1020;
+  --text: #f7f8ff;
+  --text-primary: var(--text);
+  --text-muted: #aeb8d1;
+  --text-secondary: var(--text-muted);
+  --text-dim: #77829f;
+  --text-disabled: rgba(220, 226, 245, 0.46);
+
+  /* Farvelab brand accents */
+  --primary: #7c83ff;
+  --primary-hover: #9096ff;
+  --primary-pressed: #6a72e9;
+  --on-primary: #0b1020;
+  --accent-cyan: #49c8db;
+  --accent-mint: #5bd6aa;
+  --accent-amber: #f5b84b;
+  --accent-coral: #ff7d73;
+
+  /* Surfaces */
+  --surface-floating: #121a2f;
+  --surface-color: var(--surface-floating);
+  --surface: rgba(151, 167, 216, 0.08);
+  --surface-raised: rgba(151, 167, 216, 0.13);
+  --surface-input: rgba(7, 13, 28, 0.72);
+  --surface-elevated: rgba(151, 167, 216, 0.19);
+  --surface-selected: rgba(124, 131, 255, 0.18);
+  --surface-selected-strong: rgba(124, 131, 255, 0.28);
+  --surface-modal: #121a2f;
+  --surface-actions-menu: #121a2f;
+  --surface-overlay: rgba(5, 9, 20, 0.64);
+
+  /* Borders, focus and elevation */
+  --border: rgba(174, 190, 229, 0.13);
+  --border-strong: rgba(174, 190, 229, 0.24);
+  --surface-border: var(--border);
+  --focus-ring: #969cff;
+  --shadow-sm: 0 8px 24px rgba(1, 5, 16, 0.16);
+  --shadow-sm-raw: 0 4px 12px rgba(1, 5, 16, 0.16);
+  --shadow-lg: 0 24px 70px rgba(1, 5, 16, 0.34);
+  --shadow-accent: 0 10px 30px rgba(124, 131, 255, 0.24);
+
+  /* Semantic feedback */
+  --danger: #ff746e;
+  --danger-hover: #ff8b86;
+  --warning: #f5b84b;
+  --success: #58d3a4;
+  --status-blue-bg: rgba(73, 200, 219, 0.14);
+  --status-blue-text: #7ad8e7;
+  --status-red-bg: rgba(255, 116, 110, 0.14);
+  --status-red-text: #ff9994;
+  --status-amber-bg: rgba(245, 184, 75, 0.16);
+  --status-amber-text: #f8ca72;
+  --status-green-bg: rgba(88, 211, 164, 0.14);
+  --status-green-text: #82dfbd;
+  --status-neutral-bg: rgba(174, 184, 209, 0.12);
+  --status-neutral-text: #b9c2d8;
+
+  /* Overlays */
+  --overlay-subtle: rgba(3, 7, 18, 0.38);
+  --overlay-medium: rgba(3, 7, 18, 0.62);
+  --overlay-heavy: rgba(3, 7, 18, 0.86);
+  --overlay-blur: rgba(11, 16, 32, 0.82);
+  --nav-bg: rgba(13, 19, 38, 0.92);
+  --safe-area-top-bg: #0b1020;
+  --overlay-light-050: rgba(225, 230, 247, 0.7);
+
+  /* Shape and rhythm */
+  --radius-sm: 10px;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --card-padding: 1.25rem;
+}
+
+[data-theme="day"] body:has(.app-shell) {
+  --bg: #f6f7fb;
+  --text: #172039;
+  --text-primary: var(--text);
+  --text-muted: #66718d;
+  --text-secondary: var(--text-muted);
+  --text-dim: #65708a;
+  --text-disabled: rgba(55, 68, 99, 0.44);
+
+  --primary: #5660df;
+  --primary-hover: #4650cc;
+  --primary-pressed: #3e47bb;
+  --on-primary: #ffffff;
+  --accent-cyan: #159caf;
+  --accent-mint: #1aa77d;
+  --accent-amber: #c98618;
+  --accent-coral: #df5d57;
+
+  --surface-floating: #ffffff;
+  --surface-color: #ffffff;
+  --surface: rgba(69, 83, 128, 0.055);
+  --surface-raised: rgba(75, 88, 132, 0.09);
+  --surface-input: #ffffff;
+  --surface-elevated: rgba(75, 88, 132, 0.14);
+  --surface-selected: rgba(86, 96, 223, 0.11);
+  --surface-selected-strong: rgba(86, 96, 223, 0.18);
+  --surface-modal: #ffffff;
+  --surface-actions-menu: #ffffff;
+  --surface-overlay: rgba(247, 248, 252, 0.72);
+
+  --border: rgba(65, 78, 119, 0.12);
+  --border-strong: rgba(65, 78, 119, 0.22);
+  --surface-border: var(--border);
+  --focus-ring: #4f59d4;
+  --shadow-sm: 0 8px 24px rgba(47, 57, 93, 0.08);
+  --shadow-sm-raw: 0 4px 12px rgba(47, 57, 93, 0.08);
+  --shadow-lg: 0 24px 70px rgba(47, 57, 93, 0.14);
+  --shadow-accent: 0 10px 28px rgba(86, 96, 223, 0.2);
+
+  --danger: #c84c47;
+  --danger-hover: #b33f3b;
+  --warning: #a96d0d;
+  --success: #137b5b;
+  --status-blue-bg: #e4f6f8;
+  --status-blue-text: #0d7183;
+  --status-red-bg: #ffebe9;
+  --status-red-text: #ad3f3b;
+  --status-amber-bg: #fff3d9;
+  --status-amber-text: #86560a;
+  --status-green-bg: #e2f7ef;
+  --status-green-text: #137b5b;
+  --status-neutral-bg: #edf0f6;
+  --status-neutral-text: #59647e;
+
+  --overlay-subtle: rgba(36, 46, 76, 0.08);
+  --overlay-medium: rgba(36, 46, 76, 0.22);
+  --overlay-heavy: rgba(22, 30, 52, 0.48);
+  --overlay-blur: rgba(246, 247, 251, 0.84);
+  --nav-bg: rgba(255, 255, 255, 0.91);
+  --safe-area-top-bg: #f6f7fb;
+  --overlay-light-050: rgba(58, 70, 105, 0.7);
+}
+
+body:has(.app-shell) .app-shell {
+  background:
+    radial-gradient(circle at 8% -10%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 30rem),
+    radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--accent-cyan) 10%, transparent), transparent 28rem),
+    var(--bg);
+}
+
+/* App shell ------------------------------------------------------------- */
+body:has(.app-shell) .app-header {
+  background: color-mix(in srgb, var(--nav-bg) 92%, transparent);
+  border-bottom-color: var(--border);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+body:has(.app-shell) .logo-header {
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+
+body:has(.app-shell) .logo-icon {
+  color: var(--primary);
+  filter: drop-shadow(0 4px 10px color-mix(in srgb, var(--primary) 28%, transparent));
+}
+
+body:has(.app-shell) :is(.app-header-user, .user-avatar, .app-header-logout) {
+  background: var(--surface-floating);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm-raw);
+}
+
+body:has(.app-shell) .user-avatar {
+  width: 44px;
+  height: 44px;
+}
+
+body:has(.app-shell) .user-avatar[aria-current="page"] {
+  color: var(--primary);
+  background: var(--surface-selected);
+  border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
+}
+
+body:has(.app-shell) .bottom-nav {
+  background: var(--nav-bg);
+  border-top-color: var(--border);
+  box-shadow: 0 -12px 36px rgba(4, 8, 20, 0.1);
+}
+
+body:has(.app-shell) .nav-item {
+  color: var(--text-muted);
+  min-width: 0;
+}
+
+body:has(.app-shell) .nav-item.active {
+  color: var(--primary);
+}
+
+body:has(.app-shell) .nav-item.active svg {
+  filter: drop-shadow(0 4px 9px color-mix(in srgb, var(--primary) 25%, transparent));
+}
+
+/* Type and page hierarchy ---------------------------------------------- */
+body:has(.app-shell) .page-header {
+  margin-bottom: clamp(1.35rem, 2.4vw, 2.25rem);
+}
+
+body:has(.app-shell) .page-header :is(h1, h2, h3) {
+  color: var(--text);
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+
+body:has(.app-shell) :is(.subtitle, .page-header p) {
+  color: var(--text-muted);
+}
+
+body:has(.app-shell) .page-container {
+  min-width: 0;
+}
+
+/* Buttons and direct actions ------------------------------------------- */
+body:has(.app-shell) .btn {
+  min-height: 44px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+body:has(.app-shell) :is(.btn-primary, .fab-create) {
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 76%, var(--accent-cyan)));
+  color: var(--on-primary);
+  box-shadow: var(--shadow-accent);
+}
+
+body:has(.app-shell) :is(.btn-primary, .fab-create):active {
+  background: var(--primary-pressed);
+}
+
+body:has(.app-shell) :is(.btn-secondary, .btn-outline) {
+  background: var(--surface-floating);
+  border: 1px solid var(--border);
+  color: var(--text);
+  box-shadow: var(--shadow-sm-raw);
+}
+
+body:has(.app-shell) .btn-outline-danger {
+  background: var(--surface-floating);
+}
+
+body:has(.app-shell) .btn-icon {
+  min-width: 44px;
+  min-height: 44px;
+  color: var(--text-muted);
+}
+
+/* Forms ---------------------------------------------------------------- */
+body:has(.app-shell) :is(.form-input, .form-textarea, select.form-input, .multi-select-trigger) {
+  min-height: 44px;
+  background: var(--surface-input);
+  border-color: var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+body:has(.app-shell) :is(.form-input, .form-textarea, .multi-select-trigger):focus-visible,
+body:has(.app-shell) .multi-select-trigger[aria-expanded="true"] {
+  background: var(--surface-floating);
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 22%, transparent);
+}
+
+body:has(.app-shell) :is(.form-input, .form-textarea)::placeholder {
+  color: var(--text-dim);
+  opacity: 1;
+}
+
+body:has(.app-shell) :is(.multi-select-option, .multi-select-dropdown, .multi-select-menu) {
+  background: var(--surface-floating);
+  border-color: var(--border);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Cards and structured surfaces --------------------------------------- */
+body:has(.app-shell) :is(
+  .job-card,
+  .favorite-customer-card,
+  .report-overview-link-card,
+  .time-entry-card,
+  .time-week-card,
+  .time-summary-card,
+  .create-type-tile,
+  .create-sheet-tile
+) {
+  background: var(--surface-floating);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+body:has(.app-shell) .job-card {
+  border-radius: var(--radius-lg);
+  padding: clamp(1rem, 2vw, 1.3rem);
+}
+
+body:has(.app-shell) .job-card::before {
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+}
+
+body:has(.app-shell) .job-card-footer {
+  border-top-color: var(--border);
+}
+
+body:has(.app-shell) :is(.favorite-customer-card, .report-overview-link-card) {
+  border-radius: var(--radius);
+}
+
+/* Filters, pills and status -------------------------------------------- */
+body:has(.app-shell) .status-filter {
+  gap: 0.55rem;
+}
+
+body:has(.app-shell) .status-filter-btn {
+  min-height: 44px;
+  padding: 0.45rem 0.9rem;
+  color: var(--text-muted);
+  background: var(--surface-floating);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm-raw);
+}
+
+body:has(.app-shell) .status-filter-btn.selected {
+  color: var(--on-primary);
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 25%, transparent);
+}
+
+body:has(.app-shell) :is(.status-badge, .job-type-badge) {
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  font-weight: 600;
+}
+
+body:has(.app-shell) .review-dot { background: var(--warning); }
+body:has(.app-shell) :is(.unread-dot, .unassigned-dot) { background: var(--accent-cyan); }
+body:has(.app-shell) .approved-dot { background: var(--success); }
+body:has(.app-shell) .rejected-dot { background: var(--danger); }
+
+/* Tables --------------------------------------------------------------- */
+body:has(.app-shell) .data-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--surface-floating);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+body:has(.app-shell) .data-table thead {
+  background: color-mix(in srgb, var(--surface-raised) 75%, var(--surface-floating));
+}
+
+body:has(.app-shell) .data-table th {
+  color: var(--text-muted);
+  font-weight: 650;
+  border-bottom-color: var(--border);
+}
+
+body:has(.app-shell) .data-table td {
+  border-bottom-color: var(--border);
+}
+
+body:has(.app-shell) .data-table tbody tr:last-child td {
+  border-bottom-color: transparent;
+}
+
+body:has(.app-shell) .data-table tbody tr[tabindex]:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: -3px;
+}
+
+/* Portal surfaces inherit the same body-scoped tokens as the app shell. */
+body:has(.app-shell) :is(.modal-card, .worksheet-actions-menu) {
+  background: var(--surface-modal);
+  border-color: var(--border);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Empty, error and loading --------------------------------------------- */
+body:has(.app-shell) :is(.empty-state, .error-state) {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface-floating) 82%, transparent);
+}
+
+body:has(.app-shell) .skeleton {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--surface-raised) 70%, transparent) 25%,
+    color-mix(in srgb, var(--surface-elevated) 82%, transparent) 50%,
+    color-mix(in srgb, var(--surface-raised) 70%, transparent) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* Shared focus treatment ----------------------------------------------- */
+body:has(.app-shell) :is(
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  [role="button"],
+  [role="link"],
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Desktop: deliberate app chrome rather than enlarged mobile UI -------- */
+@media (min-width: 768px) {
+  body:has(.app-shell) .bottom-nav {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+
+  body:has(.app-shell) .nav-item {
+    min-height: 44px;
+    border-radius: 12px;
+    padding-inline: 0.85rem;
+  }
+
+  body:has(.app-shell) .nav-item.active {
+    background: var(--surface-selected);
+  }
+}
+
+@media (min-width: 1024px) {
+  body:has(.app-shell) .app-content {
+    padding-block: clamp(1.75rem, 2.5vw, 2.75rem);
+  }
+
+  body:has(.app-shell) .page-container {
+    max-width: 90rem;
+  }
+
+  body:has(.app-shell) :is(.job-detail-page, .report-overview-page) {
+    max-width: 74rem;
+  }
+}
+
+/* Small phones: preserve breathing room and robust touch targets. */
+@media (max-width: 430px) {
+  body:has(.app-shell) .app-header {
+    padding-inline: 0.9rem;
+    gap: 0.5rem;
+  }
+
+  body:has(.app-shell) .app-header-actions {
+    gap: 0.4rem;
+  }
+
+  body:has(.app-shell) .app-header-user {
+    display: none;
+  }
+
+  body:has(.app-shell) .app-content {
+    padding-inline: max(0.9rem, env(safe-area-inset-left, 0px));
+  }
+
+  body:has(.app-shell) .page-header {
+    margin-bottom: 1.25rem;
+  }
+
+  body:has(.app-shell) .job-card {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 350px) {
+  body:has(.app-shell) .app-header {
+    padding-inline: 0.7rem;
+  }
+
+  body:has(.app-shell) .app-header-actions {
+    gap: 0.25rem;
+  }
+
+  body:has(.app-shell) .status-filter-btn {
+    padding-inline: 0.75rem;
+  }
+}
+
+/* Pointer-only polish; touch receives stable hit targets without hover. */
+@media (hover: hover) and (pointer: fine) {
+  body:has(.app-shell) :is(.btn-primary, .fab-create):hover {
+    background: linear-gradient(135deg, var(--primary-hover), color-mix(in srgb, var(--primary-hover) 76%, var(--accent-cyan)));
+    transform: translateY(-1px);
+    box-shadow: 0 12px 30px color-mix(in srgb, var(--primary) 26%, transparent);
+  }
+
+  body:has(.app-shell) :is(.btn-secondary, .btn-outline, .favorite-customer-card, .report-overview-link-card):hover {
+    background: var(--surface-raised);
+    border-color: var(--border-strong);
+  }
+
+  body:has(.app-shell) .job-card:hover {
+    background: color-mix(in srgb, var(--surface-floating) 92%, var(--primary));
+    border-color: color-mix(in srgb, var(--primary) 24%, var(--border));
+    box-shadow: 0 14px 34px rgba(1, 5, 16, 0.15);
+    transform: translateY(-1px);
+  }
+
+  body:has(.app-shell) .user-avatar:hover {
+    background: var(--surface-selected);
+    border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+    color: var(--primary);
+  }
+}
+
+/* High-contrast preferences keep hierarchy without depending on shadows. */
+@media (prefers-contrast: more) {
+  body:has(.app-shell) {
+    --border: color-mix(in srgb, var(--text) 32%, transparent);
+    --border-strong: color-mix(in srgb, var(--text) 52%, transparent);
+  }
+
+  body:has(.app-shell) :is(.btn, .form-input, .form-textarea, .multi-select-trigger, .status-filter-btn) {
+    border-width: 2px;
+  }
+}
+
+/* Motion is decorative here; include body-portaled overlays as well. */
+@media (prefers-reduced-motion: reduce) {
+  body:has(.app-shell) *,
+  body:has(.app-shell) *::before,
+  body:has(.app-shell) *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+@media (forced-colors: active) {
+  body:has(.app-shell) :is(
+    button,
+    a,
+    input,
+    textarea,
+    select,
+    [role="button"],
+    [role="link"],
+    [tabindex]:not([tabindex="-1"])
+  ):focus-visible {
+    outline: 3px solid Highlight;
+  }
+}
