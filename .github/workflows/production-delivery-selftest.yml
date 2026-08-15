@@ -104,6 +104,7 @@ jobs:
           grep -Fq -- "-Name 'Workslip main protection'" "${rules}"
           grep -Fq -- "-IncludedRefs @('refs/heads/main')" "${rules}"
           grep -Fq 'bypass_actors = @()' "${rules}"
+          grep -Fq '$actual.bypass_actors' "${rules}"
           grep -Fq 'strict_required_status_checks_policy = $true' "${rules}"
 
       - name: Reject retired production workflow entrypoints
