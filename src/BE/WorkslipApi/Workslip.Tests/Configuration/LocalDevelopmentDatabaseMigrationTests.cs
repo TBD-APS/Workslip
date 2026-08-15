@@ -136,6 +136,23 @@ public sealed class LocalDevelopmentDatabaseMigrationTests
             environment);
     }
 
+    [Theory]
+    [InlineData("20260809_1145_wor385_filial_tenant_integrity", true)]
+    [InlineData("20260810_2115_wor412_internal_test_user_audience", true)]
+    [InlineData("20260814_0050_wor428_billing_basis", false)]
+    [InlineData("20260814_0051_wor428_snapshot_tenant_fk", false)]
+    [InlineData("20260815_0110_wor455_workslip_docs", false)]
+    [InlineData("20260815_0825_wor412_legacy_test_user_audience", false)]
+    [InlineData("20260815_1305_wor479_job_auditor_scope", false)]
+    public void BelongsToFreshEfBaseline_OnlyHistoricalBootstrapPrefixIsBaselined(
+        string migrationId,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            LocalDevelopmentDatabaseMigrationRunner.BelongsToFreshEfBaseline(migrationId));
+    }
+
     [Fact]
     public void CreatedTableNames_ExtractsSchemaQualifiedTables()
     {
