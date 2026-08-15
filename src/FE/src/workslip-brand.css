@@ -70,14 +70,16 @@ html body:has(.app-shell) {
   --warning: var(--brand-orange);
   --success: #57b894;
 
-  --status-blue-bg: rgba(20, 122, 126, 0.2);
-  --status-blue-text: #83d6d2;
-  --status-red-bg: rgba(239, 105, 95, 0.16);
-  --status-red-text: #ffaaa4;
-  --status-amber-bg: rgba(244, 122, 36, 0.18);
-  --status-amber-text: #ffc08f;
-  --status-green-bg: rgba(87, 184, 148, 0.16);
-  --status-green-text: #9adcc4;
+  /* Workflow status colours stay literal and stable across the brand layer:
+     active=blue, review=yellow/amber, approved=green, rejected=red. */
+  --status-blue-bg: rgba(37, 99, 235, 0.18);
+  --status-blue-text: #93c5fd;
+  --status-red-bg: rgba(239, 68, 68, 0.16);
+  --status-red-text: #fca5a5;
+  --status-amber-bg: rgba(245, 158, 11, 0.18);
+  --status-amber-text: #fcd34d;
+  --status-green-bg: rgba(34, 197, 94, 0.16);
+  --status-green-text: #86efac;
   --status-neutral-bg: rgba(191, 208, 209, 0.12);
   --status-neutral-text: #c6d7d8;
 
@@ -140,14 +142,14 @@ html[data-theme="day"] body:has(.app-shell) {
   --warning: #9b4308;
   --success: #267a61;
 
-  --status-blue-bg: #e2f2f1;
-  --status-blue-text: #0d686b;
-  --status-red-bg: #fce9e7;
-  --status-red-text: #a63f37;
-  --status-amber-bg: #ffead8;
-  --status-amber-text: #9b4308;
-  --status-green-bg: #e4f3ed;
-  --status-green-text: #236d58;
+  --status-blue-bg: #dbeafe;
+  --status-blue-text: #1d4ed8;
+  --status-red-bg: #fee2e2;
+  --status-red-text: #b91c1c;
+  --status-amber-bg: #fef3c7;
+  --status-amber-text: #b45309;
+  --status-green-bg: #dcfce7;
+  --status-green-text: #15803d;
   --status-neutral-bg: #edf1ef;
   --status-neutral-text: #536a70;
 
