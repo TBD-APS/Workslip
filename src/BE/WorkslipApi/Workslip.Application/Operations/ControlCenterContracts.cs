@@ -89,6 +89,13 @@ public interface IApplicationEnvironmentRegistry
         CancellationToken cancellationToken);
 }
 
+public interface IAutomationRunProvider
+{
+    Task<Result<IReadOnlyList<AutomationRunSummary>>> ListRunsAsync(
+        ApplicationEnvironmentRegistration application,
+        CancellationToken cancellationToken);
+}
+
 public interface IControlCenterReadService
 {
     Task<Result<ControlCenterSnapshot>> GetSnapshotAsync(CancellationToken cancellationToken);
