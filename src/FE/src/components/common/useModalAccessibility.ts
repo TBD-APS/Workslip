@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
@@ -9,7 +9,14 @@ const FOCUSABLE_SELECTOR = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(', ');
 
-const modalStack: symbol[] = [];
+type ModalStackEntry = {
+  id: symbol;
+  getDialog: () => HTMLElement | null;
+  close: () => void;
+  canCloseOnEscape: () => boolean;
+};
+
+const modalStack: ModalStackEntry[] = [];
 
 type UseModalAccessibilityOptions = {
   open: boolean;
@@ -23,9 +30,52 @@ function getFocusableElements(container: HTMLElement): HTMLElement[] {
     .filter((element) => !element.hasAttribute('hidden') && element.getAttribute('aria-hidden') !== 'true');
 }
 
-function removeModalFromStack(modalId: symbol) {
-  const index = modalStack.lastIndexOf(modalId);
+function handleModalKeyDown(event: KeyboardEvent) {
+  const activeModal = modalStack.at(-1);
+  const dialog = activeModal?.getDialog();
+  if (!activeModal || !dialog) return;
+
+  if (event.key === 'Escape' && activeModal.canCloseOnEscape()) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    activeModal.close();
+    return;
+  }
+
+  if (event.key !== 'Tab') return;
+
+  const focusable = getFocusableElements(dialog);
+  if (focusable.length === 0) {
+    event.preventDefault();
+    dialog.focus();
+    return;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (!dialog.contains(document.activeElement)) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus();
+  } else if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function addModal(entry: ModalStackEntry) {
+  removeModal(entry.id);
+  const wasEmpty = modalStack.length === 0;
+  modalStack.push(entry);
+  if (wasEmpty) document.addEventListener('keydown', handleModalKeyDown, true);
+}
+
+function removeModal(modalId: symbol) {
+  const index = modalStack.findIndex((entry) => entry.id === modalId);
   if (index >= 0) modalStack.splice(index, 1);
+  if (modalStack.length === 0) document.removeEventListener('keydown', handleModalKeyDown, true);
 }
 
 export function useModalAccessibility<T extends HTMLElement>({
@@ -37,76 +87,51 @@ export function useModalAccessibility<T extends HTMLElement>({
   const dialogRef = useRef<T>(null);
   const modalIdRef = useRef(Symbol('workslip-modal'));
   const onCloseRef = useRef(onClose);
+  const closeOnEscapeRef = useRef(closeOnEscape);
 
   useEffect(() => {
     onCloseRef.current = onClose;
-  }, [onClose]);
+    closeOnEscapeRef.current = closeOnEscape;
+  }, [closeOnEscape, onClose]);
 
+  // Stack ownership is synchronous with DOM layout so a newly rendered nested
+  // dialog becomes the sole keyboard target before the browser can dispatch input.
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+
+    const entry: ModalStackEntry = {
+      id: modalIdRef.current,
+      getDialog: () => dialogRef.current,
+      close: () => onCloseRef.current(),
+      canCloseOnEscape: () => closeOnEscapeRef.current,
+    };
+    addModal(entry);
+
+    return () => removeModal(entry.id);
+  }, [open]);
+
+  // Focus lifecycle stays passive so closing a nested modal can restore focus to
+  // its trigger without competing with the parent's layout lifecycle.
   useEffect(() => {
     if (!open) return undefined;
 
     const modalId = modalIdRef.current;
-    removeModalFromStack(modalId);
-    modalStack.push(modalId);
-
     const previouslyFocused = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
     const frame = window.requestAnimationFrame(() => {
       const dialog = dialogRef.current;
-      if (!dialog || modalStack.at(-1) !== modalId) return;
+      if (!dialog || modalStack.at(-1)?.id !== modalId) return;
       const requestedInitialFocus = initialFocusRef?.current;
       const firstFocusable = getFocusableElements(dialog)[0];
       (requestedInitialFocus ?? firstFocusable ?? dialog).focus();
     });
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // A nested modal may synchronously close itself while the same native
-      // event is still being dispatched. Respect the handled event so a parent
-      // listener cannot then close itself after the child leaves the stack.
-      if (event.defaultPrevented) return;
-
-      const dialog = dialogRef.current;
-      if (!dialog || modalStack.at(-1) !== modalId) return;
-
-      if (event.key === 'Escape' && closeOnEscape) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        onCloseRef.current();
-        return;
-      }
-
-      if (event.key !== 'Tab') return;
-
-      const focusable = getFocusableElements(dialog);
-      if (focusable.length === 0) {
-        event.preventDefault();
-        dialog.focus();
-        return;
-      }
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (!dialog.contains(document.activeElement)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-      } else if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown, true);
     return () => {
       window.cancelAnimationFrame(frame);
-      document.removeEventListener('keydown', handleKeyDown, true);
-      removeModalFromStack(modalId);
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
-  }, [closeOnEscape, initialFocusRef, open]);
+  }, [initialFocusRef, open]);
 
   return dialogRef;
 }
