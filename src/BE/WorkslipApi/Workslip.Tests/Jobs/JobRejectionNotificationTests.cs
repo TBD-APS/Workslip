@@ -98,7 +98,6 @@ public sealed class JobRejectionNotificationTests
             assignments,
             null!,
             new EmptyReferenceDataRepository(),
-            null!,
             new EmptyWorksheetRepository(),
             cache,
             null!,
@@ -219,6 +218,14 @@ public sealed class JobRejectionNotificationTests
                 ? [submitter]
                 : [];
             return Task.FromResult(result);
+        }
+
+        public Task<IReadOnlyList<AssignedUserResponse>> GetOrganizationAdminsAsync(
+            Guid requestedOrganizationId,
+            CancellationToken cancellationToken)
+        {
+            Assert.Equal(organizationId, requestedOrganizationId);
+            return Task.FromResult<IReadOnlyList<AssignedUserResponse>>([]);
         }
 
         public Task<IReadOnlyList<JobListItemResponse>> GetMyAssignedJobsAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();

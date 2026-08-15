@@ -237,6 +237,19 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
             .ToArray();
     }
 
+    public async Task<IReadOnlyList<AssignedUserResponse>> GetOrganizationAdminsAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        return await _dbContext.Users
+            .AsNoTracking()
+            .Where(user => user.OrganizationId == organizationId && user.Role == Roles.Admin)
+            .OrderBy(user => user.DisplayName)
+            .Take(1000)
+            .Select(user => new AssignedUserResponse(user.Id, user.DisplayName))
+            .ToArrayAsync(cancellationToken);
+    }
+
     public Task AddAssignedUsersAsync(
         Guid organizationId, Guid reportId,
         IReadOnlyList<Guid> userIds, Guid? actorId,

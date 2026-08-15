@@ -40,7 +40,6 @@ public sealed class CreateJobServiceTests
             null!,
             null!,
             new EmptyReferenceDataRepository(),
-            null!,
             worksheets,
             services.GetRequiredService<HybridCache>(),
             new CreateJobRequestValidator(new AllowAssignmentValidator(), worksheets, currentUser),

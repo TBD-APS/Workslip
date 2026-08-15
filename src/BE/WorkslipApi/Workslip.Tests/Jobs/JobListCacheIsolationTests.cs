@@ -88,7 +88,6 @@ public sealed class JobListCacheIsolationTests
             null!,
             null!,
             null!,
-            null!,
             cache,
             null!,
             null!,

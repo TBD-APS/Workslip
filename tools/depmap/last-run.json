@@ -67,7 +67,7 @@
       },
       "Application/Jobs": {
         "files": 29,
-        "loc": 3275
+        "loc": 3270
       },
       "Application/Notifications": {
         "files": 8,
@@ -123,7 +123,7 @@
       },
       "Infrastructure/Repositories": {
         "files": 19,
-        "loc": 5216
+        "loc": 5229
       },
       "Infrastructure/Resilience": {
         "files": 2,
@@ -212,8 +212,7 @@
       "Application/Invitations -> Application/Users": 3,
       "Application/Invitations -> Domain/Domain": 2,
       "Application/Jobs -> Application/Auth": 7,
-      "Application/Jobs -> Application/Notifications": 1,
-      "Application/Jobs -> Application/Users": 1,
+      "Application/Jobs -> Application/Notifications": 2,
       "Application/Jobs -> Application/Worksheets": 4,
       "Application/Jobs -> Domain/Domain": 17,
       "Application/Notifications -> Application/Jobs": 1,
@@ -302,22 +301,22 @@
       {
         "name": "Jobs",
         "files": 29,
-        "loc": 3275,
+        "loc": 3270,
         "fanIn": 4,
-        "fanOut": 4,
+        "fanOut": 3,
         "inRefs": 6,
         "outRefs": 13,
-        "coupling": 8
+        "coupling": 7
       },
       {
         "name": "Users",
         "files": 14,
         "loc": 1671,
-        "fanIn": 5,
+        "fanIn": 4,
         "fanOut": 2,
-        "inRefs": 9,
+        "inRefs": 8,
         "outRefs": 4,
-        "coupling": 7
+        "coupling": 6
       },
       {
         "name": "Images",
@@ -365,7 +364,7 @@
         "loc": 277,
         "fanIn": 1,
         "fanOut": 1,
-        "inRefs": 1,
+        "inRefs": 2,
         "outRefs": 1,
         "coupling": 2
       },
@@ -416,12 +415,12 @@
         "loc": 1485
       },
       {
-        "file": "src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs",
-        "loc": 1153
-      },
-      {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs",
         "loc": 1077
+      },
+      {
+        "file": "src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs",
+        "loc": 1067
       },
       {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Schema/AuditPolicies.cs",
@@ -465,7 +464,7 @@
       },
       {
         "file": "src/BE/WorkslipApi/Workslip.Application/Jobs/AuthorizedJobService.cs",
-        "loc": 429
+        "loc": 423
       },
       {
         "file": "src/BE/WorkslipApi/Configuration/LocalDevelopmentDatabaseMigrationRunner.cs",
@@ -491,9 +490,9 @@
       },
       {
         "name": "users",
-        "files": 7,
-        "loc": 1064,
-        "sharedRefs": 25,
+        "files": 8,
+        "loc": 1213,
+        "sharedRefs": 28,
         "crossRefs": 2
       },
       {
@@ -620,7 +619,7 @@
       },
       {
         "file": "src/FE/src/features/users/routes/UserDetail.tsx",
-        "loc": 469
+        "loc": 471
       },
       {
         "file": "src/FE/src/features/customers/routes/CustomerList.tsx",
