@@ -1,4 +1,5 @@
 using Ardalis.Result;
+using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
 using Workslip.Domain;
 using Xunit;
@@ -17,10 +18,8 @@ public sealed class JobOverviewServiceTests
             [JobStatus.Approved] = 11,
             [JobStatus.Rejected] = 2,
         });
-        var service = new JobOverviewService(jobService);
-
+        var service = new JobOverviewService(jobService, new StubCustomerService());
         var result = await service.GetAsync(CancellationToken.None);
-
         Assert.True(result.IsSuccess);
         Assert.Equal(7, result.Value.ActiveCount);
         Assert.Equal(3, result.Value.InReviewCount);
@@ -28,48 +27,24 @@ public sealed class JobOverviewServiceTests
         Assert.Equal(2, result.Value.RejectedCount);
         Assert.Empty(result.Value.RecentJobs);
         Assert.Equal(5, jobService.ListCalls.Count);
-
         var recentCall = jobService.ListCalls[^1];
         Assert.Equal(6, recentCall.Limit);
         Assert.Equal(0, recentCall.Offset);
         Assert.Equal("updatedAt", recentCall.SortBy);
         Assert.Equal("desc", recentCall.SortDirection);
-        Assert.Equal(
-            new[] { JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected },
-            recentCall.Statuses);
+        Assert.Equal(new[] { JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected }, recentCall.Statuses);
     }
 
-    private sealed record ListCall(
-        List<JobStatus>? Statuses,
-        string? SortBy,
-        string? SortDirection,
-        int? Limit,
-        int? Offset);
-
+    private sealed record ListCall(List<JobStatus>? Statuses, string? SortBy, string? SortDirection, int? Limit, int? Offset);
     private sealed class StubJobService(IReadOnlyDictionary<JobStatus, int> counts) : IJobService
     {
         public List<ListCall> ListCalls { get; } = [];
-
-        public Task<Result<JobListResponse>> ListAsync(
-            List<JobStatus>? statuses,
-            string? reportNumber,
-            string? customerName,
-            string? customerEmail,
-            string? customerAddress,
-            string? search,
-            string? sortBy,
-            string? sortDirection,
-            int? limit,
-            int? offset,
-            CancellationToken cancellationToken)
+        public Task<Result<JobListResponse>> ListAsync(List<JobStatus>? statuses, string? reportNumber, string? customerName, string? customerEmail, string? customerAddress, string? search, string? sortBy, string? sortDirection, int? limit, int? offset, CancellationToken cancellationToken)
         {
             ListCalls.Add(new ListCall(statuses, sortBy, sortDirection, limit, offset));
-            var totalCount = statuses is { Count: 1 } && counts.TryGetValue(statuses[0], out var count)
-                ? count
-                : 0;
+            var totalCount = statuses is { Count: 1 } && counts.TryGetValue(statuses[0], out var count) ? count : 0;
             return Task.FromResult(Result<JobListResponse>.Success(new JobListResponse([], totalCount)));
         }
-
         public Task<Result<JobReportSummaryResponse>> CreateAsync(CreateJobRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result<IReadOnlyList<JobListItemResponse>>> GetMyAssignedJobsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result<JobReportSummaryResponse>> GetSingleJobAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -83,5 +58,18 @@ public sealed class JobOverviewServiceTests
         public Task<Result<JobReportSummaryResponse>> RestoreDeletionAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result> MarkJobAsSeenAsync(Guid id, string? viewType, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task InvalidateJobDetailCacheAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class StubCustomerService : ICustomerService
+    {
+        public Task<Result<CustomerListResponse>> ListAsync(int? limit, int? offset, string? search, string? sortBy, string? sortDirection, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Result<CustomerDetailResponse>> GetByIdAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Result<IReadOnlyList<CustomerSearchResponse>>> SearchAsync(string? query, int? limit, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Result<IReadOnlyList<CustomerSearchResponse>>> GetFavoriteAsync(int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Result<CustomerDetailResponse>> CreateAsync(CreateCustomerRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Result<CustomerDetailResponse>> UpdateAsync(Guid id, UpdateCustomerRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Result> SetFavoriteAsync(Guid id, bool isFavorite, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Result<ImportCustomerResponse>> ImportAsync(IReadOnlyList<ImportCustomerRow> customers, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }
