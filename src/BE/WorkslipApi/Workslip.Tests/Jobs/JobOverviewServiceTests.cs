@@ -35,7 +35,7 @@ public sealed class JobOverviewServiceTests
         Assert.Equal("updatedAt", recentCall.SortBy);
         Assert.Equal("desc", recentCall.SortDirection);
         Assert.Equal(
-            [JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected],
+            new[] { JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected },
             recentCall.Statuses);
     }
 
