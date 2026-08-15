@@ -1128,11 +1128,16 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
-                  "if (pm.response.code === 200) {",
-                  "  const json = pm.response.json();",
-                  "  pm.test('customer detail returned', function () { pm.expect(json).to.have.property('id'); pm.expect(json).to.have.property('name'); });",
-                  "  pm.test('jobs array present', function () { pm.expect(json).to.have.property('jobs').that.is.an('array'); });",
+                  "const capturedCustomerId = pm.collectionVariables.get('customerId');",
+                  "if (!capturedCustomerId) {",
+                  "  console.warn('Skipping /api/customers/{id} assertions: no customer id was captured (the customer list was empty this run).');",
+                  "} else {",
+                  "  pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "  if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.test('customer detail returned', function () { pm.expect(json).to.have.property('id'); pm.expect(json).to.have.property('name'); });",
+                  "    pm.test('jobs array present', function () { pm.expect(json).to.have.property('jobs').that.is.an('array'); });",
+                  "  }",
                   "}"
                 ]
               }
