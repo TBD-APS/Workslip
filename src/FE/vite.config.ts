@@ -19,6 +19,9 @@ export default defineConfig({
     sourcemap: true,
     rolldownOptions: {
       output: {
+        // Keep the application bootstrap distinguishable from lazy route chunks
+        // so the service-worker glob cannot accidentally precache a route named
+        // index.tsx or another common chunk.
         entryFileNames: 'assets/app-[hash].js',
         chunkFileNames: 'assets/chunks/[name]-[hash].js',
       },
@@ -51,6 +54,10 @@ export default defineConfig({
         type: 'module',
       },
       injectManifest: {
+        // Install only the navigation shell and bootstrap JavaScript. CSS,
+        // fonts, images and lazy chunks are cached when the browser actually
+        // requests them, preventing service-worker installation from downloading
+        // the entire authenticated application during a public login visit.
         globPatterns: [
           '**/*.html',
           '**/*.webmanifest',
