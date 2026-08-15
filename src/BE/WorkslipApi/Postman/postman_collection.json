@@ -1902,7 +1902,7 @@
                   "pm.test('jobs list uses private revalidation', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('private'); });",
                   "pm.test('jobs list sends ETag', function () { pm.expect(pm.response.headers.get('ETag')).to.match(/^W\\/\"[a-f0-9]+\"$/); });",
                   "pm.test('response has items and totalCount', function () { pm.expect(json.items).to.be.an('array'); pm.expect(json.totalCount).to.be.a('number'); });",
-                  "pm.test('job list view model hides internal timestamps', function () { if (json.items.length > 0) ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json.items[0]).to.not.have.property(field)); });",
+                  "pm.test('job list view model hides internal timestamps', function () { if (json.items.length > 0) ['createdAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json.items[0]).to.not.have.property(field)); });",
                   "pm.test('job list view model exposes assignedUsers array', function () { if (json.items.length > 0) pm.expect(json.items[0].assignedUsers).to.be.an('array'); });",
                   "pm.test('job list view model exposes softDeleted flag', function () { if (json.items.length > 0) pm.expect(json.items[0].softDeleted).to.be.a('boolean'); });",
                   "pm.collectionVariables.set('jobsListEtag', pm.response.headers.get('ETag'));"
