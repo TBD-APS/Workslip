@@ -25,6 +25,15 @@ npm run dev
 
 The dev server listens on `http://127.0.0.1:5270`. `/api` is proxied to the local backend by `vite.config.ts` unless an explicit local API base URL is configured, so serving data still requires the API to be running.
 
+For the canonical full-stack bootstrap and physical-phone testing, run the repository-root commands instead of editing the Vite host permanently:
+
+```powershell
+.\dev.ps1
+.\dev.ps1 -Mobile
+```
+
+`-Mobile` overrides the Vite listener to the LAN for that process only and prints the phone URL. The backend stays on localhost and phone API traffic uses the existing `/api` proxy. See [`../../Docs/operations/local-development.md`](../../Docs/operations/local-development.md) for network, firewall and secure-context guidance.
+
 ## Commands
 
 The authoritative command list is `package.json`.
