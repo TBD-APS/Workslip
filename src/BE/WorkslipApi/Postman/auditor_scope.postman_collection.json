@@ -1,0 +1,274 @@
+{
+  "info": {
+    "name": "Workslip Auditor Scope",
+    "description": "Focused synthetic-role integration coverage for Admin-controlled job audit scope. Intended for the ephemeral Development runner only.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:5262", "type": "string" },
+    { "key": "adminToken", "value": "", "type": "string" },
+    { "key": "userToken", "value": "", "type": "string" },
+    { "key": "auditorToken", "value": "", "type": "string" },
+    { "key": "auditorScopeJobId", "value": "", "type": "string" },
+    { "key": "auditorCountBefore", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "01 Auditor selects a visible candidate",
+      "request": {
+        "method": "GET",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auditorToken}}", "type": "string" }] },
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/jobs/?limit=200", "host": ["{{baseUrl}}"], "path": ["api", "jobs", ""], "query": [{ "key": "limit", "value": "200" }] }
+      },
+      "response": [],
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+          "const json = pm.response.json();",
+          "pm.test('auditor list has a candidate', function () { pm.expect(json.items).to.be.an('array').and.not.empty; });",
+          "pm.test('totalCount matches visible list', function () { pm.expect(json.totalCount).to.be.a('number').and.above(0); });",
+          "pm.collectionVariables.set('auditorScopeJobId', json.items[0].id);",
+          "pm.collectionVariables.set('auditorCountBefore', String(json.totalCount));"
+        ] }
+      }]
+    },
+    {
+      "name": "02 Admin sees default audit scope",
+      "request": {
+        "method": "GET",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/jobs/{{auditorScopeJobId}}/auditor-scope", "host": ["{{baseUrl}}"], "path": ["api", "jobs", "{{auditorScopeJobId}}", "auditor-scope"] }
+      },
+      "response": [],
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+          "const json = pm.response.json();",
+          "pm.test('existing job defaults into auditor scope', function () { pm.expect(json.isInAuditorScope).to.eql(true); });"
+        ] }
+      }]
+    },
+    {
+      "name": "03 Auditor can read candidate before exclusion",
+      "request": {
+        "method": "GET",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auditorToken}}", "type": "string" }] },
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/jobs/{{auditorScopeJobId}}", "host": ["{{baseUrl}}"], "path": ["api", "jobs", "{{auditorScopeJobId}}"] }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('200 OK', function () { pm.response.to.have.status(200); });"] } }]
+    },
+    {
+      "name": "04 User cannot change audit scope",
+      "request": {
+        "method": "PUT",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "wor479-user-forbidden-{{$guid}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"isInAuditorScope\": false,\n  \"reason\": \"User må ikke ændre audit-scope\"\n}", "options": { "raw": { "language": "json" } } },
+        "url": { "raw": "{{baseUrl}}/api/jobs/{{auditorScopeJobId}}/auditor-scope", "host": ["{{baseUrl}}"], "path": ["api", "jobs", "{{auditorScopeJobId}}", "auditor-scope"] }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('403 Forbidden', function () { pm.response.to.have.status(403); });"] } }]
+    },
+    {
+      "name": "05 Auditor cannot change audit scope",
+      "request": {
+        "method": "PUT",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auditorToken}}", "type": "string" }] },
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "wor479-auditor-forbidden-{{$guid}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"isInAuditorScope\": false,\n  \"reason\": \"Auditor må ikke ændre audit-scope\"\n}", "options": { "raw": { "language": "json" } } },
+        "url": { "raw": "{{baseUrl}}/api/jobs/{{auditorScopeJobId}}/auditor-scope", "host": ["{{baseUrl}}"], "path": ["api", "jobs", "{{auditorScopeJobId}}", "auditor-scope"] }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('403 Forbidden', function () { pm.response.to.have.status(403); });"] } }]
+    },
+    {
+      "name": "06 Admin cannot exclude without reason",
+      "request": {
+        "method": "PUT",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "wor479-invalid-{{$guid}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"isInAuditorScope\": false,\n  \"reason\": null\n}", "options": { "raw": { "language": "json" } } },
+        "url": { "raw": "{{baseUrl}}/api/jobs/{{auditorScopeJobId}}/auditor-scope", "host": ["{{baseUrl}}"], "path": ["api", "jobs", "{{auditorScopeJobId}}", "auditor-scope"] }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('400 validation error', function () { pm.response.to.have.status(400); });"] } }]
+    },
+    {
+      "name": "07 Admin excludes job from auditor scope",
+      "request": {
+        "method": "PUT",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "wor479-hide-{{$guid}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"isInAuditorScope\": false,\n  \"reason\": \"Intern Postman audit-scope test\"\n}", "options": { "raw": { "language": "json" } } },
+        "url": { "raw": "{{baseUrl}}/api/jobs/{{auditorScopeJobId}}/auditor-scope", "host": ["{{baseUrl}}"], "path": ["api", "jobs", "{{auditorScopeJobId}}", "auditor-scope"] }
+      },
+      "response": [],
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+          "const json = pm.response.json();",
+          "pm.test('scope disabled', function () { pm.expect(json.isInAuditorScope).to.eql(false); });",
+          "pm.test('reason retained for admin', function () { pm.expect(json.reason).to.eql('Intern Postman audit-scope test'); });"
+        ] }
+      }]
+    },
+    {
+      "name": "08 Auditor direct job access is hidden",
+      "request": {
+        "method": "GET",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auditorToken}}", "type": "string" }] },
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/jobs/{{auditorScopeJobId}}", "host": ["{{baseUrl}}"], "path": ["api", "jobs", "{{auditorScopeJobId}}"] }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('404 Not Found', function () { pm.response.to.have.status(404); });"] } }]
+    },
+    {
+      "name": "09 Auditor job history is hidden",
+      "request": {
+        "method": "GET",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auditorToken}}", "type": "string" }] },
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/jobs/{{auditorScopeJobId}}/history", "host": ["{{baseUrl}}"], "path": ["api", "jobs", "{{auditorScopeJobId}}", "history"] }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('404 Not Found', function () { pm.response.to.have.status(404); });"] } }]
+    },
+    {
+      "name": "10 Auditor PDF is hidden",
+      "request": {
+        "method": "GET",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auditorToken}}", "type": "string" }] },
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/jobs/{{auditorScopeJobId}}/report/pdf", "host": ["{{baseUrl}}"], "path": ["api", "jobs", "{{auditorScopeJobId}}", "report", "pdf"] }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('404 Not Found', function () { pm.response.to.have.status(404); });"] } }]
+    },
+    {
+      "name": "11 Auditor job images are hidden",
+      "request": {
+        "method": "GET",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auditorToken}}", "type": "string" }] },
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/jobs/{{auditorScopeJobId}}/images", "host": ["{{baseUrl}}"], "path": ["api", "jobs", "{{auditorScopeJobId}}", "images"] }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('404 Not Found', function () { pm.response.to.have.status(404); });"] } }]
+    },
+    {
+      "name": "12 Auditor list excludes internal job and count",
+      "request": {
+        "method": "GET",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auditorToken}}", "type": "string" }] },
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/jobs/?limit=200", "host": ["{{baseUrl}}"], "path": ["api", "jobs", ""], "query": [{ "key": "limit", "value": "200" }] }
+      },
+      "response": [],
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+          "const json = pm.response.json();",
+          "const hiddenId = pm.collectionVariables.get('auditorScopeJobId');",
+          "const before = Number(pm.collectionVariables.get('auditorCountBefore'));",
+          "pm.test('internal job absent from items', function () { pm.expect(json.items.some(item => item.id === hiddenId)).to.eql(false); });",
+          "pm.test('internal job absent from totalCount', function () { pm.expect(json.totalCount).to.eql(before - 1); });"
+        ] }
+      }]
+    },
+    {
+      "name": "13 Admin still sees internal scope reason",
+      "request": {
+        "method": "GET",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/jobs/{{auditorScopeJobId}}/auditor-scope", "host": ["{{baseUrl}}"], "path": ["api", "jobs", "{{auditorScopeJobId}}", "auditor-scope"] }
+      },
+      "response": [],
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+          "const json = pm.response.json();",
+          "pm.test('internal state remains persisted', function () { pm.expect(json.isInAuditorScope).to.eql(false); });",
+          "pm.test('admin reason remains available', function () { pm.expect(json.reason).to.eql('Intern Postman audit-scope test'); });"
+        ] }
+      }]
+    },
+    {
+      "name": "14 Admin restores auditor scope",
+      "request": {
+        "method": "PUT",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "wor479-restore-{{$guid}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"isInAuditorScope\": true,\n  \"reason\": null\n}", "options": { "raw": { "language": "json" } } },
+        "url": { "raw": "{{baseUrl}}/api/jobs/{{auditorScopeJobId}}/auditor-scope", "host": ["{{baseUrl}}"], "path": ["api", "jobs", "{{auditorScopeJobId}}", "auditor-scope"] }
+      },
+      "response": [],
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+          "const json = pm.response.json();",
+          "pm.test('scope restored', function () { pm.expect(json.isInAuditorScope).to.eql(true); });",
+          "pm.test('current internal reason cleared', function () { pm.expect(json.reason).to.eql(null); });"
+        ] }
+      }]
+    },
+    {
+      "name": "15 Auditor direct job access is restored",
+      "request": {
+        "method": "GET",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auditorToken}}", "type": "string" }] },
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/jobs/{{auditorScopeJobId}}", "host": ["{{baseUrl}}"], "path": ["api", "jobs", "{{auditorScopeJobId}}"] }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('200 OK', function () { pm.response.to.have.status(200); });"] } }]
+    },
+    {
+      "name": "16 Auditor list count is restored",
+      "request": {
+        "method": "GET",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auditorToken}}", "type": "string" }] },
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/jobs/?limit=200", "host": ["{{baseUrl}}"], "path": ["api", "jobs", ""], "query": [{ "key": "limit", "value": "200" }] }
+      },
+      "response": [],
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+          "const json = pm.response.json();",
+          "const restoredId = pm.collectionVariables.get('auditorScopeJobId');",
+          "const before = Number(pm.collectionVariables.get('auditorCountBefore'));",
+          "pm.test('restored job is present', function () { pm.expect(json.items.some(item => item.id === restoredId)).to.eql(true); });",
+          "pm.test('totalCount restored', function () { pm.expect(json.totalCount).to.eql(before); });"
+        ] }
+      }]
+    }
+  ]
+}

@@ -2,16 +2,30 @@
 
 **Status:** Active  
 **Owner:** Workslip maintainers  
-**Source of truth:** root `dev.ps1`, `tools/dev/start.ps1`, tracked Development configuration, backend startup safety and frontend package scripts  
+**Source of truth:** root `start-local.cmd`, root `dev.ps1`, `tools/dev/start.ps1`, tracked Development configuration, backend startup safety and frontend package scripts  
 **Review cadence:** On local bootstrap, runtime configuration or prerequisite changes
 
 ## Canonical Windows path
 
-A fresh Windows developer machine must use the repository root bootstrap as the normal full-stack entry point:
+A fresh Windows developer machine can start the full local Workslip stack from the repository root by double-clicking:
+
+```text
+start-local.cmd
+```
+
+The same launcher can be run from the VS Code terminal:
+
+```powershell
+.\start-local.cmd
+```
+
+For direct PowerShell use, the canonical bootstrap remains:
 
 ```powershell
 .\dev.ps1
 ```
+
+`start-local.cmd` is only a Windows convenience wrapper around `dev.ps1`. It deliberately keeps the terminal window open when startup fails so the exact bootstrap error can be copied instead of disappearing immediately.
 
 Do not reconstruct missing local settings from chat history, copy production configuration, enable remote SQL, or route synthetic test users through Entra just to make local development start.
 
@@ -24,8 +38,9 @@ The supported first-run contract is:
 5. start the backend in `Development` with synthetic database seeding enabled and a process-local ephemeral LocalJwt signing key;
 6. wait for `http://localhost:5262/health`;
 7. prove `POST /api/dev/token` followed by authenticated `GET /api/auth/me` succeeds for the synthetic Admin user;
-8. start Vite on `http://127.0.0.1:5270` using the already generated local contract;
-9. open the frontend unless `-NoBrowser` was requested.
+8. prove authenticated `GET /api/jobs/overview` returns the expected overview contract;
+9. start Vite on `http://127.0.0.1:5270` using the already generated local contract;
+10. open `http://127.0.0.1:5270/app/overblik` unless `-NoBrowser` was requested.
 
 The canonical bootstrap forces browser API traffic to same-origin `/api` for the Vite process. This prevents an ignored local `VITE_API_BASE_URL` value from bypassing the maintained proxy or becoming invalid when the frontend is opened from another device. The caller's environment value is restored after the child processes have started.
 
@@ -104,7 +119,9 @@ Backend READY /health
 Development seed complete
 /api/dev/token -> token
 /api/auth/me -> authenticated synthetic user
+/api/jobs/overview -> authenticated overview response
 Frontend READY on 127.0.0.1:5270
+Overblik available on 127.0.0.1:5270/app/overblik
 ```
 
 For `-Mobile`, the same checkpoints apply plus at least one detected LAN phone URL. The bootstrap verifies frontend readiness over loopback; physical-device reachability still depends on the active LAN and Windows firewall and must be checked from the phone when mobile validation is required.

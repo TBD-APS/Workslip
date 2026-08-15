@@ -65,8 +65,24 @@ internal static partial class LocalDevelopmentDatabaseMigrationRunner
             var value when value.Equals("localhost", StringComparison.OrdinalIgnoreCase) => true,
             "127.0.0.1" => true,
             "::1" => true,
-            _ => false
+            var value => IsExplicitlyAllowedLocalHost(value)
         };
+    }
+
+    // Container-internal service names (e.g. "db" in docker-compose.yml) are not
+    // recognizable as local by inspection, so they must be opted in explicitly.
+    // The guard stays closed unless the environment running the process says so.
+    internal const string AdditionalLocalHostsVariable = "WORKSLIP_ADDITIONAL_LOCAL_SQL_HOSTS";
+
+    private static bool IsExplicitlyAllowedLocalHost(string host)
+    {
+        var configured = Environment.GetEnvironmentVariable(AdditionalLocalHostsVariable);
+        if (string.IsNullOrWhiteSpace(configured))
+            return false;
+
+        return configured
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(allowed => allowed.Equals(host, StringComparison.OrdinalIgnoreCase));
     }
 
     public static async Task ApplyPendingAsync(

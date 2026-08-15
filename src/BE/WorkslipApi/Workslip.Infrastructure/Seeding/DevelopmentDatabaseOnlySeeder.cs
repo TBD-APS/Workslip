@@ -18,7 +18,37 @@ public static class DevelopmentDatabaseOnlySeeder
         CancellationToken cancellationToken = default)
     {
         await EnsureLocalSuperadminAsync(db, cancellationToken);
+        await EnsurePlatformOrganizationBaselineAsync(db, installationBaselineProvisioner, cancellationToken);
         await DatabaseSeeder.Seed(db, installationBaselineProvisioner, cancellationToken);
+        await DevelopmentTestUserAudienceReconciler.ReconcileAsync(db, cancellationToken);
+    }
+
+    // The local Superadmin works directly inside the platform Organization,
+    // so local development needs the installation baseline there as well;
+    // production tenants get theirs through ordinary organization seeding.
+    private static async Task EnsurePlatformOrganizationBaselineAsync(
+        SqlDbContext db,
+        InstallationBaselineProvisioner installationBaselineProvisioner,
+        CancellationToken cancellationToken)
+    {
+        var hasBaseline = await db.InstallationTypeDefinitions
+            .AnyAsync(definition => definition.OrganizationId == PlatformOrganization.Id, cancellationToken);
+        if (hasBaseline)
+        {
+            return;
+        }
+
+        var previousIsSeeding = db.IsSeeding;
+        db.IsSeeding = true;
+        try
+        {
+            await installationBaselineProvisioner.ProvisionAsync(PlatformOrganization.Id, cancellationToken);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        finally
+        {
+            db.IsSeeding = previousIsSeeding;
+        }
     }
 
     private static async Task EnsureLocalSuperadminAsync(

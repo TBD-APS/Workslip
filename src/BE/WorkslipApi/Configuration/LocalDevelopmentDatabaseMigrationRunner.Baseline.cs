@@ -5,6 +5,17 @@ namespace Workslip.Api.Configuration;
 
 internal static partial class LocalDevelopmentDatabaseMigrationRunner
 {
+    // Fresh local bootstrap was introduced after these historical migrations were already
+    // represented by the then-current EF model. Only that fixed historical prefix is safe
+    // to record as an EF baseline without executing the SQL. Any later migration must stay
+    // pending so the normal migration runner executes it, including column/FK/data-only
+    // migrations that cannot be detected by looking for CREATE TABLE statements.
+    internal const string FreshEfBaselineThroughMigrationId =
+        "20260810_2115_wor412_internal_test_user_audience";
+
+    internal static bool BelongsToFreshEfBaseline(string migrationId) =>
+        StringComparer.Ordinal.Compare(migrationId, FreshEfBaselineThroughMigrationId) <= 0;
+
     public static async Task BaselineCurrentSchemaAsync(
         string connectionString,
         string contentRootPath,
@@ -23,13 +34,16 @@ internal static partial class LocalDevelopmentDatabaseMigrationRunner
             "database",
             "migrations"));
         var migrations = LoadMigrations(migrationsPath);
+        var baselineMigrations = migrations
+            .Where(migration => BelongsToFreshEfBaseline(migration.Id))
+            .ToArray();
 
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
         await EnsureMigrationHistoryTableAsync(connection, cancellationToken);
 
         var recordedCount = 0;
-        foreach (var migration in migrations)
+        foreach (var migration in baselineMigrations)
         {
             await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
             try
@@ -86,8 +100,9 @@ internal static partial class LocalDevelopmentDatabaseMigrationRunner
         }
 
         Log.Information(
-            "[STARTUP 08.1] Fresh local schema migration baseline recorded. Added: {RecordedCount}, TotalKnown: {MigrationCount}",
+            "[STARTUP 08.1] Fresh local schema migration baseline recorded. Added: {RecordedCount}, BaselineKnown: {BaselineCount}, TotalKnown: {MigrationCount}",
             recordedCount,
+            baselineMigrations.Length,
             migrations.Count);
     }
 

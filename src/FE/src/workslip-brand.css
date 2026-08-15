@@ -1,0 +1,209 @@
+@charset "UTF-8";
+
+/*
+ * WOR-452 — trade-neutral Workslip brand palette.
+ *
+ * Farvelab owns component structure, states and accessibility. This file owns
+ * brand colour semantics only, so the product can evolve visually without
+ * reintroducing feature-specific hardcoded colours.
+ *
+ * Core palette:
+ * Marine       #123B4A
+ * Petrol       #147A7E
+ * Signalorange #F47A24
+ * Warm cream   #FFF7E8
+ */
+
+html body:has(.app-shell) {
+  --brand-marine: #123b4a;
+  --brand-petrol: #147a7e;
+  --brand-orange: #f47a24;
+  --brand-cream: #fff7e8;
+
+  --bg: #0d303b;
+  --text: var(--brand-cream);
+  --text-primary: var(--text);
+  --text-muted: #bfd0d1;
+  --text-secondary: var(--text-muted);
+  --text-dim: #8eaaac;
+  --text-disabled: rgba(255, 247, 232, 0.42);
+
+  /* Orange signals the primary action; petrol carries selection/navigation. */
+  --primary: var(--brand-orange);
+  --primary-hover: #ff8c3f;
+  --primary-pressed: #d86417;
+  --on-primary: var(--brand-marine);
+  --accent-cyan: var(--brand-petrol);
+  --accent-mint: #57b894;
+  --accent-amber: var(--brand-orange);
+  --accent-coral: #ef695f;
+  --color-primary: var(--brand-petrol);
+  --color-info: var(--brand-petrol);
+
+  --surface-floating: var(--brand-marine);
+  --surface-color: var(--surface-floating);
+  --surface: rgba(255, 247, 232, 0.055);
+  --surface-raised: rgba(255, 247, 232, 0.095);
+  --surface-input: rgba(7, 39, 49, 0.82);
+  --surface-elevated: rgba(255, 247, 232, 0.15);
+  --surface-selected: rgba(20, 122, 126, 0.22);
+  --surface-selected-strong: rgba(20, 122, 126, 0.34);
+  --surface-modal: var(--brand-marine);
+  --surface-actions-menu: var(--brand-marine);
+  --surface-overlay: rgba(7, 39, 49, 0.68);
+  --surface-hover: var(--surface-raised);
+
+  --border: rgba(255, 247, 232, 0.13);
+  --border-strong: rgba(255, 247, 232, 0.24);
+  --border-color: var(--border);
+  --surface-border: var(--border);
+  --focus-ring: #55b8b8;
+
+  --shadow-sm: 0 8px 24px rgba(3, 24, 31, 0.18);
+  --shadow-sm-raw: 0 4px 12px rgba(3, 24, 31, 0.16);
+  --shadow-lg: 0 24px 70px rgba(3, 24, 31, 0.36);
+  --shadow-accent: 0 10px 30px rgba(244, 122, 36, 0.2);
+
+  --danger: #ef695f;
+  --danger-hover: #f47d74;
+  --danger-bg: rgba(239, 105, 95, 0.14);
+  --warning: var(--brand-orange);
+  --success: #57b894;
+
+  --status-blue-bg: rgba(20, 122, 126, 0.2);
+  --status-blue-text: #83d6d2;
+  --status-red-bg: rgba(239, 105, 95, 0.16);
+  --status-red-text: #ffaaa4;
+  --status-amber-bg: rgba(244, 122, 36, 0.18);
+  --status-amber-text: #ffc08f;
+  --status-green-bg: rgba(87, 184, 148, 0.16);
+  --status-green-text: #9adcc4;
+  --status-neutral-bg: rgba(191, 208, 209, 0.12);
+  --status-neutral-text: #c6d7d8;
+
+  --overlay-subtle: rgba(4, 28, 36, 0.4);
+  --overlay-medium: rgba(4, 28, 36, 0.64);
+  --overlay-heavy: rgba(4, 28, 36, 0.88);
+  --overlay-blur: rgba(13, 48, 59, 0.84);
+  --nav-bg: rgba(14, 52, 64, 0.94);
+  --safe-area-top-bg: #0d303b;
+  --overlay-light-050: rgba(255, 247, 232, 0.72);
+}
+
+html[data-theme="day"] body:has(.app-shell) {
+  --bg: var(--brand-cream);
+  --text: var(--brand-marine);
+  --text-primary: var(--text);
+  --text-muted: #566f75;
+  --text-secondary: var(--text-muted);
+  --text-dim: #819398;
+  --text-disabled: rgba(18, 59, 74, 0.42);
+
+  --primary: var(--brand-orange);
+  --primary-hover: #e96e18;
+  --primary-pressed: #cf5e12;
+  --on-primary: var(--brand-marine);
+  --accent-cyan: var(--brand-petrol);
+  --accent-mint: #328e72;
+  --accent-amber: #b8530e;
+  --accent-coral: #c84e45;
+  --color-primary: var(--brand-petrol);
+  --color-info: var(--brand-petrol);
+
+  --surface-floating: #ffffff;
+  --surface-color: #ffffff;
+  --surface: rgba(18, 59, 74, 0.045);
+  --surface-raised: rgba(18, 59, 74, 0.075);
+  --surface-input: #ffffff;
+  --surface-elevated: rgba(18, 59, 74, 0.12);
+  --surface-selected: rgba(20, 122, 126, 0.1);
+  --surface-selected-strong: rgba(20, 122, 126, 0.16);
+  --surface-modal: #ffffff;
+  --surface-actions-menu: #ffffff;
+  --surface-overlay: rgba(255, 247, 232, 0.78);
+  --surface-hover: var(--surface-raised);
+
+  --border: rgba(18, 59, 74, 0.12);
+  --border-strong: rgba(18, 59, 74, 0.22);
+  --border-color: var(--border);
+  --surface-border: var(--border);
+  --focus-ring: var(--brand-petrol);
+
+  --shadow-sm: 0 8px 24px rgba(18, 59, 74, 0.075);
+  --shadow-sm-raw: 0 4px 12px rgba(18, 59, 74, 0.07);
+  --shadow-lg: 0 24px 70px rgba(18, 59, 74, 0.14);
+  --shadow-accent: 0 10px 28px rgba(244, 122, 36, 0.2);
+
+  --danger: #c84e45;
+  --danger-hover: #b84139;
+  --danger-bg: #fce7e4;
+  --warning: #9b4308;
+  --success: #267a61;
+
+  --status-blue-bg: #e2f2f1;
+  --status-blue-text: #0d686b;
+  --status-red-bg: #fce9e7;
+  --status-red-text: #a63f37;
+  --status-amber-bg: #ffead8;
+  --status-amber-text: #9b4308;
+  --status-green-bg: #e4f3ed;
+  --status-green-text: #236d58;
+  --status-neutral-bg: #edf1ef;
+  --status-neutral-text: #536a70;
+
+  --overlay-subtle: rgba(18, 59, 74, 0.08);
+  --overlay-medium: rgba(18, 59, 74, 0.22);
+  --overlay-heavy: rgba(18, 59, 74, 0.5);
+  --overlay-blur: rgba(255, 247, 232, 0.88);
+  --nav-bg: rgba(255, 250, 239, 0.95);
+  --safe-area-top-bg: var(--brand-cream);
+  --overlay-light-050: rgba(18, 59, 74, 0.66);
+}
+
+/* Active navigation and selected filters use petrol so orange remains a
+   scarce, high-salience action colour instead of becoming visual noise. */
+html body:has(.app-shell) :is(.nav-item.active, .user-avatar[aria-current="page"]) {
+  color: var(--brand-petrol);
+}
+
+html body:has(.app-shell) .status-filter-btn.selected {
+  color: #ffffff;
+  background: var(--brand-petrol);
+  border-color: var(--brand-petrol);
+  box-shadow: 0 6px 18px rgba(20, 122, 126, 0.23);
+}
+
+/* Signal orange (#F47A24) does not provide sufficient contrast with white
+   for normal text. Marine foreground keeps the CTA legible while preserving
+   the requested orange signal colour. */
+html body:has(.app-shell) :is(.btn-primary, .fab-create) {
+  background: var(--brand-orange);
+  color: var(--brand-marine);
+  border-color: color-mix(in srgb, var(--brand-orange) 76%, var(--brand-marine));
+  box-shadow: var(--shadow-accent);
+}
+
+html body:has(.app-shell) .logo-icon {
+  color: var(--brand-orange);
+  filter: drop-shadow(0 4px 10px rgba(244, 122, 36, 0.24));
+}
+
+html body:has(.app-shell) .app-shell {
+  background:
+    radial-gradient(circle at 8% -10%, rgba(20, 122, 126, 0.22), transparent 30rem),
+    radial-gradient(circle at 95% 0%, rgba(244, 122, 36, 0.08), transparent 24rem),
+    var(--bg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html body:has(.app-shell) :is(.btn-primary, .fab-create):hover {
+    background: var(--primary-hover);
+    color: var(--brand-marine);
+    box-shadow: 0 12px 30px rgba(244, 122, 36, 0.24);
+  }
+
+  html body:has(.app-shell) .user-avatar:hover {
+    color: var(--brand-petrol);
+    border-color: color-mix(in srgb, var(--brand-petrol) 40%, var(--border));
+  }
+}

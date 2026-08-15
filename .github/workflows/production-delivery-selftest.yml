@@ -1,0 +1,143 @@
+name: Production delivery · Self-test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/actions/generate-frontend-api/**'
+      - '.github/workflows/backend-production-deploy.yml'
+      - '.github/workflows/database-production-migrations.yml'
+      - '.github/workflows/infrastructure-production-reconcile.yml'
+      - '.github/workflows/production-readiness-smoke.yml'
+      - '.github/workflows/production-delivery-selftest.yml'
+      - 'tools/release/configure-github-branch-rules.ps1'
+      - 'tools/release/verify-production-eligibility.mjs'
+      - 'tools/release/verify-production-eligibility.test.mjs'
+      - 'src/FE/scripts/vercel-production-eligibility.mjs'
+      - 'src/FE/scripts/vercel-production-eligibility.test.mjs'
+      - 'src/FE/vercel.json'
+      - 'Docs/operations/ci-quality-gates.md'
+      - 'Docs/operations/feature-branch-safety.md'
+      - 'Docs/architecture/adr/0005-main-as-production-boundary.md'
+  push:
+    branches: [main]
+    paths:
+      - '.github/actions/generate-frontend-api/**'
+      - '.github/workflows/backend-production-deploy.yml'
+      - '.github/workflows/database-production-migrations.yml'
+      - '.github/workflows/infrastructure-production-reconcile.yml'
+      - '.github/workflows/production-readiness-smoke.yml'
+      - '.github/workflows/production-delivery-selftest.yml'
+      - 'tools/release/configure-github-branch-rules.ps1'
+      - 'tools/release/verify-production-eligibility.mjs'
+      - 'tools/release/verify-production-eligibility.test.mjs'
+      - 'src/FE/scripts/vercel-production-eligibility.mjs'
+      - 'src/FE/scripts/vercel-production-eligibility.test.mjs'
+      - 'src/FE/vercel.json'
+      - 'Docs/operations/ci-quality-gates.md'
+      - 'Docs/operations/feature-branch-safety.md'
+      - 'Docs/architecture/adr/0005-main-as-production-boundary.md'
+
+permissions:
+  contents: read
+
+jobs:
+  static-validation:
+    name: Production delivery · Static invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Test exact-SHA production gates
+        run: |
+          set -Eeuo pipefail
+          node --check tools/release/verify-production-eligibility.mjs
+          node --test tools/release/verify-production-eligibility.test.mjs
+          node --check src/FE/scripts/vercel-production-eligibility.mjs
+          node --test src/FE/scripts/vercel-production-eligibility.test.mjs
+
+      - name: Verify Vercel production is green-gated and deterministic
+        run: |
+          set -Eeuo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const config = JSON.parse(fs.readFileSync('src/FE/vercel.json', 'utf8'));
+          if (config.git?.deploymentEnabled?.main !== true || config.git?.deploymentEnabled?.['*'] !== false) {
+            throw new Error('Vercel Git deployments must be disabled except for main.');
+          }
+          if (!String(config.buildCommand || '').includes('scripts/vercel-production-eligibility.mjs')) {
+            throw new Error('Vercel production build must run the root-local exact-SHA production gate.');
+          }
+          if (String(config.buildCommand || '').includes('../')) {
+            throw new Error('Vercel production gate must not depend on files outside the configured Root Directory.');
+          }
+          if (String(config.buildCommand || '').includes('generate:api:dev')) {
+            throw new Error('Vercel production must not generate API clients from the dev OpenAPI endpoint.');
+          }
+          NODE
+
+      - name: Verify all production mutation workflows fail closed
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          workflows=(
+            .github/workflows/backend-production-deploy.yml
+            .github/workflows/database-production-migrations.yml
+            .github/workflows/infrastructure-production-reconcile.yml
+          )
+          for workflow in "${workflows[@]}"; do
+            grep -Fq 'verify-production-eligibility.mjs' "${workflow}"
+            grep -Fq 'group: workslip-production' "${workflow}"
+            grep -Fq 'environment: prod' "${workflow}"
+          done
+
+          grep -Fq -- '--ci-run-id "${CI_RUN_ID}"' .github/workflows/backend-production-deploy.yml
+          grep -Fq 'actions: read' .github/workflows/backend-production-deploy.yml
+          grep -Fq 'Re-verify green current main before mutation' .github/workflows/backend-production-deploy.yml
+
+          if grep -Fq 'merge-base --is-ancestor' .github/workflows/backend-production-deploy.yml; then
+            echo 'Backend production deploy must not accept an older green ancestor SHA.' >&2
+            exit 1
+          fi
+
+      - name: Verify repository protection source is fail-closed
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rules=tools/release/configure-github-branch-rules.ps1
+          grep -Fq "RequiredStatusChecks = @('CI Gate', 'Feature change guard')" "${rules}"
+          grep -Fq -- "-Name 'Workslip main protection'" "${rules}"
+          grep -Fq -- "-IncludedRefs @('refs/heads/main')" "${rules}"
+          grep -Fq 'bypass_actors = @()' "${rules}"
+          grep -Fq '$actual.bypass_actors' "${rules}"
+          grep -Fq 'strict_required_status_checks_policy = $true' "${rules}"
+
+      - name: Reject retired production workflow entrypoints
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          retired=(
+            .github/workflows/main_api-mrsoftware-prod.yml
+            .github/workflows/production-database-migrations.yml
+            .github/workflows/manual-production-infrastructure.yml
+            .github/workflows/playwright-prod-smoke.yml
+          )
+          for path in "${retired[@]}"; do
+            if [[ -e "${path}" ]]; then
+              echo "Retired production workflow still exists: ${path}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Verify readiness also targets green main
+        run: |
+          set -Eeuo pipefail
+          grep -Fq 'verify-production-eligibility.mjs' .github/workflows/production-readiness-smoke.yml
+          grep -Fq "refs/heads/main" .github/workflows/production-readiness-smoke.yml
+
+      - name: Validate maintained documentation
+        run: python tools/docs/check_docs.py

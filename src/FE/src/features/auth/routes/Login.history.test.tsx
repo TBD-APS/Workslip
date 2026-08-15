@@ -33,6 +33,7 @@ function renderLogin(initialEntries: string[] = ['/login'], initialIndex = initi
       { path: '/before', element: <div>Før login</div> },
       { path: '/login', element: <Login /> },
       { path: '/app', element: <div>App</div> },
+      { path: '/app/overblik', element: <div>Overblik</div> },
     ],
     { initialEntries, initialIndex },
   );
@@ -59,9 +60,10 @@ afterEach(() => {
 });
 
 describe('Login browser history handling', () => {
-  it('replaces the login entry when an authenticated user is redirected', async () => {
+  it('replaces the login entry and sends an authenticated user to Overblik', async () => {
     const router = renderLogin(['/before', '/login'], 1);
-    expect(await screen.findByText('App')).toBeInTheDocument();
+    expect(await screen.findByText('Overblik')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/app/overblik');
 
     await act(async () => {
       await router.navigate(-1);

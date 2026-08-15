@@ -20,8 +20,8 @@ using Workslip.Infrastructure.Diagnostics;
 using Workslip.Infrastructure.Invitations;
 using Workslip.Infrastructure.Jobs;
 using Workslip.Infrastructure.Notifications;
-using Workslip.Infrastructure.Reporting;
 using Workslip.Infrastructure.Repositories;
+using Workslip.Infrastructure.Reporting;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
 using Workslip.Infrastructure.Storage;
@@ -69,6 +69,7 @@ public static class DependencyInjection
 
         services.AddScoped<IAssignmentRepository, EfAssignmentRepository>();
         services.AddScoped<IJobAssignmentScopeRepository, EfJobAssignmentScopeRepository>();
+        services.AddScoped<IJobAuditorScopeRepository, EfJobAuditorScopeRepository>();
         services.AddScoped<ICustomerRepository, EfCustomerRepository>();
         services.AddScoped<IDocumentRepository, SqlDocumentRepository>();
         services.AddScoped<IDocumentAttachmentRepository, SqlDocumentAttachmentRepository>();
@@ -76,8 +77,14 @@ public static class DependencyInjection
         services.AddScoped<IInvitationStatusRepository, EfInviteRepository>();
         services.AddScoped<IJobLinkRepository, EfJobLinkRepository>();
         services.AddScoped<EfJobRepository>();
-        services.AddScoped<AssignmentAwareJobRepository>();
-        services.AddScoped<IJobRepository, BillingAwareJobRepository>();
+        services.AddScoped<IJobRepository>(serviceProvider =>
+        {
+            IJobRepository repository = serviceProvider.GetRequiredService<EfJobRepository>();
+            repository = new AssignmentAwareJobRepository(repository);
+            return new BillingAwareJobRepository(
+                repository,
+                serviceProvider.GetRequiredService<SqlDbContext>());
+        });
         services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
         services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();

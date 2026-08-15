@@ -54,6 +54,61 @@ public sealed class UserEntraServiceTests
             request.Method == HttpMethod.Post && request.Url.Contains("/appRoleAssignments", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task InviteAdminAsync_EntraNotConfiguredInDevelopment_ReturnsDeterministicLocalIdentityWithoutGraphCalls()
+    {
+        var handler = new GraphHttpMessageHandler(CreateGraphResponse);
+        using var httpClient = new HttpClient(handler);
+        var graphClient = new GraphServiceClient(
+            httpClient,
+            new AnonymousAuthenticationProvider());
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ASPNETCORE_ENVIRONMENT"] = "Development"
+            })
+            .Build();
+        var service = new UserEntraService(
+            NullLogger<UserEntraService>.Instance,
+            graphClient,
+            configuration,
+            new FakeCorrelationIdAccessor());
+
+        var first = await service.InviteAdminAsync("admin@example.test", "Local Admin", CancellationToken.None);
+        var second = await service.InviteAdminAsync("Admin@Example.test ", "Local Admin", CancellationToken.None);
+
+        Assert.False(first.Created);
+        Assert.Equal("admin@example.test", first.EntraMail);
+        Assert.True(Guid.TryParse(first.EntraUserId, out _));
+        Assert.Equal(first.EntraUserId, second.EntraUserId);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public async Task InviteAdminAsync_EntraNotConfiguredOutsideDevelopment_Throws()
+    {
+        var handler = new GraphHttpMessageHandler(CreateGraphResponse);
+        using var httpClient = new HttpClient(handler);
+        var graphClient = new GraphServiceClient(
+            httpClient,
+            new AnonymousAuthenticationProvider());
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ASPNETCORE_ENVIRONMENT"] = "Production"
+            })
+            .Build();
+        var service = new UserEntraService(
+            NullLogger<UserEntraService>.Instance,
+            graphClient,
+            configuration,
+            new FakeCorrelationIdAccessor());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.InviteAdminAsync("admin@example.test", "Local Admin", CancellationToken.None));
+        Assert.Empty(handler.Requests);
+    }
+
     private static HttpResponseMessage CreateGraphResponse(CapturedRequest request)
     {
         if (request.Method == HttpMethod.Get && request.Url.Contains("/users?", StringComparison.Ordinal))

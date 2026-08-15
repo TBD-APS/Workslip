@@ -60,6 +60,28 @@ public sealed class UserEntraService(
         string redirectPath,
         CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(configuration["Azure:AdOAuth:ClientId"]))
+        {
+            if (!string.Equals(
+                configuration["ASPNETCORE_ENVIRONMENT"],
+                "Development",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "Azure:AdOAuth:ClientId is not configured; Entra identities cannot be provisioned outside Development.");
+            }
+
+            logger.LogInformation(
+                "Entra is not configured; returning deterministic local identity without calling Graph. CorrelationId={CorrelationId}",
+                correlationIdAccessor.CorrelationId);
+
+            return new CreateEntraUserResult(
+                DeterministicLocalEntraId(email),
+                email,
+                displayName,
+                Created: false);
+        }
+
         var existingUser = await FindExistingEntraUserAsync(email, ct);
         if (existingUser != null)
         {
@@ -119,6 +141,45 @@ public sealed class UserEntraService(
 
         logger.LogInformation("Graph rollback user deleted. CorrelationId={CorrelationId} UserId={UserId}",
             correlationIdAccessor.CorrelationId, entraUserId);
+    }
+
+    public async Task RevokeSuperadminAsync(string entraUserId, CancellationToken cancellationToken)
+    {
+        var appId = configuration["Azure:AdOAuth:ClientId"];
+        var servicePrincipal = await FetchServicePrincipalAsync(appId, cancellationToken);
+        var superadminRole = FindAppRole(servicePrincipal, Roles.Superadmin);
+
+        logger.LogWarning(
+            "Graph revoking Superadmin app role. CorrelationId={CorrelationId} UserId={UserId}",
+            correlationIdAccessor.CorrelationId,
+            entraUserId);
+
+        var assignments = await graphClient.Users[entraUserId].AppRoleAssignments.GetAsync(
+            request =>
+            {
+                request.QueryParameters.Filter = $"resourceId eq {servicePrincipal.Id}";
+                request.QueryParameters.Select = ["id", "appRoleId", "resourceId"];
+            },
+            cancellationToken);
+
+        var matchingAssignments = assignments?.Value?
+            .Where(assignment =>
+                assignment.Id is not null &&
+                assignment.AppRoleId == superadminRole.Id)
+            .ToArray() ?? [];
+
+        foreach (var assignment in matchingAssignments)
+        {
+            await graphClient.Users[entraUserId]
+                .AppRoleAssignments[assignment.Id!]
+                .DeleteAsync(cancellationToken: cancellationToken);
+        }
+
+        logger.LogInformation(
+            "Graph Superadmin app role revoked. CorrelationId={CorrelationId} UserId={UserId} AssignmentCount={AssignmentCount}",
+            correlationIdAccessor.CorrelationId,
+            entraUserId,
+            matchingAssignments.Length);
     }
 
     public async Task AssignAppRoleTo(string entraUserId, string appRoleValue, CancellationToken ct)
@@ -281,6 +342,13 @@ public sealed class UserEntraService(
         }
 
         return appRole;
+    }
+
+    private static string DeterministicLocalEntraId(string email)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(email.Trim().ToLowerInvariant()));
+        return new Guid(hash.AsSpan(0, 16)).ToString();
     }
 }
 

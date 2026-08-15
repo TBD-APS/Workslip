@@ -1,18 +1,19 @@
-name: Playwright public smoke
+name: Production · Readiness smoke
 
 on:
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
-  group: playwright-public-smoke-${{ github.ref }}
+  group: workslip-production-readiness
   cancel-in-progress: false
 
 jobs:
   smoke:
-    name: Mobile public smoke (production)
+    name: Production · Mobile public readiness
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
@@ -29,8 +30,27 @@ jobs:
       SCENARIO: public-smoke
 
     steps:
-      - name: Checkout
+      - name: Verify operator selected main
+        working-directory: .
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "${GITHUB_REF}" != 'refs/heads/main' ]]; then
+            echo "::error::Production readiness may only be run from main. Selected ref: ${GITHUB_REF}"
+            exit 1
+          fi
+
+      - name: Checkout exact selected main revision
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Require exact green main CI Gate
+        working-directory: .
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node tools/release/verify-production-eligibility.mjs --sha "${GITHUB_SHA}"
 
       - name: Resolve release-test target
         id: release-target
@@ -69,7 +89,7 @@ jobs:
           node --test scripts/playwright-synthetic-auth.test.mjs
           node -e "JSON.parse(require('node:fs').readFileSync('../BE/WorkslipApi/Postman/postman_collection.json', 'utf8'))"
 
-      - name: Run Playwright scenario
+      - name: Run production public-smoke scenario
         env:
           PROD_URL: ${{ steps.release-target.outputs.url }}
           WORKSLIP_RELEASE_PHASE: ${{ steps.release-target.outputs.phase }}
@@ -77,11 +97,24 @@ jobs:
           WORKSLIP_ALLOW_DESTRUCTIVE_PLAYWRIGHT: ${{ steps.release-target.outputs.allow_destructive_playwright }}
         run: node scripts/playwright-release-runner.mjs
 
+      - name: Record readiness evidence
+        if: ${{ success() }}
+        working-directory: .
+        shell: bash
+        run: |
+          {
+            echo "### Production readiness smoke"
+            echo
+            echo "- SHA: \`${GITHUB_SHA}\`"
+            echo "- Scenario: \`public-smoke\`"
+            echo "- Result: passed"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
       - name: Upload Playwright evidence
         if: ${{ always() && env.ACT != 'true' && github.actor != 'nektos/act' }}
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-public-smoke-production
+          name: playwright-public-smoke-production-${{ github.sha }}
           path: artifacts/playwright-prod-smoke
           if-no-files-found: warn
           retention-days: 7

@@ -13,6 +13,8 @@ public static class AuditorDataScope
     private const string LinkedReportHistoryProperty = "LinkedReport";
     private const string IsCheckedHistoryProperty = "IsChecked";
     private const string IsIrrelevantHistoryProperty = "IsIrrelevant";
+    private const string AuditorScopeHistoryProperty = "IsInAuditorScope";
+    private const string AuditorScopeReasonHistoryProperty = "AuditorScopeReason";
 
     private static readonly HashSet<string> AllowedInstallationTypeNames = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -74,7 +76,12 @@ public static class AuditorDataScope
     }
 
     public static IReadOnlyList<JobHistoryResponse> Filter(IReadOnlyList<JobHistoryResponse> events) =>
-        events.Where(IsHistoryEventVisible).ToArray();
+        events
+            .Where(IsHistoryEventVisible)
+            .Select(RedactInternalHistoryContext)
+            .Where(historyEvent => historyEvent is not null)
+            .Cast<JobHistoryResponse>()
+            .ToArray();
 
     private static bool IsHistoryEventVisible(JobHistoryResponse historyEvent)
     {
@@ -93,6 +100,23 @@ public static class AuditorDataScope
         // Historical link metadata is also omitted because the linked report may
         // no longer be within the Auditor's current discipline scope.
         return historyEvent.Changes.All(change => !IsPotentiallyScopedHistoryChange(change));
+    }
+
+    private static JobHistoryResponse? RedactInternalHistoryContext(JobHistoryResponse historyEvent)
+    {
+        var visibleChanges = historyEvent.Changes
+            .Where(change => change.PropertyName != AuditorScopeReasonHistoryProperty)
+            .ToArray();
+
+        if (visibleChanges.Length == 0)
+            return null;
+
+        var containsScopeChange = visibleChanges.Any(change => change.PropertyName == AuditorScopeHistoryProperty);
+        return historyEvent with
+        {
+            Changes = visibleChanges,
+            Summary = containsScopeChange ? "Auditørvisning ændret" : historyEvent.Summary
+        };
     }
 
     private static bool IsPotentiallyScopedHistoryChange(PropertyChange change) =>

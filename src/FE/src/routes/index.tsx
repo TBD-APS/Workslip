@@ -18,6 +18,9 @@ const InviteAccept = lazy(() =>
 const AppLayout = lazy(() =>
   import('../components/layouts/AppLayout').then((module) => ({ default: module.AppLayout })),
 );
+const Overview = lazy(() =>
+  import('../features/overview/routes/Overview').then((module) => ({ default: module.Overview })),
+);
 const JobList = lazy(() =>
   import('../features/jobs/routes/JobList').then((module) => ({ default: module.JobList })),
 );
@@ -222,6 +225,10 @@ function RootErrorBoundary() {
   );
 }
 
+// The router is intentionally exported from this route module; Fast Refresh only
+// applies to the component definitions above, while the router instance is consumed
+// by the application bootstrap.
+// eslint-disable-next-line react-refresh/only-export-components
 export const router = createBrowserRouter([
   {
     element: <RootErrorBoundary />,
@@ -239,6 +246,7 @@ export const router = createBrowserRouter([
         ),
         children: [
           { index: true, element: <JobList /> },
+          { path: 'overblik', element: <Overview /> },
           { path: 'timer', element: <MyWorksheets /> },
           { path: 'create', element: <Create /> },
           { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },

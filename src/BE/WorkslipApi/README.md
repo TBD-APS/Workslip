@@ -82,49 +82,56 @@ Entra identity reconciliation has a separate fail-closed gate. It runs only when
 ```text
 Workslip:SeedDevelopmentData=true
 Workslip:SeedDevelopmentEntraIdentities=true
+WORKSLIP_SYNTHETIC_SUPERADMIN_EMAIL=<approved temporary Superadmin identity>
 ```
 
-Do not enable `Workslip:SeedDevelopmentEntraIdentities` for ordinary local database work. When platform identities are the actual operation being performed, prefer the explicit `bootstrap-superadmins` command below.
+The Entra-enabled development seed reuses the same rotatable platform-Superadmin bootstrap described below; it does not maintain a second list of fixed Superadmins.
+
+Do not enable `Workslip:SeedDevelopmentEntraIdentities` for ordinary local database work. When platform identity reconciliation is the actual operation being performed, prefer the explicit `bootstrap-superadmins` command below.
 
 Neither seed flag enables seeding outside the Development environment.
 
 ## Explicit platform Superadmin bootstrap
 
-The three permanent platform Superadmins are reconciled through the explicit
-`bootstrap-superadmins` operation, or through the separately gated development Entra
-seed described above. Normal production startup does not run either path unless the
-corresponding explicit operation/configuration is supplied.
-The operation verifies database connectivity, reuses or invites Entra guests through
-the existing Graph integration, and reconciles only the platform organization and
-Superadmin rows. It does not run schema migrations, demo/reference-data seeding,
-hosted workers, or the HTTP server.
+Workslip has one rotatable platform Superadmin identity. Its login email is supplied through `WORKSLIP_SYNTHETIC_SUPERADMIN_EMAIL`, the same configuration boundary used by the synthetic release-test role identities. No personal Superadmin email is hardcoded in the bootstrap and there is no fallback identity.
 
-`bootstrap-superadmins` is the only current Development-mode exception that may intentionally use remote SQL. From an operator workstation, first verify the Azure CLI tenant, subscription and user, then supply the approved App Configuration endpoint through an environment variable or command-line argument. The repository does not check in a Development App Configuration endpoint. Treat any endpoint that points at production as an explicit operator choice and verify it before running bootstrap.
+The explicit `bootstrap-superadmins` operation:
+
+- fails closed if `WORKSLIP_SYNTHETIC_SUPERADMIN_EMAIL` is missing or malformed;
+- reuses or invites the configured Entra guest through the existing Graph integration;
+- assigns the API `Superadmin` app role to that identity;
+- reconciles exactly one Workslip platform-Superadmin row under the reserved platform organization;
+- refuses to promote or move an ordinary Workslip user whose email happens to match the configured value;
+- refuses rotation when a legacy bootstrap identity has tenant-bound operational references;
+- revokes the API `Superadmin` app role from known legacy bootstrap identities and removes their stale platform rows when migration is safe.
+
+Normal production startup does not run this operation. The command does not run schema migrations, demo/reference-data seeding, hosted workers, or the HTTP server.
+
+`bootstrap-superadmins` is the only current Development-mode exception that may intentionally use remote SQL. From an operator workstation, first verify the Azure CLI tenant, subscription and user, then supply the approved App Configuration endpoint and the approved temporary Superadmin identity through process-local configuration. The repository must not contain the actual identity value.
 
 ```powershell
 az login
 az account show --query "{tenantId:tenantId,subscriptionId:id,user:user.name}" --output table
 
 $env:Azure__AppConfiguration__Endpoint='<approved App Configuration endpoint>'
+$env:WORKSLIP_SYNTHETIC_SUPERADMIN_EMAIL='<approved temporary Superadmin identity>'
 
 dotnet run --configuration Release --no-launch-profile -- `
   --environment Development `
   --Workslip:Operation=bootstrap-superadmins
+
+Remove-Item Env:WORKSLIP_SYNTHETIC_SUPERADMIN_EMAIL
 ```
 
-The operator identity needs read access to App Configuration and Key Vault, database
-access, and the existing Graph permissions needed to read/invite users and assign the
-API `Superadmin` app role. Stop on a tenant, subscription, database, or configuration
-mismatch; do not compensate with manual SQL or a normal frontend invitation.
+The operator identity needs read access to App Configuration and Key Vault, database access, and the existing Graph permissions needed to read/invite users, assign the API `Superadmin` app role and remove stale Superadmin app-role assignments. Stop on a tenant, subscription, database, configuration, identity-ownership or tenant-reference mismatch; do not compensate with manual SQL or a normal frontend invitation.
 
-A successful run logs exactly three `Platform Superadmin reconciled` messages and
-exits without starting the API. Run the same command a second time immediately. All
-three messages must report `EntraIdentityCreated: False`; the second run must not add
-Workslip rows or Entra guests. On failure, preserve the logs without personal data,
-fix the reported access/data conflict, and rerun the same idempotent operation. Newly
-created guests are removed automatically when a later bootstrap step fails.
+A successful run logs one `Rotatable platform Superadmin reconciled` message and exits without starting the API. Run the same command a second time immediately. The second run must report `EntraIdentityCreated: False`, must keep exactly one Workslip platform-Superadmin row and must not add an Entra guest.
 
-Do not commit connection strings, JWT signing secrets, Azure credentials, VAPID private keys or integration tokens.
+To rotate the login identity, change only `WORKSLIP_SYNTHETIC_SUPERADMIN_EMAIL` to another approved non-permanent Superadmin test identity and run the same explicit bootstrap again. The operation removes the old synthetic identity's Superadmin app-role assignment before converging the platform database to the replacement identity. Normal login remains the supported one-time-code flow; this operation does not create a static token, alternate login endpoint or frontend role override.
+
+On failure, preserve logs without personal data, correct the reported access/data conflict and rerun the explicit operation. A newly-created configured guest is removed automatically when a later bootstrap step fails. Failures never fall back to a personal or permanent Superadmin account.
+
+Do not commit connection strings, JWT signing secrets, Azure credentials, VAPID private keys, integration tokens or synthetic identity email values.
 
 ## Solution map
 
@@ -189,6 +196,8 @@ Use [`../../../Docs/agents/VALIDATION.md`](../../../Docs/agents/VALIDATION.md) f
 
 ## Deployment
 
-The production API workflow is `.github/workflows/main_api-mrsoftware-prod.yml`. It builds/publishes the API, authenticates through GitHub OIDC, deploys to Azure App Service and performs its health check.
+The production API workflow is `.github/workflows/backend-production-deploy.yml` (**Backend · Production deploy**). It only builds an artifact after the exact `main` SHA has a successful post-merge `CI Gate`, re-verifies that the SHA is still current `main` immediately before production mutation, then applies reviewed migrations, authenticates through GitHub OIDC, deploys the exact-SHA package to Azure App Service and requires the health check to recover.
+
+A red, cancelled, missing or stale CI revision is not deployable. The shared eligibility contract is `tools/release/verify-production-eligibility.mjs`; see [`../../../Docs/operations/ci-quality-gates.md`](../../../Docs/operations/ci-quality-gates.md) for the full production delivery model.
 
 A successful deployment is not proof that login, SQL access, external integrations or critical user flows work. Smoke-test the affected runtime path when deployment is part of the change.

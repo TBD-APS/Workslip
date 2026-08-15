@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2 } from 'lucide-react';
+import { useModalAccessibility } from '../../../components/common/useModalAccessibility';
 
 type ConfirmActionDialogProps = {
   action: 'approve' | 'reject' | 'undo-reject';
@@ -12,17 +13,17 @@ type ConfirmActionDialogProps = {
 
 export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm, onClose }: ConfirmActionDialogProps) {
   const [rejectionNote, setRejectionNote] = useState('');
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
+  const dialogRef = useModalAccessibility<HTMLDivElement>({
+    open: true,
+    onClose,
+    initialFocusRef: cancelButtonRef,
+  });
 
   const isApprove = action === 'approve';
   const isUndoReject = action === 'undo-reject';
+  const title = isApprove ? 'Godkend sag' : isUndoReject ? 'Fortryd afvisning' : 'Afvis sag';
   const confirmButton = (
     <button
       type="button"
@@ -30,12 +31,13 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
       onClick={() => onConfirm(rejectionNote)}
       disabled={isPending || (action === 'reject' && !rejectionNote.trim())}
     >
-      {isPending && <Loader2 className="animate-spin" size={16} />}
+      {isPending && <Loader2 className="animate-spin" size={16} aria-hidden="true" />}
       <span>{isPending ? (isApprove ? 'Godkender...' : 'Afviser...') : (isApprove ? 'Godkend' : isUndoReject ? 'Fortryd afvisning' : 'Afvis')}</span>
     </button>
   );
   const cancelButton = (
     <button
+      ref={cancelButtonRef}
       type="button"
       className="btn btn-secondary"
       onClick={onClose}
@@ -48,12 +50,15 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
       <div
+        ref={dialogRef}
         className="modal-card"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
         role="dialog"
-        aria-label={isApprove ? 'Godkend sag' : isUndoReject ? 'Fortryd afvisning' : 'Afvis sag'}
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
       >
-        <h3>{isApprove ? 'Godkend sag' : isUndoReject ? 'Fortryd afvisning' : 'Afvis sag'}</h3>
+        <h3 id={titleId}>{title}</h3>
         <p>
           Er du sikker på, du vil {isUndoReject ? 'fortryde afvisningen af' : isApprove ? 'godkende' : 'afvise'} sagen <strong>{reportNumber}</strong>?
         </p>
@@ -65,7 +70,7 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
               id="rejection-note"
               className="form-input form-textarea"
               value={rejectionNote}
-              onChange={(e) => setRejectionNote(e.target.value)}
+              onChange={(event) => setRejectionNote(event.target.value)}
               placeholder="Angiv årsagen til afvisningen..."
               rows={3}
             />

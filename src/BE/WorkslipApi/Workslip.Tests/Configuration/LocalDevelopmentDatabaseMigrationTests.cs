@@ -26,6 +26,35 @@ public sealed class LocalDevelopmentDatabaseMigrationTests
     }
 
     [Theory]
+    [InlineData("db")]
+    [InlineData("sql.internal.example.com")]
+    public void IsLocalDataSource_UnknownHost_DefaultsToNotLocal(string host)
+    {
+        Assert.False(LocalDevelopmentDatabaseMigrationRunner.IsLocalDataSource(host));
+    }
+
+    [Fact]
+    public void IsLocalDataSource_AllowlistedHost_RequiresExplicitEnvironmentOptIn()
+    {
+        var variable = LocalDevelopmentDatabaseMigrationRunner.AdditionalLocalHostsVariable;
+        var original = Environment.GetEnvironmentVariable(variable);
+        try
+        {
+            Environment.SetEnvironmentVariable(variable, "db, other-host");
+
+            Assert.True(LocalDevelopmentDatabaseMigrationRunner.IsLocalDataSource("db"));
+            Assert.True(LocalDevelopmentDatabaseMigrationRunner.IsLocalDataSource("DB,1433"));
+            Assert.True(LocalDevelopmentDatabaseMigrationRunner.IsLocalDataSource("other-host"));
+            Assert.False(LocalDevelopmentDatabaseMigrationRunner.IsLocalDataSource("db-prod"));
+            Assert.False(LocalDevelopmentDatabaseMigrationRunner.IsLocalDataSource("sql.example.com"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variable, original);
+        }
+    }
+
+    [Theory]
     [InlineData("Staging")]
     [InlineData("Production")]
     public void ShouldApplyLocalMigrations_NonDevelopmentNeverApplies(string environmentName)
@@ -105,6 +134,121 @@ public sealed class LocalDevelopmentDatabaseMigrationTests
             seedDevelopmentData: false,
             seedDevelopmentEntraIdentities: false,
             environment);
+    }
+
+    [Theory]
+    [InlineData("20260809_1145_wor385_filial_tenant_integrity", true)]
+    [InlineData("20260810_2115_wor412_internal_test_user_audience", true)]
+    [InlineData("20260814_0050_wor428_billing_basis", false)]
+    [InlineData("20260814_0051_wor428_snapshot_tenant_fk", false)]
+    [InlineData("20260815_0110_wor455_workslip_docs", false)]
+    [InlineData("20260815_0825_wor412_legacy_test_user_audience", false)]
+    [InlineData("20260815_1305_wor479_job_auditor_scope", false)]
+    public void BelongsToFreshEfBaseline_OnlyHistoricalBootstrapPrefixIsBaselined(
+        string migrationId,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            LocalDevelopmentDatabaseMigrationRunner.BelongsToFreshEfBaseline(migrationId));
+    }
+
+    [Fact]
+    public void CreatedTableNames_ExtractsSchemaQualifiedTables()
+    {
+        const string sql = """
+            SET XACT_ABORT ON;
+            BEGIN TRANSACTION;
+            CREATE TABLE dbo.UserBillingRates
+            (
+                OrganizationId uniqueidentifier NOT NULL
+            );
+            CREATE TABLE dbo.WorksheetBillingSnapshots
+            (
+                OrganizationId uniqueidentifier NOT NULL
+            );
+            COMMIT TRANSACTION;
+            """;
+
+        var tables = LocalDevelopmentDatabaseMigrationRunner.CreatedTableNames(sql);
+
+        Assert.Equal(
+            new[] { "UserBillingRates", "WorksheetBillingSnapshots" },
+            tables);
+    }
+
+    [Fact]
+    public void CreatedTableNames_ExtractsGuardedCreateTable()
+    {
+        const string sql = """
+            IF OBJECT_ID(N'dbo.KnowledgeDocuments', N'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.KnowledgeDocuments
+                (
+                    Id uniqueidentifier NOT NULL
+                );
+            END;
+            """;
+
+        Assert.Equal(
+            new[] { "KnowledgeDocuments" },
+            LocalDevelopmentDatabaseMigrationRunner.CreatedTableNames(sql));
+    }
+
+    [Fact]
+    public void CreatedTableNames_IgnoresTriggerAndIndexAndColumnStatements()
+    {
+        const string sql = """
+            ALTER TABLE dbo.JobReports ADD IsInAuditorScope bit NOT NULL;
+            CREATE INDEX IX_JobReports_Filial ON dbo.JobReports (FilialId);
+            CREATE OR ALTER TRIGGER dbo.TR_Example ON dbo.Users AFTER INSERT AS BEGIN SET NOCOUNT ON; END;
+            """;
+
+        Assert.Empty(LocalDevelopmentDatabaseMigrationRunner.CreatedTableNames(sql));
+    }
+
+    [Fact]
+    public void CreatesTableMissingFromSchema_TrueWhenCreatedTableAbsent()
+    {
+        const string sql = "CREATE TABLE dbo.UserBillingRates (OrganizationId uniqueidentifier NOT NULL);";
+        var existingTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Users",
+            "Worksheets"
+        };
+
+        Assert.True(
+            LocalDevelopmentDatabaseMigrationRunner.CreatesTableMissingFromSchema(sql, existingTables));
+    }
+
+    [Fact]
+    public void CreatesTableMissingFromSchema_FalseWhenCreatedTableAlreadyModeled()
+    {
+        const string sql = """
+            IF OBJECT_ID(N'dbo.OrganizationFilials', N'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.OrganizationFilials (Id uniqueidentifier NOT NULL);
+            END;
+            ALTER TABLE dbo.Users ADD FilialId uniqueidentifier NULL;
+            """;
+        var existingTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Users",
+            "OrganizationFilials"
+        };
+
+        Assert.False(
+            LocalDevelopmentDatabaseMigrationRunner.CreatesTableMissingFromSchema(sql, existingTables));
+    }
+
+    [Fact]
+    public void CreatesTableMissingFromSchema_FalseWhenMigrationCreatesNoTable()
+    {
+        const string sql = "ALTER TABLE dbo.JobReports ADD AuditorScopeReason nvarchar(500) NULL;";
+        var existingTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "JobReports" };
+
+        Assert.False(
+            LocalDevelopmentDatabaseMigrationRunner.CreatesTableMissingFromSchema(sql, existingTables));
     }
 
     private static IConfiguration BuildConfiguration(

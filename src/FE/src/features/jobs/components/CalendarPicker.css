@@ -1,0 +1,26 @@
+.calendar-picker-day {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.calendar-picker-day.selected {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .calendar-picker-day:hover:not(.selected) {
+    background: var(--surface-selected);
+    color: var(--text);
+  }
+
+  .calendar-picker-day.selected:hover {
+    background: var(--primary-hover);
+    color: var(--on-primary);
+  }
+}
+
+.calendar-picker-day:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}

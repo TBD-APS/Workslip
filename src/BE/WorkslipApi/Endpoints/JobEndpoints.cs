@@ -165,6 +165,70 @@ public static class JobEndpoints
             return ResultExtensions.ToHttpResult(result);
         }).Produces(StatusCodes.Status204NoContent);
 
+        adminGroup.MapGet("/{id:guid}/auditor-scope", async (
+            Guid id,
+            HttpContext httpContext,
+            IJobAuditorScopeService service,
+            CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            var result = await service.GetAsync(id, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        }).Produces<JobAuditorScopeResponse>(StatusCodes.Status200OK);
+
+        adminGroup.MapPut("/{id:guid}/auditor-scope", async (
+            Guid id,
+            SetJobAuditorScopeRequest request,
+            HttpContext httpContext,
+            ICurrentUserContext currentUser,
+            IdempotencyStore idempotency,
+            IJobAuditorScopeService service,
+            CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            if (!IdempotencyHttp.TryGetKey(httpContext, out var key))
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+
+            var reservation = await idempotency.StartAsync(
+                $"jobs.auditor-scope:{currentUser.OrganizationId}:{currentUser.UserId}:{id}",
+                key,
+                request,
+                cancellationToken);
+            var replay = IdempotencyHttp.ReplayOrReject(reservation);
+            if (replay is not null) return replay;
+
+            try
+            {
+                var result = await service.SetAsync(id, request, cancellationToken);
+                if (result.IsSuccess)
+                {
+                    await idempotency.CompleteAsync(
+                        reservation.Reservation!.Id,
+                        reservation.ReservationToken!,
+                        result.Value,
+                        StatusCodes.Status200OK,
+                        cancellationToken);
+                }
+                else
+                {
+                    await idempotency.AbortAsync(
+                        reservation.Reservation!.Id,
+                        reservation.ReservationToken!,
+                        cancellationToken);
+                }
+
+                return ResultExtensions.ToHttpResult(result);
+            }
+            catch
+            {
+                await idempotency.AbortAsync(
+                    reservation.Reservation!.Id,
+                    reservation.ReservationToken!,
+                    CancellationToken.None);
+                throw;
+            }
+        }).Produces<JobAuditorScopeResponse>(StatusCodes.Status200OK);
+
         adminGroup.MapDelete("/{id:guid}", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.DeleteAsync(id, cancellationToken);

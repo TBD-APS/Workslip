@@ -3,6 +3,7 @@ import { useGetApiJobsId } from '../../../api/generated/jobs/jobs';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { ErrorState } from '../../../components/ErrorState';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
+import { JobAuditorScopeControl } from '../components/JobAuditorScopeControl';
 import { CompletedJobReport } from './CompletedJobReport';
 import { JobDetail } from './JobDetail';
 
@@ -73,5 +74,10 @@ export function JobEntryRoute() {
     );
   }
 
-  return reportMode ? <CompletedJobReport /> : <JobDetail />;
+  return (
+    <>
+      {isAdmin && <JobAuditorScopeControl jobId={id} />}
+      {reportMode ? <CompletedJobReport /> : <JobDetail />}
+    </>
+  );
 }

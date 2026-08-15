@@ -11,15 +11,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  min-width: 1.75rem;
-  min-height: 1.75rem;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   color: var(--text-muted);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 0.45rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   text-decoration: none;
   transition:
@@ -29,14 +29,16 @@
     transform 120ms ease;
 }
 
-.address-action:hover {
-  color: var(--text-primary);
-  background: var(--surface-input);
-  border-color: var(--border);
+@media (hover: hover) and (pointer: fine) {
+  .address-action:hover {
+    color: var(--text-primary);
+    background: var(--surface-input);
+    border-color: var(--border);
+  }
 }
 
 .address-action:focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -51,14 +53,14 @@
 .address-input-wrapper.has-address-actions .address-input-actions {
   position: absolute;
   top: 50%;
-  right: 0.35rem;
+  right: 0.15rem;
   z-index: 2;
   margin-left: 0;
   transform: translateY(-50%);
 }
 
 .address-input-wrapper.has-address-actions .form-input[readonly] {
-  padding-right: 4.5rem;
+  padding-right: 6rem;
 }
 
 .destination-address-actions {
@@ -71,13 +73,23 @@
 
 @media (min-width: 900px) and (hover: hover) and (pointer: fine) {
   .address-action {
-    width: 1.875rem;
-    height: 1.875rem;
-    min-width: 1.875rem;
-    min-height: 1.875rem;
+    width: 2rem;
+    height: 2rem;
+    min-width: 2rem;
+    min-height: 2rem;
   }
 
   .address-actions {
     gap: 0.2rem;
+  }
+
+  .address-input-wrapper.has-address-actions .form-input[readonly] {
+    padding-right: 4.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .address-action {
+    transition: none;
   }
 }

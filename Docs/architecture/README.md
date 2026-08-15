@@ -9,7 +9,10 @@ Current implementation is the technical source of truth. This area records durab
 ## Current architecture views
 
 - [`domain-and-dataflows.md`](domain-and-dataflows.md) — tenant ownership and core data-integrity boundaries.
+- [`domain-split-plan.md`](domain-split-plan.md) — business-domain → module mapping and the prioritized boundary-split plan (WOR-443).
+- [`dependency-map.md`](dependency-map.md) — generated module coupling map; regenerate with `node tools/depmap/depmap.mjs`.
 - [`frontend-design-accessibility.md`](frontend-design-accessibility.md) — authenticated frontend visual system, semantic tokens and accessibility baseline.
+- [`frontend-stylesheet-boundaries.md`](frontend-stylesheet-boundaries.md) — ownership and migration rules for the legacy `App.css` boundary.
 - [`workslip-docs.md`](workslip-docs.md) — product Docs trust boundary, persistence and repository-documentation separation.
 
 Useful future views, when they can be kept concise and stable:

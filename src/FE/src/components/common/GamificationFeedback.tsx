@@ -1,14 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Sparkles } from 'lucide-react';
-import { playCompletionJingle, playStartupJingle, primeFeedbackAudio } from '../../lib/feedbackSounds';
-
-const COMPLETION_EVENT = 'workslip:completion-celebration';
-
-export function triggerCompletionCelebration() {
-  if (typeof window === 'undefined') return;
-  window.dispatchEvent(new Event(COMPLETION_EVENT));
-  void playCompletionJingle();
-}
+import { playStartupJingle, primeFeedbackAudio } from '../../lib/feedbackSounds';
+import { COMPLETION_EVENT } from '../../lib/completionCelebration';
 
 export function GamificationFeedback() {
   const [showStartup, setShowStartup] = useState(true);

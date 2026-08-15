@@ -66,6 +66,44 @@ public sealed class AuditorDataScopeTests
         Assert.Equal([general.Id, allowed.Id], filtered.Select(item => item.Id));
     }
 
+    [Fact]
+    public void History_filter_keeps_scope_change_but_redacts_internal_admin_reason()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var scopeChange = new JobHistoryResponse(
+            Guid.NewGuid(),
+            null,
+            null,
+            "modified",
+            "Felter ændret: Indgår i auditørvisning, Begrundelse for audit-scope",
+            new PropertyChange[]
+            {
+                new("IsInAuditorScope", "Indgår i auditørvisning", "Nej", "Ja"),
+                new("AuditorScopeReason", "Begrundelse for audit-scope", "Intern ledelsesopgave", null)
+            },
+            now);
+
+        var filtered = AuditorDataScope.Filter([scopeChange]);
+
+        var visible = Assert.Single(filtered);
+        Assert.Equal("Auditørvisning ændret", visible.Summary);
+        var change = Assert.Single(visible.Changes);
+        Assert.Equal("IsInAuditorScope", change.PropertyName);
+        Assert.DoesNotContain("Intern ledelsesopgave", visible.Summary, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void History_filter_drops_reason_only_scope_event()
+    {
+        var reasonOnly = CreateHistoryEvent(
+            DateTimeOffset.UtcNow,
+            new PropertyChange("AuditorScopeReason", "Begrundelse for audit-scope", "Før", "Efter"));
+
+        var filtered = AuditorDataScope.Filter([reasonOnly]);
+
+        Assert.Empty(filtered);
+    }
+
     [Theory]
     [InlineData("Auditor", true)]
     [InlineData("auditor", true)]

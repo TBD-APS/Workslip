@@ -19,6 +19,7 @@ public static class EndpointConfiguration
         app.MapAuthEndpoints();
         app.MapUserEndpoints();
         app.MapJobEndpoints();
+        app.MapJobOverviewEndpoints();
         app.MapImageEndpoints();
         app.MapCustomerEndpoints();
         app.MapDocumentEndpoints();
