@@ -2218,7 +2218,7 @@
             "description": "Transitions job to Submitted, Approved, or Rejected. Status is sent in the request body.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"Submitted\"\n}",
+              "raw": "{\n  \"status\": \"InReview\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
