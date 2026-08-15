@@ -14,6 +14,8 @@ import {
   X,
 } from 'lucide-react';
 import type { DocumentDetailResponse } from '../../api/generated/models';
+import { ConfirmDeleteDialog } from '../../components/common/ConfirmDeleteDialog';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { ErrorState } from '../../components/ErrorState';
 import { notify } from '../../lib/toast';
 import { useCan } from '../../providers/permissions/usePermissions';
@@ -88,6 +90,8 @@ export const DocsPage = () => {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [draftState, setDraftState] = useState<DraftState | null>(null);
   const [editingDocumentId, setEditingDocumentId] = useState<string | null>(null);
+  const [pendingNavigationPath, setPendingNavigationPath] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     const handle = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
@@ -189,6 +193,7 @@ export const DocsPage = () => {
   const deleteMutation = useMutation({
     mutationFn: () => deleteDocument(selectedId!),
     onSuccess: async () => {
+      setDeleteDialogOpen(false);
       setDraftState(null);
       setEditingDocumentId(null);
       await invalidateDocs();
@@ -207,14 +212,19 @@ export const DocsPage = () => {
     && !createMutation.isPending
     && !updateMutation.isPending;
 
-  const confirmDiscard = (): boolean =>
-    !isDirty || window.confirm('Du har ændringer, der ikke er gemt. Vil du fortsætte uden at gemme?');
-
-  const leaveCurrentDocument = (path: string) => {
-    if (!confirmDiscard()) return;
+  const completeLeave = (path: string) => {
+    setPendingNavigationPath(null);
     setDraftState(null);
     setEditingDocumentId(null);
     navigate(path);
+  };
+
+  const leaveCurrentDocument = (path: string) => {
+    if (isDirty) {
+      setPendingNavigationPath(path);
+      return;
+    }
+    completeLeave(path);
   };
 
   const selectDocument = (documentId: string) => leaveCurrentDocument(`/app/docs/${documentId}`);
@@ -235,216 +245,232 @@ export const DocsPage = () => {
     else updateMutation.mutate();
   };
 
-  const remove = () => {
-    if (!selectedId) return;
-    if (!window.confirm('Slet dokumentet permanent? Handlingen kan ikke fortrydes.')) return;
-    deleteMutation.mutate();
-  };
-
   const items = listQuery.data?.items ?? [];
   const selectedDocument = detailQuery.data;
   const showWorkspace = isCreating || Boolean(selectedId);
 
   return (
-    <div className={`docs-shell ${showWorkspace ? 'docs-shell--document-open' : ''}`}>
-      <aside className="docs-sidebar" aria-label="Dokumenter">
-        <div className="docs-sidebar-header">
-          <div>
-            <span className="docs-eyebrow">Intern viden</span>
-            <h1>Docs</h1>
-          </div>
-          {canEdit && (
-            <button type="button" className="docs-new-button" onClick={startNew} aria-label="Opret dokument">
-              <FilePlus2 size={18} />
-              <span>Nyt</span>
-            </button>
-          )}
-        </div>
-
-        <label className="docs-search">
-          <Search size={17} aria-hidden="true" />
-          <span className="sr-only">Søg i dokumenter</span>
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Søg i titel, tekst eller tags"
-            maxLength={120}
-          />
-          {search && (
-            <button type="button" onClick={() => setSearch('')} aria-label="Ryd søgning">
-              <X size={15} />
-            </button>
-          )}
-        </label>
-
-        <div className="docs-list-meta">
-          <span>{listQuery.data?.totalCount ?? 0} dokumenter</span>
-          {debouncedSearch && <span>Matcher “{debouncedSearch}”</span>}
-        </div>
-
-        <div className="docs-list" role="list">
-          {listQuery.isLoading && Array.from({ length: 5 }).map((_, index) => (
-            <div className="docs-list-skeleton" key={index} aria-hidden="true" />
-          ))}
-
-          {listQuery.isError && (
-            <div className="docs-sidebar-state">
-              <p>Dokumenterne kunne ikke hentes.</p>
-              <button type="button" className="btn btn-secondary" onClick={() => listQuery.refetch()}>Prøv igen</button>
+    <>
+      <div className={`docs-shell ${showWorkspace ? 'docs-shell--document-open' : ''}`}>
+        <aside className="docs-sidebar" aria-label="Dokumenter">
+          <div className="docs-sidebar-header">
+            <div>
+              <span className="docs-eyebrow">Intern viden</span>
+              <h1>Docs</h1>
             </div>
-          )}
-
-          {!listQuery.isLoading && !listQuery.isError && items.length === 0 && (
-            <div className="docs-sidebar-state">
-              <BookOpen size={28} aria-hidden="true" />
-              <p>{debouncedSearch ? 'Ingen dokumenter matcher søgningen.' : 'Der er ingen dokumenter endnu.'}</p>
-              {canEdit && !debouncedSearch && (
-                <button type="button" className="btn btn-primary" onClick={startNew}>Opret det første</button>
-              )}
-            </div>
-          )}
-
-          {items.map((document) => (
-            <button
-              type="button"
-              role="listitem"
-              key={document.id}
-              className={`docs-list-item ${selectedId === document.id ? 'is-active' : ''}`}
-              onClick={() => selectDocument(document.id)}
-              aria-current={selectedId === document.id ? 'page' : undefined}
-            >
-              <strong>{document.title}</strong>
-              <span className="docs-list-preview">{document.preview || 'Intet indhold endnu'}</span>
-              <span className="docs-list-footer">
-                <Clock3 size={13} aria-hidden="true" />
-                {formatUpdatedAt(document.updatedAt)}
-                {(document.tags?.length ?? 0) > 0 && <span>· {document.tags!.slice(0, 2).join(', ')}</span>}
-              </span>
-            </button>
-          ))}
-        </div>
-      </aside>
-
-      <main className="docs-workspace">
-        {!showWorkspace && (
-          <div className="docs-welcome">
-            <div className="docs-welcome-icon"><BookOpen size={34} /></div>
-            <span className="docs-eyebrow">Workslip Docs</span>
-            <h2>Viden, der ikke skal genopfindes.</h2>
-            <p>Vælg et dokument til venstre, eller opret et nyt. Tekniske sandheder hører fortsat hjemme i repository-dokumentationen.</p>
-            {canEdit && <button type="button" className="btn btn-primary" onClick={startNew}><FilePlus2 size={17} /> Nyt dokument</button>}
-          </div>
-        )}
-
-        {showWorkspace && !isCreating && detailQuery.isLoading && (
-          <div className="docs-document-loading" aria-label="Henter dokument">
-            <div className="skeleton skeleton-title" />
-            <div className="docs-loading-line" />
-            <div className="docs-loading-line" />
-            <div className="docs-loading-line is-short" />
-          </div>
-        )}
-
-        {showWorkspace && !isCreating && detailQuery.isError && (
-          <ErrorState message="Dokumentet kunne ikke hentes.">
-            <button type="button" className="btn btn-secondary" onClick={() => navigate('/app/docs')}>Til dokumentlisten</button>
-          </ErrorState>
-        )}
-
-        {(isCreating || selectedDocument) && (
-          <article className="docs-document">
-            <header className="docs-document-header">
-              <button type="button" className="docs-mobile-back" onClick={() => leaveCurrentDocument('/app/docs')} aria-label="Tilbage til dokumenter">
-                <ArrowLeft size={18} />
+            {canEdit && (
+              <button type="button" className="docs-new-button" onClick={startNew} aria-label="Opret dokument">
+                <FilePlus2 size={18} aria-hidden="true" />
+                <span>Nyt</span>
               </button>
-              <div className="docs-document-heading">
-                <span className="docs-eyebrow">{isCreating ? 'Nyt dokument' : 'Internt dokument'}</span>
-                {!isEditing && selectedDocument && <h2>{selectedDocument.title}</h2>}
+            )}
+          </div>
+
+          <label className="docs-search">
+            <Search size={17} aria-hidden="true" />
+            <span className="sr-only">Søg i dokumenter</span>
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Søg i titel, tekst eller tags"
+              maxLength={120}
+            />
+            {search && (
+              <button type="button" onClick={() => setSearch('')} aria-label="Ryd søgning">
+                <X size={15} aria-hidden="true" />
+              </button>
+            )}
+          </label>
+
+          <div className="docs-list-meta">
+            <span>{listQuery.data?.totalCount ?? 0} dokumenter</span>
+            {debouncedSearch && <span>Matcher “{debouncedSearch}”</span>}
+          </div>
+
+          <div className="docs-list" role="list">
+            {listQuery.isLoading && Array.from({ length: 5 }).map((_, index) => (
+              <div className="docs-list-skeleton" key={index} aria-hidden="true" />
+            ))}
+
+            {listQuery.isError && (
+              <div className="docs-sidebar-state">
+                <p>Dokumenterne kunne ikke hentes.</p>
+                <button type="button" className="btn btn-secondary" onClick={() => listQuery.refetch()}>Prøv igen</button>
               </div>
-              <div className="docs-document-actions">
-                {!isEditing && canEdit && selectedDocument && (
-                  <button type="button" className="btn btn-secondary" onClick={() => setEditingDocumentId(selectedId)}>
-                    <Pencil size={16} /> Rediger
-                  </button>
-                )}
-                {isEditing && (
-                  <>
-                    <button type="button" className="btn btn-secondary" onClick={cancelEdit}>Annuller</button>
-                    <button type="button" className="btn btn-primary" onClick={submit} disabled={!canSave}>
-                      <Check size={16} /> {createMutation.isPending || updateMutation.isPending ? 'Gemmer…' : 'Gem'}
-                    </button>
-                  </>
+            )}
+
+            {!listQuery.isLoading && !listQuery.isError && items.length === 0 && (
+              <div className="docs-sidebar-state">
+                <BookOpen size={28} aria-hidden="true" />
+                <p>{debouncedSearch ? 'Ingen dokumenter matcher søgningen.' : 'Der er ingen dokumenter endnu.'}</p>
+                {canEdit && !debouncedSearch && (
+                  <button type="button" className="btn btn-primary" onClick={startNew}>Opret det første</button>
                 )}
               </div>
-            </header>
+            )}
 
-            {isEditing ? (
-              <div className="docs-editor">
-                <label className="docs-field docs-title-field">
-                  <span>Titel</span>
-                  <input
-                    autoFocus={isCreating}
-                    value={draft.title}
-                    onChange={(event) => updateDraft((current) => ({ ...current, title: event.target.value }))}
-                    maxLength={200}
-                    placeholder="Fx Onboarding af nye medarbejdere"
-                  />
-                </label>
+            {items.map((document) => (
+              <button
+                type="button"
+                role="listitem"
+                key={document.id}
+                className={`docs-list-item ${selectedId === document.id ? 'is-active' : ''}`}
+                onClick={() => selectDocument(document.id)}
+                aria-current={selectedId === document.id ? 'page' : undefined}
+              >
+                <strong>{document.title}</strong>
+                <span className="docs-list-preview">{document.preview || 'Intet indhold endnu'}</span>
+                <span className="docs-list-footer">
+                  <Clock3 size={13} aria-hidden="true" />
+                  {formatUpdatedAt(document.updatedAt)}
+                  {(document.tags?.length ?? 0) > 0 && <span>· {document.tags!.slice(0, 2).join(', ')}</span>}
+                </span>
+              </button>
+            ))}
+          </div>
+        </aside>
 
-                <label className="docs-field">
-                  <span>Tags <small>kommasepareret, maks. 10</small></span>
-                  <div className="docs-tags-input">
-                    <Tag size={16} aria-hidden="true" />
-                    <input
-                      value={draft.tagsText}
-                      onChange={(event) => updateDraft((current) => ({ ...current, tagsText: event.target.value }))}
-                      placeholder="Onboarding, Drift, Produkt"
-                    />
-                  </div>
-                  {hasInvalidTags && <small className="docs-field-error">Maks. 10 tags og 40 tegn pr. tag.</small>}
-                </label>
+        <main className="docs-workspace">
+          {!showWorkspace && (
+            <div className="docs-welcome">
+              <div className="docs-welcome-icon"><BookOpen size={34} aria-hidden="true" /></div>
+              <span className="docs-eyebrow">Workslip Docs</span>
+              <h2>Viden, der ikke skal genopfindes.</h2>
+              <p>Vælg et dokument til venstre, eller opret et nyt. Tekniske sandheder hører fortsat hjemme i repository-dokumentationen.</p>
+              {canEdit && <button type="button" className="btn btn-primary" onClick={startNew}><FilePlus2 size={17} aria-hidden="true" /> Nyt dokument</button>}
+            </div>
+          )}
 
-                <label className="docs-field docs-content-field">
-                  <span>Indhold <small>{draft.content.length.toLocaleString('da-DK')} / 200.000</small></span>
-                  <textarea
-                    value={draft.content}
-                    onChange={(event) => updateDraft((current) => ({ ...current, content: event.target.value }))}
-                    maxLength={200_000}
-                    placeholder="Skriv den viden, teamet skal kunne finde igen…"
-                  />
-                </label>
+          {showWorkspace && !isCreating && detailQuery.isLoading && (
+            <div className="docs-document-loading" aria-label="Henter dokument">
+              <div className="skeleton skeleton-title" />
+              <div className="docs-loading-line" />
+              <div className="docs-loading-line" />
+              <div className="docs-loading-line is-short" />
+            </div>
+          )}
 
-                {isDirty && <div className="docs-unsaved" role="status">Ikke-gemte ændringer</div>}
-              </div>
-            ) : selectedDocument ? (
-              <div className="docs-reader">
-                {(selectedDocument.tags?.length ?? 0) > 0 && (
-                  <div className="docs-tags" aria-label="Tags">
-                    {selectedDocument.tags!.map((tag) => <span key={tag}>{tag}</span>)}
-                  </div>
-                )}
-                <div className="docs-content">
-                  {selectedDocument.content || <span className="docs-empty-content">Dokumentet har endnu ikke noget indhold.</span>}
+          {showWorkspace && !isCreating && detailQuery.isError && (
+            <ErrorState message="Dokumentet kunne ikke hentes.">
+              <button type="button" className="btn btn-secondary" onClick={() => navigate('/app/docs')}>Til dokumentlisten</button>
+            </ErrorState>
+          )}
+
+          {(isCreating || selectedDocument) && (
+            <article className="docs-document">
+              <header className="docs-document-header">
+                <button type="button" className="docs-mobile-back" onClick={() => leaveCurrentDocument('/app/docs')} aria-label="Tilbage til dokumenter">
+                  <ArrowLeft size={18} aria-hidden="true" />
+                </button>
+                <div className="docs-document-heading">
+                  <span className="docs-eyebrow">{isCreating ? 'Nyt dokument' : 'Internt dokument'}</span>
+                  {!isEditing && selectedDocument && <h2>{selectedDocument.title}</h2>}
                 </div>
-                <footer className="docs-document-meta">
-                  <span>Opdateret {formatUpdatedAt(selectedDocument.updatedAt)}</span>
-                  {selectedDocument.updatedByDisplayName && <span>af {selectedDocument.updatedByDisplayName}</span>}
-                  <span>Revision {selectedDocument.revision}</span>
-                  {canEdit && (
-                    <button type="button" className="docs-delete-button" onClick={remove} disabled={deleteMutation.isPending}>
-                      <Trash2 size={15} /> {deleteMutation.isPending ? 'Sletter…' : 'Slet dokument'}
+                <div className="docs-document-actions">
+                  {!isEditing && canEdit && selectedDocument && (
+                    <button type="button" className="btn btn-secondary" onClick={() => setEditingDocumentId(selectedId)}>
+                      <Pencil size={16} aria-hidden="true" /> Rediger
                     </button>
                   )}
-                </footer>
-              </div>
-            ) : null}
+                  {isEditing && (
+                    <>
+                      <button type="button" className="btn btn-secondary" onClick={cancelEdit}>Annuller</button>
+                      <button type="button" className="btn btn-primary" onClick={submit} disabled={!canSave}>
+                        <Check size={16} aria-hidden="true" /> {createMutation.isPending || updateMutation.isPending ? 'Gemmer…' : 'Gem'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </header>
 
-            {selectedDocument && (
-              <DocumentAttachments documentId={selectedDocument.id} canEdit={canEdit} />
-            )}
-          </article>
-        )}
-      </main>
-    </div>
+              {isEditing ? (
+                <div className="docs-editor">
+                  <label className="docs-field docs-title-field">
+                    <span>Titel</span>
+                    <input
+                      autoFocus={isCreating}
+                      value={draft.title}
+                      onChange={(event) => updateDraft((current) => ({ ...current, title: event.target.value }))}
+                      maxLength={200}
+                      placeholder="Fx Onboarding af nye medarbejdere"
+                    />
+                  </label>
+
+                  <label className="docs-field">
+                    <span>Tags <small>kommasepareret, maks. 10</small></span>
+                    <div className="docs-tags-input">
+                      <Tag size={16} aria-hidden="true" />
+                      <input
+                        value={draft.tagsText}
+                        onChange={(event) => updateDraft((current) => ({ ...current, tagsText: event.target.value }))}
+                        placeholder="Onboarding, Drift, Produkt"
+                      />
+                    </div>
+                    {hasInvalidTags && <small className="docs-field-error">Maks. 10 tags og 40 tegn pr. tag.</small>}
+                  </label>
+
+                  <label className="docs-field docs-content-field">
+                    <span>Indhold <small>{draft.content.length.toLocaleString('da-DK')} / 200.000</small></span>
+                    <textarea
+                      value={draft.content}
+                      onChange={(event) => updateDraft((current) => ({ ...current, content: event.target.value }))}
+                      maxLength={200_000}
+                      placeholder="Skriv den viden, teamet skal kunne finde igen…"
+                    />
+                  </label>
+
+                  {isDirty && <div className="docs-unsaved" role="status">Ikke-gemte ændringer</div>}
+                </div>
+              ) : selectedDocument ? (
+                <div className="docs-reader">
+                  {(selectedDocument.tags?.length ?? 0) > 0 && (
+                    <div className="docs-tags" aria-label="Tags">
+                      {selectedDocument.tags!.map((tag) => <span key={tag}>{tag}</span>)}
+                    </div>
+                  )}
+                  <div className="docs-content">
+                    {selectedDocument.content || <span className="docs-empty-content">Dokumentet har endnu ikke noget indhold.</span>}
+                  </div>
+                  <footer className="docs-document-meta">
+                    <span>Opdateret {formatUpdatedAt(selectedDocument.updatedAt)}</span>
+                    {selectedDocument.updatedByDisplayName && <span>af {selectedDocument.updatedByDisplayName}</span>}
+                    <span>Revision {selectedDocument.revision}</span>
+                    {canEdit && (
+                      <button type="button" className="docs-delete-button" onClick={() => setDeleteDialogOpen(true)} disabled={deleteMutation.isPending}>
+                        <Trash2 size={15} aria-hidden="true" /> {deleteMutation.isPending ? 'Sletter…' : 'Slet dokument'}
+                      </button>
+                    )}
+                  </footer>
+                </div>
+              ) : null}
+
+              {selectedDocument && (
+                <DocumentAttachments documentId={selectedDocument.id} canEdit={canEdit} />
+              )}
+            </article>
+          )}
+        </main>
+      </div>
+
+      <ConfirmDialog
+        open={Boolean(pendingNavigationPath)}
+        title="Forlad uden at gemme?"
+        message="Du har ændringer, der ikke er gemt. Hvis du fortsætter, går ændringerne tabt."
+        confirmLabel="Forlad"
+        variant="danger"
+        onConfirm={() => {
+          if (pendingNavigationPath) completeLeave(pendingNavigationPath);
+        }}
+        onClose={() => setPendingNavigationPath(null)}
+      />
+
+      <ConfirmDeleteDialog
+        open={deleteDialogOpen}
+        title="Slet dokument"
+        message="Dokumentet slettes permanent. Handlingen kan ikke fortrydes."
+        onConfirm={() => deleteMutation.mutateAsync()}
+        onClose={() => setDeleteDialogOpen(false)}
+      />
+    </>
   );
 };
