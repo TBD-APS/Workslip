@@ -63,6 +63,7 @@ public sealed class ImageServiceValidationTests
         new(
             storage,
             new ThrowingJobRepository(),
+            new ThrowingJobAuditorScopeRepository(),
             new ThrowingUserRepository(),
             new FakeCurrentUserContext());
 
@@ -92,6 +93,13 @@ public sealed class ImageServiceValidationTests
         public Task DeleteJobImagesAsync(Guid organizationId, Guid jobId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<ImageFileResponse?> GetProfileImageAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task DeleteProfileImageAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class ThrowingJobAuditorScopeRepository : IJobAuditorScopeRepository
+    {
+        public Task<JobAuditorScopeResponse?> GetAsync(Guid jobId, Guid organizationId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlySet<Guid>> GetVisibleJobIdsAsync(Guid organizationId, IReadOnlyCollection<Guid> jobIds, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<JobAuditorScopeResponse?> SetAsync(Guid jobId, Guid organizationId, bool isInAuditorScope, string? reason, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class ThrowingJobRepository : IJobRepository
