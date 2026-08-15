@@ -130,8 +130,8 @@
         "loc": 97
       },
       "Infrastructure/Schema": {
-        "files": 21,
-        "loc": 5680
+        "files": 22,
+        "loc": 5690
       },
       "Infrastructure/Storage": {
         "files": 4,
@@ -282,7 +282,7 @@
       "Infrastructure/Schema -> Application/Auth": 2,
       "Infrastructure/Schema -> Application/Users": 1,
       "Infrastructure/Schema -> Application/Worksheets": 1,
-      "Infrastructure/Schema -> Domain/Domain": 15,
+      "Infrastructure/Schema -> Domain/Domain": 16,
       "Infrastructure/Storage -> Application/Documents": 2,
       "Infrastructure/Storage -> Application/Images": 2,
       "Infrastructure/Transactions -> Application/Common": 2,
@@ -413,7 +413,7 @@
     "godFiles": [
       {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Schema/SqlDbContext.cs",
-        "loc": 1625
+        "loc": 1485
       },
       {
         "file": "src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs",

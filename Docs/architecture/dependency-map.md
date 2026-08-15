@@ -139,7 +139,7 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 
 | File | LOC |
 | --- | --- |
-| `src/BE/WorkslipApi/Workslip.Infrastructure/Schema/SqlDbContext.cs` | 1625 |
+| `src/BE/WorkslipApi/Workslip.Infrastructure/Schema/SqlDbContext.cs` | 1485 |
 | `src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs` | 1153 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs` | 1077 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Schema/AuditPolicies.cs` | 926 |
