@@ -40,8 +40,18 @@ html[data-theme="day"] body:has(.app-shell) {
   --shadow-lg: 0 20px 52px rgba(20, 33, 61, 0.11);
   --shadow-accent: 0 7px 18px rgba(37, 99, 235, 0.16);
 
-  --nav-bg: rgba(255, 255, 255, 0.95);
-  --safe-area-top-bg: #f4f7fb;
+  /* Explicit semantic status colours: active blue, review yellow, approved green, rejected red. */
+  --status-blue-bg: #e7f0ff;
+  --status-blue-text: #1d4ed8;
+  --status-amber-bg: #fff3c4;
+  --status-amber-text: #9a6700;
+  --status-green-bg: #e6f6ec;
+  --status-green-text: #18794e;
+  --status-red-bg: #feebec;
+  --status-red-text: #b42318;
+
+  --nav-bg: rgba(255, 255, 255, 0.97);
+  --safe-area-top-bg: #ffffff;
 }
 
 html[data-theme="night"] body:has(.app-shell) {
@@ -50,10 +60,17 @@ html[data-theme="night"] body:has(.app-shell) {
   --shadow-sm-raw: 0 3px 10px rgba(1, 5, 16, 0.13);
   --shadow-lg: 0 22px 58px rgba(1, 5, 16, 0.3);
   --shadow-accent: 0 8px 22px rgba(76, 102, 255, 0.2);
+
+  --status-blue-bg: rgba(59, 130, 246, 0.18);
+  --status-blue-text: #93c5fd;
+  --status-amber-bg: rgba(250, 204, 21, 0.16);
+  --status-amber-text: #fde68a;
+  --status-green-bg: rgba(34, 197, 94, 0.16);
+  --status-green-text: #86efac;
+  --status-red-bg: rgba(248, 113, 113, 0.16);
+  --status-red-text: #fca5a5;
 }
 
-/* The app viewport must never become a horizontal scroll container. Keep
- * feature-level intentional scrollers local (tables, chips, carousels) instead. */
 html:has(.app-shell),
 body:has(.app-shell),
 body:has(.app-shell) #root,
@@ -97,8 +114,6 @@ html body:has(.app-shell) :is(.overview-recent-row, .data-table tbody tr):focus-
   outline-offset: -2px;
 }
 
-/* Filled actions always use high-contrast white foregrounds. Secondary and
- * ghost actions remain neutral so hierarchy is still visible. */
 html body:has(.app-shell) :is(
   .btn-primary,
   .btn-danger,
@@ -116,7 +131,6 @@ html body:has(.app-shell) :is(.btn-secondary, .btn-outline, .btn-outline-danger)
   box-shadow: var(--shadow-sm-raw);
 }
 
-/* Keep lift feedback deliberate and subtle. */
 @media (hover: hover) and (pointer: fine) {
   html body:has(.app-shell) :is(
     .btn-primary,
@@ -132,8 +146,6 @@ html body:has(.app-shell) :is(.btn-secondary, .btn-outline, .btn-outline-danger)
   }
 }
 
-/* Notification inbox uses the same semantic surfaces/elevation as the rest of
- * the app. Push delivery itself stays owned by the service-worker/provider flow. */
 html body:has(.app-shell) .notifications-drawer {
   background: var(--surface-modal);
   border-left-color: var(--border);
@@ -184,7 +196,7 @@ html body:has(.app-shell) .notification-badge {
   color: #ffffff;
 }
 
-/* Docs remains routable, but is intentionally not part of the field-worker primary navigation. */
+/* Docs remains routable and searchable, but is intentionally not primary navigation. */
 html body:has(.app-shell) .app-header-actions > [aria-label="Docs"],
 html body:has(.app-shell) .bottom-nav a[href="/app/docs"] {
   display: none;
@@ -211,6 +223,107 @@ html body:has(.app-shell) .quick-nav-result.active {
   border-color: color-mix(in srgb, var(--primary) 24%, var(--border));
 }
 
+/* Semantic overview status treatment. Colour is visible without turning the whole card into a saturated tile. */
+html body:has(.app-shell) .overview-status-card--active {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--status-blue-bg) 72%, var(--surface-floating)), var(--surface-floating) 48%);
+  border-color: color-mix(in srgb, var(--status-blue-text) 22%, var(--border));
+}
+
+html body:has(.app-shell) .overview-status-card--review {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--status-amber-bg) 72%, var(--surface-floating)), var(--surface-floating) 48%);
+  border-color: color-mix(in srgb, var(--status-amber-text) 22%, var(--border));
+}
+
+html body:has(.app-shell) .overview-status-card--approved {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--status-green-bg) 72%, var(--surface-floating)), var(--surface-floating) 48%);
+  border-color: color-mix(in srgb, var(--status-green-text) 22%, var(--border));
+}
+
+html body:has(.app-shell) .overview-rejected-cta {
+  border-color: color-mix(in srgb, var(--status-red-text) 24%, var(--border));
+  color: var(--status-red-text);
+}
+
+html body:has(.app-shell) .status-badge.status-draft {
+  background: var(--status-blue-bg);
+  border-color: color-mix(in srgb, var(--status-blue-text) 30%, transparent);
+  color: var(--status-blue-text);
+}
+
+html body:has(.app-shell) .status-badge.status-inreview {
+  background: var(--status-amber-bg);
+  border-color: color-mix(in srgb, var(--status-amber-text) 30%, transparent);
+  color: var(--status-amber-text);
+}
+
+html body:has(.app-shell) .status-badge.status-approved {
+  background: var(--status-green-bg);
+  border-color: color-mix(in srgb, var(--status-green-text) 30%, transparent);
+  color: var(--status-green-text);
+}
+
+html body:has(.app-shell) .status-badge.status-rejected {
+  background: var(--status-red-bg);
+  border-color: color-mix(in srgb, var(--status-red-text) 30%, transparent);
+  color: var(--status-red-text);
+}
+
+/* Day mode borrows the dark mode's stronger hierarchy through a compact navy hero,
+ * while keeping the working surfaces bright and calm. */
+html[data-theme="day"] body:has(.app-shell) .app-header {
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 1px 0 rgba(20, 33, 61, 0.03);
+}
+
+html[data-theme="day"] body:has(.app-shell) .desktop-primary-nav {
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 24px rgba(20, 33, 61, 0.035);
+}
+
+html[data-theme="day"] body:has(.app-shell) .overview-header {
+  padding: 1.2rem 1.3rem;
+  border: 1px solid rgba(18, 59, 74, 0.18);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(37, 99, 235, 0.2), transparent 18rem),
+    linear-gradient(135deg, #123b4a 0%, #174d5d 100%);
+  color: #ffffff;
+  box-shadow: 0 14px 34px rgba(18, 59, 74, 0.16);
+}
+
+html[data-theme="day"] body:has(.app-shell) .overview-header h2,
+html[data-theme="day"] body:has(.app-shell) .overview-header p {
+  color: #ffffff;
+}
+
+html[data-theme="day"] body:has(.app-shell) .overview-header p {
+  opacity: 0.82;
+}
+
+html[data-theme="day"] body:has(.app-shell) .overview-header .overview-rejected-cta {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(252, 165, 165, 0.48);
+  color: #ffffff;
+  box-shadow: none;
+}
+
+html[data-theme="day"] body:has(.app-shell) .overview-header .overview-rejected-cta svg,
+html[data-theme="day"] body:has(.app-shell) .overview-header .overview-rejected-cta span {
+  color: #fca5a5;
+}
+
+html[data-theme="day"] body:has(.app-shell) .bottom-nav {
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 -10px 30px rgba(20, 33, 61, 0.08);
+}
+
+html[data-theme="day"] body:has(.app-shell) .bottom-nav .nav-item.active {
+  margin: 0 0.2rem;
+  border-radius: 12px;
+  background: var(--surface-selected);
+  color: var(--primary);
+}
+
 @media (max-width: 430px) {
   html body:has(.app-shell) :is(
     .app-header,
@@ -229,5 +342,10 @@ html body:has(.app-shell) .quick-nav-result.active {
   html body:has(.app-shell) :is(.notification-item-title, .notification-body-line) {
     overflow-wrap: anywhere;
     word-break: break-word;
+  }
+
+  html[data-theme="day"] body:has(.app-shell) .overview-header {
+    border-radius: 16px;
+    padding: 1rem;
   }
 }
