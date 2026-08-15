@@ -1,0 +1,94 @@
+/* WOR-502 — restrained Farvelab refinement for the primary Workslip surfaces. */
+
+[data-theme="day"] body:has(.app-shell) {
+  --bg: #f4f7fb;
+  --text: #14213d;
+  --text-primary: #14213d;
+  --text-muted: #65748b;
+  --text-secondary: #65748b;
+  --text-dim: #7d8aa0;
+
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-pressed: #1e40af;
+  --on-primary: #ffffff;
+  --accent-cyan: #0891b2;
+  --accent-mint: #059669;
+  --accent-amber: #d97706;
+  --accent-coral: #dc5a55;
+
+  --surface-floating: #ffffff;
+  --surface-color: #ffffff;
+  --surface: #f8fafc;
+  --surface-raised: #f1f5f9;
+  --surface-input: #ffffff;
+  --surface-elevated: #eaf0f7;
+  --surface-selected: #e8f0ff;
+  --surface-selected-strong: #dbe8ff;
+  --surface-modal: #ffffff;
+  --surface-actions-menu: #ffffff;
+
+  --border: #dde5ef;
+  --border-strong: #c8d4e3;
+  --surface-border: var(--border);
+  --focus-ring: #2563eb;
+  --shadow-sm: 0 8px 22px rgba(20, 33, 61, 0.06);
+  --shadow-sm-raw: 0 3px 10px rgba(20, 33, 61, 0.06);
+  --shadow-lg: 0 24px 60px rgba(20, 33, 61, 0.12);
+  --shadow-accent: 0 10px 24px rgba(37, 99, 235, 0.18);
+
+  --nav-bg: rgba(255, 255, 255, 0.95);
+  --safe-area-top-bg: #f4f7fb;
+}
+
+body:has(.app-shell) .app-shell {
+  background:
+    radial-gradient(circle at 4% -8%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 28rem),
+    var(--bg);
+}
+
+body:has(.app-shell) :is(.overview-recent-card, .data-table, .job-card, .customer-card, .time-overview-card) {
+  background: var(--surface-floating);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm-raw);
+}
+
+body:has(.app-shell) :is(.overview-recent-row, .data-table tbody tr) {
+  background: var(--surface-floating);
+}
+
+body:has(.app-shell) :is(.overview-recent-row, .data-table tbody tr):hover {
+  background: var(--surface);
+}
+
+body:has(.app-shell) :is(.overview-recent-row, .data-table tbody tr):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--focus-ring) 32%, transparent);
+  outline-offset: -2px;
+}
+
+/* Docs remains routable, but is intentionally not part of the field-worker primary navigation. */
+body:has(.app-shell) .app-header-actions > [aria-label="Docs"],
+body:has(.app-shell) .bottom-nav a[href="/app/docs"] {
+  display: none;
+}
+
+body:has(.app-shell) .quick-nav-dialog {
+  background: var(--surface-modal);
+  border-color: var(--border);
+  box-shadow: var(--shadow-lg);
+}
+
+body:has(.app-shell) .quick-nav-search-wrap {
+  background: var(--surface-input);
+  border-color: var(--border-strong);
+}
+
+body:has(.app-shell) .quick-nav-result {
+  border-color: transparent;
+}
+
+body:has(.app-shell) .quick-nav-result:hover,
+body:has(.app-shell) .quick-nav-result.active {
+  background: var(--surface-selected);
+  border-color: color-mix(in srgb, var(--primary) 24%, var(--border));
+}
