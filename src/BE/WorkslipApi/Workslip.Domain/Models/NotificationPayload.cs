@@ -7,5 +7,8 @@ public sealed record NotificationPayload(
     string NotificationType,
     string RecipientName,
     string Url = "/app",
-    string? RejectionNote = null
+    string? RejectionNote = null,
+    string? ActorName = null,
+    string? ActionLabel = null,
+    Guid? MessageId = null
 );
