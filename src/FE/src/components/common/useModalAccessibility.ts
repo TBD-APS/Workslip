@@ -39,13 +39,12 @@ function handleModalKeyDown(event: KeyboardEvent) {
     event.preventDefault();
     event.stopImmediatePropagation();
 
-    // Keep the current top modal on the stack until this keydown dispatch has
-    // fully finished. Closing synchronously can unmount a nested modal while the
-    // same Escape event is still being processed, which allows the parent modal
-    // to become topmost and react to that same key press in some environments.
-    queueMicrotask(() => {
-      if (modalStack.at(-1)?.id === activeModal.id) activeModal.close();
-    });
+    // This is the single capture-phase keydown listener for the whole modal stack.
+    // Close the captured topmost modal synchronously so React state and focus teardown
+    // stay inside the Escape event lifecycle. stopImmediatePropagation prevents any
+    // other listener from reacting to the same key press, while the captured entry
+    // guarantees a newly exposed parent modal cannot handle this Escape retroactively.
+    activeModal.close();
     return;
   }
 
