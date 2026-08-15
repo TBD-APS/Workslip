@@ -29,9 +29,12 @@ export function ConfirmDialog({
   const [isPending, setIsPending] = useState(false);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
+  const handleClose = () => {
+    if (!isPending) onClose();
+  };
   const dialogRef = useModalAccessibility<HTMLDivElement>({
     open,
-    onClose,
+    onClose: handleClose,
     initialFocusRef: cancelButtonRef,
   });
 
@@ -41,13 +44,15 @@ export function ConfirmDialog({
     setIsPending(true);
     try {
       await onConfirm();
+    } catch {
+      // The owning mutation/action is responsible for user-visible error feedback.
     } finally {
       setIsPending(false);
     }
   };
 
   return createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={handleClose}>
       <div
         ref={dialogRef}
         className="modal-card"
@@ -55,6 +60,7 @@ export function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-busy={isPending || undefined}
         tabIndex={-1}
       >
         <h3 id={titleId}>{title}</h3>
@@ -73,7 +79,7 @@ export function ConfirmDialog({
             ref={cancelButtonRef}
             type="button"
             className="btn btn-secondary"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isPending}
           >
             {cancelLabel}
