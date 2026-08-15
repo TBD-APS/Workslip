@@ -19,3 +19,15 @@ runs:
       shell: bash
       working-directory: src/FE
       run: node scripts/generate-api-client.mjs --no-restore
+
+    # Vercel production deliberately does not call a remote dev/prod OpenAPI
+    # endpoint. The generated client committed in the release SHA must therefore
+    # already match the backend contract that CI just generated.
+    - name: Require generated client to be committed
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        if ! git diff --exit-code -- src/FE/src/api/generated; then
+          echo "::error::Generated frontend API client is stale. Run 'npm run generate:api:local' in src/FE and commit the generated changes."
+          exit 1
+        fi
