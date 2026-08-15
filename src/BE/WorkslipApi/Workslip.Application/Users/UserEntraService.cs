@@ -121,6 +121,45 @@ public sealed class UserEntraService(
             correlationIdAccessor.CorrelationId, entraUserId);
     }
 
+    public async Task RevokeSuperadminAsync(string entraUserId, CancellationToken cancellationToken)
+    {
+        var appId = configuration["Azure:AdOAuth:ClientId"];
+        var servicePrincipal = await FetchServicePrincipalAsync(appId, cancellationToken);
+        var superadminRole = FindAppRole(servicePrincipal, Roles.Superadmin);
+
+        logger.LogWarning(
+            "Graph revoking Superadmin app role. CorrelationId={CorrelationId} UserId={UserId}",
+            correlationIdAccessor.CorrelationId,
+            entraUserId);
+
+        var assignments = await graphClient.Users[entraUserId].AppRoleAssignments.GetAsync(
+            request =>
+            {
+                request.QueryParameters.Filter = $"resourceId eq {servicePrincipal.Id}";
+                request.QueryParameters.Select = ["id", "appRoleId", "resourceId"];
+            },
+            cancellationToken);
+
+        var matchingAssignments = assignments?.Value?
+            .Where(assignment =>
+                assignment.Id is not null &&
+                assignment.AppRoleId == superadminRole.Id)
+            .ToArray() ?? [];
+
+        foreach (var assignment in matchingAssignments)
+        {
+            await graphClient.Users[entraUserId]
+                .AppRoleAssignments[assignment.Id!]
+                .DeleteAsync(cancellationToken: cancellationToken);
+        }
+
+        logger.LogInformation(
+            "Graph Superadmin app role revoked. CorrelationId={CorrelationId} UserId={UserId} AssignmentCount={AssignmentCount}",
+            correlationIdAccessor.CorrelationId,
+            entraUserId,
+            matchingAssignments.Length);
+    }
+
     public async Task AssignAppRoleTo(string entraUserId, string appRoleValue, CancellationToken ct)
     {
         var appId = configuration["Azure:AdOAuth:ClientId"];

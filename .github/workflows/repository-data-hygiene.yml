@@ -1,0 +1,26 @@
+name: Repository Data Hygiene
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'release-*'
+
+permissions:
+  contents: read
+
+jobs:
+  customer-export-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Self-test repository data hygiene rules
+        shell: pwsh
+        run: ./tools/git/check-repository-data-hygiene.ps1 -SelfTest
+
+      - name: Reject tracked customer/person export artifacts
+        shell: pwsh
+        run: ./tools/git/check-repository-data-hygiene.ps1

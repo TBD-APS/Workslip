@@ -20,7 +20,9 @@ using Workslip.Infrastructure.Diagnostics;
 using Workslip.Infrastructure.Invitations;
 using Workslip.Infrastructure.Jobs;
 using Workslip.Infrastructure.Notifications;
+using Workslip.Infrastructure.Reporting;
 using Workslip.Infrastructure.Repositories;
+using Workslip.Infrastructure.Reporting;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
 using Workslip.Infrastructure.Storage;
@@ -107,6 +109,18 @@ public static class DependencyInjection
                 : ActivatorUtilities.CreateInstance<AzureBlobDocumentAttachmentStorage>(serviceProvider);
         });
 
+        services.AddOptions<PowerBiExportOptions>()
+            .Configure<IConfiguration>((options, config) =>
+                config.GetSection(PowerBiExportOptions.SectionName).Bind(options));
+        services.AddSingleton<IPowerBiWorksheetExportStorage, AzureBlobPowerBiWorksheetExportStorage>();
+        services.AddScoped<PowerBiWorksheetExportScopeResolver>();
+
+        services.AddOptions<PowerBiExportOptions>()
+            .Configure<IConfiguration>((options, config) =>
+                config.GetSection(PowerBiExportOptions.SectionName).Bind(options));
+        services.AddSingleton<IPowerBiWorksheetExportStorage, AzureBlobPowerBiWorksheetExportStorage>();
+        services.AddScoped<PowerBiWorksheetExportScopeResolver>();
+
         services.AddHttpClient<IErrorDiagnosticsService, ApplicationInsightsErrorDiagnosticsService>(client =>
         {
             client.BaseAddress = new Uri("https://api.loganalytics.azure.com/");
@@ -125,6 +139,7 @@ public static class DependencyInjection
             services.AddHostedService<JobDeletionCleanupService>();
             services.AddHostedService<InviteEntraCleanupService>();
             services.AddHostedService<PushNotificationWorker>();
+            services.AddHostedService<PowerBiWorksheetExportWorker>();
         }
 
         services.AddOptions<VapidOptions>()

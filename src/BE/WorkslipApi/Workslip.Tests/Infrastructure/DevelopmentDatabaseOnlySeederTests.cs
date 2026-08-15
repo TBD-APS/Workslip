@@ -8,7 +8,11 @@ namespace Workslip.Tests.Infrastructure;
 
 public sealed class DevelopmentDatabaseOnlySeederTests
 {
+    private static readonly Guid LegacyArneId =
+        new("B2B2B2B2-DA5B-4CC4-BBEB-07B40CAB806F");
+
     private const string LocalSuperadminEmail = "superadmin@17v3ygzs.mailosaur.net";
+    private const string LegacyArneEmail = "user@17v3ygzs.mailosaur.net";
 
     [Fact]
     public async Task SeedAsync_CreatesSyntheticPlatformSuperadminAlongsideRegularDevUsers()
@@ -35,9 +39,14 @@ public sealed class DevelopmentDatabaseOnlySeederTests
         Assert.Equal(PlatformOrganization.Cvr, platformOrganization.Cvr);
 
         Assert.Equal(4, await context.Users.CountAsync());
-        Assert.Equal(
-            3,
-            await context.Users.CountAsync(user => user.OrganizationId != PlatformOrganization.Id));
+        var tenantDevelopmentUsers = await context.Users
+            .AsNoTracking()
+            .Where(user => user.OrganizationId != PlatformOrganization.Id)
+            .ToListAsync();
+        Assert.Equal(3, tenantDevelopmentUsers.Count);
+        Assert.All(
+            tenantDevelopmentUsers,
+            user => Assert.Equal(UserKinds.InternalTest, user.UserKind));
     }
 
     [Fact]
@@ -53,6 +62,73 @@ public sealed class DevelopmentDatabaseOnlySeederTests
             .Where(user => user.Email == LocalSuperadminEmail)
             .ToListAsync());
         Assert.Equal(4, await context.Users.CountAsync());
+        Assert.Equal(
+            3,
+            await context.Users.CountAsync(user =>
+                user.OrganizationId != PlatformOrganization.Id
+                && user.UserKind == UserKinds.InternalTest));
+    }
+
+    [Fact]
+    public async Task SeedAsync_WhenLegacyArneIsMember_ReclassifiesExactIdentityAsInternalTest()
+    {
+        await using var context = CreateContext();
+        var now = DateTimeOffset.Parse("2026-01-01T00:00:00Z");
+        var organization = CreateOrganization(now);
+        context.Organizations.Add(organization);
+        context.Users.Add(new UserDataRow
+        {
+            Id = LegacyArneId,
+            OrganizationId = organization.Id,
+            DisplayName = "Arne Arnesen",
+            Email = LegacyArneEmail,
+            Phone = "10000002",
+            Role = Roles.User,
+            UserKind = UserKinds.Member,
+            CreatedAt = now,
+            UpdatedAt = now
+        });
+        await context.SaveChangesAsync();
+
+        await SeedAsync(context);
+
+        var arne = await context.Users
+            .AsNoTracking()
+            .SingleAsync(user => user.Id == LegacyArneId);
+        Assert.Equal(UserKinds.InternalTest, arne.UserKind);
+        Assert.Equal(organization.Id, arne.OrganizationId);
+        Assert.Equal(Roles.User, arne.Role);
+    }
+
+    [Fact]
+    public async Task SeedAsync_WhenLegacyArneIdWasRepurposed_DoesNotReclassifyUser()
+    {
+        await using var context = CreateContext();
+        var now = DateTimeOffset.Parse("2026-01-01T00:00:00Z");
+        var organization = CreateOrganization(now);
+        context.Organizations.Add(organization);
+        context.Users.Add(new UserDataRow
+        {
+            Id = LegacyArneId,
+            OrganizationId = organization.Id,
+            DisplayName = "Renamed employee",
+            Email = "renamed@example.test",
+            Phone = "10000002",
+            Role = Roles.User,
+            UserKind = UserKinds.Member,
+            CreatedAt = now,
+            UpdatedAt = now
+        });
+        await context.SaveChangesAsync();
+
+        await SeedAsync(context);
+
+        var preserved = await context.Users
+            .AsNoTracking()
+            .SingleAsync(user => user.Id == LegacyArneId);
+        Assert.Equal(UserKinds.Member, preserved.UserKind);
+        Assert.Equal("renamed@example.test", preserved.Email);
+        Assert.Equal("Renamed employee", preserved.DisplayName);
     }
 
     [Fact]
@@ -60,14 +136,7 @@ public sealed class DevelopmentDatabaseOnlySeederTests
     {
         await using var context = CreateContext();
         var now = DateTimeOffset.Parse("2026-01-01T00:00:00Z");
-        var organization = new OrganizationRow
-        {
-            Id = Guid.NewGuid(),
-            Name = "Existing tenant",
-            Cvr = "12345678",
-            CreatedAt = now,
-            UpdatedAt = now
-        };
+        var organization = CreateOrganization(now);
         context.Organizations.Add(organization);
         context.Users.Add(new UserDataRow
         {
@@ -103,4 +172,14 @@ public sealed class DevelopmentDatabaseOnlySeederTests
 
         return new SqlDbContext(options);
     }
+
+    private static OrganizationRow CreateOrganization(DateTimeOffset timestamp) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "Existing tenant",
+            Cvr = "12345678",
+            CreatedAt = timestamp,
+            UpdatedAt = timestamp
+        };
 }

@@ -6,4 +6,8 @@ public interface ISuperadminEntraService : IUserEntraService
         string email,
         string displayName,
         CancellationToken cancellationToken);
+
+    Task RevokeSuperadminAsync(
+        string entraUserId,
+        CancellationToken cancellationToken);
 }

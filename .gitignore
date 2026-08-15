@@ -92,8 +92,15 @@ dev-dist/
 # Obsidian local/plugin state (notes stay tracked)
 Docs/.obsidian/
 
-# Retired customer export: real customer/person data must never be a docs fixture
+# Customer/person exports are never repository fixtures.
+# Use synthetic/anonymised test data committed under explicit test fixture paths instead.
 /Docs/customerdata.csv
+/Kundedata_i_CSV_format.csv
+/customerdata*.csv
+/customer-data*.csv
+/kundedata*.csv
+/*customer*export*.csv
+/*kunde*export*.csv
 
 # Windows reserved names
 nul

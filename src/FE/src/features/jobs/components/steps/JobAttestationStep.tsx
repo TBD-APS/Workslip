@@ -1,6 +1,6 @@
 import { AlertCircle, CheckCircle2, Clock, EyeOff, FileText, Info, ListChecks, Send, ShieldCheck } from 'lucide-react';
 import { CollapsibleSection } from '../../../../components/forms/CollapsibleSection';
-import { triggerCompletionCelebration } from '../../../../components/common/GamificationFeedback';
+import { triggerCompletionCelebration } from '../../../../lib/completionCelebration';
 import { JobStatus } from '../../../../api/generated/models/jobStatus';
 import type { useJobDetails } from '../../hooks/useJobDetails';
 import { formatNumber, formatUnit, parseNullableNumber, capitalize } from '../../../../lib/formatUtils';

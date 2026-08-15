@@ -19,6 +19,7 @@ public static class DevelopmentDatabaseOnlySeeder
     {
         await EnsureLocalSuperadminAsync(db, cancellationToken);
         await DatabaseSeeder.Seed(db, installationBaselineProvisioner, cancellationToken);
+        await DevelopmentTestUserAudienceReconciler.ReconcileAsync(db, cancellationToken);
     }
 
     private static async Task EnsureLocalSuperadminAsync(

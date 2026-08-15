@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Download, Eye, Loader2, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Download, ExternalLink, Eye, Loader2, X } from 'lucide-react';
 import { useModalAccessibility } from '../../../components/common/useModalAccessibility';
+import { apiClient } from '../../../lib/axios';
 import { notify } from '../../../lib/toast';
 import { downloadPdfFile } from '../../../lib/pdfFile';
 import { getMonthlyHoursPdfPreview } from '../api/monthlyHoursPdfPreview';
@@ -24,6 +26,10 @@ type PdfPreview = {
   pageUrls: string[];
 };
 
+type PowerBiReportLinkResponse = {
+  url: string | null;
+};
+
 const OBJECT_URL_LIFETIME_MS = 60_000;
 
 export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
@@ -36,6 +42,12 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
     url: `/api/worksheets/all/report/pdf?year=${data.year}&month=${data.month}`,
     fallbackFileName: `workslip-timer-${data.year}-${String(data.month).padStart(2, '0')}.pdf`,
   }), [data.month, data.year]);
+  const powerBiReportQuery = useQuery({
+    queryKey: ['worksheets', 'power-bi-report-link'],
+    queryFn: async () => (await apiClient.get('/api/worksheets/all/report/power-bi')) as PowerBiReportLinkResponse,
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
 
   const closePdfPreview = useCallback(() => {
     setPdfPreview(null);
@@ -103,6 +115,17 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
           <span>{hasRows ? `${rows.length} registreringer klar` : 'Ingen registreringer at eksportere'}</span>
         </div>
         <div className="hours-export-actions">
+          {powerBiReportQuery.data?.url && (
+            <a
+              className="btn btn-secondary hours-export-button"
+              href={powerBiReportQuery.data.url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ExternalLink size={17} aria-hidden="true" />
+              Åbn Power BI
+            </a>
+          )}
           <button
             type="button"
             className="btn btn-secondary hours-export-button"
