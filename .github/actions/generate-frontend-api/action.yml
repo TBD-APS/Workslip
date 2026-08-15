@@ -20,16 +20,6 @@ runs:
       working-directory: src/FE
       run: node scripts/generate-api-client.mjs --no-restore
 
-    # Temporary WOR-479 validation handoff. Removed after the generated client
-    # from this branch has been committed and before final exact-head validation.
-    - name: Capture generated client for WOR-479
-      uses: actions/upload-artifact@v7
-      with:
-        name: wor479-generated-api-${{ github.sha }}
-        path: src/FE/src/api/generated
-        if-no-files-found: error
-        retention-days: 1
-
     # Vercel production deliberately does not call a remote dev/prod OpenAPI
     # endpoint. The generated client committed in the release SHA must therefore
     # already match the backend contract that CI just generated.
