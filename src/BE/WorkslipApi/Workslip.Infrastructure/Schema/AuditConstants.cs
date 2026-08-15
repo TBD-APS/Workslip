@@ -59,6 +59,8 @@ internal static class AuditDisplayNames
         { "IsIrrelevant", "Ikke relevant" },
         { "CustomerContactPerson", "Kundens kontaktperson" },
         { "SubmittedAt", "Attesteret" },
+        { "IsInAuditorScope", "Indgår i auditørvisning" },
+        { "AuditorScopeReason", "Begrundelse for audit-scope" },
         { "IsSoftDeleted", "Slettet" },
         { "DeletionScheduledAt", "Sletning planlagt" }
     };
