@@ -17,7 +17,7 @@ type ModalStackEntry = {
 };
 
 const modalStack: ModalStackEntry[] = [];
-const handledEscapeEvents = new WeakSet<KeyboardEvent>();
+let escapeCloseInProgress = false;
 
 type UseModalAccessibilityOptions = {
   open: boolean;
@@ -40,13 +40,16 @@ function handleModalKeyDown(event: KeyboardEvent) {
     event.preventDefault();
     event.stopImmediatePropagation();
 
-    // React can synchronously remove and re-register this document listener while
-    // closing a nested modal. Some event environments can then invoke the newly
-    // registered listener with the same KeyboardEvent, exposing the parent modal to
-    // the original Escape press. Track the event object so one physical Escape can
-    // close at most one modal while keeping state and focus teardown synchronous.
-    if (handledEscapeEvents.has(event)) return;
-    handledEscapeEvents.add(event);
+    // Closing a nested modal can synchronously change React layout effects and the
+    // document listener/stack while the current key dispatch is still unwinding.
+    // Treat that entire JS turn as one Escape action so the newly exposed parent
+    // cannot also close. The lock is released in a microtask, before the next user
+    // input turn, while the actual modal close and focus teardown stay synchronous.
+    if (escapeCloseInProgress) return;
+    escapeCloseInProgress = true;
+    queueMicrotask(() => {
+      escapeCloseInProgress = false;
+    });
 
     activeModal.close();
     return;
