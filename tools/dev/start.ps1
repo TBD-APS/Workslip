@@ -249,6 +249,7 @@ $previousJwtAudience = $env:Jwt__Audience
 $previousJwtSigningKey = $env:Jwt__SigningKey
 $previousSeedData = $env:Workslip__SeedDevelopmentData
 $previousSeedEntra = $env:Workslip__SeedDevelopmentEntraIdentities
+$previousViteApiBaseUrl = $env:VITE_API_BASE_URL
 
 $backendProcess = $null
 $frontendProcess = $null
@@ -258,6 +259,7 @@ try {
     $env:Jwt__SigningKey = New-EphemeralSigningKey
     $env:Workslip__SeedDevelopmentData = 'true'
     $env:Workslip__SeedDevelopmentEntraIdentities = 'false'
+    $env:VITE_API_BASE_URL = '/'
 
     Write-Step 'Starting backend with Development-only local auth and synthetic data'
     $backendProcess = Start-Process $dotnetCommand `
@@ -340,4 +342,5 @@ finally {
     $env:Jwt__SigningKey = $previousJwtSigningKey
     $env:Workslip__SeedDevelopmentData = $previousSeedData
     $env:Workslip__SeedDevelopmentEntraIdentities = $previousSeedEntra
+    $env:VITE_API_BASE_URL = $previousViteApiBaseUrl
 }
