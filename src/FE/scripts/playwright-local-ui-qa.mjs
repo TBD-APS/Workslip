@@ -92,6 +92,16 @@ async function verifyNavigation(page) {
   const rejected = page.getByRole('button', { name: 'Afvist', exact: true });
   await rejected.waitFor();
   assert((await rejected.getAttribute('aria-pressed')) === 'true', 'Rejected filter is not selected');
+
+  // A stale remembered filter must never override an explicit Overview/status URL.
+  await page.evaluate(() => {
+    sessionStorage.setItem('statusFilter:lastActive', 'mine-jobs');
+    sessionStorage.setItem('statusFilter:mine-jobs', JSON.stringify(['Approved']));
+  });
+  await page.goto(`${frontendUrl}/app?status=Draft`, { waitUntil: 'networkidle' });
+  const active = page.getByRole('button', { name: 'Aktiv', exact: true });
+  await active.waitFor();
+  assert((await active.getAttribute('aria-pressed')) === 'true', 'Explicit Draft URL was overridden by stale saved status');
 }
 
 async function verifyPrimaryAreas(page) {
@@ -112,12 +122,14 @@ async function verifySearch(page) {
   await openOverview(page);
   const trigger = page.getByRole('button', { name: 'Hurtig navigation' }).first();
   await trigger.click();
-  const dialog = page.getByRole('dialog', { name: 'Hvor vil du hen?' });
+  const dialog = page.getByRole('dialog', { name: 'Find en sag' });
   await dialog.waitFor();
   const input = dialog.getByRole('searchbox', { name: 'Søg i Workslip' });
+  assert((await input.getAttribute('placeholder'))?.includes('SAG-'), 'Search does not present a simple case-oriented example');
   await input.fill('sag');
   await page.waitForTimeout(350);
   assert(await dialog.isVisible(), 'Search dialog closed unexpectedly');
+  assert((await dialog.innerText()).includes('sagsnummer'), 'Search guidance does not explain the simple field-worker search');
   assert(!(await dialog.innerText()).includes('Åbn intern viden og dokumentation'), 'Docs is still exposed in the primary search commands');
   await page.keyboard.press('Escape');
 }
