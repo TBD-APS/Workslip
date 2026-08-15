@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { MessageCircle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useGetApiJobsJobIdConversation } from '../../../api/generated/job-conversations/job-conversations';
@@ -21,7 +21,8 @@ export function JobConversationLauncher({
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedOpen = searchParams.get('conversation') === '1';
   const messageId = searchParams.get('message');
-  const [isOpen, setIsOpen] = useState(requestedOpen);
+  const [manuallyOpen, setManuallyOpen] = useState(false);
+  const isOpen = requestedOpen || manuallyOpen;
   const conversation = useGetApiJobsJobIdConversation(jobId, undefined, {
     query: {
       enabled: jobId.length > 0,
@@ -36,19 +37,15 @@ export function JobConversationLauncher({
     ? `Åbn samtale om sagen, ${unreadCount} ulæst${unreadCount === 1 ? '' : 'e'}`
     : 'Åbn samtale om sagen';
 
-  useEffect(() => {
-    if (requestedOpen) setIsOpen(true);
-  }, [requestedOpen]);
-
   const open = () => {
-    setIsOpen(true);
+    setManuallyOpen(true);
     const next = new URLSearchParams(searchParams);
     next.set('conversation', '1');
     setSearchParams(next, { replace: true });
   };
 
   const close = () => {
-    setIsOpen(false);
+    setManuallyOpen(false);
     const next = new URLSearchParams(searchParams);
     next.delete('conversation');
     next.delete('message');
