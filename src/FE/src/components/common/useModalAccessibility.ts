@@ -66,7 +66,7 @@ export function useModalAccessibility<T extends HTMLElement>({
 
       if (event.key === 'Escape' && closeOnEscape) {
         event.preventDefault();
-        event.stopPropagation();
+        event.stopImmediatePropagation();
         onCloseRef.current();
         return;
       }
