@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Workslip.Api.Helpers;
 using Workslip.Api.ViewModels;
 using Workslip.Application.Jobs;
@@ -36,6 +37,14 @@ namespace Workslip.Api.Endpoints
                 var result = await service.GetAllWorksheetsAsync(year, month, cancellationToken);
                 return ResultExtensions.ToHttpResult(result);
             }).Produces<MyWorksheetsMonthResponse>(StatusCodes.Status200OK).RequireAuthorization(AuthPolicies.RequireAdmin);
+
+            group.MapGet("/all/report/power-bi", (IConfiguration configuration, HttpContext httpContext) =>
+            {
+                HttpCacheHeaders.SetNoStore(httpContext);
+                return Results.Ok(new { url = GetPowerBiReportUrl(configuration["PowerBiReport:Url"]) });
+            })
+            .Produces(StatusCodes.Status200OK)
+            .RequireAuthorization(AuthPolicies.RequireAdmin);
 
             group.MapGet("/all/report/pdf", async (
                 [FromQuery] int? year,
@@ -76,6 +85,19 @@ namespace Workslip.Api.Endpoints
             .RequireAuthorization(AuthPolicies.RequireAdmin);
 
             return app;
+        }
+
+        private static string? GetPowerBiReportUrl(string? configuredUrl)
+        {
+            if (string.IsNullOrWhiteSpace(configuredUrl)
+                || !Uri.TryCreate(configuredUrl.Trim(), UriKind.Absolute, out var uri)
+                || uri.Scheme != Uri.UriSchemeHttps
+                || !string.Equals(uri.Host, "app.powerbi.com", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return uri.AbsoluteUri;
         }
     }
 }

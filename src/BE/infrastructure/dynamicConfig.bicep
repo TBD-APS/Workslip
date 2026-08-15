@@ -8,6 +8,10 @@ param acsSenderAddress string
 @secure()
 param acsConnectionString string
 param storageAccountName string
+param powerBiReaderEmail string
+param powerBiReaderPrincipalId string
+param powerBiContainerName string
+param powerBiExportEnabled bool
 param applicationInsightsConnectionString string
 @secure()
 param sqlConnectionString string
@@ -79,6 +83,38 @@ resource configDocumentFileStorageAccountName 'Microsoft.AppConfiguration/config
   name: 'Azure:DocumentFileStorage:StorageAccountName'
   properties: {
     value: storageAccountName
+  }
+}
+
+resource configPowerBiExportEnabled 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
+  parent: appConfiguration
+  name: 'PowerBiExport:Enabled'
+  properties: {
+    value: string(powerBiExportEnabled)
+  }
+}
+
+resource configPowerBiReaderEmail 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
+  parent: appConfiguration
+  name: 'PowerBiExport:ReaderEmail'
+  properties: {
+    value: powerBiReaderEmail
+  }
+}
+
+resource configPowerBiReaderEntraObjectId 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
+  parent: appConfiguration
+  name: 'PowerBiExport:ReaderEntraObjectId'
+  properties: {
+    value: powerBiReaderPrincipalId
+  }
+}
+
+resource configPowerBiContainerName 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
+  parent: appConfiguration
+  name: 'PowerBiExport:ContainerName'
+  properties: {
+    value: powerBiContainerName
   }
 }
 
