@@ -49,11 +49,11 @@ export const JobDetail = () => {
   }, [id, loadedJobId, jobStatus, setCurrentStep, isAdmin]);
 
   if (id && details.job?.jobType === 'Diverse') {
-    return <Navigate to={`/app/completed/${id}`} replace state={{ from }} />;
+    return <Navigate to={`/app/completed/${id}${location.search}`} replace state={{ from }} />;
   }
 
   if (id && isAdmin && jobStatus === JobStatus.Rejected) {
-    return <Navigate to={`/app/completed/${id}`} replace state={{ from }} />;
+    return <Navigate to={`/app/completed/${id}${location.search}`} replace state={{ from }} />;
   }
 
   return (

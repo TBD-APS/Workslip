@@ -20,6 +20,7 @@ import { useScrollRestore } from '../../../hooks/useScrollRestore';
 import { formatJobStatus } from '../statusLabels';
 import { createJobReportPdfPreview, downloadJobReportPdf } from '../utils/downloadJobReportPdf';
 import { JobHistoryDrawer } from '../components/JobHistoryDrawer';
+import { JobConversationLauncher } from '../components/JobConversationLauncher';
 import { JobStatusDots } from '../components/JobStatusDots';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { compactPairs, formatNumber, formatUnit, parseNullableNumber } from '../../../lib/formatUtils';
@@ -331,6 +332,11 @@ export const CompletedJobReport = () => {
               </button>
             )
           )}
+          <JobConversationLauncher
+            jobId={job.id}
+            allowSubmitForReview={job.status === JobStatus.Draft || job.status === JobStatus.Rejected}
+            compact
+          />
           <button
             className="btn btn-secondary report-overview-icon-action"
             type="button"
