@@ -1,0 +1,24 @@
+.job-conversation-entry {
+  display: flex;
+  justify-content: flex-end;
+  margin: -0.15rem 0 0.7rem;
+}
+
+.job-conversation-entry > .btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+@media (max-width: 430px) {
+  .job-conversation-entry {
+    justify-content: stretch;
+    margin-top: 0;
+  }
+
+  .job-conversation-entry > .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
