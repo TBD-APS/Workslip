@@ -1,4 +1,4 @@
-name: WOR-551 temporary conversation hardening
+name: WOR-551 temporary conversation hardening v2
 
 on:
   push:
