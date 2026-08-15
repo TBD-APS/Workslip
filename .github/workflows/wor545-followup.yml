@@ -1,0 +1,35 @@
+name: WOR-545 follow-up validation
+
+on:
+  push:
+    branches:
+      - rbj--545-extract-job-transition-effects
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Apply follow-up
+        run: python .github/scripts/wor545_followup.py
+      - name: Validate backend
+        run: dotnet test src/BE/WorkslipApi/Workslip.slnx -c Release
+      - name: Remove temporary bootstrap files
+        run: rm .github/workflows/wor545-followup.yml .github/scripts/wor545_followup.py
+      - name: Commit follow-up
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'RBJ-545: align assignment fakes and bound admin lookup'
+          git push origin HEAD:rbj--545-extract-job-transition-effects
