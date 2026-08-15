@@ -42,7 +42,37 @@ The supported first-run contract is:
 9. start Vite on `http://127.0.0.1:5270` using the already generated local contract;
 10. open `http://127.0.0.1:5270/app/overblik` unless `-NoBrowser` was requested.
 
+The canonical bootstrap forces browser API traffic to same-origin `/api` for the Vite process. This prevents an ignored local `VITE_API_BASE_URL` value from bypassing the maintained proxy or becoming invalid when the frontend is opened from another device. The caller's environment value is restored after the child processes have started.
+
 Backend and frontend logs are written under the operating-system temporary directory at `workslip-dev-logs`, not inside the repository.
+
+## Phone testing on the local network
+
+Use the maintained mobile mode instead of changing `vite.config.ts`, exposing the backend directly, or creating an ad-hoc public tunnel:
+
+```powershell
+.\dev.ps1 -Mobile
+```
+
+`-Mobile` keeps the normal backend on `http://localhost:5262`, but starts Vite with a LAN bind (`0.0.0.0`) and prints one or more detected phone URLs such as:
+
+```text
+Phone:    http://192.168.1.42:5270
+```
+
+Open the printed URL in Safari/Chrome on a phone connected to the same trusted Wi-Fi/LAN. Browser API requests continue through Vite's same-origin `/api` proxy to the localhost backend, so SQL Server LocalDB and the backend port are not exposed to the network. The bootstrap's same-origin override also prevents a stale `.env.local` value such as `VITE_API_BASE_URL=http://localhost:5262` from making the phone call its own localhost.
+
+If Windows Firewall prompts for Node.js, allow **Private networks only**. The bootstrap does not create or widen firewall rules automatically. Avoid mobile mode on public/untrusted networks because the Vite development server, frontend source and synthetic development session are reachable by devices that can connect to that LAN endpoint.
+
+If the phone cannot connect:
+
+1. verify the phone and PC are on the same Wi-Fi/LAN;
+2. retry with VPN disconnected if it has taken over the default network route;
+3. confirm Windows Firewall allows Node.js on the active Private network;
+4. check whether the access point has client/AP isolation enabled;
+5. rerun `.\dev.ps1 -Mobile -CheckOnly` to see the currently detected LAN URL(s).
+
+The LAN URL uses plain HTTP. That is appropriate for responsive layout, touch interaction and normal authenticated application flows, but mobile browsers do not treat an ordinary LAN HTTP origin as a secure context. Service-worker/PWA installation, push and other HTTPS-only browser capabilities therefore require an approved HTTPS test/staging environment rather than a public quick tunnel to the local development server.
 
 ## Useful modes
 
@@ -50,11 +80,17 @@ Backend and frontend logs are written under the operating-system temporary direc
 # Non-mutating prerequisite/port check.
 .\dev.ps1 -CheckOnly
 
+# Validate prerequisites and show the current phone URL without starting anything.
+.\dev.ps1 -Mobile -CheckOnly
+
 # Reuse already restored/installed dependencies.
 .\dev.ps1 -SkipInstall
 
-# Start without opening a browser.
+# Start without opening a browser on the PC.
 .\dev.ps1 -NoBrowser
+
+# Start full stack and expose only Vite to the trusted LAN for phone testing.
+.\dev.ps1 -Mobile
 ```
 
 `-CheckOnly` must not create a LocalDB instance, install dependencies, seed data or start application processes. If the LocalDB instance is missing it reports that the normal bootstrap must create it.
@@ -67,7 +103,9 @@ Normal Development startup is local-only:
 - backend SQL isolation must accept only a provably local target and defaults fresh Windows machines to `MSSQLLocalDB`;
 - synthetic dev users authenticate through `/api/dev/token` and LocalJwt, not Entra;
 - the bootstrap generates a LocalJwt signing key only in the process environment for the started backend and restores the parent shell afterwards;
-- Azure App Configuration, Entra identity provisioning, ACS email and production credentials are not prerequisites for the normal local login/read path.
+- Azure App Configuration, Entra identity provisioning, ACS email and production credentials are not prerequisites for the normal local login/read path;
+- the canonical Vite process uses same-origin API traffic rather than inheriting a machine-specific browser API target;
+- `-Mobile` broadens only the Vite listener to the LAN; the backend and LocalDB remain loopback/local-only behind the Vite API proxy.
 
 The explicit platform Superadmin bootstrap remains a separate operator workflow described in the backend README. Do not broaden its remote-SQL exception into normal local development.
 
@@ -85,6 +123,8 @@ Development seed complete
 Frontend READY on 127.0.0.1:5270
 Overblik available on 127.0.0.1:5270/app/overblik
 ```
+
+For `-Mobile`, the same checkpoints apply plus at least one detected LAN phone URL. The bootstrap verifies frontend readiness over loopback; physical-device reachability still depends on the active LAN and Windows firewall and must be checked from the phone when mobile validation is required.
 
 If one of those fails on a clean supported Windows machine, treat the bootstrap/setup as a Workslip defect rather than asking the developer to invent machine-specific configuration.
 
