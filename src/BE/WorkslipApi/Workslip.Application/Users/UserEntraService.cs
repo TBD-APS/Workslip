@@ -60,6 +60,28 @@ public sealed class UserEntraService(
         string redirectPath,
         CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(configuration["Azure:AdOAuth:ClientId"]))
+        {
+            if (!string.Equals(
+                configuration["ASPNETCORE_ENVIRONMENT"],
+                "Development",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "Azure:AdOAuth:ClientId is not configured; Entra identities cannot be provisioned outside Development.");
+            }
+
+            logger.LogInformation(
+                "Entra is not configured; returning deterministic local identity without calling Graph. CorrelationId={CorrelationId}",
+                correlationIdAccessor.CorrelationId);
+
+            return new CreateEntraUserResult(
+                DeterministicLocalEntraId(email),
+                email,
+                displayName,
+                Created: false);
+        }
+
         var existingUser = await FindExistingEntraUserAsync(email, ct);
         if (existingUser != null)
         {
@@ -320,6 +342,13 @@ public sealed class UserEntraService(
         }
 
         return appRole;
+    }
+
+    private static string DeterministicLocalEntraId(string email)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(email.Trim().ToLowerInvariant()));
+        return new Guid(hash.AsSpan(0, 16)).ToString();
     }
 }
 
