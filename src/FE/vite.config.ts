@@ -26,7 +26,11 @@ export default defineConfig({
     },
   },
   server: {
-    host: '127.0.0.1',
+    // Listen on the developer machine's LAN interface as well as localhost so
+    // the same local full-stack build can be exercised from a physical phone.
+    // API requests remain same-origin in the browser and are proxied by Vite to
+    // the local backend, so the phone never needs direct access to port 5262.
+    host: '0.0.0.0',
     port: 5270,
     proxy: {
       '/api': {
