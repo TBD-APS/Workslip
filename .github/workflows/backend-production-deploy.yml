@@ -1,0 +1,318 @@
+name: Backend · Production deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '24'
+  API_PROJECT: src/BE/WorkslipApi/Workslip.Api.csproj
+  PUBLISH_DIR: ${{ github.workspace }}/publish/api
+  DEPLOY_PACKAGE: ${{ github.workspace }}/publish/workslip-api.zip
+  AZURE_WEBAPP_NAME: api-mrsoftware-prod
+  AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
+  AZURE_MIGRATION_IDENTITY_NAME: id-mrsoftware-prod-migration
+  RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+  CI_RUN_ID: ${{ github.event.workflow_run.id }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workslip-production
+  cancel-in-progress: false
+
+jobs:
+  verify-ci:
+    name: Backend · Verify production eligibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout trusted release policy
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Require exact green main CI Gate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          node tools/release/verify-production-eligibility.mjs
+          --sha "${RELEASE_SHA}"
+          --ci-run-id "${CI_RUN_ID}"
+
+  build:
+    name: Backend · Build release artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: verify-ci
+    outputs:
+      release_phase: ${{ steps.release-target.outputs.phase }}
+      release_testing_enabled: ${{ steps.release-target.outputs.enable_development_endpoints }}
+    steps:
+      - name: Checkout exact validated revision
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          persist-credentials: false
+
+      - name: Confirm checked out SHA
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          if [[ "${actual_sha,,}" != "${RELEASE_SHA,,}" ]]; then
+            echo "::error::Checkout resolved to ${actual_sha}, expected ${RELEASE_SHA}."
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Resolve production release policy
+        id: release-target
+        run: >-
+          node tools/release/resolve-release-environment.mjs
+          --environment production
+          --require-runnable
+          --github-output
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore ${{ env.API_PROJECT }} --nologo
+
+      - name: Build
+        run: dotnet build ${{ env.API_PROJECT }} --configuration Release --no-restore --nologo
+
+      - name: Publish
+        run: dotnet publish ${{ env.API_PROJECT }} --configuration Release --no-build --output "${{ env.PUBLISH_DIR }}" --nologo
+
+      - name: Create deployment package
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -f "${DEPLOY_PACKAGE}"
+          (cd "${PUBLISH_DIR}" && zip -q -r "${DEPLOY_PACKAGE}" .)
+          unzip -Z1 "${DEPLOY_PACKAGE}" | grep -qx 'Workslip.Api.dll'
+
+      - name: Upload exact-SHA artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: workslip-api-${{ env.RELEASE_SHA }}
+          path: ${{ env.DEPLOY_PACKAGE }}
+          if-no-files-found: error
+          retention-days: 3
+
+  deploy:
+    name: Backend · Production migration and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: build
+    environment: prod
+    permissions:
+      id-token: write
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout exact validated revision
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          persist-credentials: false
+
+      - name: Re-verify green current main before mutation
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          node tools/release/verify-production-eligibility.mjs
+          --sha "${RELEASE_SHA}"
+          --ci-run-id "${CI_RUN_ID}"
+
+      - name: Download exact-SHA artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: workslip-api-${{ env.RELEASE_SHA }}
+          path: ${{ github.workspace }}/publish
+
+      - name: Azure login as application deployment identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve dedicated database migration identity
+        id: migration-identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          client_id="$(az identity show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_MIGRATION_IDENTITY_NAME}" \
+            --query clientId --output tsv 2>/dev/null || true)"
+
+          if [[ -z "${client_id}" || "${client_id}" == 'null' ]]; then
+            echo "::error::Database migration identity ${AZURE_MIGRATION_IDENTITY_NAME} is unavailable. Run 'Infrastructure · Production reconcile' from a green main revision, then rerun this deployment."
+            exit 1
+          fi
+          if [[ ! "${client_id}" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+            echo "::error::Database migration identity returned an invalid client ID."
+            exit 1
+          fi
+          echo "client_id=${client_id}" >> "${GITHUB_OUTPUT}"
+
+      - name: Logout application deployment identity
+        run: az logout
+
+      - name: Azure login as database migration identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.migration-identity.outputs.client_id }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure Microsoft SqlServer PowerShell module
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+            Install-Module SqlServer -Scope CurrentUser -Repository PSGallery -Force -AllowClobber
+          }
+          Import-Module SqlServer -ErrorAction Stop
+          Get-Command Invoke-Sqlcmd -ErrorAction Stop | Out-Null
+
+      - name: Apply reviewed database migrations
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./src/BE/infrastructure/run-database-migrations.ps1 `
+            -Environment prod `
+            -CompanyName mrsoftware
+
+      - name: Logout database migration identity
+        run: az logout
+
+      - name: Azure login for application deployment
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify diagnostics infrastructure prerequisite
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          workspace_id="$(az webapp config appsettings list \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query "[?name=='Azure__ApplicationInsights__WorkspaceId'].value | [0]" \
+            --output tsv)"
+
+          if [[ ! "${workspace_id}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            echo "::error::Production diagnostics workspace configuration is missing or invalid. Reconcile production infrastructure before deploying the API."
+            exit 1
+          fi
+
+      - name: Apply release-testing safety mode
+        shell: bash
+        env:
+          RELEASE_PHASE: ${{ needs.build.outputs.release_phase }}
+          RELEASE_TESTING_ENABLED: ${{ needs.build.outputs.release_testing_enabled }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "${RELEASE_TESTING_ENABLED}" != 'true' && "${RELEASE_TESTING_ENABLED}" != 'false' ]]; then
+            echo "::error::Resolved release-testing state is invalid: ${RELEASE_TESTING_ENABLED}"
+            exit 1
+          fi
+          az webapp config appsettings set \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --settings "ReleaseTesting__Enabled=${RELEASE_TESTING_ENABLED}" \
+            --output none
+
+      - name: Resolve deployment health target
+        id: target
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          host="$(az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query defaultHostName --output tsv)"
+          if [[ -z "${host}" || "${host}" == 'null' ]]; then
+            echo "::error::Azure did not return a default hostname for ${AZURE_WEBAPP_NAME}."
+            exit 1
+          fi
+          echo "health_url=https://${host}/health" >> "${GITHUB_OUTPUT}"
+
+      - name: Deploy exact-SHA package with bounded retry
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          max_attempts=3
+          deployment_log="$(mktemp)"
+          trap 'rm -f "${deployment_log}"' EXIT
+
+          for attempt in $(seq 1 "${max_attempts}"); do
+            : > "${deployment_log}"
+            if az webapp deploy \
+              --resource-group "${AZURE_RESOURCE_GROUP}" \
+              --name "${AZURE_WEBAPP_NAME}" \
+              --src-path "${DEPLOY_PACKAGE}" \
+              --type zip --clean true --restart true \
+              --enable-kudu-warmup true --enriched-errors true \
+              --track-status false --timeout 600000 2>&1 | tee "${deployment_log}"; then
+              break
+            fi
+
+            if [[ "${attempt}" -eq "${max_attempts}" ]]; then
+              echo "::error::App Service deployment failed after ${max_attempts} attempts. Revision ${RELEASE_SHA} was not released successfully."
+              exit 1
+            fi
+
+            if grep -Fqi 'There is not enough space on the disk' "${deployment_log}"; then
+              az webapp restart --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --output none
+              delay_seconds=30
+            else
+              delay_seconds=$((attempt * 30))
+            fi
+            sleep "${delay_seconds}"
+          done
+
+      - name: Require production API health
+        shell: bash
+        env:
+          HEALTH_URL: ${{ steps.target.outputs.health_url }}
+        run: |
+          set -Eeuo pipefail
+          for attempt in $(seq 1 15); do
+            if curl --fail --silent --show-error --connect-timeout 10 --max-time 10 --output /dev/null "${HEALTH_URL}"; then
+              {
+                echo "### Backend production release"
+                echo
+                echo "- SHA: \`${RELEASE_SHA}\`"
+                echo "- Target: \`${AZURE_WEBAPP_NAME}\`"
+                echo "- Health: passed"
+              } >> "${GITHUB_STEP_SUMMARY}"
+              exit 0
+            fi
+            [[ "${attempt}" -lt 15 ]] && sleep 10
+          done
+
+          echo "::error::API package was applied, but ${HEALTH_URL} did not become healthy. Revision ${RELEASE_SHA} is not considered successfully released."
+          exit 1
