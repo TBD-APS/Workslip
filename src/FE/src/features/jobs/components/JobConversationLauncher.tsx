@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { MessageCircle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
+import { useGetApiJobsJobIdConversation } from '../../../api/generated/job-conversations/job-conversations';
 import { JobConversationDrawer } from './JobConversationDrawer';
 import './JobConversationLauncher.css';
 
@@ -21,6 +22,17 @@ export function JobConversationLauncher({
   const requestedOpen = searchParams.get('conversation') === '1';
   const messageId = searchParams.get('message');
   const [isOpen, setIsOpen] = useState(requestedOpen);
+  const conversation = useGetApiJobsJobIdConversation(jobId, undefined, {
+    query: {
+      enabled: jobId.length > 0,
+      staleTime: 10_000,
+    },
+    request: { skipGlobalErrorToast: true },
+  });
+  const unreadCount = Number(conversation.data?.unreadCount ?? 0);
+  const ariaLabel = unreadCount > 0
+    ? `Åbn samtale om sagen, ${unreadCount} ulæst${unreadCount === 1 ? '' : 'e'}`
+    : 'Åbn samtale om sagen';
 
   useEffect(() => {
     if (requestedOpen) setIsOpen(true);
@@ -45,13 +57,18 @@ export function JobConversationLauncher({
     <>
       <button
         type="button"
-        className={className ?? (compact ? 'btn btn-secondary report-overview-icon-action' : 'btn btn-secondary')}
+        className={`${className ?? (compact ? 'btn btn-secondary report-overview-icon-action' : 'btn btn-secondary')} job-conversation-launcher-button`}
         onClick={open}
-        aria-label="Åbn samtale om sagen"
-        title="Samtale"
+        aria-label={ariaLabel}
+        title={unreadCount > 0 ? `Samtale · ${unreadCount} ulæst${unreadCount === 1 ? '' : 'e'}` : 'Samtale'}
       >
         <MessageCircle size={compact ? 16 : 18} />
         {!compact && <span>Samtale</span>}
+        {unreadCount > 0 && (
+          <span className="job-conversation-unread" aria-hidden="true">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
       </button>
       <JobConversationDrawer
         jobId={jobId}
