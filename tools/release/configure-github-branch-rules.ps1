@@ -166,6 +166,12 @@ function Assert-RepositoryRuleset {
         throw "GitHub ruleset '$Name' is not active."
     }
 
+    $expectedBypassActorCount = @($Expected.bypass_actors).Count
+    $actualBypassActorCount = @($actual.bypass_actors).Count
+    if ($actualBypassActorCount -ne $expectedBypassActorCount) {
+        throw "GitHub ruleset '$Name' has $actualBypassActorCount bypass actor(s); expected $expectedBypassActorCount."
+    }
+
     $expectedRefs = @($Expected.conditions.ref_name.include | ForEach-Object { [string]$_ } | Sort-Object)
     $actualRefs = @($actual.conditions.ref_name.include | ForEach-Object { [string]$_ } | Sort-Object)
     if (Compare-Object -ReferenceObject $expectedRefs -DifferenceObject $actualRefs) {
@@ -176,6 +182,24 @@ function Assert-RepositoryRuleset {
     $actualRuleTypes = @($actual.rules | ForEach-Object { [string]$_.type } | Sort-Object)
     if (Compare-Object -ReferenceObject $expectedRuleTypes -DifferenceObject $actualRuleTypes) {
         throw "GitHub ruleset '$Name' does not contain the expected rule types."
+    }
+
+    $expectedPullRequestRule = $Expected.rules | Where-Object { $_.type -eq 'pull_request' } | Select-Object -First 1
+    if ($null -ne $expectedPullRequestRule) {
+        $actualPullRequestRule = $actual.rules | Where-Object { $_.type -eq 'pull_request' } | Select-Object -First 1
+        if ($null -eq $actualPullRequestRule) {
+            throw "GitHub ruleset '$Name' is missing pull-request protection."
+        }
+
+        $expectedMergeMethods = @($expectedPullRequestRule.parameters.allowed_merge_methods | ForEach-Object { [string]$_ } | Sort-Object)
+        $actualMergeMethods = @($actualPullRequestRule.parameters.allowed_merge_methods | ForEach-Object { [string]$_ } | Sort-Object)
+        if (Compare-Object -ReferenceObject $expectedMergeMethods -DifferenceObject $actualMergeMethods) {
+            throw "GitHub ruleset '$Name' does not enforce the expected merge methods."
+        }
+
+        if ([int]$actualPullRequestRule.parameters.required_approving_review_count -ne [int]$expectedPullRequestRule.parameters.required_approving_review_count) {
+            throw "GitHub ruleset '$Name' does not have the expected approving-review count."
+        }
     }
 
     $expectedStatusRule = $Expected.rules | Where-Object { $_.type -eq 'required_status_checks' } | Select-Object -First 1
@@ -190,9 +214,13 @@ function Assert-RepositoryRuleset {
         if (Compare-Object -ReferenceObject $expectedChecks -DifferenceObject $actualChecks) {
             throw "GitHub ruleset '$Name' does not require the expected status checks."
         }
+
+        if ([bool]$actualStatusRule.parameters.strict_required_status_checks_policy -ne [bool]$expectedStatusRule.parameters.strict_required_status_checks_policy) {
+            throw "GitHub ruleset '$Name' does not enforce the expected strict status-check policy."
+        }
     }
 
-    Write-Host "Verified GitHub ruleset '$Name' (id $($summary.id))."
+    Write-Host "Verified GitHub ruleset '$Name' (id $($summary.id)); bypass actors=$actualBypassActorCount."
 }
 
 Assert-GitHubCli
@@ -224,6 +252,6 @@ Assert-RepositoryRuleset -Name 'Workslip active feature protection' -Expected $f
 
 $statusSummary = $RequiredStatusChecks -join ', '
 Write-Host 'Branch rules reconciled and externally verified.'
-Write-Host "main: PR + required checks [$statusSummary], squash only, deletion and non-fast-forward blocked."
+Write-Host "main: PR + required checks [$statusSummary], squash only, no bypass actors, deletion and non-fast-forward blocked."
 Write-Host "${ReleasePattern}: same integration protection."
-Write-Host "${FeaturePattern}: deletion and non-fast-forward updates blocked; ordinary fast-forward feature pushes remain allowed."
+Write-Host "${FeaturePattern}: no bypass actors, deletion and non-fast-forward updates blocked; ordinary fast-forward feature pushes remain allowed."
