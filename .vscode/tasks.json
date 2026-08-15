@@ -2,9 +2,63 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Workslip: Start local full stack",
+      "label": "Workslip: Docker start full stack",
       "type": "shell",
-      "command": ".\\dev.ps1",
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\start-docker-local.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Workslip: Docker status",
+      "type": "shell",
+      "command": "docker compose ps",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Workslip: Docker logs",
+      "type": "shell",
+      "command": "docker compose logs -f --tail=150",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "Workslip: Docker stop",
+      "type": "shell",
+      "command": "docker compose down",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Workslip: Docker reset local data",
+      "type": "shell",
+      "command": "docker compose down -v",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -13,7 +67,19 @@
     {
       "label": "Workslip: Open Overblik",
       "type": "shell",
-      "command": "start http://127.0.0.1:5270/app/overblik",
+      "command": "Start-Process 'http://127.0.0.1:5270/app/overblik'",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Workslip: Start native full stack",
+      "type": "shell",
+      "command": ".\\dev.ps1",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
     }
   ]
