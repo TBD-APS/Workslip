@@ -1,5 +1,4 @@
 import {
-  BookOpen,
   Building2,
   CalendarDays,
   ClipboardList,
@@ -41,7 +40,6 @@ export function buildQuickNavigatorCommands({
   canViewTimer,
   canManageUsers,
   canViewCustomers,
-  canViewDocs,
   canEditCustomers,
   canCreateJobs,
   canManageOrganization,
@@ -53,9 +51,9 @@ export function buildQuickNavigatorCommands({
     commands.push({
       id: 'home',
       label: homeLabel,
-      description: homeLabel === 'Rapporter' ? 'Åbn rapportoversigten' : 'Åbn sagsoversigten',
+      description: homeLabel === 'Rapporter' ? 'Åbn rapportoversigten' : 'Åbn overblikket',
       path: homePath,
-      keywords: ['hjem', 'oversigt', 'sag', 'sager', 'rapport', 'rapporter'],
+      keywords: ['hjem', 'overblik', 'oversigt', 'sag', 'sager', 'rapport', 'rapporter'],
       icon: ClipboardList,
     });
   }
@@ -63,7 +61,7 @@ export function buildQuickNavigatorCommands({
   if (canViewTimer) commands.push({
     id: 'timer',
     label: 'Timer',
-    description: 'Åbn timer og timesedler',
+    description: 'Åbn timer',
     path: '/app/timer',
     keywords: ['timer', 'tid', 'timeseddel', 'arbejdstid'],
     icon: CalendarDays,
@@ -72,7 +70,7 @@ export function buildQuickNavigatorCommands({
   if (canManageUsers) commands.push({
     id: 'users',
     label: 'Folk',
-    description: 'Åbn medarbejdere og brugere',
+    description: 'Åbn medarbejdere',
     path: '/app/users',
     keywords: ['folk', 'bruger', 'brugere', 'medarbejder', 'medarbejdere'],
     icon: Users,
@@ -81,27 +79,18 @@ export function buildQuickNavigatorCommands({
   if (canViewCustomers) commands.push({
     id: 'customers',
     label: 'Kunder',
-    description: 'Åbn kundelisten',
+    description: 'Åbn kunder',
     path: '/app/customers',
     keywords: ['kunde', 'kunder', 'firma', 'virksomhed'],
     icon: Building2,
   });
 
-  if (canViewDocs) commands.push({
-    id: 'docs',
-    label: 'Docs',
-    description: 'Åbn intern viden og dokumentation',
-    path: '/app/docs',
-    keywords: ['docs', 'dokument', 'dokumenter', 'viden', 'wiki', 'onboarding', 'procedure'],
-    icon: BookOpen,
-  });
-
   if (canCreateJobs) commands.push({
     id: 'new-job',
     label: 'Opret sag',
-    description: 'Start oprettelse af en ny sag',
+    description: 'Opret en ny sag',
     path: '/app/create',
-    keywords: ['ny sag', 'opret sag', 'opgave', 'create'],
+    keywords: ['ny sag', 'opret sag', 'opgave'],
     icon: PlusCircle,
   });
 
@@ -117,7 +106,7 @@ export function buildQuickNavigatorCommands({
   if (canManageUsers) commands.push({
     id: 'settings',
     label: 'Indstillinger',
-    description: 'Åbn administrative indstillinger',
+    description: 'Åbn indstillinger',
     path: '/app/settings',
     keywords: ['indstillinger', 'settings', 'administration', 'admin'],
     icon: Settings,
