@@ -31,6 +31,8 @@ public sealed class JobReportRow : IJobRelated
     public string? Remarks { get; init; }
     public List<JobReportClosureFlagRow> ClosureFlags { get; set; } = new();
     public List<JobReportLinkRow> Links{ get; set; } = new();
+    public bool IsInAuditorScope { get; set; } = true;
+    public string? AuditorScopeReason { get; set; }
     public bool IsSoftDeleted { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }

@@ -84,6 +84,19 @@ public sealed class AuthorizedJobServiceTests
     }
 
     [Fact]
+    public async Task GetSingleJobAsync_returns_not_found_for_auditor_job_outside_explicit_scope_without_loading_job()
+    {
+        var organizationId = Guid.NewGuid();
+        var repository = new StubJobRepository(CreateJob(organizationId, JobStatus.Approved, "Vand"));
+        var service = CreateService(repository, organizationId, Roles.Auditor, isInAuditorScope: false);
+
+        var result = await service.GetSingleJobAsync(repository.Job!.Id, CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, result.Status);
+        Assert.Equal(0, repository.GetSingleCalls);
+    }
+
+    [Fact]
     public async Task CreateAsync_does_not_allow_regular_user_to_link_another_employees_copy()
     {
         var organizationId = Guid.NewGuid();
@@ -174,6 +187,19 @@ public sealed class AuthorizedJobServiceTests
     }
 
     [Fact]
+    public async Task GetHistoryAsync_returns_not_found_for_auditor_job_outside_explicit_scope_without_loading_history()
+    {
+        var organizationId = Guid.NewGuid();
+        var repository = new StubJobRepository(CreateJob(organizationId, JobStatus.Approved, "Vand"));
+        var service = CreateService(repository, organizationId, Roles.Auditor, isInAuditorScope: false);
+
+        var result = await service.GetHistoryAsync(repository.Job!.Id, 50, 0, CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, result.Status);
+        Assert.Equal(0, repository.GetSingleCalls);
+    }
+
+    [Fact]
     public async Task CreateLinksAsync_does_not_allow_regular_user_to_link_another_employees_copy()
     {
         var organizationId = Guid.NewGuid();
@@ -248,10 +274,12 @@ public sealed class AuthorizedJobServiceTests
         IJobRepository repository,
         Guid organizationId,
         string role,
-        Guid? userId = null) =>
+        Guid? userId = null,
+        bool isInAuditorScope = true) =>
         new(
             inner: null!,
             jobRepository: repository,
+            auditorScopeRepository: new StubJobAuditorScopeRepository(isInAuditorScope),
             currentUser: new StubCurrentUserContext(userId ?? Guid.NewGuid(), organizationId, role),
             logger: NullLogger<AuthorizedJobService>.Instance);
 
@@ -295,6 +323,32 @@ public sealed class AuthorizedJobServiceTests
         Guid? UserId,
         Guid? OrganizationId,
         string? Role) : ICurrentUserContext;
+
+    private sealed class StubJobAuditorScopeRepository(bool isInAuditorScope) : IJobAuditorScopeRepository
+    {
+        public Task<JobAuditorScopeResponse?> GetAsync(
+            Guid jobId,
+            Guid organizationId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<JobAuditorScopeResponse?>(new JobAuditorScopeResponse(
+                isInAuditorScope,
+                isInAuditorScope ? null : "Intern test-sag"));
+
+        public Task<IReadOnlySet<Guid>> GetVisibleJobIdsAsync(
+            Guid organizationId,
+            IReadOnlyCollection<Guid> jobIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlySet<Guid>>(
+                isInAuditorScope ? jobIds.ToHashSet() : new HashSet<Guid>());
+
+        public Task<JobAuditorScopeResponse?> SetAsync(
+            Guid jobId,
+            Guid organizationId,
+            bool isVisible,
+            string? reason,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
 
     private sealed class StubJobRepository(JobReportResponse? job) : IJobRepository
     {

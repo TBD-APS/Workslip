@@ -9,104 +9,77 @@ using Xunit;
 
 namespace Workslip.Tests.Images;
 
-public sealed class ImageServiceValidationTests
+public sealed class ImageServiceAuditorScopeTests
 {
     [Fact]
-    public async Task UploadCurrentProfileImageAsync_AcceptsJpegWhenMimeAndSignatureMatch()
+    public async Task ListJobImagesAsync_returns_not_found_before_job_or_storage_access_when_job_is_internal()
     {
-        var storage = new CapturingImageStorage();
-        var service = CreateService(storage);
-        await using var content = new MemoryStream([0xFF, 0xD8, 0xFF, 0x00, 0x01]);
-
-        var result = await service.UploadCurrentProfileImageAsync(
-            new ImageUpload(content, content.Length, "image/jpeg"),
-            CancellationToken.None);
-
-        Assert.Equal(ResultStatus.Ok, result.Status);
-        Assert.Equal(1, storage.ProfileUploadCalls);
-        Assert.Equal("image/jpeg", storage.LastProfileContentType);
-    }
-
-    [Fact]
-    public async Task UploadCurrentProfileImageAsync_RejectsMimeSignatureMismatchBeforeStorage()
-    {
-        var storage = new CapturingImageStorage();
-        var service = CreateService(storage);
-        await using var content = new MemoryStream([0xFF, 0xD8, 0xFF, 0x00, 0x01]);
-
-        var result = await service.UploadCurrentProfileImageAsync(
-            new ImageUpload(content, content.Length, "image/png"),
-            CancellationToken.None);
-
-        Assert.Equal(ResultStatus.Invalid, result.Status);
-        Assert.Equal(0, storage.ProfileUploadCalls);
-        Assert.Contains(result.ValidationErrors, error =>
-            error.Identifier == "file" && error.ErrorMessage.Contains("matcher ikke", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public async Task UploadCurrentProfileImageAsync_RejectsUnsupportedContentTypeBeforeReadingStorage()
-    {
-        var storage = new CapturingImageStorage();
-        var service = CreateService(storage);
-        await using var content = new MemoryStream("<svg></svg>"u8.ToArray());
-
-        var result = await service.UploadCurrentProfileImageAsync(
-            new ImageUpload(content, content.Length, "image/svg+xml"),
-            CancellationToken.None);
-
-        Assert.Equal(ResultStatus.Invalid, result.Status);
-        Assert.Equal(0, storage.ProfileUploadCalls);
-    }
-
-    private static ImageService CreateService(CapturingImageStorage storage) =>
-        new(
+        var jobs = new CountingJobRepository();
+        var storage = new CountingImageStorage();
+        var service = new ImageService(
             storage,
-            new ThrowingJobRepository(),
-            new ThrowingJobAuditorScopeRepository(),
+            jobs,
+            new HiddenAuditorScopeRepository(),
             new ThrowingUserRepository(),
-            new FakeCurrentUserContext());
+            new AuditorContext());
 
-    private sealed class FakeCurrentUserContext : ICurrentUserContext
-    {
-        public Guid? UserId { get; } = Guid.Parse("11111111-1111-1111-1111-111111111111");
-        public Guid? OrganizationId { get; } = Guid.Parse("22222222-2222-2222-2222-222222222222");
-        public string? Role { get; } = Roles.User;
+        var result = await service.ListJobImagesAsync(Guid.NewGuid(), CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, result.Status);
+        Assert.Equal(0, jobs.GetSingleCalls);
+        Assert.Equal(0, storage.ListCalls);
     }
 
-    private sealed class CapturingImageStorage : IImageStorage
+    private sealed class AuditorContext : ICurrentUserContext
     {
-        public int ProfileUploadCalls { get; private set; }
-        public string? LastProfileContentType { get; private set; }
+        public Guid? UserId { get; } = Guid.NewGuid();
+        public Guid? OrganizationId { get; } = Guid.NewGuid();
+        public string? Role { get; } = Roles.Auditor;
+    }
 
-        public Task UploadProfileImageAsync(Guid organizationId, Guid userId, Stream content, string contentType, CancellationToken cancellationToken)
+    private sealed class HiddenAuditorScopeRepository : IJobAuditorScopeRepository
+    {
+        public Task<JobAuditorScopeResponse?> GetAsync(Guid jobId, Guid organizationId, CancellationToken cancellationToken) =>
+            Task.FromResult<JobAuditorScopeResponse?>(new JobAuditorScopeResponse(false, "Intern test-sag"));
+
+        public Task<IReadOnlySet<Guid>> GetVisibleJobIdsAsync(Guid organizationId, IReadOnlyCollection<Guid> jobIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlySet<Guid>>(new HashSet<Guid>());
+
+        public Task<JobAuditorScopeResponse?> SetAsync(Guid jobId, Guid organizationId, bool isInAuditorScope, string? reason, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class CountingImageStorage : IImageStorage
+    {
+        public int ListCalls { get; private set; }
+
+        public Task<IReadOnlyList<ImageInfoResponse>> ListJobImagesAsync(Guid organizationId, Guid jobId, CancellationToken cancellationToken)
         {
-            ProfileUploadCalls++;
-            LastProfileContentType = contentType;
-            return Task.CompletedTask;
+            ListCalls++;
+            return Task.FromResult<IReadOnlyList<ImageInfoResponse>>(Array.Empty<ImageInfoResponse>());
         }
 
-        public Task<IReadOnlyList<ImageInfoResponse>> ListJobImagesAsync(Guid organizationId, Guid jobId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<ImageInfoResponse> UploadJobImageAsync(Guid organizationId, Guid jobId, Guid imageId, Stream content, string contentType, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<ImageFileResponse?> GetJobImageAsync(Guid organizationId, Guid jobId, Guid imageId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task DeleteJobImageAsync(Guid organizationId, Guid jobId, Guid imageId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task DeleteJobImagesAsync(Guid organizationId, Guid jobId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task UploadProfileImageAsync(Guid organizationId, Guid userId, Stream content, string contentType, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<ImageFileResponse?> GetProfileImageAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task DeleteProfileImageAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
-    private sealed class ThrowingJobAuditorScopeRepository : IJobAuditorScopeRepository
+    private sealed class CountingJobRepository : IJobRepository
     {
-        public Task<JobAuditorScopeResponse?> GetAsync(Guid jobId, Guid organizationId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<IReadOnlySet<Guid>> GetVisibleJobIdsAsync(Guid organizationId, IReadOnlyCollection<Guid> jobIds, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<JobAuditorScopeResponse?> SetAsync(Guid jobId, Guid organizationId, bool isInAuditorScope, string? reason, CancellationToken cancellationToken) => throw new NotSupportedException();
-    }
+        public int GetSingleCalls { get; private set; }
 
-    private sealed class ThrowingJobRepository : IJobRepository
-    {
+        public Task<JobReportResponse?> GetSingleJobAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
+        {
+            GetSingleCalls++;
+            return Task.FromResult<JobReportResponse?>(null);
+        }
+
         public Task<JobReportResponse> CreateAsync(Guid organizationId, CreateJobRequest request, IReadOnlyList<Guid> assignedUserIds, Guid? actorId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<JobListResponse> ListAsync(JobQuery query, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<JobReportResponse?> GetSingleJobAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<JobHistoryResponse>?> GetEventsAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<JobReportResponse?> UpdateAsync(Guid id, Guid organizationId, UpdateJobRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<JobTransitionResult?> TransitionAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, string? rejectionNote, CancellationToken cancellationToken) => throw new NotSupportedException();

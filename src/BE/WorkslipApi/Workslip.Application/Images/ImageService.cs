@@ -8,6 +8,7 @@ namespace Workslip.Application.Images;
 public sealed class ImageService(
     IImageStorage storage,
     IJobRepository jobs,
+    IJobAuditorScopeRepository auditorScopeRepository,
     IUserRepository users,
     ICurrentUserContext currentUser) : IImageService
 {
@@ -182,6 +183,15 @@ public sealed class ImageService(
         if (organizationId is null)
         {
             return Result<JobReportResponse>.Unauthorized();
+        }
+
+        if (AuditorDataScope.AppliesTo(currentUser.Role))
+        {
+            var scope = await auditorScopeRepository.GetAsync(jobId, organizationId.Value, cancellationToken);
+            if (scope is null || !scope.IsInAuditorScope)
+            {
+                return Result<JobReportResponse>.NotFound();
+            }
         }
 
         var job = await jobs.GetSingleJobAsync(jobId, organizationId.Value, cancellationToken);

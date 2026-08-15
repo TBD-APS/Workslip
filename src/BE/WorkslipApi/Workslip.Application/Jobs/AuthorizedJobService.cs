@@ -8,6 +8,7 @@ namespace Workslip.Application.Jobs;
 public sealed class AuthorizedJobService(
     JobService inner,
     IJobRepository jobRepository,
+    IJobAuditorScopeRepository auditorScopeRepository,
     ICurrentUserContext currentUser,
     ILogger<AuthorizedJobService> logger) : IJobService
 {
@@ -60,6 +61,10 @@ public sealed class AuthorizedJobService(
                 cancellationToken);
         }
 
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+            return Result<JobListResponse>.Unauthorized();
+
         var requestedLimit = Math.Clamp(limit ?? 50, 1, AuditorScanPageSize);
         var requestedOffset = Math.Max(offset ?? 0, 0);
         var visibleItems = new List<JobListItemResponse>();
@@ -82,24 +87,26 @@ public sealed class AuthorizedJobService(
                 cancellationToken);
 
             if (!page.IsSuccess)
-            {
                 return page;
-            }
 
             rawTotalCount = page.Value.TotalCount;
+            var inScopeIds = await auditorScopeRepository.GetVisibleJobIdsAsync(
+                organizationId.Value,
+                page.Value.Items.Select(item => item.Id).ToArray(),
+                cancellationToken);
+
             foreach (var item in page.Value.Items)
             {
+                if (!inScopeIds.Contains(item.Id))
+                    continue;
+
                 var filtered = AuditorDataScope.Filter(item);
                 if (filtered is not null)
-                {
                     visibleItems.Add(filtered);
-                }
             }
 
             if (page.Value.Items.Count == 0)
-            {
                 break;
-            }
 
             scanOffset += page.Value.Items.Count;
         }
@@ -118,11 +125,19 @@ public sealed class AuthorizedJobService(
     {
         var result = await inner.GetMyAssignedJobsAsync(cancellationToken);
         if (!result.IsSuccess || !AuditorDataScope.AppliesTo(currentUser.Role))
-        {
             return result;
-        }
+
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+            return Result<IReadOnlyList<JobListItemResponse>>.Unauthorized();
+
+        var inScopeIds = await auditorScopeRepository.GetVisibleJobIdsAsync(
+            organizationId.Value,
+            result.Value.Select(item => item.Id).ToArray(),
+            cancellationToken);
 
         var visibleItems = result.Value
+            .Where(item => inScopeIds.Contains(item.Id))
             .Select(AuditorDataScope.Filter)
             .Where(item => item is not null)
             .Cast<JobListItemResponse>()
@@ -143,14 +158,13 @@ public sealed class AuthorizedJobService(
 
         var result = await inner.GetSingleJobAsync(id, cancellationToken);
         if (!result.IsSuccess || !RequiresScopedJobAccess())
-        {
             return result;
-        }
 
         var filtered = AuditorDataScope.AppliesTo(currentUser.Role)
             ? AuditorDataScope.Filter(result.Value)
             : result.Value;
-        if (filtered is null) return Result<JobReportSummaryResponse>.NotFound();
+        if (filtered is null)
+            return Result<JobReportSummaryResponse>.NotFound();
 
         var visibleLinks = await FilterVisibleLinksAsync(filtered.Links, cancellationToken);
         return Result<JobReportSummaryResponse>.Success(filtered with { Links = visibleLinks });
@@ -163,19 +177,13 @@ public sealed class AuthorizedJobService(
         CancellationToken cancellationToken)
     {
         if (!RequiresScopedJobAccess())
-        {
             return await inner.GetHistoryAsync(id, limit, offset, cancellationToken);
-        }
 
         if (await GetAccessibleJobAsync(id, cancellationToken) is null)
-        {
             return Result<IReadOnlyList<JobHistoryResponse>>.NotFound();
-        }
 
         if (!AuditorDataScope.AppliesTo(currentUser.Role))
-        {
             return await inner.GetHistoryAsync(id, limit, offset, cancellationToken);
-        }
 
         var requestedLimit = Math.Clamp(limit ?? 50, 1, AuditorScanPageSize);
         var requestedOffset = Math.Max(offset ?? 0, 0);
@@ -186,16 +194,12 @@ public sealed class AuthorizedJobService(
         {
             var page = await inner.GetHistoryAsync(id, AuditorScanPageSize, scanOffset, cancellationToken);
             if (!page.IsSuccess)
-            {
                 return page;
-            }
 
             visibleEvents.AddRange(AuditorDataScope.Filter(page.Value));
 
             if (page.Value.Count < AuditorScanPageSize)
-            {
                 break;
-            }
 
             scanOffset += page.Value.Count;
         }
@@ -229,20 +233,13 @@ public sealed class AuthorizedJobService(
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
-        {
             return Result<JobReportSummaryResponse>.Unauthorized();
-        }
 
-        var job = await jobRepository.GetSingleJobAsync(id, organizationId.Value, cancellationToken);
+        var job = RequiresScopedJobAccess()
+            ? await GetAccessibleJobAsync(id, cancellationToken)
+            : await jobRepository.GetSingleJobAsync(id, organizationId.Value, cancellationToken);
         if (job is null)
-        {
             return Result<JobReportSummaryResponse>.NotFound();
-        }
-
-        if (!CanAccessJob(job))
-        {
-            return Result<JobReportSummaryResponse>.NotFound();
-        }
 
         var decision = JobStatusTransitionPolicy.Evaluate(
             currentUser.Role,
@@ -308,16 +305,12 @@ public sealed class AuthorizedJobService(
         {
             var source = await GetAccessibleJobAsync(reportId, cancellationToken);
             if (source is null)
-            {
                 return Result<JobReportSummaryResponse>.NotFound();
-            }
 
             foreach (var targetId in request.TargetReportIds)
             {
                 if (await GetAccessibleJobAsync(targetId, cancellationToken) is null)
-                {
                     return Result<JobReportSummaryResponse>.NotFound();
-                }
             }
         }
 
@@ -333,9 +326,7 @@ public sealed class AuthorizedJobService(
         {
             var source = await GetAccessibleJobAsync(reportId, cancellationToken);
             if (source is null)
-            {
                 return Result.NotFound();
-            }
 
             var linkedJobIds = source.Links
                 .Where(link => request.LinkIds.Contains(link.Id))
@@ -343,9 +334,7 @@ public sealed class AuthorizedJobService(
             foreach (var linkedJobId in linkedJobIds)
             {
                 if (await GetAccessibleJobAsync(linkedJobId, cancellationToken) is null)
-                {
                     return Result.NotFound();
-                }
             }
         }
 
@@ -368,14 +357,10 @@ public sealed class AuthorizedJobService(
         CancellationToken cancellationToken)
     {
         if (!RequiresScopedJobAccess())
-        {
             return await inner.MarkJobAsSeenAsync(id, viewType, cancellationToken);
-        }
 
         if (await GetAccessibleJobAsync(id, cancellationToken) is null)
-        {
             return Result.NotFound();
-        }
 
         return await inner.MarkJobAsSeenAsync(id, viewType, cancellationToken);
     }
@@ -390,24 +375,14 @@ public sealed class AuthorizedJobService(
         IReadOnlyList<JobLinkInfoResponse> links,
         CancellationToken cancellationToken)
     {
-        var organizationId = currentUser.OrganizationId;
-        if (organizationId is null || links.Count == 0)
-        {
+        if (currentUser.OrganizationId is null || links.Count == 0)
             return Array.Empty<JobLinkInfoResponse>();
-        }
 
         var visibleLinks = new List<JobLinkInfoResponse>(links.Count);
         foreach (var link in links)
         {
-            var linkedJob = await jobRepository.GetSingleJobAsync(
-                link.LinkedReportId,
-                organizationId.Value,
-                cancellationToken);
-
-            if (linkedJob is not null && CanAccessJob(linkedJob))
-            {
+            if (await GetAccessibleJobAsync(link.LinkedReportId, cancellationToken) is not null)
                 visibleLinks.Add(link);
-            }
         }
 
         return visibleLinks;
@@ -436,8 +411,13 @@ public sealed class AuthorizedJobService(
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
-        {
             return null;
+
+        if (AuditorDataScope.AppliesTo(currentUser.Role))
+        {
+            var scope = await auditorScopeRepository.GetAsync(id, organizationId.Value, cancellationToken);
+            if (scope is null || !scope.IsInAuditorScope)
+                return null;
         }
 
         var job = await jobRepository.GetSingleJobAsync(id, organizationId.Value, cancellationToken);

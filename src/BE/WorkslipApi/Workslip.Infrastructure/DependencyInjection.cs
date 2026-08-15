@@ -69,6 +69,7 @@ public static class DependencyInjection
 
         services.AddScoped<IAssignmentRepository, EfAssignmentRepository>();
         services.AddScoped<IJobAssignmentScopeRepository, EfJobAssignmentScopeRepository>();
+        services.AddScoped<IJobAuditorScopeRepository, EfJobAuditorScopeRepository>();
         services.AddScoped<ICustomerRepository, EfCustomerRepository>();
         services.AddScoped<IDocumentRepository, SqlDocumentRepository>();
         services.AddScoped<IDocumentAttachmentRepository, SqlDocumentAttachmentRepository>();
