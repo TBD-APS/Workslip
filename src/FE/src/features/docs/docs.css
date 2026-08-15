@@ -44,6 +44,7 @@
 }
 
 .docs-new-button {
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -55,15 +56,17 @@
   cursor: pointer;
 }
 
-.docs-new-button:hover {
-  border-color: var(--primary);
-  background: var(--surface-selected);
+@media (hover: hover) and (pointer: fine) {
+  .docs-new-button:hover {
+    border-color: var(--primary);
+    background: var(--surface-selected);
+  }
 }
 
 .docs-search {
   margin: 0 1rem 0.7rem;
-  min-height: 2.7rem;
-  padding: 0 0.75rem;
+  min-height: 44px;
+  padding: 0 0.2rem 0 0.75rem;
   display: flex;
   align-items: center;
   gap: 0.55rem;
@@ -95,12 +98,27 @@
 }
 
 .docs-search button {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
   border: 0;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--text-muted);
   display: inline-flex;
-  padding: 0.15rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   cursor: pointer;
+}
+
+.docs-search button:focus-visible,
+.docs-new-button:focus-visible,
+.docs-mobile-back:focus-visible,
+.docs-delete-button:focus-visible,
+.docs-list-item:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .docs-list-meta {
@@ -137,8 +155,10 @@
   cursor: pointer;
 }
 
-.docs-list-item:hover {
-  background: var(--surface-raised);
+@media (hover: hover) and (pointer: fine) {
+  .docs-list-item:hover {
+    background: var(--surface-raised);
+  }
 }
 
 .docs-list-item.is-active {
@@ -280,8 +300,8 @@
 
 .docs-mobile-back {
   display: none;
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 44px;
+  height: 44px;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border);
@@ -427,14 +447,24 @@
 }
 
 .docs-delete-button {
+  min-height: 44px;
   margin-left: auto;
+  padding-inline: 0.65rem;
   border: 0;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--danger);
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .docs-delete-button:hover:not(:disabled) {
+    background: var(--status-red-bg);
+    color: var(--status-red-text);
+  }
 }
 
 .docs-delete-button:disabled {
@@ -505,7 +535,7 @@
   }
 
   .docs-document-actions .btn {
-    min-height: 2.6rem;
+    min-height: 44px;
   }
 
   .docs-content-field textarea {
@@ -515,6 +545,7 @@
   .docs-delete-button {
     width: 100%;
     margin: 0.55rem 0 0;
+    justify-content: center;
   }
 }
 
