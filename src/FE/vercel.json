@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "node ../../tools/release/verify-production-eligibility.mjs --source vercel --wait-seconds 1800 --poll-seconds 45 && npm run build",
+  "buildCommand": "node ../../tools/release/verify-production-eligibility.mjs --source vercel --wait-seconds 1800 --poll-seconds 120 && npm run build",
   "git": {
     "deploymentEnabled": {
       "*": false,
