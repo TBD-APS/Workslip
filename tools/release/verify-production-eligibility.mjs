@@ -1,5 +1,7 @@
 import fs from 'node:fs';
+import { resolve } from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 
 const DEFAULT_API_BASE = 'https://api.github.com';
 const CI_WORKFLOW = 'frontend-validation.yml';
@@ -124,7 +126,7 @@ export function chooseRun(runs, expectedSha) {
 }
 
 function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
 function createClient(apiBase, token) {
@@ -243,7 +245,9 @@ async function main() {
   publishEvidence(evidence);
 }
 
-if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
+const invokedPath = process.argv[1] ? resolve(process.argv[1]) : '';
+const modulePath = resolve(fileURLToPath(import.meta.url));
+if (invokedPath && invokedPath === modulePath) {
   main().catch((error) => {
     console.error(`[release] production blocked: ${error.message}`);
     process.exitCode = 1;
