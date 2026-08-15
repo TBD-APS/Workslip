@@ -1727,7 +1727,7 @@
                   "  }",
                   "  try {",
                   "    var json = res.json().installationTypes;",
-                  "    var vand = json.find(function(d) { return d.name.toLowerCase() === 'vandinstallation'; });",
+                  "    var vand = json.find(function(d) { var n = d.name.toLowerCase(); return n === 'vandinstallation' || n === 'vand'; });",
                   "    if (vand && vand.categories.length > 0) {",
                   "      pm.variables.set('vandInstallationId', vand.id);",
                   "      pm.variables.set('vandCategoryId', vand.categories[0].id);",
