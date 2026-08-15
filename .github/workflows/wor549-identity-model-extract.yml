@@ -1,0 +1,76 @@
+name: WOR-549 identity model extraction
+
+on:
+  push:
+    branches:
+      - rbj--549-split-identity-model-configuration
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Move identity model configuration out of SqlDbContext
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/BE/WorkslipApi/Workslip.Infrastructure/Schema/SqlDbContext.cs')
+          source = path.read_text(encoding='utf-8')
+
+          source = source.replace(
+              '        ConfigureOrganizations(modelBuilder);',
+              '        IdentityModelConfiguration.ConfigureOrganizations(modelBuilder);',
+              1,
+          ).replace(
+              '        ConfigureUsers(modelBuilder);',
+              '        IdentityModelConfiguration.ConfigureUsers(modelBuilder);',
+              1,
+          )
+
+          start_marker = '    private static void ConfigureOrganizations(ModelBuilder modelBuilder)'
+          end_marker = '    private static void ConfigureCustomers(ModelBuilder modelBuilder)'
+          start = source.index(start_marker)
+          end = source.index(end_marker)
+          extracted = source[start:end]
+          source = source[:start] + source[end:]
+          path.write_text(source, encoding='utf-8')
+
+          extracted = extracted.replace('    private static void ', '    internal static void ')
+          target = Path('src/BE/WorkslipApi/Workslip.Infrastructure/Schema/IdentityModelConfiguration.cs')
+          target.write_text(
+              'using Microsoft.EntityFrameworkCore;\n\n'
+              'using Workslip.Domain.Models;\n\n'
+              'namespace Workslip.Infrastructure.Schema;\n\n'
+              'internal static class IdentityModelConfiguration\n'
+              '{\n'
+              f'{extracted}'
+              '}\n',
+              encoding='utf-8',
+          )
+      - name: Regenerate dependency map
+        run: node tools/depmap/depmap.mjs
+      - name: Remove temporary workflow
+        run: rm .github/workflows/wor549-identity-model-extract.yml
+      - name: Commit deterministic extraction
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/BE/WorkslipApi/Workslip.Infrastructure/Schema/SqlDbContext.cs \
+                  src/BE/WorkslipApi/Workslip.Infrastructure/Schema/IdentityModelConfiguration.cs \
+                  Docs/architecture/dependency-map.md \
+                  tools/depmap/last-run.json \
+                  .github/workflows/wor549-identity-model-extract.yml
+          git commit -m 'RBJ-549: move identity model configuration out of SqlDbContext'
+          git push origin HEAD:rbj--549-split-identity-model-configuration
