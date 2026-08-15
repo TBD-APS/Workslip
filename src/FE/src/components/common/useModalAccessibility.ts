@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
@@ -42,10 +42,7 @@ export function useModalAccessibility<T extends HTMLElement>({
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  // Register modal ordering before the browser can dispatch input to a newly
-  // rendered nested dialog. A passive effect leaves a window where the parent
-  // modal can still receive Escape even though the child is already visible.
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!open) return undefined;
 
     const modalId = modalIdRef.current;
@@ -64,6 +61,11 @@ export function useModalAccessibility<T extends HTMLElement>({
     });
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      // A nested modal may synchronously close itself while the same native
+      // event is still being dispatched. Respect the handled event so a parent
+      // listener cannot then close itself after the child leaves the stack.
+      if (event.defaultPrevented) return;
+
       const dialog = dialogRef.current;
       if (!dialog || modalStack.at(-1) !== modalId) return;
 
