@@ -22,12 +22,16 @@ runs:
 
     # Vercel production deliberately does not call a remote dev/prod OpenAPI
     # endpoint. The generated client committed in the release SHA must therefore
-    # already match the backend contract that CI just generated.
+    # already match the backend contract that CI just generated. Porcelain status
+    # catches added, removed and modified generated files; git diff alone misses
+    # an entirely untracked generated directory.
     - name: Require generated client to be committed
       shell: bash
       run: |
         set -Eeuo pipefail
-        if ! git diff --exit-code -- src/FE/src/api/generated; then
-          echo "::error::Generated frontend API client is stale. Run 'npm run generate:api:local' in src/FE and commit the generated changes."
+        generated_changes="$(git status --porcelain --untracked-files=all -- src/FE/src/api/generated)"
+        if [[ -n "${generated_changes}" ]]; then
+          printf '%s\n' "${generated_changes}"
+          echo "::error::Generated frontend API client is stale or missing. Run 'npm run generate:api:local' in src/FE and commit the generated changes."
           exit 1
         fi
