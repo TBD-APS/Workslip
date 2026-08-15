@@ -1,10 +1,10 @@
 # Power BI worksheet report
 
-**Status:** Implementation ready; production activation requires the privacy/processor gate and a permanent Power BI sharing license
+**Status:** Implementation ready; production activation requires the privacy/processor gate, a published report and a suitable Power BI/Fabric sharing license
 
 **Owner:** Workslip product owner and operations
 
-**Linear:** WOR-451
+**Linear:** WOR-451, WOR-542
 
 ## Outcome
 
@@ -16,6 +16,7 @@ Workslip SQL
   -> private identity-bound Power BI container/worksheets.csv
   -> Power BI import model
   -> named report viewers
+  -> authenticated Power BI report embedded in Workslip Admin Timer
 ```
 
 The export is disabled by default. Enabling it is an explicit production operation because worksheet, employee and customer data is copied to another processing surface.
@@ -148,11 +149,67 @@ Use Import mode and schedule Power BI refresh after the Workslip export cadence,
 
 Share the report only with named people or an approved Entra security group. Do not grant Build or Reshare unless required. A hidden visual or column is not a security boundary; Power BI report access also grants access to the underlying semantic model.
 
-## Workslip report link
+For **embed for your organization**, each viewer normally needs the appropriate Power BI Pro/PPU entitlement unless the content is hosted on qualifying Fabric/Premium capacity that permits Free viewers. License/capacity must therefore be settled before treating the embedded report as a shared production feature.
 
-After the report is published, store its normal Power BI Service report URL in the runtime configuration key `PowerBiReport:Url`. The value is not a secret, but it must be the authenticated `https://app.powerbi.com/...` report URL; never use a `Publish to web` URL.
+## Workslip report link and embedded analytics
 
-Workslip exposes the configured value through `GET /api/worksheets/all/report/power-bi`, which requires the Admin policy. The endpoint validates HTTPS and the exact `app.powerbi.com` host and otherwise returns `url: null`. The admin Timer page only renders **Åbn Power BI** when a valid URL is configured. This makes removing the key an immediate application-level rollback for the link without affecting worksheet capture or the export worker.
+After the report is published, store its normal authenticated Power BI Service report URL in the runtime configuration key `PowerBiReport:Url`. The value is not a secret. Use a normal `https://app.powerbi.com/groups/.../reports/<report-guid>/...` URL; never use `Publish to web` (`/view?r=...`).
+
+`GET /api/worksheets/all/report/power-bi` requires the Workslip Admin policy and sends `Cache-Control: no-store`. It validates the Power BI host, HTTPS/default port, report/workspace/tenant identifiers and supported report path before returning:
+
+```json
+{
+  "url": "https://app.powerbi.com/groups/.../reports/...",
+  "embedUrl": "https://app.powerbi.com/reportEmbed?reportId=...&autoAuth=true..."
+}
+```
+
+The embed URL is derived server-side from the approved report URL. Workslip does not receive, store or forward a Power BI access token. The Admin Timer page renders the report in an authenticated Microsoft Power BI iframe and keeps **Åbn i Power BI** as a fallback. Microsoft/Entra authentication, report permissions, Power BI licensing and any report RLS remain Power BI security boundaries.
+
+The frontend query cache includes the current Workslip organization ID so report configuration is not reused across organization-session changes. Non-admin users do not render the admin reporting component, and the API remains the authoritative Admin boundary.
+
+Removing `PowerBiReport:Url` is the application-level rollback: the iframe and fallback link disappear without affecting worksheet capture or the WOR-451 export worker.
+
+## Local validation for WOR-542
+
+Use the canonical Windows development bootstrap. Do not copy production credentials or enable the production export merely to test the UI.
+
+### No-configuration state
+
+```powershell
+git fetch origin
+git switch --track origin/rbj--542-power-bi-embedded-analytics
+.\dev.ps1
+```
+
+Open `http://127.0.0.1:5270/app/timer` as the synthetic local Admin. Confirm that **Power BI-overblik** is visible and shows **Power BI er ikke konfigureret endnu**. A normal synthetic user must not receive the Admin reporting view.
+
+### Embedded-report state
+
+If an authenticated non-production Power BI report is already available, set only its normal report URL in the backend process environment before starting the stack:
+
+```powershell
+$env:PowerBiReport__Url = 'https://app.powerbi.com/groups/me/reports/<REPORT-GUID>/ReportSection'
+.\dev.ps1
+```
+
+Then open `http://127.0.0.1:5270/app/timer` as the local Admin and verify:
+
+1. **Power BI-overblik** renders an iframe inside Workslip;
+2. Microsoft prompts for organizational sign-in inside the Power BI flow if the browser has no suitable Microsoft session;
+3. the intended report renders after sign-in for an authorized viewer;
+4. report slicers/filters can be used without leaving Workslip;
+5. **Åbn i Power BI** opens the same authenticated report as fallback;
+6. refresh/retry states do not expose tokens or report data in Workslip errors;
+7. a narrow/mobile viewport remains usable.
+
+Clear the temporary local variable after testing:
+
+```powershell
+Remove-Item Env:PowerBiReport__Url -ErrorAction SilentlyContinue
+```
+
+Local synthetic Workslip authentication can prove Workslip UI and API behavior, but it cannot prove a real user's Power BI license, workspace permission, RLS, Microsoft tenant configuration or scheduled refresh. Those remain live integration gates.
 
 Current Microsoft documentation:
 
@@ -160,6 +217,8 @@ Current Microsoft documentation:
 - `AzureStorage.BlobContents`: https://learn.microsoft.com/en-us/powerquery-m/azurestorage-blobcontents
 - Scheduled refresh and shared-capacity limits: https://learn.microsoft.com/en-us/power-bi/connect-data/refresh-data
 - Report sharing and license/security requirements: https://learn.microsoft.com/en-us/power-bi/collaborate-share/service-share-dashboards
+- Secure portal/website report embedding: https://learn.microsoft.com/en-us/power-bi/collaborate-share/service-embed-secure
+- Embedded analytics capacity/licensing: https://learn.microsoft.com/en-us/power-bi/developer/embedded/embedded-capacity
 
 ## Verification
 
@@ -169,9 +228,11 @@ Current Microsoft documentation:
 4. Confirm the header has exactly 13 columns and excludes address and GUID fields.
 5. Sign in to the Azure Blob connector with the intended organizational account and run **Refresh now**.
 6. Confirm KPI totals against Workslip for one synthetic or approved test month.
-7. Confirm an unauthorized Entra user cannot open the blob, report, or `/api/worksheets/all/report/power-bi` endpoint.
-8. Set `PowerBiReport:Url` to the published authenticated report URL and confirm **Åbn Power BI** appears for an Admin on `/app/timer`.
-9. Confirm the copied report link works in a private browser window for an explicitly authorized viewer.
-10. Remove `PowerBiReport:Url` and confirm the Workslip button disappears without affecting worksheet operations.
+7. Confirm a non-Admin cannot read `/api/worksheets/all/report/power-bi` and an unauthorized Entra viewer cannot open the report.
+8. Set `PowerBiReport:Url` to a published authenticated report URL and confirm the report is embedded for an Admin on `/app/timer`.
+9. Confirm the embedded report and fallback link both require the intended Microsoft identity and report permission; verify a negative cross-tenant/RLS case before production sharing.
+10. Confirm filters/slicers function inside Workslip and the iframe remains usable at desktop and narrow viewport widths.
+11. Confirm three scheduled refreshes complete without interactive login and that refresh failure notification is configured.
+12. Remove `PowerBiReport:Url` and confirm the embedded report and fallback link disappear without affecting worksheet operations.
 
 The previously shared Workslip bearer token must never be used in this setup. Log out of old Workslip sessions and sign in again to invalidate/replace that session material.
