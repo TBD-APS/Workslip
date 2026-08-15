@@ -1,0 +1,81 @@
+name: WOR-551 temporary conversation UI wiring
+
+on:
+  push:
+    branches:
+      - rbj--551-conversations-actions-v1
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    if: github.event.head_commit.message == 'WOR-551 temporary conversation UI wiring'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: rbj--551-conversations-actions-v1
+          fetch-depth: 0
+      - name: Wire conversation launcher into job surfaces
+        shell: python
+        run: |
+          from pathlib import Path
+
+          details = Path('src/FE/src/features/jobs/components/JobDetails.tsx')
+          text = details.read_text()
+          import_anchor = "import { JobHistoryDrawer } from './JobHistoryDrawer';"
+          if import_anchor not in text:
+              raise SystemExit('JobDetails import anchor not found')
+          text = text.replace(import_anchor, import_anchor + "\nimport { JobConversationLauncher } from './JobConversationLauncher';", 1)
+          header_anchor = '''        onShowHistory={() => setHistoryOpen(true)}
+      />
+      <StepIndicators'''
+          header_replacement = '''        onShowHistory={() => setHistoryOpen(true)}
+      />
+      <div className="job-conversation-entry">
+        <JobConversationLauncher
+          jobId={details.job.id}
+          allowSubmitForReview={canSubmitForReview}
+        />
+      </div>
+      <StepIndicators'''
+          if header_anchor not in text:
+              raise SystemExit('JobDetails header anchor not found')
+          details.write_text(text.replace(header_anchor, header_replacement, 1))
+
+          route = Path('src/FE/src/features/jobs/routes/JobDetail.tsx')
+          text = route.read_text()
+          text = text.replace("to={`/app/completed/${id}`}", "to={`/app/completed/${id}${location.search}`}")
+          route.write_text(text)
+
+          completed = Path('src/FE/src/features/jobs/routes/CompletedJobReport.tsx')
+          text = completed.read_text()
+          import_anchor = "import { JobHistoryDrawer } from '../components/JobHistoryDrawer';"
+          if import_anchor not in text:
+              raise SystemExit('CompletedJobReport import anchor not found')
+          text = text.replace(import_anchor, import_anchor + "\nimport { JobConversationLauncher } from '../components/JobConversationLauncher';", 1)
+          history_anchor = '''          <button
+            className="btn btn-secondary report-overview-icon-action"
+            type="button"
+            onClick={() => setHistoryOpen(true)}'''
+          history_replacement = '''          <JobConversationLauncher
+            jobId={job.id}
+            allowSubmitForReview={job.status === JobStatus.Draft || job.status === JobStatus.Rejected}
+            compact
+          />
+          <button
+            className="btn btn-secondary report-overview-icon-action"
+            type="button"
+            onClick={() => setHistoryOpen(true)}'''
+          if history_anchor not in text:
+              raise SystemExit('CompletedJobReport history button anchor not found')
+          completed.write_text(text.replace(history_anchor, history_replacement, 1))
+      - name: Remove temporary workflow and commit
+        run: |
+          rm .github/workflows/wor551-wire-conversation-ui.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "RBJ-551: wire conversations into job surfaces"
+          git push origin HEAD:rbj--551-conversations-actions-v1
