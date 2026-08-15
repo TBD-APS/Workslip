@@ -28,6 +28,8 @@ dotnet run --launch-profile http
 
 Startup applies only migrations missing from `dbo.WorkslipSchemaMigrations`. Re-running the same branch is idempotent. A checksum mismatch for an already-applied migration fails closed; the existing narrow LF/CRLF checksum reconciliation is preserved without rerunning migration SQL.
 
+On a brand-new local database the current EF model builds the modeled schema and the remaining migrations are recorded as an already-applied baseline. Migration-managed tables that are not part of the EF model (for example the Dapper-owned `UserBillingRates`, `WorksheetBillingSnapshots`, `KnowledgeDocuments` and `KnowledgeDocumentAttachments` tables) are created by running the migrations that introduce them before that baseline is recorded, so a fresh local schema matches an incrementally migrated one instead of silently missing those tables.
+
 Development seeding remains a separate explicit opt-in through `Workslip:SeedDevelopmentData`. Auto-migration does not enable seeding or Entra provisioning.
 
 ## Data and destructive changes

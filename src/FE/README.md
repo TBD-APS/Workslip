@@ -25,6 +25,17 @@ npm run dev
 
 The dev server listens on `http://127.0.0.1:5270`. `/api` is proxied to the local backend by `vite.config.ts` unless an explicit local API base URL is configured, so serving data still requires the API to be running.
 
+For the canonical full-stack bootstrap and physical-phone testing, run these commands from the repository root instead of editing the Vite host permanently:
+
+```powershell
+.\dev.ps1
+.\dev.ps1 -Mobile
+```
+
+The root bootstrap forces the Vite child process to use same-origin API requests, so ignored `.env.local` values cannot bypass the canonical `/api` proxy. `-Mobile` additionally overrides the Vite listener to the LAN for that process only and prints the phone URL. The backend stays on localhost and phone API traffic uses the existing `/api` proxy. See [`../../Docs/operations/local-development.md`](../../Docs/operations/local-development.md) for network, firewall and secure-context guidance.
+
+Manual `npm run dev` remains a focused frontend path and may intentionally honor an explicit `VITE_API_BASE_URL`; it is not the canonical full-stack or phone-testing path.
+
 ## Commands
 
 The authoritative command list is `package.json`.
@@ -71,7 +82,7 @@ PWA update activation policy is an accepted product decision recorded in [`../..
 
 Only `VITE_` values are eligible for inclusion in browser code. Never place client secrets, database credentials, signing keys or privileged tokens in frontend environment files.
 
-`VITE_API_BASE_URL` is for local/non-Vercel API targeting. Local development defaults to `http://localhost:5262`. Vercel-hosted production traffic uses the same-origin `/api` rewrite defined by the deployed frontend configuration.
+`VITE_API_BASE_URL` is for local/non-Vercel API targeting. Manual frontend development may use it explicitly. The canonical root `dev.ps1` path forces same-origin API traffic through Vite's `/api` proxy instead. Vercel-hosted production traffic uses the same-origin `/api` rewrite defined by the deployed frontend configuration.
 
 ## Production delivery
 
