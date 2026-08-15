@@ -294,6 +294,31 @@ jobs:
             sleep "${delay_seconds}"
           done
 
+      - name: Capture Azure deployment diagnostics on failure
+        if: ${{ failure() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          echo '### Backend production failure diagnostics' >> "${GITHUB_STEP_SUMMARY}"
+          echo >> "${GITHUB_STEP_SUMMARY}"
+          echo "- SHA: \`${RELEASE_SHA}\`" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Target: \`${AZURE_WEBAPP_NAME}\`" >> "${GITHUB_STEP_SUMMARY}"
+          az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query '{name:name,state:state,enabled:enabled,availabilityState:availabilityState,defaultHostName:defaultHostName,lastModifiedTimeUtc:lastModifiedTimeUtc}' \
+            --output jsonc
+          az webapp log deployment list \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query '[0:5]' \
+            --output jsonc
+          az webapp log deployment show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --output jsonc
+
       - name: Require production API health
         shell: bash
         env:
