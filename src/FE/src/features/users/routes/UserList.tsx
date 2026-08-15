@@ -1,7 +1,9 @@
 import { useCallback, useEffect } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Clock, Mail } from 'lucide-react';
 import { type UserListViewModel, type UserViewModel } from '../../../api/generated/models';
+import { getGetApiJobCostingUsersIdRateQueryOptions } from '../../../api/generated/job-costing/job-costing';
 import { ErrorState } from '../../../components/ErrorState';
 import { SearchBar } from '../../../components/filters/SearchBar';
 import { announceSection } from '../../../components/filters/StatusFilter';
@@ -11,6 +13,7 @@ import { usePaginatedList } from '../../../hooks/usePaginatedList';
 import { useColumnResize } from '../../../hooks/useColumnResize';
 import { apiClient } from '../../../lib/axios';
 import { useAuth } from '../../../providers/useAuth';
+import { UserRateEditor } from '../components/UserRateCard';
 import { UserRoleBadge } from '../components/UserRoleBadge';
 
 const PAGE_SIZE = 20;
@@ -38,6 +41,7 @@ const SkeletonCard = () => (
     </div>
     <div className="skeleton skeleton-address" style={{ width: '40%' }} />
     <div className="skeleton skeleton-tag" style={{ width: '30%' }} />
+    <div className="skeleton skeleton-address" style={{ width: '52%' }} />
   </div>
 );
 
@@ -93,6 +97,21 @@ export const UserList = () => {
 
   const { handleMouseDown } = useColumnResize();
 
+  const rateQueries = useQueries({
+    queries: pageItems.map((user) => getGetApiJobCostingUsersIdRateQueryOptions(user.id, {
+      query: { staleTime: 60_000 },
+    })),
+  });
+
+  const getRateState = (index: number) => {
+    const rateQuery = rateQueries[index];
+    return {
+      rate: rateQuery?.data?.billableHourlyRate ?? null,
+      isLoading: rateQuery?.isPending ?? false,
+      isError: rateQuery?.isError ?? false,
+    };
+  };
+
   const showLoadingSkeleton = isLoading && users.length === 0;
   const isErrored = isError && users.length === 0;
   const showPageLoading = isDesktop && isFetching && !showLoadingSkeleton && users.length < safeViewPage * PAGE_SIZE;
@@ -127,6 +146,7 @@ export const UserList = () => {
                 <th className="col-email">Email</th>
                 <th className="col-role">Rolle</th>
                 <th className="col-hours">Uge</th>
+                <th>Timepris</th>
                 <th className="col-actions" />
               </tr>
             </thead>
@@ -137,6 +157,7 @@ export const UserList = () => {
                   <td><div className="skeleton skeleton-w-70" /></td>
                   <td><div className="skeleton skeleton-w-40" /></td>
                   <td><div className="skeleton skeleton-w-1-5rem" /></td>
+                  <td><div className="skeleton skeleton-w-60" /></td>
                   <td><div className="skeleton skeleton-w-1-5rem" /></td>
                 </tr>
               ))}
@@ -175,42 +196,56 @@ export const UserList = () => {
                       <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(2, event)} />
                     </th>
                     <th className="col-hours">Uge</th>
+                    <th>Timepris</th>
                     <th className="col-actions">
                       <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(3, event)} />
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pageItems.map((user) => (
-                    <tr
-                      key={user.id}
-                      className="clickable"
-                      tabIndex={0}
-                      onClick={() => navigate(`/app/users/${user.id}`)}
-                      onKeyDown={(event) => {
-                        if (event.target !== event.currentTarget) return;
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          navigate(`/app/users/${user.id}`);
-                        }
-                      }}
-                    >
-                      <td><strong>{user.displayName}</strong></td>
-                      <td>
-                        <span className="inline-flex-center">
-                          <Mail size={14} className="text-muted" aria-hidden="true" />
-                          {user.email}
-                        </span>
-                      </td>
-                      <td>
-                        <UserRoleBadge role={user.role} displayName={user.roleDisplayName} />
-                      </td>
-                      <td className="col-hours">{formatHours(user.hoursThisWeek)}</td>
-                      <td className="col-actions">
-                        <ChevronRight size={16} className="row-link-icon" aria-hidden="true" />
-                      </td>
-                    </tr>
-                  ))}
+                  {pageItems.map((user, index) => {
+                    const rateState = getRateState(index);
+                    return (
+                      <tr
+                        key={user.id}
+                        className="clickable"
+                        tabIndex={0}
+                        onClick={() => navigate(`/app/users/${user.id}`)}
+                        onKeyDown={(event) => {
+                          if (event.target !== event.currentTarget) return;
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            navigate(`/app/users/${user.id}`);
+                          }
+                        }}
+                      >
+                        <td><strong>{user.displayName}</strong></td>
+                        <td>
+                          <span className="inline-flex-center">
+                            <Mail size={14} className="text-muted" aria-hidden="true" />
+                            {user.email}
+                          </span>
+                        </td>
+                        <td>
+                          <UserRoleBadge role={user.role} displayName={user.roleDisplayName} />
+                        </td>
+                        <td className="col-hours">{formatHours(user.hoursThisWeek)}</td>
+                        <td className="user-rate-table-cell">
+                          <UserRateEditor
+                            userId={user.id}
+                            rate={rateState.rate}
+                            isLoading={rateState.isLoading}
+                            isError={rateState.isError}
+                            variant="inline"
+                            ariaLabel={`Fakturerbar timepris for ${user.displayName}`}
+                          />
+                        </td>
+                        <td className="col-actions">
+                          <ChevronRight size={16} className="row-link-icon" aria-hidden="true" />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
               <PaginationControls
@@ -227,40 +262,61 @@ export const UserList = () => {
             </>
           ) : (
             <div className="job-list">
-              {pageItems.map((user) => (
-                <button
-                  key={user.id}
-                  className="job-card"
-                  onClick={() => navigate(`/app/users/${user.id}`)}
-                  type="button"
-                >
-                  <div className="job-card-top">
-                    <div>
-                      <h3 className="job-customer">{user.displayName}</h3>
+              {pageItems.map((user, index) => {
+                const rateState = getRateState(index);
+                return (
+                  <div key={user.id} className="job-card user-card-with-rate">
+                    <button
+                      className="user-card-primary-action"
+                      onClick={() => navigate(`/app/users/${user.id}`)}
+                      type="button"
+                      aria-label={`Åbn ${user.displayName}`}
+                    >
+                      <div className="job-card-top">
+                        <div>
+                          <h3 className="job-customer">{user.displayName}</h3>
+                        </div>
+                      </div>
+
+                      <div className="job-card-meta">
+                        <span className="meta-item">
+                          <Mail size={14} aria-hidden="true" />
+                          <span>{user.email}</span>
+                        </span>
+                        <UserRoleBadge role={user.role} displayName={user.roleDisplayName} />
+                      </div>
+
+                      <div className="user-hours-row">
+                        <Clock size={14} className="text-muted" aria-hidden="true" />
+                        <span>{formatHours(user.hoursThisWeek)} denne uge</span>
+                      </div>
+                    </button>
+
+                    <div className="user-rate-mobile-row">
+                      <UserRateEditor
+                        userId={user.id}
+                        rate={rateState.rate}
+                        isLoading={rateState.isLoading}
+                        isError={rateState.isError}
+                        variant="inline"
+                        ariaLabel={`Fakturerbar timepris for ${user.displayName}`}
+                      />
+                    </div>
+
+                    <div className="job-card-footer">
+                      <span />
+                      <button
+                        type="button"
+                        className="btn-icon"
+                        aria-label={`Se ${user.displayName}`}
+                        onClick={() => navigate(`/app/users/${user.id}`)}
+                      >
+                        <ChevronRight size={20} aria-hidden="true" />
+                      </button>
                     </div>
                   </div>
-
-                  <div className="job-card-meta">
-                    <span className="meta-item">
-                      <Mail size={14} aria-hidden="true" />
-                      <span>{user.email}</span>
-                    </span>
-                    <UserRoleBadge role={user.role} displayName={user.roleDisplayName} />
-                  </div>
-
-                  <div className="user-hours-row">
-                    <Clock size={14} className="text-muted" aria-hidden="true" />
-                    <span>{formatHours(user.hoursThisWeek)} denne uge</span>
-                  </div>
-
-                  <div className="job-card-footer">
-                    <span />
-                    <span className="btn-icon" aria-label="Se bruger">
-                      <ChevronRight size={20} aria-hidden="true" />
-                    </span>
-                  </div>
-                </button>
-              ))}
+                );
+              })}
 
               {users.length === 0 && !isFetchingNextPage && (
                 <div className="empty-state">

@@ -28,6 +28,7 @@ import { formatJobStatus } from '../../jobs/statusLabels';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { announceSection } from '../../../components/filters/StatusFilter';
 import { canReceiveJobAssignment } from '../../../providers/permissions';
+import { UserRateCard } from '../components/UserRateCard';
 
 function formatHours(value: number | string | null): string {
   if (value == null) return '\u2013';
@@ -222,6 +223,8 @@ export const UserDetail = () => {
         </button>
         <h2>{user.displayName}</h2>
       </div>
+
+      <UserRateCard userId={user.id} />
 
       <div className="user-detail-info">
         <div className="detail-row">
