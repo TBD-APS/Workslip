@@ -1,0 +1,121 @@
+name: Mobile · Local session
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration_minutes:
+        description: How long the local phone session should stay available
+        required: true
+        default: '60'
+        type: choice
+        options:
+          - '30'
+          - '60'
+          - '120'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workslip-mobile-local-session
+  cancel-in-progress: true
+
+jobs:
+  mobile-session:
+    name: Start local phone session
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Windows, X64, workslip-mobile]
+    timeout-minutes: 135
+
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+          clean: true
+
+      - name: Stop previous session from this runner workspace
+        shell: pwsh
+        run: |
+          $repoRoot = (Resolve-Path '.').Path
+          foreach ($port in @(5262, 5270)) {
+            $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue)
+            foreach ($listener in $listeners) {
+              $processId = [int]$listener.OwningProcess
+              $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $processId" -ErrorAction SilentlyContinue
+              $commandLine = [string]$processInfo.CommandLine
+              if (-not $commandLine.Contains($repoRoot, [StringComparison]::OrdinalIgnoreCase)) {
+                throw "Port $port is occupied by PID $processId outside this GitHub runner workspace. Refusing to terminate it."
+              }
+
+              Write-Host "Stopping previous Workslip process on port $port (PID $processId)."
+              & taskkill.exe /PID $processId /T /F 2>$null | Out-Null
+            }
+          }
+
+      - name: Start Workslip from current main
+        shell: pwsh
+        run: .\dev.ps1 -Main -Mobile -NoBrowser
+
+      - name: Publish phone URL
+        id: phone
+        shell: pwsh
+        run: |
+          $addresses = @(
+            Get-NetIPConfiguration -ErrorAction SilentlyContinue |
+              Where-Object { $null -ne $_.IPv4DefaultGateway -and $null -ne $_.IPv4Address } |
+              ForEach-Object {
+                foreach ($address in @($_.IPv4Address)) {
+                  $ip = [string]$address.IPAddress
+                  if ($ip -and $ip -notmatch '^127\.' -and $ip -notmatch '^169\.254\.') {
+                    $ip
+                  }
+                }
+              } |
+              Select-Object -Unique
+          )
+
+          if ($addresses.Count -eq 0) {
+            throw 'No LAN IPv4 address was available after Workslip startup.'
+          }
+
+          $urls = @($addresses | ForEach-Object { "http://$($_):5270/app/overblik" })
+          "phone_url=$($urls[0])" >> $env:GITHUB_OUTPUT
+
+          Add-Content $env:GITHUB_STEP_SUMMARY '## Workslip phone session'
+          Add-Content $env:GITHUB_STEP_SUMMARY ''
+          Add-Content $env:GITHUB_STEP_SUMMARY "Open one of these URLs on an iPhone connected to the same trusted Wi-Fi/LAN:"
+          Add-Content $env:GITHUB_STEP_SUMMARY ''
+          foreach ($url in $urls) {
+            Add-Content $env:GITHUB_STEP_SUMMARY "- [$url]($url)"
+          }
+          Add-Content $env:GITHUB_STEP_SUMMARY ''
+          Add-Content $env:GITHUB_STEP_SUMMARY "Session duration: ${{ inputs.duration_minutes }} minutes."
+          Add-Content $env:GITHUB_STEP_SUMMARY 'Cancel this workflow run to end the session early.'
+          Add-Content $env:GITHUB_STEP_SUMMARY 'Only Vite is exposed to the LAN; backend and LocalDB remain local to the runner PC.'
+
+      - name: Keep phone session available
+        shell: pwsh
+        run: |
+          $minutes = [int]'${{ inputs.duration_minutes }}'
+          Write-Host "Phone session is available at ${{ steps.phone.outputs.phone_url }} for $minutes minutes."
+          Start-Sleep -Seconds ($minutes * 60)
+
+      - name: Stop Workslip session
+        if: always()
+        shell: pwsh
+        run: |
+          $repoRoot = (Resolve-Path '.').Path
+          foreach ($port in @(5262, 5270)) {
+            $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue)
+            foreach ($listener in $listeners) {
+              $processId = [int]$listener.OwningProcess
+              $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $processId" -ErrorAction SilentlyContinue
+              $commandLine = [string]$processInfo.CommandLine
+              if ($commandLine.Contains($repoRoot, [StringComparison]::OrdinalIgnoreCase)) {
+                Write-Host "Stopping Workslip process on port $port (PID $processId)."
+                & taskkill.exe /PID $processId /T /F 2>$null | Out-Null
+              }
+            }
+          }
