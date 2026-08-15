@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { EyeOff, ShieldCheck } from 'lucide-react';
 import type { JobAuditorScopeDraft } from '../api/auditorScopeApi';
 import './jobAuditorScope.css';
@@ -12,10 +12,6 @@ type JobAuditorScopeControlProps = {
 export function JobAuditorScopeControl({ value, onChange, disabled = false }: JobAuditorScopeControlProps) {
   const [editingReason, setEditingReason] = useState(false);
   const [draftReason, setDraftReason] = useState(value.reason);
-
-  useEffect(() => {
-    if (!editingReason) setDraftReason(value.reason);
-  }, [editingReason, value.reason]);
 
   const normalizedReason = draftReason.trim();
   const canMakeInternal = normalizedReason.length >= 3 && !disabled;
