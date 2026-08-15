@@ -32,17 +32,6 @@ if (typeof window !== 'undefined') {
     window.location.reload();
   });
 
-  const originalFocus = HTMLInputElement.prototype.focus;
-
-  HTMLInputElement.prototype.focus = function (options?: FocusOptions) {
-    // Hvis der ikke eksplicit er angivet options, tvinger vi preventScroll: true
-    const newOptions: FocusOptions = {
-      preventScroll: true,
-      ...options,
-    };
-    originalFocus.call(this, newOptions);
-  };
-
   if ('serviceWorker' in navigator) {
     installNotificationNavigationHandler(
       navigator.serviceWorker,
