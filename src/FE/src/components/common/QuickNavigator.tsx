@@ -97,21 +97,22 @@ export function QuickNavigator({
     showProfile,
   ]);
 
+  const hasSearchQuery = normalize(query).length > 0;
   const filteredCommands = useMemo(() => {
     const needle = normalize(query);
-    if (!needle) return commands;
+    if (!needle) return [];
     return commands.filter((command) =>
       [command.label, command.description, ...command.keywords]
         .some((value) => normalize(value).includes(needle)),
-    );
+    ).slice(0, 4);
   }, [commands, query]);
 
   const jobSearchTerm = getQuickJobSearchTerm(query);
   const hasCurrentJobResults = Boolean(jobSearchTerm) && jobResultTerm === jobSearchTerm;
   const visibleJobs = hasCurrentJobResults ? jobs : [];
   const results: QuickNavigatorResult[] = [
-    ...filteredCommands.map((command) => ({ type: 'command' as const, command })),
     ...visibleJobs.map((job) => ({ type: 'job' as const, job })),
+    ...filteredCommands.map((command) => ({ type: 'command' as const, command })),
   ];
   const safeActiveIndex = Math.min(activeIndex, Math.max(results.length - 1, 0));
   const isPendingJobSearch = Boolean(jobSearchTerm) && jobResultTerm !== jobSearchTerm;
@@ -164,7 +165,7 @@ export function QuickNavigator({
       setJobSearchFailed(false);
       try {
         const response = await apiClient.get('/api/jobs', {
-          params: { search: jobSearchTerm, limit: 5, offset: 0 },
+          params: { search: jobSearchTerm, limit: 6, offset: 0 },
           signal: controller.signal,
         }) as JobSearchResponse;
         setJobs(filterQuickNavigationJobs(response.items ?? [], canViewAllJobs, currentUserId));
@@ -238,7 +239,6 @@ export function QuickNavigator({
     }
   };
 
-  const hasSearchQuery = normalize(query).length > 0;
   const resultCountText = results.length === 0
     ? 'Ingen resultater'
     : `${results.length} ${results.length === 1 ? 'resultat' : 'resultater'}`;
@@ -260,16 +260,17 @@ export function QuickNavigator({
       >
         <div className="quick-nav-header">
           <div>
-            <div className="quick-nav-kicker">Hurtig navigation</div>
-            <h2 id="quick-nav-title">Hvor vil du hen?</h2>
+            <div className="quick-nav-kicker">Søg i Workslip</div>
+            <h2 id="quick-nav-title">Find en sag</h2>
+            <p>Indtast sagsnummer, kunde eller adresse.</p>
           </div>
-          <button type="button" className="quick-nav-close" onClick={resetAndClose} aria-label="Luk hurtig navigation">
+          <button type="button" className="quick-nav-close" onClick={resetAndClose} aria-label="Luk søgning">
             <X size={18} />
           </button>
         </div>
 
         <div className="quick-nav-search-wrap">
-          <Search size={19} aria-hidden="true" />
+          <Search size={20} aria-hidden="true" />
           <input
             ref={inputRef}
             type="search"
@@ -279,20 +280,43 @@ export function QuickNavigator({
               setActiveIndex(0);
             }}
             onKeyDown={handleInputKeyDown}
-            placeholder="Søg efter side eller sag…"
+            placeholder="Fx SAG-1042, Jensen eller Vestergade"
             aria-label="Søg i Workslip"
             autoComplete="off"
             spellCheck={false}
           />
-          <kbd>Esc</kbd>
+          {query && (
+            <button
+              type="button"
+              className="quick-nav-clear"
+              onClick={() => {
+                setQuery('');
+                setJobs([]);
+                setJobResultTerm('');
+                setActiveIndex(0);
+                inputRef.current?.focus();
+              }}
+              aria-label="Ryd søgning"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
 
         <div className="quick-nav-meta" aria-live="polite">
-          <span>{hasSearchQuery ? resultCountText : 'Genveje'}</span>
-          {showSearchingJobs && <span className="quick-nav-searching"><LoaderCircle size={14} /> Søger sager…</span>}
+          <span>{hasSearchQuery ? resultCountText : 'Søg direkte i dine sager'}</span>
+          {showSearchingJobs && <span className="quick-nav-searching"><LoaderCircle size={14} /> Søger…</span>}
         </div>
 
         <div className="quick-nav-results">
+          {!hasSearchQuery && (
+            <div className="quick-nav-empty quick-nav-empty--welcome">
+              <Search size={24} aria-hidden="true" />
+              <strong>Hvad leder du efter?</strong>
+              <span>Du kan søge på sagsnummer, kundenavn eller adresse.</span>
+            </div>
+          )}
+
           {results.map((result, index) => {
             if (result.type === 'command') {
               const Icon = result.command.icon;
@@ -328,33 +352,25 @@ export function QuickNavigator({
               >
                 <span className="quick-nav-result-icon"><FileText size={19} /></span>
                 <span className="quick-nav-result-copy">
-                  <strong>{title} · {customer}</strong>
-                  <span>{address || 'Åbn sag'}</span>
+                  <strong>{title}</strong>
+                  <span>{customer}{address ? ` · ${address}` : ''}</span>
                 </span>
                 <ArrowRight size={17} className="quick-nav-result-arrow" aria-hidden="true" />
               </button>
             );
           })}
 
-          {!jobSearchTerm && results.length === 0 && (
-            <div className="quick-nav-empty">
-              <Search size={22} aria-hidden="true" />
-              <strong>Ingen resultater</strong>
-              <span>Prøv fx “timer”, “docs”, “kunde” eller “sag 1234”.</span>
-            </div>
-          )}
-
-          {hasCurrentJobResults && !isSearchingJobs && results.length === 0 && !jobSearchFailed && (
+          {hasSearchQuery && hasCurrentJobResults && !isSearchingJobs && results.length === 0 && !jobSearchFailed && (
             <div className="quick-nav-empty">
               <Search size={22} aria-hidden="true" />
               <strong>Ingen sager fundet</strong>
-              <span>Prøv et andet sagsnummer.</span>
+              <span>Prøv sagsnummer, kundenavn eller en del af adressen.</span>
             </div>
           )}
 
           {showJobSearchError && (
             <div className="quick-nav-search-error" role="status">
-              Sager kunne ikke søges lige nu. Navigationen ovenfor virker stadig.
+              Sager kunne ikke søges lige nu. Prøv igen om et øjeblik.
             </div>
           )}
         </div>
@@ -362,7 +378,7 @@ export function QuickNavigator({
         <div className="quick-nav-footer">
           <span><kbd>↑</kbd><kbd>↓</kbd> vælg</span>
           <span><kbd>Enter</kbd> åbn</span>
-          <span className="quick-nav-shortcut"><kbd>Ctrl</kbd>/<kbd>⌘</kbd><kbd>K</kbd></span>
+          <span className="quick-nav-shortcut"><kbd>Esc</kbd> luk</span>
         </div>
       </div>
     </div>
