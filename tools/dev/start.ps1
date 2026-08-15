@@ -15,6 +15,7 @@ $frontendPath = Join-Path $repoRoot 'src/FE'
 $viteEntry = Join-Path $frontendPath 'node_modules/vite/bin/vite.js'
 $backendUrl = 'http://localhost:5262'
 $frontendUrl = 'http://127.0.0.1:5270'
+$overviewUrl = "$frontendUrl/app/overblik"
 $devEmail = 'admin@17v3ygzs.mailosaur.net'
 
 function Write-Ok([string]$Message) {
@@ -88,6 +89,41 @@ function Wait-ForUrl(
     throw "$Name did not become ready at $Url within $TimeoutSeconds seconds.`n$(Get-LogTail $LogPaths)"
 }
 
+function Stop-StaleWorkslipListener([int]$Port, [string]$ServiceName) {
+    $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
+    if ($listeners.Count -eq 0) {
+        return
+    }
+
+    foreach ($listener in $listeners) {
+        $processId = [int]$listener.OwningProcess
+        $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $processId" -ErrorAction SilentlyContinue
+        $commandLine = [string]$processInfo.CommandLine
+        $executablePath = [string]$processInfo.ExecutablePath
+        $isWorkslipProcess =
+            $commandLine.Contains($repoRoot, [StringComparison]::OrdinalIgnoreCase) -or
+            $executablePath.Contains($repoRoot, [StringComparison]::OrdinalIgnoreCase)
+
+        if (-not $isWorkslipProcess) {
+            throw "Port $Port is already in use by PID $processId ($ServiceName), and it is not identifiable as this Workslip checkout. Stop that process manually before running dev.ps1."
+        }
+
+        Write-Step "Stopping stale Workslip $ServiceName process on port $Port (PID $processId)"
+        & taskkill.exe /PID $processId /T /F 2>$null | Out-Null
+    }
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        if (@(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue).Count -eq 0) {
+            Write-Ok "Port $Port is free"
+            return
+        }
+        Start-Sleep -Milliseconds 250
+    }
+
+    throw "Could not free port $Port after stopping the stale Workslip $ServiceName process."
+}
+
 function Assert-PortFree([int]$Port, [string]$ServiceName) {
     $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
     if ($listeners.Count -gt 0) {
@@ -159,14 +195,17 @@ if (-not (Test-Path (Join-Path $frontendPath 'package-lock.json'))) { throw 'Fro
 if (-not (Test-Path (Join-Path $backendPath 'appsettings.Development.json'))) { throw 'Tracked appsettings.Development.json is missing.' }
 Write-Ok 'Tracked Development configuration present'
 
-Assert-PortFree 5262 'backend'
-Assert-PortFree 5270 'frontend'
-
 if ($CheckOnly) {
+    Assert-PortFree 5262 'backend'
+    Assert-PortFree 5270 'frontend'
+
     Write-Host ''
     Write-Host 'Doctor checks passed. No dependencies, databases or processes were changed.' -ForegroundColor Green
     exit 0
 }
+
+Stop-StaleWorkslipListener 5262 'backend'
+Stop-StaleWorkslipListener 5270 'frontend'
 
 if (-not $SkipInstall) {
     Write-Step 'Restoring backend dependencies'
@@ -248,15 +287,29 @@ try {
         throw '/api/dev/token returned no token.'
     }
 
+    $authHeaders = @{ Authorization = "Bearer $($tokenResponse.token)" }
     $me = Invoke-RestMethod `
         -Method Get `
         -Uri "$backendUrl/api/auth/me" `
-        -Headers @{ Authorization = "Bearer $($tokenResponse.token)" }
+        -Headers $authHeaders
 
     if ([string]::IsNullOrWhiteSpace([string]$me.email)) {
         throw '/api/auth/me returned no user email.'
     }
     Write-Ok "LocalJwt auth: $($me.email)"
+
+    Write-Step 'Verifying /api/jobs/overview with the local dev user'
+    $overview = Invoke-RestMethod `
+        -Method Get `
+        -Uri "$backendUrl/api/jobs/overview" `
+        -Headers $authHeaders
+
+    foreach ($propertyName in @('activeCount', 'inReviewCount', 'approvedCount', 'rejectedCount', 'recentJobs')) {
+        if ($null -eq $overview.PSObject.Properties[$propertyName]) {
+            throw "/api/jobs/overview response is missing '$propertyName'."
+        }
+    }
+    Write-Ok "Overview API READY (active=$($overview.activeCount), review=$($overview.inReviewCount), approved=$($overview.approvedCount), rejected=$($overview.rejectedCount))"
 
     Write-Step 'Starting frontend using the already generated local contract'
     $viteArgument = '"' + $viteEntry + '"'
@@ -274,6 +327,7 @@ try {
     Write-Host 'Workslip ready' -ForegroundColor Green
     Write-Host "  Backend:  $backendUrl"
     Write-Host "  Frontend: $frontendUrl"
+    Write-Host "  Overblik: $overviewUrl"
     Write-Host "  Dev user: $devEmail"
     Write-Host "  Logs:     $logDirectory"
     Write-Host ''
@@ -282,7 +336,7 @@ try {
     Write-Host "  taskkill /PID $($frontendProcess.Id) /T /F"
 
     if (-not $NoBrowser) {
-        Start-Process $frontendUrl
+        Start-Process $overviewUrl
     }
 }
 catch {
