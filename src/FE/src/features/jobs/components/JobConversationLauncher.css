@@ -11,6 +11,32 @@
   gap: 0.4rem;
 }
 
+.job-conversation-launcher-button {
+  position: relative;
+}
+
+.job-conversation-unread {
+  min-width: 1.35rem;
+  height: 1.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.32rem;
+  border-radius: var(--radius-pill);
+  background: var(--danger);
+  color: var(--on-primary, white);
+  font-size: 0.68rem;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.report-overview-icon-action .job-conversation-unread {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  border: 2px solid var(--surface-floating, var(--surface));
+}
+
 @media (max-width: 430px) {
   .job-conversation-entry {
     justify-content: stretch;
