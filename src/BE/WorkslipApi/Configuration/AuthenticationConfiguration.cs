@@ -20,7 +20,7 @@ public static class AuthenticationConfiguration
         var configuration = builder.Configuration;
 
 
-        builder.Services
+        var authenticationBuilder = builder.Services
             .AddAuthentication(options =>
             {
                 options.DefaultScheme = CombinedScheme;
@@ -65,19 +65,42 @@ public static class AuthenticationConfiguration
                 options.TokenValidationParameters =
                     JwtHelper.GetTokenValidationParameters(configuration);
 
-            })
-            .AddMicrosoftIdentityWebApi(
-        configuration.GetSection("Azure:AdOAuth"),
-        jwtBearerScheme: EntraJwtScheme);
+            });
 
-        builder.Services.Configure<JwtBearerOptions>(EntraJwtScheme, options =>
+        var entraClientId = configuration["Azure:AdOAuth:ClientId"];
+        if (string.IsNullOrWhiteSpace(entraClientId))
         {
-            var clientId = configuration["Azure:AdOAuth:ClientId"];
+            // Entra is not configured (deterministic local development without
+            // external services). Register a deny-all EntraJwt scheme so
+            // Entra-only endpoints fail closed with 401 instead of throwing
+            // 500 inside the authentication middleware.
+            authenticationBuilder.AddJwtBearer(EntraJwtScheme, options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuer = "entra-jwt-not-configured",
+                    ValidateAudience = true,
+                    ValidAudience = "entra-jwt-not-configured",
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(
+                        System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
+                };
+            });
+        }
+        else
+        {
+            authenticationBuilder.AddMicrosoftIdentityWebApi(
+                configuration.GetSection("Azure:AdOAuth"),
+                jwtBearerScheme: EntraJwtScheme);
 
-            // Accept both audience formats emitted for this API while keeping
-            // Microsoft.Identity.Web's tenant/issuer validation enabled.
-            options.TokenValidationParameters.ValidAudiences = new[] { clientId, $"api://{clientId}" };
-        });
+            builder.Services.Configure<JwtBearerOptions>(EntraJwtScheme, options =>
+            {
+                // Accept both audience formats emitted for this API while keeping
+                // Microsoft.Identity.Web's tenant/issuer validation enabled.
+                options.TokenValidationParameters.ValidAudiences = new[] { entraClientId, $"api://{entraClientId}" };
+            });
+        }
 
         builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
         builder.Services.AddScoped<IClaimsTransformation, UserClaimsTransformation>();

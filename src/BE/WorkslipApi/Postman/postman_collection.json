@@ -1634,7 +1634,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 OK or 409 Conflict', function () { pm.expect([200, 409]).to.include(pm.response.code); });",
+                  "pm.test('200 OK, 401 Unauthorized or 409 Conflict', function () { pm.expect([200, 401, 409]).to.include(pm.response.code); });",
                   "if (pm.response.code === 200) {",
                   "  const json = pm.response.json();",
                   "  pm.test('returns JWT token', function () {",

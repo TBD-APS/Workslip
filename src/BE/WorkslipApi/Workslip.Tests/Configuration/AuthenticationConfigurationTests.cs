@@ -40,4 +40,27 @@ public sealed class AuthenticationConfigurationTests
             hasCustomIssuerValidator,
             "Microsoft.Identity.Web must keep its tenant-aware issuer validator on EntraJwt.");
     }
+
+    [Fact]
+    public void ConfigureAuthentication_EntraNotConfigured_RegistersDenyAllEntraScheme()
+    {
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            EnvironmentName = Environments.Development
+        });
+
+        builder.ConfigureAuthentication();
+
+        using var services = builder.Services.BuildServiceProvider();
+        var options = services
+            .GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
+            .Get("EntraJwt");
+        var validation = options.TokenValidationParameters;
+
+        Assert.True(validation.ValidateIssuer);
+        Assert.True(validation.ValidateAudience);
+        Assert.True(validation.ValidateIssuerSigningKey);
+        Assert.NotNull(validation.IssuerSigningKey);
+        Assert.Equal("entra-jwt-not-configured", validation.ValidIssuer);
+    }
 }
