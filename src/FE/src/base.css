@@ -302,7 +302,7 @@ a {
 
 .btn-primary {
   background: var(--primary);
-  color: white;
+  color: var(--on-primary, white);
   box-shadow: 0 4px 14px rgba(37, 99, 235, 0.28);
 }
 
@@ -325,7 +325,7 @@ a {
 
 .btn-danger {
   background: var(--danger);
-  color: white;
+  color: var(--on-primary, white);
   box-shadow: 0 4px 14px rgba(220, 38, 38, 0.28);
 }
 

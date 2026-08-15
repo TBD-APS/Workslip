@@ -9,6 +9,7 @@ function fallback(reason) {
   return {
     provider,
     available: false,
+    configured,
     reason,
     summary: '',
     risk: 'low',
@@ -30,6 +31,7 @@ if (!configured) {
     result = {
       provider,
       available: true,
+      configured: true,
       reason: '',
       summary: parsed.summary.slice(0, 1200),
       risk: ['low', 'medium', 'high', 'critical'].includes(parsed.risk) ? parsed.risk : 'medium',
