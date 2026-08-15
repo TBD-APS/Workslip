@@ -95,7 +95,7 @@ jobs:
             case "$association" in
               OWNER|MEMBER|COLLABORATOR) ;;
               *)
-                echo "Skipping automatic paid AI review for author association ${association}; use workflow_dispatch for an explicit external-contributor review."
+                echo "Skipping automatic AI review for author association ${association}; use workflow_dispatch for an explicit external-contributor review."
                 echo "eligible=false" >> "$GITHUB_OUTPUT"
                 echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
                 echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
@@ -109,6 +109,69 @@ jobs:
           echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
           echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
           echo "ci_conclusion=$conclusion" >> "$GITHUB_OUTPUT"
+
+  github_models_review:
+    name: GitHub Models review
+    needs: prepare
+    if: needs.prepare.outputs.eligible == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+      models: read
+    env:
+      PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+      EXPECTED_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+      CI_CONCLUSION: ${{ needs.prepare.outputs.ci_conclusion }}
+    outputs:
+      review_b64: ${{ steps.package.outputs.review_b64 }}
+      context_truncated: ${{ steps.context.outputs.truncated }}
+    steps:
+      - name: Checkout trusted review policy only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.TRUSTED_BRANCH }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Build sanitized review context
+        id: context
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          metadata="$(python3 .github/ai-review/build-context.py)"
+          echo "truncated=$(printf '%s' "$metadata" | jq -r '.diff_truncated')" >> "$GITHUB_OUTPUT"
+
+      - name: Run GitHub Models review
+        id: models
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .github/ai-review/github-models-review.mjs
+
+      - name: Normalize GitHub Models result
+        if: always()
+        env:
+          ACTION_OUTCOME: ${{ steps.models.outcome }}
+          PROVIDER_CONFIGURED: 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          RAW_REVIEW=''
+          if [ -f github-models-raw.json ]; then
+            RAW_REVIEW="$(cat github-models-raw.json)"
+          fi
+          export RAW_REVIEW
+          node .github/ai-review/normalize-review.mjs "GitHub Models"
+
+      - name: Package GitHub Models result
+        id: package
+        if: always()
+        shell: bash
+        run: echo "review_b64=$(base64 -w0 provider-review.json)" >> "$GITHUB_OUTPUT"
 
   openai_review:
     name: OpenAI review
@@ -244,20 +307,21 @@ jobs:
 
   aggregate:
     name: Aggregate AI review
-    needs: [prepare, openai_review, claude_review]
+    needs: [prepare, github_models_review, openai_review, claude_review]
     if: always() && needs.prepare.outputs.eligible == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
       statuses: write
     env:
       PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
       HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+      GITHUB_MODELS_REVIEW_B64: ${{ needs.github_models_review.outputs.review_b64 }}
       OPENAI_REVIEW_B64: ${{ needs.openai_review.outputs.review_b64 }}
       CLAUDE_REVIEW_B64: ${{ needs.claude_review.outputs.review_b64 }}
-      CONTEXT_TRUNCATED: ${{ needs.openai_review.outputs.context_truncated == 'true' || needs.claude_review.outputs.context_truncated == 'true' }}
+      CONTEXT_TRUNCATED: ${{ needs.github_models_review.outputs.context_truncated == 'true' || needs.openai_review.outputs.context_truncated == 'true' || needs.claude_review.outputs.context_truncated == 'true' }}
       PERSONAL_REVIEW_TOKEN: ${{ secrets.WORKSLIP_REVIEW_PAT }}
     steps:
       - name: Checkout trusted aggregator only
@@ -275,27 +339,19 @@ jobs:
         shell: bash
         run: cat ai-review-body.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Post or update review through personal account
+      - name: Post or update review
         id: post
-        if: env.PERSONAL_REVIEW_TOKEN != ''
         env:
-          REVIEW_TOKEN: ${{ env.PERSONAL_REVIEW_TOKEN }}
+          REVIEW_TOKEN: ${{ env.PERSONAL_REVIEW_TOKEN != '' && env.PERSONAL_REVIEW_TOKEN || github.token }}
+          EXPECTED_REVIEW_USER: ${{ env.PERSONAL_REVIEW_TOKEN != '' && env.REVIEW_ACCOUNT || '' }}
         run: node .github/ai-review/post-review.mjs
-
-      - name: Require personal review token configuration
-        id: token
-        if: env.PERSONAL_REVIEW_TOKEN == ''
-        shell: bash
-        run: |
-          echo 'WORKSLIP_REVIEW_PAT is missing. Review was generated but cannot be posted through the configured personal GitHub profile.' >&2
-          exit 1
 
       - name: Surface consensus blockers
         id: blocker
         if: steps.aggregate.outputs.blocking == 'true'
         shell: bash
         run: |
-          echo 'OpenAI and Claude independently reported a matching high/critical high-confidence finding.' >&2
+          echo 'At least two independent AI providers reported a matching high/critical high-confidence finding.' >&2
           exit 1
 
       - name: Publish exact-head AI review status
@@ -309,12 +365,9 @@ jobs:
         run: |
           set -euo pipefail
           state=success
-          description='OpenAI + Claude review completed'
+          description='AI review completed'
 
-          if [ -z "${PERSONAL_REVIEW_TOKEN}" ]; then
-            state=error
-            description='Personal review token is not configured'
-          elif [ "${POST_OUTCOME}" = "failure" ]; then
+          if [ "${POST_OUTCOME}" = "failure" ]; then
             state=error
             description='AI review generated but PR comment failed'
           elif [ "${PROVIDERS:-0}" = "0" ]; then
@@ -322,9 +375,9 @@ jobs:
             description='No AI review provider was available'
           elif [ "${BLOCKING}" = "true" ]; then
             state=failure
-            description='OpenAI + Claude found a consensus blocker'
+            description='Independent AI providers found a consensus blocker'
           elif [ "${PROVIDERS}" = "1" ]; then
-            description='AI review completed in degraded one-provider mode'
+            description='AI review completed in one-provider mode'
           fi
 
           gh api --method POST "/repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
