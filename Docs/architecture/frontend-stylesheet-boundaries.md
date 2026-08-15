@@ -17,17 +17,28 @@ New selectors must be placed in the owning stylesheet. Moving selectors out of `
 
 ## Migration guard
 
-`npm run check:app-css-budget` enforces a 130 KB ceiling for `App.css` before production builds. The ceiling prevents new work from growing the monolith while existing selectors are extracted incrementally.
+`npm run check:app-css-budget` enforces a shrinking byte ceiling for `App.css` before production builds. The ceiling prevents new work from growing the monolith while existing selectors are extracted incrementally.
 
-The guard is deliberately a ceiling, not a target. Each safe extraction should reduce the file size. Do not raise the ceiling to accommodate new feature styling.
+The guard is deliberately a ceiling, not a target. Each safe extraction should reduce the file size and lower the ceiling in the same change. Do not raise the ceiling to accommodate new feature styling.
 
-## Extraction order
+## Completed boundaries
+
+### App shell
+
+WOR-475 moves the mobile-first authenticated shell, header, content gutter, bottom navigation and create FAB rules into `src/FE/src/components/layouts/AppLayout.shell.css`. `AppLayout.focus.css` remains the import boundary and composes the mobile shell with the existing desktop and focus-specific layout files.
+
+The extraction deliberately leaves `user-avatar`, profile edit actions, forms and job-list selectors in `App.css`; those have different owners and must not be swept into the layout layer merely because they were adjacent in the legacy file.
+
+## Remaining extraction order
 
 Prefer low-risk ownership moves first:
 
-1. selectors already owned by an existing feature/layout stylesheet;
-2. isolated shared-component selectors with clear import ownership;
-3. responsive/layout selectors after browser regression checks;
-4. broad legacy selectors and cascade-sensitive rules last.
+1. shared form/input selectors into the existing shared form-control ownership;
+2. `user-avatar` styling beside the shared `ProfileAvatar` component and profile-only actions beside the settings/profile route;
+3. job-list/page selectors into the jobs feature, separating reusable page primitives before moving them;
+4. isolated shared-component selectors with clear import ownership;
+5. broad legacy selectors and cascade-sensitive responsive rules last.
+
+For every extraction, inspect current consumers before choosing an owner. Do not create generic catch-all stylesheets simply to make `App.css` smaller.
 
 Every extraction must preserve day/night themes, mobile safe areas, focus visibility, reduced-motion behavior, 200% zoom/reflow and supported responsive layouts.

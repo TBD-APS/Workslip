@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import process from 'node:process';
 
 const APP_CSS_PATH = new URL('../src/App.css', import.meta.url);
-const MAX_APP_CSS_BYTES = 130_000;
+const MAX_APP_CSS_BYTES = 120_000;
 
 const source = await readFile(APP_CSS_PATH);
 

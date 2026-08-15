@@ -1,6 +1,6 @@
 /*
- * Desktop refinements that build on the existing responsive rules in App.css.
- * Keep narrow/mobile behaviour in the mobile-first stylesheet and only tighten
+ * Desktop refinements that build on AppLayout.shell.css.
+ * Keep narrow/mobile shell behaviour in the mobile-first layout stylesheet and only tighten
  * how already-responsive surfaces use wide desktop viewports here.
  */
 @media (min-width: 1024px) {
@@ -46,8 +46,7 @@
     grid-column: 1 / -1;
   }
 
-  /* App.css already moves the existing navigation above the content on desktop.
-     Refine that same markup instead of introducing a second navigation model. */
+  /* Refine the same AppLayout navigation markup instead of introducing a second navigation model. */
   .app-header,
   .bottom-nav {
     padding-inline: clamp(2rem, 3vw, 3rem);
