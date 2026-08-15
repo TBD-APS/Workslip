@@ -1,11 +1,11 @@
 /*
  * Desktop refinements that build on AppLayout.shell.css.
- * Keep narrow/mobile shell behaviour in the mobile-first layout stylesheet and only tighten
- * how already-responsive surfaces use wide desktop viewports here.
+ * Desktop uses a horizontal primary nav; mobile/tablet keeps the bottom nav.
  */
 @media (min-width: 1024px) {
   .app-content {
     padding-inline: clamp(2rem, 3vw, 3rem);
+    padding-bottom: 2.5rem;
   }
 
   .page-container {
@@ -15,22 +15,16 @@
     margin-inline: auto;
   }
 
-  /* Timer already has its own desktop padding in App.css. Let the app shell own
-     horizontal page gutters so the overview does not receive them twice. */
   .time-overview-page {
     max-width: 90rem;
     padding-inline: 0;
   }
 
-  /* Detail/report views already use structured sections and grids. Keep those
-     readable on very wide displays instead of stretching them edge to edge. */
   .job-detail-page,
   .report-overview-page {
     max-width: 72rem;
   }
 
-  /* Existing edit/create forms are intentionally denser than overview tables.
-     Constrain their page rather than introducing another form wrapper. */
   .page-container:has(> .detail-form),
   .page-container:has(> .customer-edit-form) {
     max-width: 52rem;
@@ -46,9 +40,8 @@
     grid-column: 1 / -1;
   }
 
-  /* Refine the same AppLayout navigation markup instead of introducing a second navigation model. */
   .app-header,
-  .bottom-nav {
+  .desktop-primary-nav {
     padding-inline: clamp(2rem, 3vw, 3rem);
   }
 
@@ -61,23 +54,64 @@
   }
 
   .bottom-nav {
-    gap: 0.25rem;
-    background: var(--nav-bg);
+    display: none;
   }
 
-  .nav-item {
-    min-height: 2.75rem;
-    padding: 0.55rem 0.8rem;
-    border-radius: var(--radius-sm);
+  .desktop-primary-nav {
+    display: block;
+    background: color-mix(in srgb, var(--nav-bg) 96%, transparent);
+    backdrop-filter: blur(18px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .desktop-primary-nav__inner {
+    width: 100%;
+    max-width: 90rem;
+    min-height: 58px;
+    margin-inline: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .desktop-nav-item {
+    min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    background: transparent;
     color: var(--text-muted);
-    transition: color 0.15s ease, background-color 0.15s ease;
+    font: inherit;
+    font-size: var(--fs-sm);
+    cursor: pointer;
+    text-decoration: none;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
   }
 
-  .nav-item.active {
+  .desktop-nav-item.active {
     color: var(--text);
     background: var(--surface-selected);
+    border-color: color-mix(in srgb, var(--primary) 18%, var(--border));
   }
 
+  .desktop-nav-search {
+    margin-left: auto;
+  }
+
+  .desktop-nav-search kbd {
+    padding: 0.1rem 0.35rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-raised);
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 0.68rem;
+  }
+
+  .desktop-nav-item:focus-visible,
   .nav-item:focus-visible,
   .logo-header:focus-visible,
   .user-avatar:focus-visible,
@@ -101,8 +135,6 @@
     outline-offset: -3px;
   }
 
-  /* Keep the existing table-header appearance while using native buttons for
-     keyboard semantics instead of clickable spans. */
   .data-table button.sort-trigger {
     display: inline-flex;
     align-items: center;
@@ -135,8 +167,10 @@
 }
 
 @media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
-  .nav-item:hover {
+  .desktop-nav-item:hover {
     color: var(--text);
     background: var(--surface-raised);
+    border-color: var(--border);
+    transform: translateY(-1px);
   }
 }
