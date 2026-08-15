@@ -1,21 +1,33 @@
 using Ardalis.Result;
+using Workslip.Application.Customers;
 using Workslip.Domain;
 
 namespace Workslip.Application.Jobs;
+
+public sealed record JobOverviewRecentJobResponse(
+    Guid Id,
+    string? ReportNumber,
+    JobStatus Status,
+    string? CustomerName,
+    string? CustomerNumber,
+    string? Address,
+    DateTimeOffset UpdatedAt);
 
 public sealed record JobOverviewResponse(
     int ActiveCount,
     int InReviewCount,
     int ApprovedCount,
     int RejectedCount,
-    IReadOnlyList<JobListItemResponse> RecentJobs);
+    IReadOnlyList<JobOverviewRecentJobResponse> RecentJobs);
 
 public interface IJobOverviewService
 {
     Task<Result<JobOverviewResponse>> GetAsync(CancellationToken cancellationToken);
 }
 
-public sealed class JobOverviewService(IJobService jobService) : IJobOverviewService
+public sealed class JobOverviewService(
+    IJobService jobService,
+    ICustomerRepository customerRepository) : IJobOverviewService
 {
     private const int RecentJobLimit = 6;
     private static readonly List<JobStatus> AllStatuses =
@@ -54,12 +66,34 @@ public sealed class JobOverviewService(IJobService jobService) : IJobOverviewSer
             cancellationToken: cancellationToken);
         if (!recent.IsSuccess) return Result<JobOverviewResponse>.Unauthorized();
 
+        var recentJobs = new List<JobOverviewRecentJobResponse>(recent.Value.Items.Count);
+        foreach (var job in recent.Value.Items)
+        {
+            CustomerDetailResponse? customer = null;
+            if (job.Customer?.CustomerId is Guid customerId)
+            {
+                customer = await customerRepository.GetByIdAsync(
+                    job.OrganizationId,
+                    customerId,
+                    cancellationToken);
+            }
+
+            recentJobs.Add(new JobOverviewRecentJobResponse(
+                job.Id,
+                job.ReportNumber,
+                job.Status,
+                customer?.Name ?? job.Customer?.Name,
+                customer?.CustomerNumber,
+                job.DestinationAddress ?? customer?.Address ?? job.Customer?.Address,
+                job.UpdatedAt));
+        }
+
         return Result<JobOverviewResponse>.Success(new JobOverviewResponse(
             active.Value,
             inReview.Value,
             approved.Value,
             rejected.Value,
-            recent.Value.Items));
+            recentJobs));
     }
 
     private async Task<Result<int>> CountAsync(JobStatus status, CancellationToken cancellationToken)
