@@ -15,6 +15,13 @@ function Test-CustomerExportPath {
         return $false
     }
 
+    # Explicit synthetic/anonymised fixtures are allowed. The guard targets
+    # repository exports, not legitimate test data with clearly non-production ownership.
+    if ($normalized -match '(^|/)(tests?|testdata|fixtures?)/' -and
+        $fileName -match '(synthetic|anonymi[sz]ed|fake|sample)') {
+        return $false
+    }
+
     $customerTerms = @('customer', 'customers', 'kunde', 'kunder', 'kundedata', 'persondata')
     $exportTerms = @('export', 'data', 'dump', 'extract', 'contacts', 'kontakt', 'crm')
 
@@ -34,6 +41,7 @@ if ($SelfTest) {
         @{ Path = 'tmp/customer_contacts.json'; Expected = $true },
         @{ Path = 'Docs/customerdata.csv'; Expected = $true },
         @{ Path = 'tests/fixtures/synthetic-customer.json'; Expected = $false },
+        @{ Path = 'tests/testdata/anonymized-kundedata.json'; Expected = $false },
         @{ Path = 'src/Customers/CustomerDataRow.cs'; Expected = $false },
         @{ Path = 'Docs/customer-migration.md'; Expected = $false }
     )
