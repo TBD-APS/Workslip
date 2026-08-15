@@ -1,4 +1,14 @@
 import { useEffect, useState } from 'react';
+import { CheckCircle2, Sparkles } from 'lucide-react';
+import { playCompletionJingle, playStartupJingle, primeFeedbackAudio } from '../../lib/feedbackSounds';
+
+const COMPLETION_EVENT = 'workslip:completion-celebration';
+
+export function triggerCompletionCelebration() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(COMPLETION_EVENT));
+  void playCompletionJingle();
+}
 import { CheckCircle2 } from 'lucide-react';
 import { playStartupJingle, primeFeedbackAudio } from '../../lib/feedbackSounds';
 import { COMPLETION_EVENT } from '../../lib/completionCelebration';
@@ -10,6 +20,7 @@ export function GamificationFeedback() {
   useEffect(() => {
     const startupTimer = window.setTimeout(() => setShowStartup(false), 1050);
     let startupSoundPlayed = false;
+    let completionTimer: number | null = null;
 
     const unlockAudio = () => {
       void primeFeedbackAudio();
@@ -20,8 +31,12 @@ export function GamificationFeedback() {
     };
 
     const celebrate = () => {
-      setShowCompletion(true);
-      window.setTimeout(() => setShowCompletion(false), 1450);
+      if (completionTimer !== null) window.clearTimeout(completionTimer);
+      setShowCompletion(false);
+      window.requestAnimationFrame(() => {
+        setShowCompletion(true);
+        completionTimer = window.setTimeout(() => setShowCompletion(false), 1900);
+      });
     };
 
     window.addEventListener('pointerdown', unlockAudio, { once: true });
@@ -30,6 +45,7 @@ export function GamificationFeedback() {
 
     return () => {
       window.clearTimeout(startupTimer);
+      if (completionTimer !== null) window.clearTimeout(completionTimer);
       window.removeEventListener('pointerdown', unlockAudio);
       window.removeEventListener('keydown', unlockAudio);
       window.removeEventListener(COMPLETION_EVENT, celebrate);
@@ -49,17 +65,28 @@ export function GamificationFeedback() {
 
       {showCompletion && (
         <div className="workslip-achievement" role="status" aria-live="polite">
+          <div className="workslip-achievement-swoop" aria-hidden="true">
+            <span className="workslip-swoop-wing workslip-swoop-wing-left" />
+            <span className="workslip-swoop-body">
+              <Sparkles size={20} />
+            </span>
+            <span className="workslip-swoop-wing workslip-swoop-wing-right" />
+            <span className="workslip-swoop-trail workslip-swoop-trail-one" />
+            <span className="workslip-swoop-trail workslip-swoop-trail-two" />
+          </div>
           <div className="workslip-achievement-card">
             <span className="workslip-achievement-icon" aria-hidden="true">
               <CheckCircle2 size={44} strokeWidth={2.4} />
             </span>
             <strong>Sagen er færdig</strong>
-            <span>Godt arbejde</span>
+            <span>Godt arbejde — endnu en klaret.</span>
           </div>
           <span className="workslip-confetti workslip-confetti-one" aria-hidden="true" />
           <span className="workslip-confetti workslip-confetti-two" aria-hidden="true" />
           <span className="workslip-confetti workslip-confetti-three" aria-hidden="true" />
           <span className="workslip-confetti workslip-confetti-four" aria-hidden="true" />
+          <span className="workslip-confetti workslip-confetti-five" aria-hidden="true" />
+          <span className="workslip-confetti workslip-confetti-six" aria-hidden="true" />
         </div>
       )}
     </>
