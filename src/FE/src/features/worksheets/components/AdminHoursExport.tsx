@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Download, Eye, Loader2, X } from 'lucide-react';
+import { useModalAccessibility } from '../../../components/common/useModalAccessibility';
 import { notify } from '../../../lib/toast';
 import { downloadPdfFile } from '../../../lib/pdfFile';
 import { getMonthlyHoursPdfPreview } from '../api/monthlyHoursPdfPreview';
@@ -29,6 +30,7 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
   const rows = useMemo(() => buildHoursExportRows(data), [data]);
   const [pdfAction, setPdfAction] = useState<PdfAction | null>(null);
   const [pdfPreview, setPdfPreview] = useState<PdfPreview | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const hasRows = rows.length > 0;
   const pdfRequest = useMemo(() => ({
     url: `/api/worksheets/all/report/pdf?year=${data.year}&month=${data.month}`,
@@ -38,17 +40,11 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
   const closePdfPreview = useCallback(() => {
     setPdfPreview(null);
   }, []);
-
-  useEffect(() => {
-    if (!pdfPreview) return undefined;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closePdfPreview();
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closePdfPreview, pdfPreview]);
+  const previewDialogRef = useModalAccessibility<HTMLDivElement>({
+    open: Boolean(pdfPreview),
+    onClose: closePdfPreview,
+    initialFocusRef: closeButtonRef,
+  });
 
   const downloadCsv = () => {
     if (!hasRows) return;
@@ -143,10 +139,12 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
 
       {pdfPreview && (
         <div
+          ref={previewDialogRef}
           className="hours-pdf-preview-overlay"
           role="dialog"
           aria-modal="true"
           aria-label={`PDF-preview af timer for ${monthLabel}`}
+          tabIndex={-1}
         >
           <header className="hours-pdf-preview-header">
             <div className="hours-pdf-preview-title">
@@ -154,6 +152,7 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
               <span>{pdfPreview.fileName}</span>
             </div>
             <button
+              ref={closeButtonRef}
               type="button"
               className="btn btn-secondary hours-pdf-preview-close"
               onClick={closePdfPreview}
