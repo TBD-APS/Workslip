@@ -1,19 +1,30 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, CheckCircle2, CircleDot, Clock3, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { JobStatus, type JobListItemViewModel } from '../../../api/generated/models';
+import { JobStatus } from '../../../api/generated/models';
 import { ErrorState } from '../../../components/ErrorState';
+import { activateStatusFilter } from '../../../components/filters/StatusFilter';
 import { apiClient } from '../../../lib/axios';
 import { formatDateTimeShort } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
 import './Overview.css';
+
+type JobOverviewRecentJob = {
+  id: string;
+  reportNumber?: string | null;
+  status: JobStatus;
+  customerName?: string | null;
+  customerNumber?: string | null;
+  address?: string | null;
+  updatedAt: string;
+};
 
 type JobOverviewResponse = {
   activeCount: number;
   inReviewCount: number;
   approvedCount: number;
   rejectedCount: number;
-  recentJobs: JobListItemViewModel[];
+  recentJobs: JobOverviewRecentJob[];
 };
 
 const fetchOverview = async () => {
@@ -21,10 +32,12 @@ const fetchOverview = async () => {
   return data as unknown as JobOverviewResponse;
 };
 
-const getJobPath = (job: JobListItemViewModel) =>
+const getJobPath = (job: JobOverviewRecentJob) =>
   job.status === JobStatus.InReview || job.status === JobStatus.Approved
     ? `/app/completed/${job.id}`
     : `/app/job/${job.id}`;
+
+const getStatusListPath = (status: JobStatus) => `/app?status=${encodeURIComponent(status)}`;
 
 export const Overview = () => {
   const navigate = useNavigate();
@@ -32,6 +45,11 @@ export const Overview = () => {
     queryKey: ['/api/jobs/overview'],
     queryFn: fetchOverview,
   });
+
+  const navigateToStatus = (status: JobStatus) => {
+    activateStatusFilter('mine-jobs', [status]);
+    navigate(getStatusListPath(status));
+  };
 
   if (overviewQuery.isError) {
     return (
@@ -73,8 +91,14 @@ export const Overview = () => {
           <h2>Overblik</h2>
           <p>Se status på dine sager og fortsæt hurtigt, hvor du slap.</p>
         </div>
-        <button type="button" className="btn btn-secondary" onClick={() => navigate('/app')}>
-          Se alle sager <ArrowRight size={16} aria-hidden="true" />
+        <button
+          type="button"
+          className="btn btn-secondary overview-rejected-cta"
+          onClick={() => navigateToStatus(JobStatus.Rejected)}
+        >
+          <XCircle size={16} aria-hidden="true" />
+          Se afviste sager
+          {(overview?.rejectedCount ?? 0) > 0 && <span>({overview?.rejectedCount})</span>}
         </button>
       </div>
 
@@ -84,7 +108,7 @@ export const Overview = () => {
             key={card.status}
             type="button"
             className={`overview-status-card ${card.className}`}
-            onClick={() => navigate('/app')}
+            onClick={() => navigateToStatus(card.status)}
           >
             <span className="overview-status-card__icon">{card.icon}</span>
             <span className="overview-status-card__content">
@@ -104,12 +128,6 @@ export const Overview = () => {
             <h3 id="recent-jobs-heading">Seneste sager</h3>
             <p>De senest opdaterede sager.</p>
           </div>
-          {(overview?.rejectedCount ?? 0) > 0 && (
-            <button type="button" className="overview-rejected-link" onClick={() => navigate('/app')}>
-              <XCircle size={16} aria-hidden="true" />
-              {overview?.rejectedCount} afvist{overview?.rejectedCount === 1 ? '' : 'e'}
-            </button>
-          )}
         </div>
 
         {overviewQuery.isPending ? (
@@ -124,37 +142,34 @@ export const Overview = () => {
           </div>
         ) : overview?.recentJobs.length ? (
           <div className="overview-recent-list">
-            {overview.recentJobs.map((job) => {
-              const customerName = job.customer?.name || 'Kunde ikke angivet';
-              const address = job.destinationAddress || job.customer?.address;
-              return (
-                <button
-                  type="button"
-                  className="overview-recent-row"
-                  key={job.id}
-                  onClick={() => navigate(getJobPath(job), { state: { from: '/app/overblik' } })}
-                >
-                  <span className="overview-recent-row__main">
-                    <strong>SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</strong>
-                    <span>{customerName}</span>
-                    {address && <small>{address}</small>}
-                  </span>
-                  <span className={`status-badge status-${job.status.toLowerCase()}`}>
-                    {formatJobStatus(job.status)}
-                  </span>
-                  <span className="overview-recent-row__updated">
-                    {job.updatedAt ? formatDateTimeShort(job.updatedAt) : '–'}
-                  </span>
-                  <ArrowRight size={17} aria-hidden="true" />
-                </button>
-              );
-            })}
+            {overview.recentJobs.map((job) => (
+              <button
+                type="button"
+                className="overview-recent-row"
+                key={job.id}
+                onClick={() => navigate(getJobPath(job), { state: { from: '/app/overblik' } })}
+              >
+                <span className="overview-recent-row__main">
+                  <strong>SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</strong>
+                  <span>{job.customerName || 'Kunde ikke angivet'}</span>
+                  {job.customerNumber && <small>Kundenr. {job.customerNumber}</small>}
+                  {job.address && <small>{job.address}</small>}
+                </span>
+                <span className={`status-badge status-${job.status.toLowerCase()}`}>
+                  {formatJobStatus(job.status)}
+                </span>
+                <span className="overview-recent-row__updated">
+                  {job.updatedAt ? formatDateTimeShort(job.updatedAt) : '–'}
+                </span>
+                <ArrowRight size={17} aria-hidden="true" />
+              </button>
+            ))}
           </div>
         ) : (
           <div className="overview-empty-state">
             <p>Der er ingen sager endnu.</p>
-            <button type="button" className="btn btn-secondary" onClick={() => navigate('/app')}>
-              Gå til sager
+            <button type="button" className="btn btn-secondary" onClick={() => navigateToStatus(JobStatus.Draft)}>
+              Gå til aktive sager
             </button>
           </div>
         )}
