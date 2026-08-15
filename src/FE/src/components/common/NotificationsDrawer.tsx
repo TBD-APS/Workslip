@@ -3,20 +3,22 @@ import {
   Bell,
   BellRing,
   CheckCheck,
+  ChevronDown,
   CircleCheck,
   ClipboardCheck,
   Info,
-  Sparkles,
   UserPlus,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../lib/axios';
 import { notificationListQueryKey } from '../../lib/notificationQueryKeys';
 import { useAuth } from '../../providers/useAuth';
+import { formatRelativeActivityTime } from './activityFeed';
 import { Drawer } from './Drawer';
 import './NotificationsDrawer.css';
+import './ActivityFeed.css';
 
 type NotificationItem = {
   id: string;
@@ -25,6 +27,15 @@ type NotificationItem = {
   url?: string | null;
   createdUtc: string;
   isRead: boolean;
+  status?: string;
+};
+
+type NotificationGroup = {
+  key: string;
+  url: string | null;
+  items: NotificationItem[];
+  latest: NotificationItem;
+  unreadCount: number;
 };
 
 type NotificationsDrawerProps = {
@@ -50,38 +61,59 @@ const getNotificationIcon = (item: NotificationItem) => {
   const haystack = `${item.title} ${item.body}`.toLocaleLowerCase('da-DK');
 
   if (haystack.includes('færdig') || haystack.includes('completed') || haystack.includes('godkend')) {
-    return <CircleCheck size={18} />;
+    return <CircleCheck size={17} />;
   }
 
   if (haystack.includes('tildelt') || haystack.includes('medarbejder') || haystack.includes('assigned')) {
-    return <UserPlus size={18} />;
+    return <UserPlus size={17} />;
   }
 
   if (haystack.includes('opgave') || haystack.includes('sag') || haystack.includes('job')) {
-    return <ClipboardCheck size={18} />;
+    return <ClipboardCheck size={17} />;
   }
 
-  return item.isRead ? <Info size={18} /> : <BellRing size={18} />;
+  return item.isRead ? <Info size={17} /> : <BellRing size={17} />;
 };
 
-const formatRelativeCreatedAt = (createdUtc: string) => {
-  const createdAt = new Date(createdUtc);
-  const diffMs = Date.now() - createdAt.getTime();
-  const diffMinutes = Math.max(0, Math.round(diffMs / 60_000));
+const getNotificationAvatarTone = (item: NotificationItem) => {
+  const haystack = `${item.title} ${item.body}`.toLocaleLowerCase('da-DK');
 
-  if (diffMinutes < 1) return 'Nu';
-  if (diffMinutes < 60) return `${diffMinutes} min. siden`;
+  if (haystack.includes('afvist') || haystack.includes('fejl')) return 'activity-avatar-danger';
+  if (haystack.includes('færdig') || haystack.includes('completed') || haystack.includes('godkend')) {
+    return 'activity-avatar-success';
+  }
+  if (haystack.includes('advar') || haystack.includes('mangler')) return 'activity-avatar-warning';
+  return 'activity-avatar-primary';
+};
 
-  const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours} t. siden`;
+const getNotificationGroupKey = (item: NotificationItem) => {
+  if (item.url) return `resource:${item.url}`;
+  return `event:${item.title.trim().toLocaleLowerCase('da-DK')}`;
+};
 
-  const diffDays = Math.round(diffHours / 24);
-  if (diffDays < 7) return diffDays === 1 ? 'I går' : `${diffDays} dage siden`;
+const groupNotifications = (items: NotificationItem[]): NotificationGroup[] => {
+  const groups = new Map<string, NotificationGroup>();
 
-  return createdAt.toLocaleDateString('da-DK', {
-    day: 'numeric',
-    month: 'short',
-  });
+  for (const item of items) {
+    const key = getNotificationGroupKey(item);
+    const existing = groups.get(key);
+
+    if (existing) {
+      existing.items.push(item);
+      existing.unreadCount += item.isRead ? 0 : 1;
+      continue;
+    }
+
+    groups.set(key, {
+      key,
+      url: item.url ?? null,
+      items: [item],
+      latest: item,
+      unreadCount: item.isRead ? 0 : 1,
+    });
+  }
+
+  return [...groups.values()];
 };
 
 async function getNotifications(): Promise<NotificationItem[]> {
@@ -118,6 +150,7 @@ export function NotificationsDrawer({
   });
   const [actionError, setActionError] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set());
+  const [expandedGroupKeys, setExpandedGroupKeys] = useState<Set<string>>(() => new Set());
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const navigate = useNavigate();
 
@@ -141,10 +174,11 @@ export function NotificationsDrawer({
   }, [isOpen, organizationId, refetch, userId]);
 
   const unreadCount = useMemo(() => countUnread(items), [items]);
-  const visibleItems = useMemo(
+  const filteredItems = useMemo(
     () => (filter === 'unread' ? items.filter((item) => !item.isRead) : items),
     [filter, items],
   );
+  const visibleGroups = useMemo(() => groupNotifications(filteredItems), [filteredItems]);
   const loading = userId.length > 0
     && organizationId.length > 0
     && isPending
@@ -157,24 +191,35 @@ export function NotificationsDrawer({
     await refetch();
   };
 
-  const markRead = async (item: NotificationItem) => {
-    if (!item.isRead) {
-      try {
-        await apiClient.patch(`/api/notifications/${item.id}/read`, undefined, {
-          skipGlobalErrorToast: true,
-        });
-        updateItems((current) => current.map((entry) =>
-          entry.id === item.id ? { ...entry, isRead: true } : entry));
-        setActionError(null);
-      } catch {
-        setActionError('Notifikationen kunne ikke markeres som læst.');
-        return;
-      }
-    }
+  const markItemsRead = async (itemsToRead: NotificationItem[]) => {
+    const unreadItems = itemsToRead.filter((item) => !item.isRead);
+    if (unreadItems.length === 0) return true;
 
-    if (item.url) {
+    try {
+      await Promise.all(unreadItems.map((item) => apiClient.patch(
+        `/api/notifications/${item.id}/read`,
+        undefined,
+        { skipGlobalErrorToast: true },
+      )));
+      const ids = new Set(unreadItems.map((item) => item.id));
+      updateItems((current) => current.map((entry) =>
+        ids.has(entry.id) ? { ...entry, isRead: true } : entry));
+      setActionError(null);
+      return true;
+    } catch {
+      setActionError('Notifikationen kunne ikke markeres som læst.');
+      void refetch();
+      return false;
+    }
+  };
+
+  const openNotifications = async (itemsToOpen: NotificationItem[], url?: string | null) => {
+    const didMarkRead = await markItemsRead(itemsToOpen);
+    if (!didMarkRead) return;
+
+    if (url) {
       closeDrawer();
-      navigate(item.url);
+      navigate(url);
     }
   };
 
@@ -209,6 +254,15 @@ export function NotificationsDrawer({
     }
   };
 
+  const toggleGroup = (key: string) => {
+    setExpandedGroupKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   return (
     <Drawer
       isOpen={isOpen}
@@ -218,14 +272,17 @@ export function NotificationsDrawer({
       icon={<Bell size={20} />}
       className="history-drawer notifications-drawer"
     >
-      <div className="notifications-hero">
-        <span className="notifications-hero-icon" aria-hidden="true">
-          <Sparkles size={18} />
-        </span>
+      <div className="notifications-overview" aria-live="polite">
         <div>
-          <strong>Hold styr på det vigtigste</strong>
-          <span>{unreadCount === 0 ? 'Du er helt ajour.' : `${unreadCount} ${unreadCount === 1 ? 'ting' : 'ting'} kræver din opmærksomhed.`}</span>
+          <strong>{unreadCount === 0 ? 'Alt er set' : `${unreadCount} ulæst${unreadCount === 1 ? '' : 'e'}`}</strong>
+          <span>Aktivitet, der vedrører dig, samlet ét sted.</span>
         </div>
+        {unreadCount > 0 && (
+          <button type="button" onClick={() => void markAllRead()}>
+            <CheckCheck size={16} />
+            Marker alle læst
+          </button>
+        )}
       </div>
 
       <div className="notifications-tabs" role="tablist" aria-label="Filtrer notifikationer">
@@ -236,7 +293,7 @@ export function NotificationsDrawer({
           className={filter === 'all' ? 'active' : ''}
           onClick={() => setFilter('all')}
         >
-          Alle
+          Al aktivitet
           <span>{items.length}</span>
         </button>
         <button
@@ -260,15 +317,10 @@ export function NotificationsDrawer({
         </div>
       )}
 
-      {!loading && items.length > 0 && (
+      {!loading && filteredItems.length > 0 && (
         <div className="notifications-toolbar">
-          <span>{filter === 'unread' ? 'Kræver opmærksomhed' : 'Seneste aktivitet'}</span>
-          {unreadCount > 0 && (
-            <button type="button" onClick={() => void markAllRead()}>
-              <CheckCheck size={16} />
-              Marker alle som læst
-            </button>
-          )}
+          <span>{filter === 'unread' ? 'Kræver din opmærksomhed' : 'Seneste aktivitet'}</span>
+          <span>{visibleGroups.length} {visibleGroups.length === 1 ? 'sag/emne' : 'sager/emner'}</span>
         </div>
       )}
 
@@ -278,61 +330,134 @@ export function NotificationsDrawer({
           <span />
           <span />
         </div>
-      ) : visibleItems.length > 0 ? (
-        <div className="notifications-list">
-          {visibleItems.map((item, index) => {
-            const isDeleting = deletingIds.has(item.id);
-            return (
-              <div
-                key={item.id}
-                className={`notification-item${item.isRead ? '' : ' notification-item-unread'}${isDeleting ? ' notification-item-deleting' : ''}`}
-                style={{ '--notification-index': index } as CSSProperties}
-              >
-                {!item.isRead && <span className="notification-unread-dot" aria-hidden="true" />}
-                <span className="notification-type-icon" aria-hidden="true">
-                  {getNotificationIcon(item)}
-                </span>
-                <button
-                  type="button"
-                  className="notification-item-main"
-                  onClick={() => void markRead(item)}
-                  aria-label={`${item.title}${item.isRead ? '' : ', ulæst'}`}
-                  disabled={isDeleting}
+      ) : visibleGroups.length > 0 ? (
+        <div className="notifications-list activity-feed">
+          <section className="activity-section" aria-label="Seneste aktivitet">
+            {visibleGroups.map((group) => {
+              const { latest } = group;
+              const isExpanded = expandedGroupKeys.has(group.key);
+              const isGrouped = group.items.length > 1;
+              const isDeletingSingle = group.items.length === 1 && deletingIds.has(latest.id);
+              const bodyLines = getBodyLines(latest.body);
+              const rowLabel = `${latest.title}${isGrouped ? `, ${group.items.length} hændelser` : ''}${group.unreadCount > 0 ? `, ${group.unreadCount} ulæst${group.unreadCount === 1 ? '' : 'e'}` : ''}`;
+
+              return (
+                <div
+                  key={group.key}
+                  className={`activity-row notification-item${group.unreadCount > 0 ? ' activity-row-unread notification-item-unread' : ''}${isDeletingSingle ? ' notification-item-deleting' : ''}`}
                 >
-                  <span className="notification-item-header">
-                    <strong className="notification-item-title">{item.title}</strong>
-                    <small title={new Date(item.createdUtc).toLocaleString('da-DK')}>
-                      {formatRelativeCreatedAt(item.createdUtc)}
-                    </small>
+                  <span className={`activity-avatar ${getNotificationAvatarTone(latest)}`} aria-hidden="true">
+                    {getNotificationIcon(latest)}
                   </span>
-                  <span className="notification-body">
-                    {getBodyLines(item.body).map((line, lineIndex) => (
-                      <span key={`${item.id}-${lineIndex}`} className="notification-body-line">
-                        {line}
+
+                  <div className="activity-content">
+                    <button
+                      type="button"
+                      className="activity-primary-action notification-activity-main"
+                      onClick={() => void openNotifications(group.items, group.url)}
+                      aria-label={rowLabel}
+                      disabled={isDeletingSingle}
+                    >
+                      <span className="activity-heading">
+                        <strong className="activity-title">{latest.title}</strong>
+                        <time
+                          className="activity-time"
+                          dateTime={latest.createdUtc}
+                          title={new Date(latest.createdUtc).toLocaleString('da-DK')}
+                        >
+                          {formatRelativeActivityTime(latest.createdUtc)}
+                        </time>
                       </span>
-                    ))}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="notification-delete"
-                  onClick={() => void deleteNotification(item)}
-                  disabled={isDeleting}
-                  aria-label={`Slet ${item.title}`}
-                  title="Slet notifikation"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            );
-          })}
+                      {bodyLines.length > 0 && (
+                        <span className="notification-activity-body">
+                          {bodyLines.map((line, lineIndex) => (
+                            <span key={`${latest.id}-${lineIndex}`} className="activity-body">
+                              {line}
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                    </button>
+
+                    <div className="activity-actions">
+                      {isGrouped && (
+                        <button
+                          type="button"
+                          className="activity-action notification-group-toggle"
+                          onClick={() => toggleGroup(group.key)}
+                          aria-expanded={isExpanded}
+                          aria-label={`${isExpanded ? 'Skjul' : 'Vis'} ${group.items.length} hændelser for ${latest.title}`}
+                        >
+                          <ChevronDown className={isExpanded ? 'notification-chevron-expanded' : ''} size={15} />
+                          {group.items.length} hændelser
+                        </button>
+                      )}
+                      {group.unreadCount > 0 && (
+                        <span className="activity-badge">
+                          {group.unreadCount} ulæst{group.unreadCount === 1 ? '' : 'e'}
+                        </span>
+                      )}
+                      {!isGrouped && (
+                        <button
+                          type="button"
+                          className="activity-action notification-delete-inline"
+                          onClick={() => void deleteNotification(latest)}
+                          disabled={isDeletingSingle}
+                          aria-label={`Slet ${latest.title}`}
+                        >
+                          <X size={14} />
+                          Slet
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {isGrouped && isExpanded && (
+                    <div className="activity-details notification-group-details">
+                      <div className="activity-sublist">
+                        {group.items.map((item) => {
+                          const isDeleting = deletingIds.has(item.id);
+                          return (
+                            <div key={item.id} className="activity-subrow">
+                              <button
+                                type="button"
+                                className="activity-primary-action activity-subrow-main"
+                                onClick={() => void openNotifications([item], item.url)}
+                                disabled={isDeleting}
+                                aria-label={`${item.title}${item.isRead ? '' : ', ulæst'}`}
+                              >
+                                <span className="activity-subrow-title">{item.title}</span>
+                                <span className="activity-subrow-body">{getBodyLines(item.body).join(' · ')}</span>
+                                <time className="activity-time" dateTime={item.createdUtc}>
+                                  {formatRelativeActivityTime(item.createdUtc)}
+                                </time>
+                              </button>
+                              <button
+                                type="button"
+                                className="activity-action notification-delete-inline"
+                                onClick={() => void deleteNotification(item)}
+                                disabled={isDeleting}
+                                aria-label={`Slet ${item.title}`}
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </section>
         </div>
       ) : !error ? (
         <div className="notifications-empty">
           <span className="notifications-empty-icon" aria-hidden="true">
             {filter === 'unread' ? <CheckCheck size={30} /> : <Bell size={30} />}
           </span>
-          <strong>{filter === 'unread' ? 'Du er helt ajour' : 'Ingen notifikationer endnu'}</strong>
+          <strong>{filter === 'unread' ? 'Du er helt ajour' : 'Ingen aktivitet endnu'}</strong>
           <span>{filter === 'unread' ? 'Der er ikke noget, der kræver din opmærksomhed lige nu.' : 'Nye hændelser og opgaver dukker op her.'}</span>
         </div>
       ) : null}
