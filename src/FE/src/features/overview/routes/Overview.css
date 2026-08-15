@@ -28,6 +28,15 @@
   flex: 0 0 auto;
 }
 
+.overview-rejected-cta {
+  color: var(--danger);
+}
+
+.overview-rejected-cta span {
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
 .overview-status-grid {
   display: grid;
   gap: 0.9rem;
@@ -37,9 +46,10 @@
 .overview-status-card {
   align-items: center;
   appearance: none;
-  background: var(--surface, #fff);
-  border: 1px solid var(--border-color);
+  background: var(--surface-floating, #fff);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg, 16px);
+  box-shadow: var(--shadow-sm-raw);
   color: inherit;
   cursor: pointer;
   display: grid;
@@ -48,26 +58,27 @@
   min-height: 112px;
   padding: 1rem;
   text-align: left;
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease, background-color 160ms ease;
   width: 100%;
 }
 
 .overview-status-card:hover {
-  border-color: var(--border-color-strong, var(--border-color));
+  background: var(--surface);
+  border-color: var(--border-strong, var(--border));
   box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }
 
 .overview-status-card:focus-visible,
 .overview-recent-row:focus-visible,
-.overview-rejected-link:focus-visible {
-  outline: 3px solid var(--focus-ring, currentColor);
+.overview-rejected-cta:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--focus-ring) 34%, transparent);
   outline-offset: 2px;
 }
 
 .overview-status-card__icon {
   align-items: center;
-  background: var(--surface-muted, rgba(0, 0, 0, 0.04));
+  background: var(--surface-raised);
   border-radius: 12px;
   display: inline-flex;
   height: 44px;
@@ -76,15 +87,18 @@
 }
 
 .overview-status-card--active .overview-status-card__icon {
-  color: var(--status-active, #2563eb);
+  background: var(--status-blue-bg);
+  color: var(--status-blue-text);
 }
 
 .overview-status-card--review .overview-status-card__icon {
-  color: var(--status-review, #b7791f);
+  background: var(--status-amber-bg);
+  color: var(--status-amber-text);
 }
 
 .overview-status-card--approved .overview-status-card__icon {
-  color: var(--status-approved, #15803d);
+  background: var(--status-green-bg);
+  color: var(--status-green-text);
 }
 
 .overview-status-card__content {
@@ -108,9 +122,10 @@
 }
 
 .overview-recent-card {
-  background: var(--surface, #fff);
-  border: 1px solid var(--border-color);
+  background: var(--surface-floating, #fff);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg, 16px);
+  box-shadow: var(--shadow-sm-raw);
   overflow: hidden;
 }
 
@@ -119,40 +134,28 @@
   display: flex;
   gap: 1rem;
   justify-content: space-between;
-  padding: 1rem 1rem 0.8rem;
-}
-
-.overview-rejected-link {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  color: var(--danger-color, #b42318);
-  cursor: pointer;
-  display: inline-flex;
-  font: inherit;
-  font-size: 0.88rem;
-  gap: 0.4rem;
-  padding: 0.45rem;
+  padding: 1.1rem 1.1rem 0.9rem;
 }
 
 .overview-recent-list {
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border);
   display: grid;
 }
 
 .overview-recent-row {
   align-items: center;
   appearance: none;
-  background: transparent;
+  background: var(--surface-floating, #fff);
   border: 0;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
   color: inherit;
   cursor: pointer;
   display: grid;
   gap: 1rem;
   grid-template-columns: minmax(0, 1fr) auto minmax(96px, auto) auto;
-  padding: 0.9rem 1rem;
+  padding: 0.95rem 1.1rem;
   text-align: left;
+  transition: background-color 140ms ease;
   width: 100%;
 }
 
@@ -161,12 +164,12 @@
 }
 
 .overview-recent-row:hover {
-  background: var(--surface-muted, rgba(0, 0, 0, 0.03));
+  background: var(--surface);
 }
 
 .overview-recent-row__main {
   display: grid;
-  gap: 0.12rem;
+  gap: 0.14rem;
   min-width: 0;
 }
 
@@ -178,6 +181,10 @@
   white-space: nowrap;
 }
 
+.overview-recent-row__main strong {
+  color: var(--text-primary);
+}
+
 .overview-recent-row__main span,
 .overview-recent-row__main small,
 .overview-recent-row__updated {
@@ -187,6 +194,10 @@
 .overview-recent-row__main small,
 .overview-recent-row__updated {
   font-size: 0.8rem;
+}
+
+.overview-recent-row__main small:first-of-type {
+  color: var(--text-dim);
 }
 
 .overview-recent-row--skeleton {
@@ -201,7 +212,7 @@
 }
 
 .overview-empty-state {
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border);
   display: grid;
   justify-items: start;
   gap: 0.75rem;
@@ -241,11 +252,12 @@
   }
 
   .overview-header {
-    align-items: flex-start;
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .overview-header .btn {
-    display: none;
+    align-self: flex-start;
   }
 
   .overview-section-header {
@@ -254,7 +266,7 @@
 
   .overview-recent-row {
     gap: 0.7rem;
-    padding: 0.85rem;
+    padding: 0.9rem;
   }
 
   .overview-recent-row .status-badge {
@@ -263,7 +275,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .overview-status-card {
+  .overview-status-card,
+  .overview-recent-row {
     transition: none;
   }
 }
