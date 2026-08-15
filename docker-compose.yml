@@ -38,11 +38,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    # Mirror the repo layout so startup's ../infrastructure/database/migrations
-    # lookup (relative to the API content root) resolves inside the container.
     working_dir: /src/BE/WorkslipApi
-    # Ephemeral local signing key per container start, mirroring tools/dev/start.ps1
-    # (Development-only local auth; tokens do not survive an api restart).
     command:
       - /bin/bash
       - -c
@@ -59,15 +55,10 @@ services:
       - Workslip__SeedDevelopmentData=true
       - Workslip__SeedDevelopmentEntraIdentities=false
       - Azure__Sql__ConnectionString=Server=db,1433;Initial Catalog=WorkslipLocal;User Id=sa;Password=WorkslipLocal123!;Encrypt=True;TrustServerCertificate=True;Connection Timeout=30;
-      # Startup bootstraps/migrates the local DB itself, but its safety guard only
-      # trusts provably-local hosts; "db" is opted in explicitly (see
-      # LocalDevelopmentDatabaseMigrationRunner.IsLocalDataSource).
       - WORKSLIP_ADDITIONAL_LOCAL_SQL_HOSTS=db
     volumes:
       - ./src/BE/WorkslipApi:/src/BE/WorkslipApi
       - ./src/BE/infrastructure/database/migrations:/src/BE/infrastructure/database/migrations:ro
-      # Shadow host build output: host (macOS/Windows) artifacts must not leak
-      # into the Linux container build and vice versa.
       - /src/BE/WorkslipApi/bin
       - /src/BE/WorkslipApi/obj
       - /src/BE/WorkslipApi/Workslip.Application/bin
@@ -83,17 +74,19 @@ services:
   fe:
     image: node:22
     container_name: workslip-fe
+    depends_on:
+      - api
     working_dir: /app
     command: ["/bin/sh", "-c", "npm ci && npx vite --host 0.0.0.0 --port 5270"]
     ports:
       - "5270:5270"
     environment:
-      # Browser calls the host-mapped API port directly; CORS already allows
-      # the 5270 dev origin, so the vite /api proxy is not needed in compose.
-      - VITE_API_BASE_URL=http://localhost:5262
+      # Keep browser API requests same-origin. Vite proxies /api to the API
+      # container, matching the local dev flow and avoiding localhost/127.0.0.1 CORS mismatches.
+      - VITE_API_BASE_URL=/
+      - VITE_DEV_PROXY_TARGET=http://api:5262
     volumes:
       - ./src/FE:/app
-      # Container-native node_modules (esbuild/rollup binaries are OS-specific).
       - fe-node-modules:/app/node_modules
 
 volumes:
