@@ -44,6 +44,47 @@ html[data-theme="day"] body:has(.app-shell) {
   --safe-area-top-bg: #f4f7fb;
 }
 
+html[data-theme="night"] body:has(.app-shell) {
+  --bg: #0b1020;
+  --text: #eef4ff;
+  --text-primary: #f6f8fc;
+  --text-muted: #a7b3c7;
+  --text-secondary: #a7b3c7;
+  --text-dim: #8390a6;
+
+  --primary: #6ea8ff;
+  --primary-hover: #8bb9ff;
+  --primary-pressed: #4c8ff5;
+  --on-primary: #07101f;
+  --accent-cyan: #55c7dc;
+  --accent-mint: #4fd0a0;
+  --accent-amber: #f2b84b;
+  --accent-coral: #ff8a82;
+
+  --surface-floating: #121a2c;
+  --surface-color: #121a2c;
+  --surface: #172136;
+  --surface-raised: #1c2941;
+  --surface-input: #0f1728;
+  --surface-elevated: #18243a;
+  --surface-selected: #1e3354;
+  --surface-selected-strong: #24416c;
+  --surface-modal: #121a2c;
+  --surface-actions-menu: #121a2c;
+
+  --border: #263652;
+  --border-strong: #365071;
+  --surface-border: var(--border);
+  --focus-ring: #78adff;
+  --shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.24);
+  --shadow-sm-raw: 0 3px 12px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 28px 70px rgba(0, 0, 0, 0.42);
+  --shadow-accent: 0 10px 30px rgba(77, 143, 245, 0.2);
+
+  --nav-bg: rgba(11, 16, 32, 0.96);
+  --safe-area-top-bg: #0b1020;
+}
+
 html body:has(.app-shell) .app-shell {
   background:
     radial-gradient(circle at 4% -8%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 28rem),
@@ -75,23 +116,126 @@ html body:has(.app-shell) .bottom-nav a[href="/app/docs"] {
   display: none;
 }
 
+html body:has(.app-shell) .quick-nav-backdrop {
+  background: color-mix(in srgb, #07101f 52%, transparent);
+  backdrop-filter: blur(5px);
+}
+
 html body:has(.app-shell) .quick-nav-dialog {
+  width: min(calc(100vw - 2rem), 36rem);
   background: var(--surface-modal);
   border-color: var(--border);
+  border-radius: 20px;
   box-shadow: var(--shadow-lg);
 }
 
+html body:has(.app-shell) .quick-nav-header {
+  padding: 1.25rem 1.25rem 0.85rem;
+}
+
+html body:has(.app-shell) .quick-nav-header p {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+html body:has(.app-shell) .quick-nav-kicker {
+  color: var(--primary);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
 html body:has(.app-shell) .quick-nav-search-wrap {
+  margin-inline: 1.25rem;
+  min-height: 54px;
+  padding: 0.8rem 0.9rem;
   background: var(--surface-input);
   border-color: var(--border-strong);
+  border-radius: 14px;
+}
+
+html body:has(.app-shell) .quick-nav-search-wrap:focus-within {
+  background: var(--surface-input);
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 18%, transparent);
+}
+
+html body:has(.app-shell) .quick-nav-clear {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+html body:has(.app-shell) .quick-nav-meta {
+  padding-inline: 1.25rem;
+}
+
+html body:has(.app-shell) .quick-nav-results {
+  min-height: 10rem;
+  padding: 0.35rem 0.75rem 0.9rem;
 }
 
 html body:has(.app-shell) .quick-nav-result {
+  min-height: 60px;
+  margin-bottom: 0.25rem;
+  padding: 0.75rem 0.8rem;
   border-color: transparent;
+  border-radius: 14px;
 }
 
 html body:has(.app-shell) .quick-nav-result:hover,
 html body:has(.app-shell) .quick-nav-result.active {
   background: var(--surface-selected);
   border-color: color-mix(in srgb, var(--primary) 24%, var(--border));
+}
+
+html body:has(.app-shell) .quick-nav-result-icon {
+  border-radius: 12px;
+}
+
+html body:has(.app-shell) .quick-nav-empty--welcome {
+  min-height: 10rem;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 64%, transparent);
+}
+
+@media (max-width: 767px) {
+  html body:has(.app-shell) .quick-nav-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  html body:has(.app-shell) .quick-nav-dialog {
+    width: 100%;
+    max-height: min(84dvh, 42rem);
+    border-width: 1px 0 0;
+    border-radius: 22px 22px 0 0;
+  }
+
+  html body:has(.app-shell) .quick-nav-header,
+  html body:has(.app-shell) .quick-nav-meta,
+  html body:has(.app-shell) .quick-nav-footer {
+    padding-inline: 1rem;
+  }
+
+  html body:has(.app-shell) .quick-nav-search-wrap {
+    margin-inline: 1rem;
+  }
+
+  html body:has(.app-shell) .quick-nav-footer {
+    justify-content: center;
+  }
+
+  html body:has(.app-shell) .quick-nav-footer span:not(:first-child) {
+    display: none;
+  }
 }
