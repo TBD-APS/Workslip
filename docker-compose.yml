@@ -1,3 +1,6 @@
+# Local full-stack dev environment: docker compose up
+# Frontend http://localhost:5270 · API http://localhost:5262 · SQL localhost,1433 · Seq http://localhost:5341
+# Details: Docs/operations/local-docker-compose.md
 services:
 
   seq:
@@ -8,6 +11,93 @@ services:
     environment:
       - ACCEPT_EULA=Y
       - SEQ_FIRSTRUN_NOAUTHENTICATION=true
+    volumes:
+      - seq-data:/data
+
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: workslip-sql
+    ports:
+      - "1433:1433"
+    environment:
+      - ACCEPT_EULA=Y
+      # Must match appsettings.Local.json (local-only credential).
+      - MSSQL_SA_PASSWORD=WorkslipLocal123!
+    volumes:
+      - sql-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "WorkslipLocal123!", "-C", "-Q", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  api:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    container_name: workslip-api
+    depends_on:
+      db:
+        condition: service_healthy
+    # Mirror the repo layout so startup's ../infrastructure/database/migrations
+    # lookup (relative to the API content root) resolves inside the container.
+    working_dir: /src/BE/WorkslipApi
+    # Ephemeral local signing key per container start, mirroring tools/dev/start.ps1
+    # (Development-only local auth; tokens do not survive an api restart).
+    command:
+      - /bin/bash
+      - -c
+      - >-
+        export Jwt__SigningKey="$$(head -c 48 /dev/urandom | base64)" &&
+        exec dotnet watch --project Workslip.Api.csproj run --urls http://0.0.0.0:5262
+    ports:
+      - "5262:5262"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DOTNET_USE_POLLING_FILE_WATCHER=true
+      - Jwt__Issuer=workslip-local
+      - Jwt__Audience=workslip-local
+      - Workslip__SeedDevelopmentData=true
+      - Workslip__SeedDevelopmentEntraIdentities=false
+      - Azure__Sql__ConnectionString=Server=db,1433;Initial Catalog=WorkslipLocal;User Id=sa;Password=WorkslipLocal123!;Encrypt=True;TrustServerCertificate=True;Connection Timeout=30;
+      # Startup bootstraps/migrates the local DB itself, but its safety guard only
+      # trusts provably-local hosts; "db" is opted in explicitly (see
+      # LocalDevelopmentDatabaseMigrationRunner.IsLocalDataSource).
+      - WORKSLIP_ADDITIONAL_LOCAL_SQL_HOSTS=db
+    volumes:
+      - ./src/BE/WorkslipApi:/src/BE/WorkslipApi
+      - ./src/BE/infrastructure/database/migrations:/src/BE/infrastructure/database/migrations:ro
+      # Shadow host build output: host (macOS/Windows) artifacts must not leak
+      # into the Linux container build and vice versa.
+      - /src/BE/WorkslipApi/bin
+      - /src/BE/WorkslipApi/obj
+      - /src/BE/WorkslipApi/Workslip.Application/bin
+      - /src/BE/WorkslipApi/Workslip.Application/obj
+      - /src/BE/WorkslipApi/Workslip.Domain/bin
+      - /src/BE/WorkslipApi/Workslip.Domain/obj
+      - /src/BE/WorkslipApi/Workslip.Infrastructure/bin
+      - /src/BE/WorkslipApi/Workslip.Infrastructure/obj
+      - /src/BE/WorkslipApi/Workslip.Tests/bin
+      - /src/BE/WorkslipApi/Workslip.Tests/obj
+      - nuget-cache:/root/.nuget/packages
+
+  fe:
+    image: node:22
+    container_name: workslip-fe
+    working_dir: /app
+    command: ["/bin/sh", "-c", "npm ci && npx vite --host 0.0.0.0 --port 5270"]
+    ports:
+      - "5270:5270"
+    environment:
+      # Browser calls the host-mapped API port directly; CORS already allows
+      # the 5270 dev origin, so the vite /api proxy is not needed in compose.
+      - VITE_API_BASE_URL=http://localhost:5262
+    volumes:
+      - ./src/FE:/app
+      # Container-native node_modules (esbuild/rollup binaries are OS-specific).
+      - fe-node-modules:/app/node_modules
 
 volumes:
   seq-data:
+  sql-data:
+  nuget-cache:
+  fe-node-modules:
