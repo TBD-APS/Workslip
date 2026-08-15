@@ -49,6 +49,109 @@
   animation: hours-export-spin 0.8s linear infinite;
 }
 
+.power-bi-report {
+  margin: 0 0 1.5rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.power-bi-report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.power-bi-report-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.power-bi-report-copy strong {
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+
+.power-bi-report-copy span,
+.power-bi-report-note,
+.power-bi-report-state span,
+.power-bi-report-frame-loading span {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.power-bi-report-open {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.power-bi-report-state {
+  display: flex;
+  min-height: 132px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.power-bi-report-state > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.power-bi-report-state--error {
+  flex-wrap: wrap;
+}
+
+.power-bi-report-frame-shell {
+  position: relative;
+  min-height: clamp(520px, 70vh, 860px);
+  background: var(--bg);
+}
+
+.power-bi-report-frame-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  background: var(--surface);
+}
+
+.power-bi-report-frame-shell.is-loaded .power-bi-report-frame-loading {
+  display: none;
+}
+
+.power-bi-report-frame {
+  display: block;
+  width: 100%;
+  min-height: clamp(520px, 70vh, 860px);
+  border: 0;
+  background: var(--surface);
+}
+
+.power-bi-report-note {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border);
+}
+
 .hours-pdf-preview-overlay {
   position: fixed;
   inset: 0;
@@ -137,6 +240,26 @@
   .hours-export-button {
     flex: 1 1 100%;
     min-height: 44px;
+  }
+
+  .power-bi-report-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .power-bi-report-open {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .power-bi-report-state {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .power-bi-report-frame-shell,
+  .power-bi-report-frame {
+    min-height: 560px;
   }
 
   .hours-pdf-preview-header {
