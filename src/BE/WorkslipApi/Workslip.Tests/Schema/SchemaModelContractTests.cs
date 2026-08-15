@@ -138,6 +138,8 @@ public sealed class SchemaModelContractTests
             ("WorksheetBillingSnapshots", "wor428"),
             ("KnowledgeDocuments", "wor455"),
             ("KnowledgeDocumentAttachments", "wor455"),
+            ("JobConversationMessages", "wor551"),
+            ("JobConversationReads", "wor551"),
         };
 
     [Fact]

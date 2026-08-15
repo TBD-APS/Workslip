@@ -128,12 +128,7 @@ public sealed class PushNotificationProcessor
             return;
         }
 
-        var (title, body) = _notificationService.GetLocalizedText(
-            notificationType,
-            payload.JobNumber,
-            payload.CustomerAddress,
-            payload.RecipientName,
-            payload.RejectionNote);
+        var (title, body) = _notificationService.GetLocalizedText(notificationType, payload);
         var pushPayload = JsonSerializer.Serialize(new
         {
             title,
