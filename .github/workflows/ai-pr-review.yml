@@ -360,6 +360,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BLOCKING: ${{ steps.aggregate.outputs.blocking }}
           PROVIDERS: ${{ steps.aggregate.outputs.providers }}
+          ENABLED: ${{ steps.aggregate.outputs.enabled }}
           POST_OUTCOME: ${{ steps.post.outcome }}
         shell: bash
         run: |
@@ -370,12 +371,17 @@ jobs:
           if [ "${POST_OUTCOME}" = "failure" ]; then
             state=error
             description='AI review generated but PR comment failed'
+          elif [ "${ENABLED:-0}" = "0" ]; then
+            state=error
+            description='No AI review provider is configured'
           elif [ "${PROVIDERS:-0}" = "0" ]; then
             state=error
             description='No AI review provider was available'
           elif [ "${BLOCKING}" = "true" ]; then
             state=failure
             description='Independent AI providers found a consensus blocker'
+          elif [ "${PROVIDERS}" != "${ENABLED}" ]; then
+            description='AI review completed with a failed provider (degraded mode)'
           elif [ "${PROVIDERS}" = "1" ]; then
             description='AI review completed in one-provider mode'
           fi

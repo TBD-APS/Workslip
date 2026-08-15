@@ -4,7 +4,7 @@ const severityRank = { critical: 4, high: 3, medium: 2, low: 1 };
 const marker = '<!-- workslip-ai-review -->';
 
 function decode(value, provider) {
-  if (!value) return { provider, available: false, reason: 'job produced no result', findings: [], summary: '', risk: 'low' };
+  if (!value) return { provider, available: false, configured: false, reason: 'job produced no result', findings: [], summary: '', risk: 'low' };
   try {
     return JSON.parse(Buffer.from(value, 'base64').toString('utf8'));
   } catch {
@@ -38,7 +38,11 @@ const githubModels = decode(process.env.GITHUB_MODELS_REVIEW_B64, 'GitHub Models
 const openai = decode(process.env.OPENAI_REVIEW_B64, 'OpenAI');
 const claude = decode(process.env.CLAUDE_REVIEW_B64, 'Claude');
 const reviews = [githubModels, openai, claude];
-const available = reviews.filter((review) => review.available);
+// A provider without a configured credential or wired-in job is intentionally
+// disabled, not a failed reviewer: single-provider (Claude-only) operation is
+// a supported mode.
+const enabled = reviews.filter((review) => review.configured !== false);
+const available = enabled.filter((review) => review.available);
 const contextTruncated = process.env.CONTEXT_TRUNCATED === 'true';
 
 const consensusPairs = [];
@@ -75,16 +79,26 @@ for (const finding of allFindings) {
 
 const headSha = process.env.HEAD_SHA || '';
 const prNumber = process.env.PR_NUMBER || '';
-const status = available.length >= 2
-  ? (blocking ? 'consensus blocker' : 'reviewed')
-  : available.length === 1
-    ? 'degraded review'
-    : 'not reviewed';
+const status =
+  enabled.length && available.length === enabled.length
+    ? (blocking ? 'consensus blocker' : 'reviewed')
+    : available.length >= 1
+      ? 'degraded review'
+      : enabled.length
+        ? 'not reviewed'
+        : 'not configured';
 const providerNames = available.map((review) => review.provider).join(', ');
 
 let body = `${marker}\n## Automated Workslip AI review\n\n`;
 body += `**Status:** ${status} · **PR:** #${prNumber} · **SHA:** \`${headSha.slice(0, 12)}\`\n\n`;
-body += `This review is generated automatically and is **not a human approval** and never merges code. Available models review independently; a blocking AI signal is emitted only when at least two independent providers identify a matching high/critical, high-confidence finding.\n\n`;
+body += 'This review is generated automatically and is **not a human approval** and never merges code. ';
+if (enabled.length >= 2) {
+  body += 'Available models review independently; a blocking AI signal is emitted only when at least two independent providers identify a matching high/critical, high-confidence finding.\n\n';
+} else if (enabled.length === 1) {
+  body += `${enabled[0].provider} reviews each pull request automatically; all findings are advisory and never block delivery on their own.\n\n`;
+} else {
+  body += 'No review provider is currently configured.\n\n';
+}
 
 if (providerNames) {
   body += `**Available providers:** ${providerNames}.\n\n`;
@@ -94,7 +108,7 @@ if (contextTruncated) {
   body += `> The diff exceeded the automated review context limit and was truncated. AI output is advisory only for this revision and cannot produce a consensus blocker.\n\n`;
 }
 
-for (const review of reviews) {
+for (const review of enabled) {
   if (review.available) {
     body += `### ${review.provider}\n${review.summary || 'No summary returned.'}\n\n`;
   } else {
@@ -116,16 +130,22 @@ if (selected.length) {
   body += '### Findings\nNo actionable findings were returned for the supplied diff.\n\n';
 }
 
-if (!available.length) {
-  body += 'No model provider was available; this revision has not received an AI review.\n\n';
+if (!enabled.length) {
+  body += 'Configure at least one model credential before relying on this workflow.\n\n';
+} else if (!available.length) {
+  body += 'Every configured review provider failed for this revision; see the workflow run for details.\n\n';
 }
 
 body += 'Human review ownership and the existing CI/release gates remain unchanged.';
 
 fs.writeFileSync('ai-review-body.md', body, 'utf8');
-fs.writeFileSync('ai-review-result.json', JSON.stringify({ blocking, availableProviders: available.length, contextTruncated }, null, 2), 'utf8');
+fs.writeFileSync(
+  'ai-review-result.json',
+  JSON.stringify({ blocking, availableProviders: available.length, enabledProviders: enabled.length, contextTruncated }, null, 2),
+  'utf8',
+);
 
 const output = process.env.GITHUB_OUTPUT;
 if (output) {
-  fs.appendFileSync(output, `blocking=${blocking}\nproviders=${available.length}\n`);
+  fs.appendFileSync(output, `blocking=${blocking}\nproviders=${available.length}\nenabled=${enabled.length}\n`);
 }
