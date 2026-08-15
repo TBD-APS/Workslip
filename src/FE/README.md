@@ -55,6 +55,7 @@ Generated API code is derived from OpenAPI and must not be edited as the contrac
 - `src/sw.ts` and `src/registerSW.ts` — service-worker/update behaviour.
 - `vite.config.ts` — Vite/PWA/local proxy configuration.
 - `vercel.json` — frontend deployment/rewrite/cache policy, including the exact-SHA production eligibility gate.
+- `scripts/vercel-production-eligibility.mjs` — Vercel-specific fail-closed adapter kept inside the configured frontend Root Directory.
 
 Use [`AGENTS.md`](AGENTS.md) for frontend implementation conventions. In particular, reuse shared form controls and use `NumericInput` instead of raw number inputs where applicable.
 
@@ -74,7 +75,9 @@ Only `VITE_` values are eligible for inclusion in browser code. Never place clie
 
 ## Production delivery
 
-Vercel Git deployment is enabled only for `main`. A production deployment record may be created by the Git integration when `main` moves, but the build command first runs `tools/release/verify-production-eligibility.mjs`. It proceeds only when that exact commit is still current `main` and its post-merge `CI Gate` completed successfully.
+Vercel Git deployment is enabled only for `main`. A production deployment record may be created by the Git integration when `main` moves, but the build command first runs `scripts/vercel-production-eligibility.mjs`. It proceeds only when that exact commit is still current `main` and its post-merge `CI Gate` completed successfully.
+
+The Vercel adapter lives inside `src/FE` deliberately. Vercel projects with a configured Root Directory may prevent build commands from reading files outside that directory, so production safety must not depend on an unverified dashboard setting. The adapter implements the same exact-SHA/green-gate contract as the Actions release verifier and both are covered by `Production delivery · Self-test`.
 
 The verifier uses Vercel's Git metadata and GitHub's public repository API; it does not require a Vercel-held GitHub API token. Red, cancelled, stale, missing or unresolved CI evidence blocks the build. See [`../../Docs/operations/ci-quality-gates.md`](../../Docs/operations/ci-quality-gates.md) for the complete production boundary.
 
@@ -85,6 +88,7 @@ npm ci
 npm run lint
 npm run test -- --run
 npm run build
+node --test scripts/vercel-production-eligibility.test.mjs
 python ../../tools/docs/check_docs.py
 ```
 
