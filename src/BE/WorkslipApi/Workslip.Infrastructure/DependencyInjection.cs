@@ -12,6 +12,7 @@ using Workslip.Application.Images;
 using Workslip.Application.Invitations;
 using Workslip.Application.Jobs;
 using Workslip.Application.Notifications;
+using Workslip.Application.Operations;
 using Workslip.Application.Organizations;
 using Workslip.Application.Users;
 using Workslip.Application.Worksheets;
@@ -20,6 +21,7 @@ using Workslip.Infrastructure.Diagnostics;
 using Workslip.Infrastructure.Invitations;
 using Workslip.Infrastructure.Jobs;
 using Workslip.Infrastructure.Notifications;
+using Workslip.Infrastructure.Operations;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Reporting;
 using Workslip.Infrastructure.Resilience;
@@ -121,6 +123,16 @@ public static class DependencyInjection
         {
             client.BaseAddress = new Uri("https://api.loganalytics.azure.com/");
             client.Timeout = TimeSpan.FromSeconds(15);
+        });
+
+        services.AddOptions<GitHubActionsControlCenterOptions>()
+            .Configure<IConfiguration>((options, config) =>
+                config.GetSection(GitHubActionsControlCenterOptions.SectionName).Bind(options));
+        services.AddHttpClient<IAutomationRunProvider, GitHubActionsAutomationRunProvider>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.github.com/");
+            client.Timeout = TimeSpan.FromSeconds(10);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Workslip-ControlCenter/1.0");
         });
 
         services.AddScoped<IEmailService, AcsEmailService>();
