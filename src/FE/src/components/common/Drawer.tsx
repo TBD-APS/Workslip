@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useBlocker } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
+import { useModalAccessibility } from './useModalAccessibility';
 import './Drawer.css';
 
 const EDGE_SWIPE_WIDTH_PX = 16;
@@ -38,9 +39,7 @@ function preventNativeGesture(event: TouchEvent) {
   if (event.cancelable) event.preventDefault();
 }
 
-function useDrawerEdgeSwipe(isOpen: boolean, onClose: () => void) {
-  const drawerRef = useRef<HTMLDivElement>(null);
-
+function useDrawerEdgeSwipe(isOpen: boolean, onClose: () => void, drawerRef: React.RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const drawer = drawerRef.current;
     if (!drawer || !isOpen) return;
@@ -135,9 +134,7 @@ function useDrawerEdgeSwipe(isOpen: boolean, onClose: () => void) {
       if (cleanupTimer !== null) window.clearTimeout(cleanupTimer);
       clearGestureStyles();
     };
-  }, [isOpen, onClose]);
-
-  return drawerRef;
+  }, [drawerRef, isOpen, onClose]);
 }
 
 function DrawerNavigationBlocker({ onClose }: { onClose: () => void }) {
@@ -154,7 +151,13 @@ function DrawerNavigationBlocker({ onClose }: { onClose: () => void }) {
 }
 
 export function Drawer({ isOpen, onClose, title, ariaLabel, icon, className, children }: DrawerProps) {
-  const drawerRef = useDrawerEdgeSwipe(isOpen, onClose);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useModalAccessibility<HTMLDivElement>({
+    open: isOpen,
+    onClose,
+    initialFocusRef: closeButtonRef,
+  });
+  useDrawerEdgeSwipe(isOpen, onClose, drawerRef);
 
   return (
     <>
@@ -162,6 +165,7 @@ export function Drawer({ isOpen, onClose, title, ariaLabel, icon, className, chi
       <div
         className={`drawer-overlay ${isOpen ? 'open' : ''}`}
         onClick={onClose}
+        aria-hidden="true"
       />
       <div
         ref={drawerRef}
@@ -169,10 +173,12 @@ export function Drawer({ isOpen, onClose, title, ariaLabel, icon, className, chi
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel ?? title}
+        aria-hidden={!isOpen}
+        tabIndex={-1}
       >
         <div className="drawer-header">
-          <button className="btn-icon" onClick={onClose} aria-label={`Tilbage fra ${title.toLowerCase()}`}>
-            <ChevronLeft size={26} />
+          <button ref={closeButtonRef} className="btn-icon" type="button" onClick={onClose} aria-label={`Tilbage fra ${title.toLowerCase()}`}>
+            <ChevronLeft size={26} aria-hidden="true" />
           </button>
           <div className="drawer-title">
             {icon}
