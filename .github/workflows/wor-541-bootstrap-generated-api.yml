@@ -1,0 +1,60 @@
+name: WOR-541 · Bootstrap generated API client
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: ${{ github.event.pull_request.head.ref == 'rbj--541-vercel-generated-api-client' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install frontend dependencies
+        working-directory: src/FE
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Restore API project
+        run: dotnet restore src/BE/WorkslipApi/Workslip.Api.csproj --nologo
+
+      - name: Generate exact-revision API client
+        working-directory: src/FE
+        run: node scripts/generate-api-client.mjs --no-restore
+
+      - name: Commit generated client to the issue branch
+        shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -Eeuo pipefail
+          git add src/FE/src/api/generated
+          if git diff --cached --quiet; then
+            echo "Generated API client already matches the branch."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "RBJ-541: bootstrap generated frontend API client"
+          git push origin "HEAD:${HEAD_BRANCH}"
