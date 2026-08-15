@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { useBlocker, useLocation } from 'react-router-dom';
+import { useBlocker } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { useModalAccessibility } from './useModalAccessibility';
 import './Drawer.css';
@@ -138,16 +138,14 @@ function useDrawerEdgeSwipe(isOpen: boolean, onClose: () => void, drawerRef: Rea
 }
 
 function DrawerNavigationBlocker({ onClose }: { onClose: () => void }) {
-  const location = useLocation();
   const blocker = useBlocker(({ historyAction }) => historyAction === 'POP');
 
   useEffect(() => {
     if (blocker.state !== 'blocked') return;
 
-    const isActualHistoryEntryChange = blocker.location.key !== location.key;
     blocker.reset();
-    if (isActualHistoryEntryChange) onClose();
-  }, [blocker, location.key, onClose]);
+    onClose();
+  }, [blocker, onClose]);
 
   return null;
 }
