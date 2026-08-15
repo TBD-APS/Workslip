@@ -97,6 +97,11 @@
     outline-offset: 2px;
   }
 
+  .data-table tr.clickable:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: -3px;
+  }
+
   /* Keep the existing table-header appearance while using native buttons for
      keyboard semantics instead of clickable spans. */
   .data-table button.sort-trigger {
