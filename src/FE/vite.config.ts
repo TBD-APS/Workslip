@@ -3,6 +3,8 @@ import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const apiProxyTarget = process.env.VITE_DEV_PROXY_TARGET || 'http://localhost:5262'
+
 export default defineConfig({
   test: {
     environment: 'jsdom',
@@ -30,7 +32,7 @@ export default defineConfig({
     port: 5270,
     proxy: {
       '/api': {
-        target: 'http://localhost:5262',
+        target: apiProxyTarget,
         changeOrigin: true,
         secure: false,
       }
