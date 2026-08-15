@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
@@ -42,7 +42,10 @@ export function useModalAccessibility<T extends HTMLElement>({
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  useEffect(() => {
+  // Register modal ordering before the browser can dispatch input to a newly
+  // rendered nested dialog. A passive effect leaves a window where the parent
+  // modal can still receive Escape even though the child is already visible.
+  useLayoutEffect(() => {
     if (!open) return undefined;
 
     const modalId = modalIdRef.current;
