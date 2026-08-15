@@ -3,7 +3,7 @@ using Workslip.Domain;
 
 namespace Workslip.Infrastructure.Repositories;
 
-internal sealed class AssignmentAwareJobRepository(EfJobRepository inner) : IJobRepository
+internal sealed class AssignmentAwareJobRepository(IJobRepository inner) : IJobRepository
 {
     public Task<JobReportResponse> CreateAsync(
         Guid organizationId,
