@@ -90,6 +90,14 @@ function Wait-ForUrl(
     throw "$Name did not become ready at $Url within $TimeoutSeconds seconds.`n$(Get-LogTail $LogPaths)"
 }
 
+function Test-PathBelongsToCheckout([string]$CandidatePath) {
+    if ([string]::IsNullOrWhiteSpace($CandidatePath)) {
+        return $false
+    }
+
+    return $CandidatePath.IndexOf($repoRoot, [StringComparison]::OrdinalIgnoreCase) -ge 0
+}
+
 function Stop-StaleWorkslipListener([int]$Port, [string]$ServiceName) {
     $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
     if ($listeners.Count -eq 0) {
@@ -99,11 +107,11 @@ function Stop-StaleWorkslipListener([int]$Port, [string]$ServiceName) {
     foreach ($listener in $listeners) {
         $processId = [int]$listener.OwningProcess
         $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $processId" -ErrorAction SilentlyContinue
-        $commandLine = [string]$processInfo.CommandLine
-        $executablePath = [string]$processInfo.ExecutablePath
+        $commandLine = if ($null -ne $processInfo) { [string]$processInfo.CommandLine } else { '' }
+        $executablePath = if ($null -ne $processInfo) { [string]$processInfo.ExecutablePath } else { '' }
         $isWorkslipProcess =
-            $commandLine.Contains($repoRoot, [StringComparison]::OrdinalIgnoreCase) -or
-            $executablePath.Contains($repoRoot, [StringComparison]::OrdinalIgnoreCase)
+            (Test-PathBelongsToCheckout $commandLine) -or
+            (Test-PathBelongsToCheckout $executablePath)
 
         if (-not $isWorkslipProcess) {
             throw "Port $Port is already in use by PID $processId ($ServiceName), and it is not identifiable as this Workslip checkout. Stop that process manually before running dev.ps1."
@@ -227,9 +235,6 @@ if ($Mobile) {
 
     Write-Ok "Phone testing URL(s): $($mobileFrontendUrls -join ', ')"
 }
-
-Assert-PortFree 5262 'backend'
-Assert-PortFree 5270 'frontend'
 
 if ($CheckOnly) {
     Assert-PortFree 5262 'backend'
