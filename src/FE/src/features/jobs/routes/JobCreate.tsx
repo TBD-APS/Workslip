@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
@@ -7,6 +7,7 @@ import { getGetApiJobsQueryKey } from '../../../api/generated/jobs/jobs';
 import { useJobCreate } from '../hooks/useJobCreate';
 import { CreateOverviewStep } from '../components/steps/CreateOverviewStep';
 import { NavigationGuard } from '../../../components/forms/NavigationGuard';
+import { useModalAccessibility } from '../../../components/common/useModalAccessibility';
 import { emptyForm, getLinkableJobs, sameForm } from '../utils';
 import type { JobForm } from '../types';
 import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
@@ -77,8 +78,8 @@ export const JobCreate = () => {
     <div className="page-container">
       <NavigationGuard when={hasUnsavedChanges} />
       <div className="detail-header">
-        <button className="btn-icon" onClick={() => navigate(-1)} aria-label="Tilbage">
-          <ArrowLeft size={22} />
+        <button className="btn-icon" type="button" onClick={() => navigate(-1)} aria-label="Tilbage">
+          <ArrowLeft size={22} aria-hidden="true" />
         </button>
         <div>
           <h2 className="detail-title">Ny sag</h2>
@@ -92,15 +93,16 @@ export const JobCreate = () => {
       />
 
       <div className="step-nav">
-        <button className="step-nav-btn step-nav-btn-back" onClick={() => navigate(-1)}>
+        <button className="step-nav-btn step-nav-btn-back" type="button" onClick={() => navigate(-1)}>
           Tilbage
         </button>
         <button
           className="step-nav-btn step-nav-btn-next step-nav-btn-next--wide"
+          type="button"
           onClick={create.save}
           disabled={create.isSaving}
         >
-          {create.isSaving ? <Loader2 className="animate-spin" size={18} /> : null}
+          {create.isSaving ? <Loader2 className="animate-spin" size={18} aria-hidden="true" /> : null}
           <span>{create.isSaving ? 'Gemmer...' : 'Opret sag'}</span>
         </button>
       </div>
@@ -128,20 +130,34 @@ function CreateSuccessDialog({
   onGoToJobList: () => void;
   onGoToJob: () => void;
 }) {
+  const primaryButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useModalAccessibility<HTMLDivElement>({
+    open: true,
+    onClose: onGoToJobList,
+    initialFocusRef: primaryButtonRef,
+  });
+
   return createPortal(
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="create-success-title">
-      <div className="modal-card">
+    <div className="modal-backdrop">
+      <div
+        ref={dialogRef}
+        className="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-success-title"
+        tabIndex={-1}
+      >
         <h3 id="create-success-title">
           {createdJobCount > 1 ? `${createdJobCount} sager er oprettet` : 'Sagen er oprettet'}
         </h3>
         <div className="modal-actions modal-actions--triple">
-          <button className="btn btn-secondary" onClick={onCreateAnother}>
+          <button type="button" className="btn btn-secondary" onClick={onCreateAnother}>
             Opret en mere
           </button>
-          <button className="btn btn-secondary" onClick={onGoToJobList}>
+          <button type="button" className="btn btn-secondary" onClick={onGoToJobList}>
             Til sagslisten
           </button>
-          <button className="btn btn-primary" onClick={onGoToJob}>
+          <button ref={primaryButtonRef} type="button" className="btn btn-primary" onClick={onGoToJob}>
             {createdJobCount > 1 ? 'Til første sag' : 'Til sagen'}
           </button>
         </div>

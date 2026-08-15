@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Camera, ChevronLeft, ChevronRight, ImagePlus, Loader2, Trash2, X } from 'lucide-react';
 import { ConfirmDeleteDialog } from '../../components/common/ConfirmDeleteDialog';
+import { useModalAccessibility } from '../../components/common/useModalAccessibility';
 import { notify } from '../../lib/toast';
 import {
   deleteJobImage,
@@ -120,7 +121,7 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
               onClick={() => cameraInputRef.current?.click()}
               disabled={Boolean(uploadProgress)}
             >
-              <Camera size={16} />
+              <Camera size={16} aria-hidden="true" />
               Tag billede
             </button>
             <button
@@ -129,7 +130,7 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
               onClick={() => libraryInputRef.current?.click()}
               disabled={Boolean(uploadProgress)}
             >
-              {uploadProgress ? <Loader2 size={16} className="spin" /> : <ImagePlus size={16} />}
+              {uploadProgress ? <Loader2 size={16} className="spin" aria-hidden="true" /> : <ImagePlus size={16} aria-hidden="true" />}
               {uploadProgress
                 ? `Uploader ${uploadProgress.current}/${uploadProgress.total}`
                 : 'Vælg billeder'}
@@ -140,7 +141,7 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
 
       {imagesQuery.isLoading && (
         <div className="job-images-state" role="status">
-          <Loader2 size={18} className="spin" /> Henter billeder...
+          <Loader2 size={18} className="spin" aria-hidden="true" /> Henter billeder...
         </div>
       )}
 
@@ -250,7 +251,7 @@ function JobImageTile({ jobId, image, index, allowDelete, deleting, onPreview, o
           <div className="job-image-placeholder job-image-placeholder--error">Kunne ikke hente</div>
         ) : (
           <div className="job-image-placeholder" aria-label={`Henter sagsbillede ${index + 1}`}>
-            <Loader2 size={18} className="spin" />
+            <Loader2 size={18} className="spin" aria-hidden="true" />
           </div>
         )}
       </button>
@@ -262,7 +263,7 @@ function JobImageTile({ jobId, image, index, allowDelete, deleting, onPreview, o
           onClick={onDelete}
           disabled={deleting}
         >
-          {deleting ? <Loader2 size={15} className="spin" /> : <Trash2 size={15} />}
+          {deleting ? <Loader2 size={15} className="spin" aria-hidden="true" /> : <Trash2 size={15} aria-hidden="true" />}
         </button>
       )}
     </div>
@@ -288,13 +289,18 @@ function JobImagePreview({ jobId, images, index, onClose, onPrevious, onNext }: 
     staleTime: 5 * 60 * 1000,
   });
   const objectUrl = useObjectUrl(imageQuery.data);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useModalAccessibility<HTMLDivElement>({
+    open: Boolean(image),
+    onClose,
+    initialFocusRef: closeButtonRef,
+  });
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
       if (event.key === 'ArrowLeft' && images.length > 1) onPrevious();
       if (event.key === 'ArrowRight' && images.length > 1) onNext();
     };
@@ -304,7 +310,7 @@ function JobImagePreview({ jobId, images, index, onClose, onPrevious, onNext }: 
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [images.length, onClose, onNext, onPrevious]);
+  }, [images.length, onNext, onPrevious]);
 
   if (!image) return null;
 
@@ -316,21 +322,23 @@ function JobImagePreview({ jobId, images, index, onClose, onPrevious, onNext }: 
       }}
     >
       <div
+        ref={dialogRef}
         className="job-image-preview-dialog"
         role="dialog"
         aria-modal="true"
         aria-label={`Sagsbillede ${index + 1} af ${images.length}`}
+        tabIndex={-1}
       >
         <div className="job-image-preview-toolbar">
           <span>{index + 1} / {images.length}</span>
           <button
+            ref={closeButtonRef}
             type="button"
             className="job-image-preview-control"
             aria-label="Luk billedvisning"
             onClick={onClose}
-            autoFocus
           >
-            <X size={22} />
+            <X size={22} aria-hidden="true" />
           </button>
         </div>
 
@@ -341,7 +349,7 @@ function JobImagePreview({ jobId, images, index, onClose, onPrevious, onNext }: 
             <div className="job-image-preview-state">Kunne ikke hente billedet.</div>
           ) : (
             <div className="job-image-preview-state">
-              <Loader2 size={28} className="spin" />
+              <Loader2 size={28} className="spin" aria-hidden="true" />
               Henter billede...
             </div>
           )}
@@ -355,7 +363,7 @@ function JobImagePreview({ jobId, images, index, onClose, onPrevious, onNext }: 
               aria-label="Forrige billede"
               onClick={onPrevious}
             >
-              <ChevronLeft size={28} />
+              <ChevronLeft size={28} aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -363,7 +371,7 @@ function JobImagePreview({ jobId, images, index, onClose, onPrevious, onNext }: 
               aria-label="Næste billede"
               onClick={onNext}
             >
-              <ChevronRight size={28} />
+              <ChevronRight size={28} aria-hidden="true" />
             </button>
           </>
         )}

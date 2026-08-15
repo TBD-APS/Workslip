@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import '../workslip-brand.css';
 
 type Theme = 'night' | 'day';
 
@@ -24,7 +25,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem('theme', theme);
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) {
-      meta.setAttribute('content', theme === 'night' ? '#0b1020' : '#f6f7fb');
+      meta.setAttribute('content', theme === 'night' ? '#123B4A' : '#FFF7E8');
     }
   }, [theme]);
 

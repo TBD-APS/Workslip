@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, File as FileIcon, FileAudio, FileImage, FileText, Pause, Play, Plus, Trash2 } from 'lucide-react';
 import type { DocumentAttachmentInfoResponse } from '../../api/generated/models';
+import { ConfirmDeleteDialog } from '../../components/common/ConfirmDeleteDialog';
 import { notify } from '../../lib/toast';
 import {
   deleteDocumentAttachment,
@@ -54,6 +55,7 @@ export function DocumentAttachments({ documentId, canEdit }: DocumentAttachments
   const audioPreviewRef = useRef<AudioPreview | null>(null);
   const [audioPreview, setAudioPreview] = useState<AudioPreview | null>(null);
   const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
+  const [attachmentToRemove, setAttachmentToRemove] = useState<DocumentAttachmentInfoResponse | null>(null);
 
   const attachmentsQuery = useQuery({
     queryKey: ['docs', 'attachments', documentId],
@@ -83,6 +85,7 @@ export function DocumentAttachments({ documentId, canEdit }: DocumentAttachments
   const deleteMutation = useMutation({
     mutationFn: (attachmentId: string) => deleteDocumentAttachment(documentId, attachmentId),
     onSuccess: async (_, attachmentId) => {
+      setAttachmentToRemove(null);
       if (audioPreviewRef.current?.attachmentId === attachmentId) replaceAudioPreview(null);
       await queryClient.invalidateQueries({ queryKey: ['docs', 'attachments', documentId] });
       notify.success('Filen er fjernet.');
@@ -138,116 +141,122 @@ export function DocumentAttachments({ documentId, canEdit }: DocumentAttachments
     }
   };
 
-  const remove = (attachment: DocumentAttachmentInfoResponse) => {
-    if (!window.confirm(`Fjern “${attachment.fileName}” fra dokumentet?`)) return;
-    deleteMutation.mutate(attachment.id);
-  };
-
   const attachments = attachmentsQuery.data ?? [];
 
   return (
-    <section className="docs-attachments" aria-labelledby={`docs-attachments-${documentId}`}>
-      <div className="docs-attachments-header">
-        <div>
-          <span className="docs-eyebrow">Filer</span>
-          <h3 id={`docs-attachments-${documentId}`}>Vedhæftninger</h3>
+    <>
+      <section className="docs-attachments" aria-labelledby={`docs-attachments-${documentId}`}>
+        <div className="docs-attachments-header">
+          <div>
+            <span className="docs-eyebrow">Filer</span>
+            <h3 id={`docs-attachments-${documentId}`}>Vedhæftninger</h3>
+          </div>
+          {canEdit && (
+            <>
+              <input
+                ref={inputRef}
+                className="docs-file-input"
+                type="file"
+                accept={ACCEPTED_FILES}
+                onChange={(event) => {
+                  handleFile(event.target.files?.[0]);
+                  event.currentTarget.value = '';
+                }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => inputRef.current?.click()}
+                disabled={uploadMutation.isPending}
+              >
+                <Plus size={16} aria-hidden="true" /> {uploadMutation.isPending ? 'Uploader…' : 'Tilføj fil'}
+              </button>
+            </>
+          )}
         </div>
-        {canEdit && (
-          <>
-            <input
-              ref={inputRef}
-              className="docs-file-input"
-              type="file"
-              accept={ACCEPTED_FILES}
-              onChange={(event) => {
-                handleFile(event.target.files?.[0]);
-                event.currentTarget.value = '';
-              }}
-            />
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => inputRef.current?.click()}
-              disabled={uploadMutation.isPending}
-            >
-              <Plus size={16} /> {uploadMutation.isPending ? 'Uploader…' : 'Tilføj fil'}
-            </button>
-          </>
+
+        <p className="docs-attachments-help">MP3/WAV/OGG, MP4, PDF, billeder, TXT/MD eller CSV · maks. 20 MB pr. fil.</p>
+
+        {attachmentsQuery.isLoading && <div className="docs-attachments-state">Henter filer…</div>}
+        {attachmentsQuery.isError && (
+          <div className="docs-attachments-state docs-attachments-state--error">
+            <span>Filerne kunne ikke hentes.</span>
+            <button type="button" className="btn btn-secondary" onClick={() => attachmentsQuery.refetch()}>Prøv igen</button>
+          </div>
         )}
-      </div>
 
-      <p className="docs-attachments-help">MP3/WAV/OGG, MP4, PDF, billeder, TXT/MD eller CSV · maks. 20 MB pr. fil.</p>
+        {!attachmentsQuery.isLoading && !attachmentsQuery.isError && attachments.length === 0 && (
+          <div className="docs-attachments-empty">
+            <FileIcon size={22} aria-hidden="true" />
+            <span>Ingen filer er vedhæftet endnu.</span>
+          </div>
+        )}
 
-      {attachmentsQuery.isLoading && <div className="docs-attachments-state">Henter filer…</div>}
-      {attachmentsQuery.isError && (
-        <div className="docs-attachments-state docs-attachments-state--error">
-          <span>Filerne kunne ikke hentes.</span>
-          <button type="button" className="btn btn-secondary" onClick={() => attachmentsQuery.refetch()}>Prøv igen</button>
-        </div>
-      )}
-
-      {!attachmentsQuery.isLoading && !attachmentsQuery.isError && attachments.length === 0 && (
-        <div className="docs-attachments-empty">
-          <FileIcon size={22} aria-hidden="true" />
-          <span>Ingen filer er vedhæftet endnu.</span>
-        </div>
-      )}
-
-      {attachments.length > 0 && (
-        <div className="docs-attachment-list">
-          {attachments.map((attachment) => (
-            <div className="docs-attachment-row" key={attachment.id}>
-              <span className="docs-attachment-icon"><AttachmentIcon attachment={attachment} /></span>
-              <div className="docs-attachment-copy">
-                <strong>{attachment.fileName}</strong>
-                <span>
-                  {formatBytes(attachment.sizeBytes)} · {formatDate(attachment.createdAt)}
-                  {attachment.uploadedByDisplayName ? ` · ${attachment.uploadedByDisplayName}` : ''}
-                </span>
-              </div>
-              <div className="docs-attachment-actions">
-                {isAudio(attachment) && (
+        {attachments.length > 0 && (
+          <div className="docs-attachment-list">
+            {attachments.map((attachment) => (
+              <div className="docs-attachment-row" key={attachment.id}>
+                <span className="docs-attachment-icon"><AttachmentIcon attachment={attachment} /></span>
+                <div className="docs-attachment-copy">
+                  <strong>{attachment.fileName}</strong>
+                  <span>
+                    {formatBytes(attachment.sizeBytes)} · {formatDate(attachment.createdAt)}
+                    {attachment.uploadedByDisplayName ? ` · ${attachment.uploadedByDisplayName}` : ''}
+                  </span>
+                </div>
+                <div className="docs-attachment-actions">
+                  {isAudio(attachment) && (
+                    <button
+                      type="button"
+                      className="docs-attachment-action"
+                      onClick={() => { void toggleAudio(attachment); }}
+                      disabled={loadingAudioId === attachment.id}
+                      aria-label={audioPreview?.attachmentId === attachment.id ? `Stop ${attachment.fileName}` : `Afspil ${attachment.fileName}`}
+                    >
+                      {audioPreview?.attachmentId === attachment.id ? <Pause size={17} aria-hidden="true" /> : <Play size={17} aria-hidden="true" />}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="docs-attachment-action"
-                    onClick={() => { void toggleAudio(attachment); }}
-                    disabled={loadingAudioId === attachment.id}
-                    aria-label={audioPreview?.attachmentId === attachment.id ? `Stop ${attachment.fileName}` : `Afspil ${attachment.fileName}`}
+                    onClick={() => { void download(attachment); }}
+                    aria-label={`Download ${attachment.fileName}`}
                   >
-                    {audioPreview?.attachmentId === attachment.id ? <Pause size={17} /> : <Play size={17} />}
+                    <Download size={17} aria-hidden="true" />
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="docs-attachment-action"
-                  onClick={() => { void download(attachment); }}
-                  aria-label={`Download ${attachment.fileName}`}
-                >
-                  <Download size={17} />
-                </button>
-                {canEdit && (
-                  <button
-                    type="button"
-                    className="docs-attachment-action docs-attachment-action--danger"
-                    onClick={() => remove(attachment)}
-                    disabled={deleteMutation.isPending}
-                    aria-label={`Fjern ${attachment.fileName}`}
-                  >
-                    <Trash2 size={17} />
-                  </button>
-                )}
+                  {canEdit && (
+                    <button
+                      type="button"
+                      className="docs-attachment-action docs-attachment-action--danger"
+                      onClick={() => setAttachmentToRemove(attachment)}
+                      disabled={deleteMutation.isPending}
+                      aria-label={`Fjern ${attachment.fileName}`}
+                    >
+                      <Trash2 size={17} aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-      {audioPreview && (
-        <div className="docs-audio-preview" role="region" aria-label={`Afspiller ${audioPreview.fileName}`}>
-          <span>{audioPreview.fileName}</span>
-          <audio src={audioPreview.url} controls autoPlay preload="metadata" />
-        </div>
-      )}
-    </section>
+        {audioPreview && (
+          <div className="docs-audio-preview" role="region" aria-label={`Afspiller ${audioPreview.fileName}`}>
+            <span>{audioPreview.fileName}</span>
+            <audio src={audioPreview.url} controls autoPlay preload="metadata" />
+          </div>
+        )}
+      </section>
+
+      <ConfirmDeleteDialog
+        open={Boolean(attachmentToRemove)}
+        title="Fjern fil"
+        message={attachmentToRemove ? `Fjern “${attachmentToRemove.fileName}” fra dokumentet?` : 'Fjern filen fra dokumentet?'}
+        confirmLabel="Fjern"
+        onConfirm={() => attachmentToRemove ? deleteMutation.mutateAsync(attachmentToRemove.id) : undefined}
+        onClose={() => setAttachmentToRemove(null)}
+      />
+    </>
   );
 }

@@ -76,6 +76,7 @@ describe('Drawer browser history handling', () => {
     );
 
     render(<RouterProvider router={router} />);
+    const drawer = screen.getByRole('dialog', { name: 'Historik' });
 
     await act(async () => {
       await router.navigate(-1);
@@ -83,7 +84,8 @@ describe('Drawer browser history handling', () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     expect(router.state.location.pathname).toBe('/app');
-    expect(screen.getByRole('dialog', { name: 'Historik' })).not.toHaveClass('open');
+    expect(drawer).not.toHaveClass('open');
+    expect(drawer).toHaveAttribute('aria-hidden', 'true');
   });
 
   it('does not block ordinary forward navigation from drawer content', async () => {

@@ -15,7 +15,7 @@ Workslip uses the Farvelab direction as a visual system, not as page-specific de
 3. **Primary action** — one clearly dominant action treatment; secondary actions stay visually quieter.
 4. **Status** — success, warning, danger, info and neutral states use semantic text/background pairs and meaningful text or accessible names. Color is supplementary, not the only carrier of meaning.
 5. **Focus and selection** — keyboard focus, selected state and hover are different states and must remain distinguishable.
-6. **Overlay** — dialogs, action menus and other portals use the same tokens as the authenticated shell.
+6. **Overlay** — dialogs, action menus and other portals use the same tokens and interaction model as the authenticated shell.
 7. **Motion** — animation is progressive enhancement. The workflow must remain understandable when motion is removed.
 
 The semantic theme is scoped from `body:has(.app-shell)`. This is deliberate: existing React portals render some dialogs and menus into `document.body`, and they must inherit the same theme as the route that opened them.
@@ -62,13 +62,38 @@ The authenticated theme owns these categories centrally:
 
 - canvas and text: `--bg`, `--text`, `--text-muted`, `--text-dim`
 - action: `--primary`, `--primary-hover`, `--primary-pressed`, `--on-primary`
+- accents: `--accent-cyan`, `--accent-mint`, `--accent-amber`, `--accent-coral`
 - surfaces: `--surface-*`
 - borders/focus: `--border`, `--border-strong`, `--focus-ring`
 - status: `--danger`, `--warning`, `--success`, `--status-*-bg`, `--status-*-text`
 - overlays/elevation: `--overlay-*`, `--shadow-*`
 - shape: `--radius-*`
 
-Feature CSS should consume these tokens rather than introduce a second palette.
+Feature CSS should consume these tokens rather than introduce a second palette. Feature-specific data visualization may derive tones with `color-mix()` from the shared brand/status accents, but should not establish an independent set of hardcoded brand colors.
+
+## Shared interaction primitives
+
+Repeated interaction behavior belongs in shared components rather than feature-local implementations.
+
+### Modal behavior
+
+Modal dialogs use the shared modal-accessibility behavior. An open modal must:
+
+- move focus inside the modal;
+- contain Tab and Shift+Tab while open;
+- support Escape when dismissal is allowed;
+- restore focus to the invoking control when it closes;
+- ensure only the topmost modal handles keyboard events when dialogs are nested.
+
+`ConfirmDialog` is the standard confirmation primitive. `ConfirmDeleteDialog` is the destructive wrapper. Native `window.confirm()` is not used for authenticated Workslip workflows because it bypasses the app theme and shared focus behavior.
+
+`Drawer` uses the same modal focus model. Feature dialogs such as action confirmation, create-success states, image preview and PDF preview use the same focus behavior rather than duplicating a partial modal implementation.
+
+### Navigable rows
+
+A visually clickable row must expose the same primary navigation to keyboard users. On existing desktop data tables, focusable rows handle Enter and Space without replacing native table semantics with `role="link"`. Keyboard events originating from nested buttons/links must not trigger the row action.
+
+When a future table can model the primary destination as a normal link inside a cell without reducing usability, native link semantics are preferred over making the row itself interactive.
 
 ## Static contrast evidence for WOR-452
 
@@ -83,17 +108,21 @@ The following ratios are deterministic sRGB calculations for the token pairs cha
 | Day danger status text / background | `#c34f4a` on `#ffebe9`: ~4.04:1 | `#ad3f3b` on `#ffebe9`: ~5.16:1 |
 | Day focus / canvas | previous translucent ring: ~1.76:1 after compositing | `#4f59d4` on `#f6f7fb`: ~5.28:1 |
 
+Filled controls on `--primary` use `--on-primary`; feature CSS must not reintroduce a fixed white foreground. This applies to primary buttons, wizard selected/active states and calendar selection.
+
 ## Interaction rules
 
 ### Focus
 
 - Use `:focus-visible`; do not remove outlines without an equal or stronger replacement.
 - Focus is independent of hover and selected state.
-- Modal focus starts inside the modal, remains contained while it is open and returns to the previous control when it closes.
+- Modal focus follows the shared behavior above.
+- Focusable desktop table rows need an explicit visible row outline.
 
 ### Touch and pointer
 
 - Primary icon buttons, header controls, form controls and status filters target approximately 44px hit areas.
+- Small visual affordances may live inside a larger interactive box. Job-status controls deliberately keep a compact visual dot inside a 44×44 button.
 - WCAG 2.2 AA's 24×24 target-size criterion remains the minimum conformance floor, including its spacing/essential exceptions.
 - Hover effects are enabled only for hover-capable fine pointers; touch never depends on hover.
 
@@ -102,28 +131,32 @@ The following ratios are deterministic sRGB calculations for the token pairs cha
 - Text labels remain the authoritative meaning for job status.
 - Supplemental unread/new-rejection/unassigned dots expose accessible names.
 - Decorative status dots that duplicate visible status text are hidden from assistive technology.
+- Job-state visuals consume semantic status tokens; feature-specific copies of the blue/yellow/green/red status palette are not maintained.
 
 ### Motion
 
 - `prefers-reduced-motion: reduce` applies to the entire authenticated body so body-portaled dialogs and menus are included.
 - Avoid autoplay, parallax and flashing UI in core workflows.
+- Gamification is decorative enhancement and must remain understandable when its motion is suppressed.
 
 ## Known gaps and required verification
 
-WOR-452 is not complete until the acceptance evidence exists. Current known gaps after the semantic/accessibility pass:
+WOR-452 is not complete until the acceptance evidence exists. Current known gaps after the semantic/accessibility convergence pass:
 
-- desktop table column resizing still uses pointer dragging; this is non-essential presentation today, but it should either gain a keyboard/single-pointer alternative or be explicitly treated as optional enhancement before claiming full WCAG 2.2 AA coverage of that control;
-- all custom dialogs/menus need a manual keyboard and screen-reader spot check; the shared delete dialog now has focus containment/restoration, but one component cannot prove the behavior of every custom overlay;
+- desktop table column resizing still uses pointer dragging; this is non-essential presentation today, but it should either gain a keyboard/single-pointer alternative or remain explicitly treated as optional enhancement before claiming full WCAG 2.2 AA coverage of that control;
+- real browser keyboard and screen-reader spot checks are still required even though shared modal behavior has unit regression coverage;
 - day/night themes need real browser inspection at the defined mobile/tablet/desktop viewports;
 - 200% text zoom and narrow-width reflow need browser evidence;
 - forced-colors and reduced-motion need browser/OS preference verification;
-- automated lint/build/tests and relevant Playwright flows remain required by the repository validation policy.
+- automated lint/build/tests and relevant Playwright flows remain required by the repository validation policy;
+- `App.css` still contains some legacy declarations that are overridden by the active Farvelab/component layers. Runtime design ownership is now in the semantic/shared layers, but physical deletion of that legacy source should be done as a separate low-risk stylesheet decomposition rather than a large manual rewrite.
 
 ## Review checklist for new UI
 
 Before a shared UI change is considered done:
 
 - semantic token used instead of a one-off color when a token exists;
+- shared interaction primitive reused instead of introducing another dialog/confirmation pattern;
 - keyboard path tested, including Escape/Tab behavior for overlays;
 - focus is visible and not obscured;
 - status/error meaning survives without color;

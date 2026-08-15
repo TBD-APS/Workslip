@@ -6,7 +6,7 @@
   align-items: flex-start;
   justify-content: center;
   padding: max(8vh, calc(env(safe-area-inset-top, 0px) + 1rem)) 1rem 1rem;
-  background: rgba(0, 0, 0, 0.46);
+  background: var(--overlay-medium);
   backdrop-filter: blur(8px);
   animation: quick-nav-backdrop-in 140ms ease-out;
 }
@@ -50,8 +50,8 @@
 }
 
 .quick-nav-close {
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 44px;
+  height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -63,9 +63,11 @@
   cursor: pointer;
 }
 
-.quick-nav-close:hover {
-  color: var(--text);
-  background: var(--surface-selected);
+@media (hover: hover) and (pointer: fine) {
+  .quick-nav-close:hover {
+    color: var(--text);
+    background: var(--surface-selected);
+  }
 }
 
 .quick-nav-search-wrap {
@@ -168,10 +170,16 @@
   transition: background-color 110ms ease, border-color 110ms ease, transform 110ms ease;
 }
 
-.quick-nav-result:hover,
 .quick-nav-result.active {
   border-color: var(--border);
   background: var(--surface-selected);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .quick-nav-result:hover {
+    border-color: var(--border);
+    background: var(--surface-selected);
+  }
 }
 
 .quick-nav-result:active {
@@ -189,9 +197,14 @@
   color: var(--text-muted);
 }
 
-.quick-nav-result.active .quick-nav-result-icon,
-.quick-nav-result:hover .quick-nav-result-icon {
+.quick-nav-result.active .quick-nav-result-icon {
   color: var(--primary);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .quick-nav-result:hover .quick-nav-result-icon {
+    color: var(--primary);
+  }
 }
 
 .quick-nav-result-copy {
@@ -225,17 +238,23 @@
   transition: opacity 110ms ease, transform 110ms ease;
 }
 
-.quick-nav-result:hover .quick-nav-result-arrow,
 .quick-nav-result.active .quick-nav-result-arrow {
   opacity: 1;
   transform: translateX(0);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .quick-nav-result:hover .quick-nav-result-arrow {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .quick-nav-result:focus-visible,
 .quick-nav-close:focus-visible,
 .quick-nav-header-trigger:focus-visible,
 .quick-nav-mobile-trigger:focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }
 

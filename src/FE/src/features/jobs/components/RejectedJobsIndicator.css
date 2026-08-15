@@ -8,19 +8,19 @@
 }
 
 .job-list > .job-card::before {
-  background: #3b82f6;
+  background: var(--status-blue-text);
 }
 
 .job-list > .job-card:has(.review-dot)::before {
-  background: #eab308;
+  background: var(--status-amber-text);
 }
 
 .job-list > .job-card:has(.approved-dot)::before {
-  background: #22c55e;
+  background: var(--status-green-text);
 }
 
 .job-list > .job-card--rejected::before {
-  background: #ef4444;
+  background: var(--status-red-text);
 }
 
 .job-list > .job-card-skeleton::before {

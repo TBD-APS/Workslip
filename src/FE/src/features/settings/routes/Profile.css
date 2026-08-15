@@ -1,0 +1,27 @@
+.profile-welcome-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid color-mix(in srgb, var(--success) 38%, var(--border));
+  border-radius: var(--radius);
+  background: var(--status-green-bg);
+  color: var(--status-green-text);
+}
+
+.profile-welcome-banner-copy {
+  min-width: 0;
+}
+
+.profile-welcome-banner-title {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.profile-welcome-banner-description {
+  margin-top: 0.1rem;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}

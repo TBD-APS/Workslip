@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
@@ -9,6 +9,7 @@ import type { CustomerDetailViewModel } from '../../../api/generated/models';
 import { validateCustomer, type CustomerFieldErrors } from '../validation';
 import { AddressAutocomplete } from '../../jobs/components/AddressAutocomplete';
 import type { AddressSuggestion } from '../../jobs/hooks/useAddressAutocomplete';
+import { useModalAccessibility } from '../../../components/common/useModalAccessibility';
 
 export const CreateCustomerPage = () => {
   const navigate = useNavigate();
@@ -93,8 +94,8 @@ export const CreateCustomerPage = () => {
   return (
     <div className="page-container">
       <div className="detail-header">
-        <button className="btn-icon-back" onClick={() => navigate('/app/customers')} aria-label="Tilbage">
-          <ArrowLeft size={20} />
+        <button className="btn-icon-back" type="button" onClick={() => navigate('/app/customers')} aria-label="Tilbage">
+          <ArrowLeft size={20} aria-hidden="true" />
         </button>
         <div>
           <h2>Opret kunde</h2>
@@ -177,7 +178,7 @@ export const CreateCustomerPage = () => {
 
       <div className="modal-actions">
         <button type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={isSaving}>
-          {isSaving && <Loader2 className="animate-spin" size={16} />}
+          {isSaving && <Loader2 className="animate-spin" size={16} aria-hidden="true" />}
           <span>{isSaving ? 'Opretter...' : 'Opret'}</span>
         </button>
         <button type="button" className="btn btn-secondary" onClick={() => navigate('/app/customers')} disabled={isSaving}>Annuller</button>
@@ -189,21 +190,27 @@ export const CreateCustomerPage = () => {
 };
 
 function CreateCustomerSuccessDialog({ onCreateAnother, onGoToCustomerList }: { onCreateAnother: () => void; onGoToCustomerList: () => void }) {
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter') onGoToCustomerList();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onGoToCustomerList]);
+  const primaryButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useModalAccessibility<HTMLDivElement>({
+    open: true,
+    onClose: onGoToCustomerList,
+    initialFocusRef: primaryButtonRef,
+  });
 
   return createPortal(
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="create-customer-success-title">
-      <div className="modal-card">
+    <div className="modal-backdrop">
+      <div
+        ref={dialogRef}
+        className="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-customer-success-title"
+        tabIndex={-1}
+      >
         <h3 id="create-customer-success-title">Kunden er oprettet</h3>
         <div className="modal-actions">
-          <button className="btn btn-secondary" onClick={onCreateAnother}>Opret en mere</button>
-          <button className="btn btn-primary" onClick={onGoToCustomerList}>Til kundelisten</button>
+          <button type="button" className="btn btn-secondary" onClick={onCreateAnother}>Opret en mere</button>
+          <button ref={primaryButtonRef} type="button" className="btn btn-primary" onClick={onGoToCustomerList}>Til kundelisten</button>
         </div>
       </div>
     </div>,
