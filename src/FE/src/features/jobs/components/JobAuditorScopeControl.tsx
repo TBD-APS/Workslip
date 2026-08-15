@@ -1,11 +1,7 @@
 import { useEffect, useState } from 'react';
 import { EyeOff, ShieldCheck } from 'lucide-react';
+import type { JobAuditorScopeDraft } from '../api/auditorScopeApi';
 import './jobAuditorScope.css';
-
-export type JobAuditorScopeDraft = {
-  isInAuditorScope: boolean;
-  reason: string;
-};
 
 type JobAuditorScopeControlProps = {
   value: JobAuditorScopeDraft;
