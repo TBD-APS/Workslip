@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { chooseRun, validateGate } from './vercel-production-eligibility.mjs';
+import { chooseRun, parseGitHubRepository, validateGate } from './vercel-production-eligibility.mjs';
 
 const SHA = 'a'.repeat(40);
 const OTHER_SHA = 'b'.repeat(40);
@@ -26,6 +26,12 @@ function gate(overrides = {}) {
     ...overrides,
   };
 }
+
+test('parses GitHub HTTPS and SSH remotes for metadata fallback', () => {
+  assert.equal(parseGitHubRepository('https://github.com/rasm105k/Workslip-v2.0.git'), 'rasm105k/Workslip-v2.0');
+  assert.equal(parseGitHubRepository('git@github.com:rasm105k/Workslip-v2.0.git'), 'rasm105k/Workslip-v2.0');
+  assert.throws(() => parseGitHubRepository('https://example.com/owner/repo.git'), /not a GitHub repository/);
+});
 
 test('accepts exact current main with one green CI Gate', () => {
   const evidence = validateGate({ expectedSha: SHA, mainSha: SHA, run: run(), jobs: [gate()] });
