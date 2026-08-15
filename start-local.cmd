@@ -21,6 +21,6 @@ if not "%EXIT_CODE%"=="0" (
 
 echo.
 echo [OK] Workslip er startet lokalt.
-echo Overblik: http://127.0.0.1:5270/app/overblik
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\dev\show-local-links.ps1"
 echo.
 exit /b 0
