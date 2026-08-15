@@ -107,7 +107,7 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 | --- | --- | --- | --- | --- |
 | customers | 6 | 1551 | **7** | 35 |
 | settings | 3 | 671 | **4** | 8 |
-| users | 7 | 1064 | **2** | 25 |
+| users | 8 | 1213 | **2** | 28 |
 | auditor | 1 | 483 | **1** | 16 |
 | jobs | 51 | 8288 | **1** | 156 |
 | overview | 1 | 165 | **1** | 4 |
@@ -168,7 +168,7 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 | `src/FE/src/features/auditor/routes/AuditorReportList.tsx` | 483 |
 | `src/FE/src/features/docs/DocsPage.tsx` | 476 |
 | `src/FE/src/features/jobs/components/JobDetailBlocks.tsx` | 472 |
-| `src/FE/src/features/users/routes/UserDetail.tsx` | 469 |
+| `src/FE/src/features/users/routes/UserDetail.tsx` | 471 |
 | `src/FE/src/features/customers/routes/CustomerList.tsx` | 466 |
 | `src/FE/src/components/common/NotificationsDrawer.tsx` | 465 |
 | `src/FE/src/features/superadmin/components/SuperAdminUsersPanel.tsx` | 453 |

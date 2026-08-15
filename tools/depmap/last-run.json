@@ -123,7 +123,7 @@
       },
       "Infrastructure/Repositories": {
         "files": 19,
-        "loc": 5228
+        "loc": 5229
       },
       "Infrastructure/Resilience": {
         "files": 2,
@@ -490,9 +490,9 @@
       },
       {
         "name": "users",
-        "files": 7,
-        "loc": 1064,
-        "sharedRefs": 25,
+        "files": 8,
+        "loc": 1213,
+        "sharedRefs": 28,
         "crossRefs": 2
       },
       {
@@ -619,7 +619,7 @@
       },
       {
         "file": "src/FE/src/features/users/routes/UserDetail.tsx",
-        "loc": 469
+        "loc": 471
       },
       {
         "file": "src/FE/src/features/customers/routes/CustomerList.tsx",
