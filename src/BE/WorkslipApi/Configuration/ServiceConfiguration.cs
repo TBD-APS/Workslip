@@ -7,6 +7,7 @@ using Workslip.Api.Services;
 using Workslip.Api.Telemetry;
 using Workslip.Application;
 using Workslip.Application.Common;
+using Workslip.Application.Operations;
 using Workslip.Infrastructure;
 
 namespace Workslip.Api.Configuration;
@@ -42,6 +43,10 @@ public static class ServiceConfiguration
         builder.Services.AddWorkslipApplication();
         builder.Services.AddWorkslipInfrastructure(
             includeHostedServices: !DatabaseStartup.IsOpenApiGeneration(builder.Configuration));
+
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<IApplicationEnvironmentRegistry, WorkslipApplicationEnvironmentRegistry>();
+        builder.Services.AddScoped<IControlCenterReadService, ControlCenterReadService>();
 
         builder.Services.AddRateLimiter(options =>
         {
