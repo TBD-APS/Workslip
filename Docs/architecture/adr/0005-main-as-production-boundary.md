@@ -2,68 +2,131 @@
 
 **Status:** Accepted  
 **Date:** 2026-08-08  
+**Last amended:** 2026-08-15  
 **Decision owners:** Workslip maintainers
 
 ## Context
 
-Workslip had two production boundaries.
+Workslip originally had two production boundaries.
 
-The Vercel frontend already treated a merge to `main` as a production deployment, while the backend required a second `release/**` branch, a separate release-validation workflow and an explicit branch/SHA handoff before Azure deployment.
+The Vercel frontend treated a merge to `main` as a production deployment, while the backend required a second `release/**` branch, a separate release-validation workflow and an explicit branch/SHA handoff before Azure deployment.
 
 That split added operational ceremony and duplicated validation without preventing frontend code from reaching production first. It also made the meaning of `main`, release branches and GitHub Actions difficult to explain and easy to operate inconsistently.
 
-The desired operating property is simpler: the code that is explicitly approved and merged is the code being released, while strong validation happens before that release decision.
+The first simplification made `main` the single application production boundary and made the backend wait for a successful post-merge `CI` run. A later delivery review exposed two remaining failure modes:
 
-A later production incident exposed a second-order requirement in this model: Azure deployment waits for a successful completed `main` CI run. If each subsequent merge cancels the already-running `main` CI, a high merge rate can prevent any run from ever reaching the successful completion event that releases the backend. Vercel continues advancing from `main` in that situation, creating frontend/backend deployment drift even though every individual PR was green.
+1. Vercel still attempted production builds immediately from `main`, independent of the post-merge CI result. This allowed frontend production attempts while the corresponding revision was red, cancelled or still validating.
+2. The backend deploy accepted a successful older CI SHA as long as it remained an ancestor of current `main`. That preserved deploy progress but did not guarantee that frontend, backend and deployment evidence referred to the same current application revision.
+
+WOR-468 also verified that the active GitHub `main` ruleset did not yet require `CI Gate`. Merge protection is therefore important defense in depth, but production safety cannot rely exclusively on repository settings being configured correctly.
 
 ## Decision
 
-`main` is the single application production boundary.
+`main` remains the single application production boundary.
 
 Normal delivery is:
 
-`rbj--<issue>-...` → pull request → `CI Gate` → explicit manual merge → `main` → production.
+`rbj--<issue>-...` → pull request → `CI Gate` → explicit manual merge → `main` → exact-SHA post-merge `CI Gate` → production.
+
+A production release or production mutation must prove that the exact candidate SHA:
+
+- is the current `main` SHA;
+- has a completed canonical `CI` push run for that exact SHA; and
+- has exactly one completed `CI Gate` job with conclusion `success`.
+
+All other states fail closed. This includes failed, cancelled, timed-out, skipped, neutral or missing checks; duplicate gates; a stale older SHA; and an in-progress run that does not become successful within the bounded wait used by the caller.
+
+The shared verifier is `tools/release/verify-production-eligibility.mjs`. Frontend hosting, backend deployment and privileged manual production workflows must use that verifier instead of maintaining separate definitions of deploy eligibility.
+
+### Pull-request validation
 
 The pull-request `CI Gate` owns deterministic repository validation before merge:
 
 - full backend Release build and test suite;
 - frontend no-new-lint regression checking;
 - branch-matched OpenAPI/Orval generation;
+- generated API-client parity with the backend contract;
 - frontend tests and production build; and
 - repository contract/documentation checks.
 
 Code scanning has one owner: GitHub CodeQL Default setup. The normal CI workflow must not add an advanced CodeQL configuration while Default setup is enabled. Whether code-scanning results block merge is repository security/ruleset configuration, not a second CI implementation.
 
+### Frontend production
+
+Vercel Git integration remains the frontend hosting mechanism and receives `main` Git changes, but the production build itself is gated.
+
+`src/FE/vercel.json` overrides the production build command so it first waits for and verifies the exact-SHA post-merge `CI Gate`. The candidate must still be current `main` when the verifier succeeds. Only then may the frontend build proceed.
+
+Production Vercel builds do not regenerate the API client against a remote development or production API. CI generates the client from the backend contract in the same revision and requires the generated files already committed in that SHA to match. Vercel then builds those validated sources deterministically.
+
+### Backend production
+
+Backend production is triggered by a completed `CI` workflow run on `main`.
+
+The backend workflow verifies that exact triggering CI run and its `CI Gate`, builds an artifact from exactly that SHA, then **re-validates current-main eligibility immediately before migrations or application deployment**. If `main` advanced during artifact construction, the older release is stale and cannot mutate production.
+
+The previous `git merge-base --is-ancestor` acceptance is intentionally retired. Being a green ancestor is not equivalent to being the current validated application revision.
+
+Azure deployment continues to use the protected `prod` environment, GitHub OIDC, a dedicated migration identity, bounded retries and post-deploy health verification.
+
+### Privileged manual production operations
+
+A manual dispatch is operator intent, not a CI bypass.
+
+Production database migrations and production infrastructure reconciliation may only be dispatched from `main` and must pass the same exact-SHA production eligibility verifier **before** acquiring Azure credentials or mutating resources. The production public readiness smoke is read-only but also requires exact green `main` so its evidence is attached to a validated revision.
+
+### Concurrency
+
+Pull-request CI remains disposable and may cancel when the same PR receives a newer commit.
+
+An already-running `main` CI run is not cancelled by a later merge, preserving validation progress. Production mutations share one `workslip-production` concurrency group and do not cancel an in-progress production mutation.
+
+Because mutation eligibility is revalidated before privileged changes, a later `main` SHA prevents an older queued/built release from becoming a new production mutation even though its CI was once green.
+
+### Repository protection
+
+The `main` ruleset must require a pull request, `CI Gate`, no direct pushes and no force pushes. Merge remains an explicit human action.
+
+This repository setting is a separate enforcement layer from deployment eligibility. A ruleset misconfiguration must not turn red or stale code into a deployable revision; conversely, deployment gating does not make a weak merge ruleset acceptable.
+
 A separate `release/**` candidate branch is not used for normal production delivery.
-
-Vercel may deploy the merged frontend from `main`. Backend deployment starts only after the unified CI workflow has successfully revalidated the exact `main` SHA, and Azure deployment continues to use the `prod` environment, OIDC, bounded retries and health verification.
-
-CI concurrency must preserve that release path:
-
-- pull-request CI is disposable and may cancel an in-progress run when the same PR receives a newer commit;
-- an already-running `main` push CI must not be canceled by a later merge, because its successful completion is a production dependency;
-- `main` pushes remain in one CI concurrency group so GitHub can coalesce superseded pending runs to the newest pending revision while allowing the active run to finish and release backend delivery.
 
 Production infrastructure reconciliation and risk-based deployed Playwright scenarios remain separate operational workflows because they have different privileges and failure semantics from normal application delivery.
 
 GitHub tags/releases may mark meaningful product versions, but they do not form another deployment gate.
 
+## Environment naming and ownership
+
+Workflow and job names use a surface-first production convention such as:
+
+- `Backend · Production deploy`
+- `Database · Production migrations`
+- `Infrastructure · Production reconcile`
+- `Production · Readiness smoke`
+
+Stable external environment/resource identifiers are not renamed solely for presentation. The GitHub `prod` environment remains the Azure protected environment while it owns existing production variables/secrets and a `main` deployment policy. Vercel-created GitHub `Production` and `Preview` environments are distinct integration-owned deployment records, not duplicates of Azure `prod`.
+
+An environment may be renamed or removed only after its integrations, deployment history, variables/secrets and dependent workflows have been verified and migrated.
+
 ## Consequences
 
 ### Positive
 
-- One branch has one meaning: merged `main` is production code.
-- Manual merge is the explicit release decision.
-- Validation moves before the production decision instead of behind a second branch.
-- Frontend and backend share the same code boundary.
-- Issue-specific, release-branch-only and duplicate code-scanning automation can be removed.
-- CI failures become actionable merge blockers instead of background release ceremony.
-- Frequent merges cannot repeatedly cancel the only main CI run capable of triggering Azure backend deployment.
+- One branch has one meaning: merged `main` is the production code boundary.
+- Manual merge remains the explicit release decision.
+- Both frontend and backend now require the same exact post-merge green SHA before successful production delivery.
+- Red, cancelled, incomplete and stale revisions fail closed independently of branch-protection configuration.
+- Vercel production no longer depends on a remote development OpenAPI endpoint.
+- Frontend/backend contract generation is proved against the same revision that Vercel builds.
+- Manual migrations and infrastructure reconciliation cannot become hidden production bypasses.
+- Deployment evidence can identify the exact SHA, CI run/gate and target.
+- Issue-specific, release-branch-only and duplicate delivery automation can continue to be retired.
 
 ### Trade-offs
 
-- The `main` repository ruleset is a critical control and must require `CI Gate`, pull requests and no direct/force pushes.
-- Vercel can start the frontend deployment immediately after merge, so the production frontend build must remain in pull-request CI.
-- Backend is intentionally more conservative: it waits for a successful post-merge CI run for the exact `main` SHA before Azure deployment.
-- During a burst of merges, one active main CI run continues while superseded pending main runs may be replaced by a newer pending revision. This spends some CI time on an older accepted `main` SHA in exchange for guaranteeing forward progress of backend delivery.
+- A merge to `main` no longer means the frontend can finish production immediately; Vercel may wait for post-merge CI before the actual build proceeds.
+- If `main` advances while an older backend artifact is building, that artifact is intentionally abandoned rather than deployed. A later current SHA becomes the release candidate.
+- Production delivery depends on GitHub API availability for exact-SHA evidence. Ambiguous or unavailable evidence fails closed rather than guessing.
+- The `main` repository ruleset remains a critical administrative control even though deployment now has an independent safety gate.
+- Stable environment identifiers such as `prod` may remain less descriptive than workflow display names until their protected configuration can be migrated safely.
 - Large or unusually risky changes can still require additional Playwright, infrastructure or operational evidence; the simplified branch model does not reduce risk-based testing requirements.
