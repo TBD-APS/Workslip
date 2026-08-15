@@ -1,6 +1,7 @@
 {
   "recommendations": [
     "ms-dotnettools.csharp",
-    "ms-vscode.vscode-typescript-next"
+    "ms-vscode.vscode-typescript-next",
+    "ms-azuretools.vscode-docker"
   ]
 }
