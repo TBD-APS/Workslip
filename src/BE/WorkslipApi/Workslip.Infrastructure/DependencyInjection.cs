@@ -7,6 +7,7 @@ using Workslip.Application;
 using Workslip.Application.Common;
 using Workslip.Application.Customers;
 using Workslip.Application.Diagnostics;
+using Workslip.Application.Documents;
 using Workslip.Application.Images;
 using Workslip.Application.Invitations;
 using Workslip.Application.Jobs;
@@ -68,6 +69,8 @@ public static class DependencyInjection
         services.AddScoped<IAssignmentRepository, EfAssignmentRepository>();
         services.AddScoped<IJobAssignmentScopeRepository, EfJobAssignmentScopeRepository>();
         services.AddScoped<ICustomerRepository, EfCustomerRepository>();
+        services.AddScoped<IDocumentRepository, SqlDocumentRepository>();
+        services.AddScoped<IDocumentAttachmentRepository, SqlDocumentAttachmentRepository>();
         services.AddScoped<IInviteRepository, EfInviteRepository>();
         services.AddScoped<IInvitationStatusRepository, EfInviteRepository>();
         services.AddScoped<IJobLinkRepository, EfJobLinkRepository>();
@@ -95,6 +98,13 @@ public static class DependencyInjection
             return environment.IsDevelopment()
                 ? ActivatorUtilities.CreateInstance<LocalImageStorage>(serviceProvider)
                 : ActivatorUtilities.CreateInstance<AzureBlobImageStorage>(serviceProvider);
+        });
+        services.AddSingleton<IDocumentAttachmentStorage>(serviceProvider =>
+        {
+            var environment = serviceProvider.GetRequiredService<IHostEnvironment>();
+            return environment.IsDevelopment()
+                ? ActivatorUtilities.CreateInstance<LocalDocumentAttachmentStorage>(serviceProvider)
+                : ActivatorUtilities.CreateInstance<AzureBlobDocumentAttachmentStorage>(serviceProvider);
         });
 
         services.AddHttpClient<IErrorDiagnosticsService, ApplicationInsightsErrorDiagnosticsService>(client =>

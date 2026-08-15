@@ -9,6 +9,7 @@ Current implementation is the technical source of truth. This area records durab
 ## Current architecture views
 
 - [`domain-and-dataflows.md`](domain-and-dataflows.md) — tenant ownership and core data-integrity boundaries.
+- [`workslip-docs.md`](workslip-docs.md) — product Docs trust boundary, persistence and repository-documentation separation.
 
 Useful future views, when they can be kept concise and stable:
 
