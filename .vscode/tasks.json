@@ -11,6 +11,15 @@
       "problemMatcher": []
     },
     {
+      "label": "Workslip: Test local UI 3x",
+      "type": "shell",
+      "command": ".\\test-local-ui-3x.ps1",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Workslip: Open Overblik",
       "type": "shell",
       "command": "start http://127.0.0.1:5270/app/overblik",
