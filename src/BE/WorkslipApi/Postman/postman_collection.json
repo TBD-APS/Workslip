@@ -2283,7 +2283,8 @@
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
-                  "const link = json[0];",
+                  "const link = (json.links || []).find(function (candidate) { return candidate.linkedReportId === pm.collectionVariables.get('targetJobId'); }) || (json.links || [])[0];",
+                  "pm.test('link present on job summary', function () { pm.expect(json.links).to.be.an('array').that.is.not.empty; });",
                   "pm.collectionVariables.set('linkId', link.id);",
                   "pm.test('link id captured', function () { pm.expect(link.id).to.be.a('string').and.not.empty; });",
                   "pm.test('link view model hides internal timestamp', function () { pm.expect(link).to.not.have.property('createdAt'); });",
