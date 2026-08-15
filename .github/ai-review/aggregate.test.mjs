@@ -23,7 +23,7 @@ function finding(title, confidence = 0.91) {
   };
 }
 
-function run(openai, claude, truncated = false) {
+function run({ githubModels = '', openai = '', claude = '', truncated = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'workslip-ai-review-'));
   const output = path.join(dir, 'output.txt');
   const result = spawnSync(process.execPath, [script], {
@@ -31,6 +31,7 @@ function run(openai, claude, truncated = false) {
     encoding: 'utf8',
     env: {
       ...process.env,
+      GITHUB_MODELS_REVIEW_B64: githubModels,
       OPENAI_REVIEW_B64: openai,
       CLAUDE_REVIEW_B64: claude,
       CONTEXT_TRUNCATED: String(truncated),
@@ -46,16 +47,31 @@ function run(openai, claude, truncated = false) {
 }
 
 assert.equal(
-  run(encoded('OpenAI', [finding('Tenant authorization can be bypassed')]), encoded('Claude', [finding('Tenant authorization bypass on update')])).blocking,
+  run({
+    githubModels: encoded('GitHub Models', [finding('Tenant authorization can be bypassed')]),
+    openai: encoded('OpenAI', [finding('Tenant authorization bypass on update')]),
+  }).blocking,
   'true',
 );
 assert.equal(
-  run(encoded('OpenAI', [finding('Tenant authorization can be bypassed')]), encoded('Claude', [])).blocking,
+  run({
+    githubModels: encoded('GitHub Models', [finding('Tenant authorization can be bypassed')]),
+    claude: encoded('Claude', [finding('Tenant authorization bypass on update')]),
+  }).blocking,
+  'true',
+);
+assert.equal(
+  run({ githubModels: encoded('GitHub Models', [finding('Tenant authorization can be bypassed')]) }).blocking,
   'false',
 );
 assert.equal(
-  run(encoded('OpenAI', [finding('Tenant authorization can be bypassed')]), encoded('Claude', [finding('Tenant authorization bypass on update')]), true).blocking,
+  run({
+    githubModels: encoded('GitHub Models', [finding('Tenant authorization can be bypassed')]),
+    openai: encoded('OpenAI', [finding('Tenant authorization bypass on update')]),
+    truncated: true,
+  }).blocking,
   'false',
 );
+assert.equal(run({}).providers, '0');
 
-console.log('AI review consensus tests passed');
+console.log('AI review multi-provider consensus tests passed');

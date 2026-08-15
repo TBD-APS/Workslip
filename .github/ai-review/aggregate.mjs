@@ -34,19 +34,26 @@ function sameFinding(a, b) {
   return categoryMatch && jaccard(a.title, b.title) >= 0.6;
 }
 
+const githubModels = decode(process.env.GITHUB_MODELS_REVIEW_B64, 'GitHub Models');
 const openai = decode(process.env.OPENAI_REVIEW_B64, 'OpenAI');
 const claude = decode(process.env.CLAUDE_REVIEW_B64, 'Claude');
-const reviews = [openai, claude];
+const reviews = [githubModels, openai, claude];
 const available = reviews.filter((review) => review.available);
 const contextTruncated = process.env.CONTEXT_TRUNCATED === 'true';
 
 const consensusPairs = [];
-if (openai.available && claude.available && !contextTruncated) {
-  for (const left of openai.findings) {
-    if (severityRank[left.severity] < severityRank.high || left.confidence < 0.8) continue;
-    for (const right of claude.findings) {
-      if (severityRank[right.severity] < severityRank.high || right.confidence < 0.8) continue;
-      if (sameFinding(left, right)) consensusPairs.push([left, right]);
+if (!contextTruncated) {
+  for (let i = 0; i < available.length; i += 1) {
+    for (let j = i + 1; j < available.length; j += 1) {
+      const leftReview = available[i];
+      const rightReview = available[j];
+      for (const left of leftReview.findings || []) {
+        if (severityRank[left.severity] < severityRank.high || left.confidence < 0.8) continue;
+        for (const right of rightReview.findings || []) {
+          if (severityRank[right.severity] < severityRank.high || right.confidence < 0.8) continue;
+          if (sameFinding(left, right)) consensusPairs.push([left, right]);
+        }
+      }
     }
   }
 }
@@ -68,11 +75,20 @@ for (const finding of allFindings) {
 
 const headSha = process.env.HEAD_SHA || '';
 const prNumber = process.env.PR_NUMBER || '';
-const status = available.length === 2 ? (blocking ? 'consensus blocker' : 'reviewed') : available.length === 1 ? 'degraded review' : 'not reviewed';
+const status = available.length >= 2
+  ? (blocking ? 'consensus blocker' : 'reviewed')
+  : available.length === 1
+    ? 'degraded review'
+    : 'not reviewed';
+const providerNames = available.map((review) => review.provider).join(', ');
 
 let body = `${marker}\n## Automated Workslip AI review\n\n`;
 body += `**Status:** ${status} · **PR:** #${prNumber} · **SHA:** \`${headSha.slice(0, 12)}\`\n\n`;
-body += `This comment is posted automatically through the configured Workslip review account. It is **not a human approval** and never merges code. OpenAI and Claude review independently; a blocking AI signal is emitted only when both independently identify a matching high/critical, high-confidence finding.\n\n`;
+body += `This review is generated automatically and is **not a human approval** and never merges code. Available models review independently; a blocking AI signal is emitted only when at least two independent providers identify a matching high/critical, high-confidence finding.\n\n`;
+
+if (providerNames) {
+  body += `**Available providers:** ${providerNames}.\n\n`;
+}
 
 if (contextTruncated) {
   body += `> The diff exceeded the automated review context limit and was truncated. AI output is advisory only for this revision and cannot produce a consensus blocker.\n\n`;
@@ -101,7 +117,7 @@ if (selected.length) {
 }
 
 if (!available.length) {
-  body += 'Configure at least one model credential before relying on this workflow.\n\n';
+  body += 'No model provider was available; this revision has not received an AI review.\n\n';
 }
 
 body += 'Human review ownership and the existing CI/release gates remain unchanged.';
