@@ -1,5 +1,5 @@
 import { useNavigate, useLocation, NavLink, Navigate, Outlet } from 'react-router-dom';
-import { BookOpen, ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell, Search } from 'lucide-react';
+import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell, Search } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can, useCan, useIsSuperAdmin } from '../../providers/permissions';
 import { useRef, useState } from 'react';
@@ -120,18 +120,6 @@ export const AppLayout = () => {
           >
             <Search size={18} />
           </button>
-          {canViewDocs && canUseAppCommands && (
-            <button
-              type="button"
-              onClick={() => navigate('/app/docs')}
-              className="user-avatar"
-              aria-label="Docs"
-              title="Docs"
-              aria-current={location.pathname.startsWith('/app/docs') ? 'page' : undefined}
-            >
-              <BookOpen size={18} />
-            </button>
-          )}
           {canUseNotifications && (
             <button
               type="button"
@@ -261,12 +249,6 @@ export const AppLayout = () => {
           <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/customers')}>
             <Building2 size={24} />
             <span>Kunder</span>
-          </NavLink>
-        </Can>
-        <Can permission="docs:view">
-          <NavLink to="/app/docs" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/docs')}>
-            <BookOpen size={24} />
-            <span>Docs</span>
           </NavLink>
         </Can>
         <button
