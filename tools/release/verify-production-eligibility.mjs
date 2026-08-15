@@ -153,6 +153,13 @@ async function loadMainSha(client, repository) {
   return requireSha(ref?.object?.sha);
 }
 
+async function requireStillCurrentMain(client, repository, sha) {
+  const current = await loadMainSha(client, repository);
+  if (current !== sha) {
+    throw new Error(`Production candidate ${sha} became stale while verifying CI; current main is ${current}.`);
+  }
+}
+
 async function loadJobs(client, repository, runId) {
   const response = await client(`/repos/${repository}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
   return response.jobs || [];
@@ -182,13 +189,17 @@ async function resolveEvidence({ client, repository, sha, ciRunId, waitSeconds, 
     if (ciRunId) {
       const run = await loadRunById(client, repository, ciRunId);
       const jobs = await loadJobs(client, repository, ciRunId);
-      return validateEvidence({ expectedSha: sha, mainSha, run, jobs });
+      const evidence = validateEvidence({ expectedSha: sha, mainSha, run, jobs });
+      await requireStillCurrentMain(client, repository, sha);
+      return evidence;
     }
 
     const discovered = await discoverRun(client, repository, sha);
     if (discovered.state === 'success') {
       const jobs = await loadJobs(client, repository, discovered.run.id);
-      return validateEvidence({ expectedSha: sha, mainSha, run: discovered.run, jobs });
+      const evidence = validateEvidence({ expectedSha: sha, mainSha, run: discovered.run, jobs });
+      await requireStillCurrentMain(client, repository, sha);
+      return evidence;
     }
     if (discovered.state === 'failed') {
       throw new Error(`CI for main @ ${sha} completed without success (conclusion=${discovered.run?.conclusion || 'unknown'}).`);
