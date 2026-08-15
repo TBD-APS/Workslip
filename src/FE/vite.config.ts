@@ -3,6 +3,8 @@ import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const apiProxyTarget = process.env.VITE_DEV_PROXY_TARGET || 'http://localhost:5262'
+
 export default defineConfig({
   test: {
     environment: 'jsdom',
@@ -17,9 +19,6 @@ export default defineConfig({
     sourcemap: true,
     rolldownOptions: {
       output: {
-        // Keep the application bootstrap distinguishable from lazy route chunks
-        // so the service-worker glob cannot accidentally precache a route named
-        // index.tsx or another common chunk.
         entryFileNames: 'assets/app-[hash].js',
         chunkFileNames: 'assets/chunks/[name]-[hash].js',
       },
@@ -30,7 +29,7 @@ export default defineConfig({
     port: 5270,
     proxy: {
       '/api': {
-        target: 'http://localhost:5262',
+        target: apiProxyTarget,
         changeOrigin: true,
         secure: false,
       }
@@ -52,10 +51,6 @@ export default defineConfig({
         type: 'module',
       },
       injectManifest: {
-        // Install only the navigation shell and bootstrap JavaScript. CSS,
-        // fonts, images and lazy chunks are cached when the browser actually
-        // requests them, preventing service-worker installation from downloading
-        // the entire authenticated application during a public login visit.
         globPatterns: [
           '**/*.html',
           '**/*.webmanifest',
