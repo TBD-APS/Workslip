@@ -23,6 +23,7 @@ import '../../authenticated-base.css';
 import '../../App.css';
 import '../../features/jobs/jobWizardTheme.css';
 import './AppLayout.focus.css';
+import '../../farvelab-theme.css';
 import {
   AppScrollRestoreBoundary,
   useAppRouteScrollManager,
