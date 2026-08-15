@@ -16,27 +16,27 @@ tools/                   repository maintenance and validation tooling
 
 ## Start locally
 
-Backend:
+On a supported Windows developer machine, use the canonical full-stack bootstrap from the repository root:
 
-```bash
-cd src/BE/WorkslipApi
-dotnet restore
-dotnet run --launch-profile http
+```powershell
+.\dev.ps1
 ```
 
-Frontend:
+For phone testing on the same trusted Wi-Fi/LAN:
 
-```bash
-cd src/FE
-npm ci
-npm run dev
+```powershell
+.\dev.ps1 -Mobile
 ```
+
+`-Mobile` prints the LAN URL to open on the phone, exposes only the Vite development server to the LAN, and keeps the API and LocalDB local to the PC behind Vite's `/api` proxy. See [`Docs/operations/local-development.md`](Docs/operations/local-development.md) for prerequisites, useful modes, firewall guidance and the HTTP/HTTPS mobile-testing boundary.
 
 Default local URLs:
 
 - frontend: `http://127.0.0.1:5270`
 - API: `http://localhost:5262`
 - health: `http://localhost:5262/health`
+
+Backend-only and frontend-only manual commands remain documented in the scoped READMEs for focused debugging. They do not replace the canonical full-stack bootstrap.
 
 Environment-specific Azure credentials/configuration are described in the backend and infrastructure READMEs.
 
