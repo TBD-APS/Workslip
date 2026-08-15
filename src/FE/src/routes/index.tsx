@@ -225,6 +225,10 @@ function RootErrorBoundary() {
   );
 }
 
+// The router is intentionally exported from this route module; Fast Refresh only
+// applies to the component definitions above, while the router instance is consumed
+// by the application bootstrap.
+// eslint-disable-next-line react-refresh/only-export-components
 export const router = createBrowserRouter([
   {
     element: <RootErrorBoundary />,
