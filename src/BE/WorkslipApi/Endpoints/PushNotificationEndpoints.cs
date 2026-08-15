@@ -21,11 +21,11 @@ public static class PushNotificationEndpoints
             {
                 var payload = JsonSerializer.Deserialize<NotificationPayload>(row.PayloadJson, new JsonSerializerOptions(JsonSerializerDefaults.Web));
                 var type = Enum.TryParse<NotificationType>(row.NotificationType, out var parsed) ? parsed : (NotificationType?)null;
-                
-                var text = payload is not null && type is not null ? 
-                service.GetLocalizedText(type.Value, payload.JobNumber, payload.CustomerAddress, payload.RecipientName) 
-                : ("Notifikation", "Du har modtaget en ny notifikation.");
-                
+
+                var text = payload is not null && type is not null
+                    ? service.GetLocalizedText(type.Value, payload)
+                    : ("Notifikation", "Du har modtaget en ny notifikation.");
+
                 return new NotificationHistoryViewModel(row.Id, text.Item1, text.Item2, payload?.Url, row.CreatedUtc, row.ReadUtc is not null, row.Status);
             }).ToArray();
             return Results.Ok(result);
@@ -48,7 +48,7 @@ public static class PushNotificationEndpoints
             var result = await service.DeleteAsync(currentUser.UserId.Value, id, cancellationToken);
             return ResultExtensions.ToHttpResult(result);
         });
-        
+
         var group = app.MapUserGroup("/api/push-subscriptions", "push-subscriptions");
 
         group.MapGet("/public-key", (IVapidPublicKeyProvider keyProvider, HttpContext httpContext) =>
