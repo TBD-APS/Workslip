@@ -1,9 +1,9 @@
 name: WOR-479 · Temporary contract capture
 
 on:
-  pull_request:
+  push:
     branches:
-      - rbj--474-job-infrastructure-composition
+      - rbj--479-auditor-visibility
 
 permissions:
   contents: read
