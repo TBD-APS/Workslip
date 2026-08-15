@@ -19,13 +19,13 @@ const guideSteps = [
     icon: WalletCards,
     title: 'Se abonnementet',
     description:
-      'Du kan se virksomhedens aktuelle plan, faktureringsperiode og hvilke Workslip-funktioner planen giver adgang til.',
+      'Når selvbetjent fakturering er aktiveret, kan du se virksomhedens aktuelle plan, faktureringsperiode og hvilke Workslip-funktioner planen giver adgang til.',
   },
   {
     icon: Gauge,
     title: 'Følg forbruget',
     description:
-      'Forbrug vises med tydelige enheder og seneste opdatering. Manglende eller forsinkede målinger vises som ukendte — aldrig som nul.',
+      'Billing-overblikket viser forbrug med tydelige enheder og seneste opdatering. Manglende eller forsinkede målinger vises som ukendte — aldrig som nul.',
   },
   {
     icon: CreditCard,
@@ -37,19 +37,19 @@ const guideSteps = [
     icon: FileText,
     title: 'Find fakturaer og kvitteringer',
     description:
-      'Fakturaer og betalingsstatus samles ét sted, så Admin kan følge virksomhedens historik uden at lede i mails.',
+      'Når billing er aktiveret, samles fakturaer og betalingsstatus ét sted, så Admin kan følge virksomhedens historik uden at lede i mails.',
   },
   {
     icon: CalendarClock,
     title: 'Skift eller opsig planen',
     description:
-      'Planændringer viser altid, hvornår ændringen træder i kraft. En planlagt opsigelse fjerner ikke adgang før den aftalte slutdato.',
+      'Planændringer viser, hvornår ændringen træder i kraft. En planlagt opsigelse fjerner ikke adgang før den aftalte slutdato.',
   },
   {
     icon: RefreshCcw,
     title: 'Kom videre efter en fejlet betaling',
     description:
-      'En fejlet betaling bliver først en betalings- og recovery-status. Workslip lukker ikke automatisk adgangen på grund af en enkelt fejl eller en utilgængelig betalingsudbyder.',
+      'Hvis en betaling fejler, bliver den først vist som en betalings- og recovery-status. Workslip lukker ikke automatisk adgangen på grund af en enkelt fejl eller en utilgængelig betalingsudbyder.',
   },
 ] as const;
 
@@ -80,7 +80,7 @@ const faqs = [
   {
     question: 'Hvem kan ændre abonnement og betaling?',
     answer:
-      'Kun brugere med Admin-rettigheder kan ændre virksomhedens abonnement, betalingsopsætning og faktureringsdata.',
+      'Når selvbetjent fakturering er aktiv, er det kun brugere med Admin-rettigheder, der kan ændre virksomhedens abonnement, betalingsopsætning og faktureringsdata.',
   },
   {
     question: 'Gemmer Workslip mine kortoplysninger?',
@@ -222,7 +222,7 @@ export const BillingGuide = () => {
           <div>
             <h3 id="billing-guide-security-title">Betalingsoplysninger bliver hos betalingsflowet</h3>
             <p>
-              Workslip skal ikke opbevare rå kortnumre, CVC eller bankoplysninger. Når en betalingsmetode skal oprettes eller ændres, håndteres de følsomme oplysninger i et sikkert, eksternt betalingsflow, mens Workslip kun modtager den nødvendige status tilbage.
+              Workslip opbevarer ikke rå kortnumre, CVC eller bankoplysninger. Når en betalingsmetode skal oprettes eller ændres, håndteres de følsomme oplysninger i et sikkert, eksternt betalingsflow, mens Workslip kun modtager den nødvendige status tilbage.
             </p>
           </div>
         </div>
