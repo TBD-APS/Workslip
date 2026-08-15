@@ -28,10 +28,7 @@ internal static class LocalDevelopmentDatabaseBootstrapper
         // with no tables at all.
         if (await db.Database.EnsureCreatedAsync(cancellationToken))
         {
-            await LocalDevelopmentDatabaseMigrationRunner.BaselineCurrentSchemaAsync(
-                connectionString,
-                contentRootPath,
-                cancellationToken);
+            await CompleteFreshSchemaAsync(connectionString, contentRootPath, cancellationToken);
             Log.Information("[STARTUP 08.1] Fresh local database schema created from the current EF model");
             return true;
         }
@@ -59,14 +56,33 @@ internal static class LocalDevelopmentDatabaseBootstrapper
         var relationalDatabaseCreator = db.GetService<IRelationalDatabaseCreator>();
         await relationalDatabaseCreator.CreateTablesAsync(cancellationToken);
 
-        await LocalDevelopmentDatabaseMigrationRunner.BaselineCurrentSchemaAsync(
-            connectionString,
-            contentRootPath,
-            cancellationToken);
+        await CompleteFreshSchemaAsync(connectionString, contentRootPath, cancellationToken);
 
         Log.Information(
             "[STARTUP 08.1] Fresh local database schema created from the current EF model after migration-history-only residue");
         return true;
+    }
+
+    // EnsureCreated/CreateTables only builds tables that belong to the EF model. Migration-
+    // managed tables that are not modeled by EF (the Dapper-owned billing and knowledge-
+    // document tables) must be created by running the migrations that introduce them before
+    // the remaining migrations are recorded as an already-applied baseline. Running the
+    // table-creating migrations first ensures the baseline does not mark them as applied
+    // while the tables are still missing.
+    private static async Task CompleteFreshSchemaAsync(
+        string connectionString,
+        string contentRootPath,
+        CancellationToken cancellationToken)
+    {
+        await LocalDevelopmentDatabaseMigrationRunner.ApplyMissingTableMigrationsAsync(
+            connectionString,
+            contentRootPath,
+            cancellationToken);
+
+        await LocalDevelopmentDatabaseMigrationRunner.BaselineCurrentSchemaAsync(
+            connectionString,
+            contentRootPath,
+            cancellationToken);
     }
 
     internal static LocalDevelopmentSchemaState ClassifySchemaState(
