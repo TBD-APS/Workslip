@@ -37,7 +37,10 @@ export function useModalAccessibility<T extends HTMLElement>({
   const dialogRef = useRef<T>(null);
   const modalIdRef = useRef(Symbol('workslip-modal'));
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return undefined;
