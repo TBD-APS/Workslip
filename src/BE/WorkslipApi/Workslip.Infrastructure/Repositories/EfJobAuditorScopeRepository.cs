@@ -4,7 +4,7 @@ using Workslip.Infrastructure.Schema;
 
 namespace Workslip.Infrastructure.Repositories;
 
-internal sealed class EfJobAuditorScopeRepository(SqlDbContext dbContext) : IJobAuditorScopeRepository
+public sealed class EfJobAuditorScopeRepository(SqlDbContext dbContext) : IJobAuditorScopeRepository
 {
     public Task<JobAuditorScopeResponse?> GetAsync(
         Guid jobId,
