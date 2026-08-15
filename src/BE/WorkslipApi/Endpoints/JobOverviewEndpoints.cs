@@ -22,7 +22,14 @@ public static class JobOverviewEndpoints
                 overview.InReviewCount,
                 overview.ApprovedCount,
                 overview.RejectedCount,
-                overview.RecentJobs.Select(JobViewModelBuilder.ToListItem).ToArray()));
+                overview.RecentJobs.Select(job => new JobOverviewRecentJobViewModel(
+                    job.Id,
+                    job.ReportNumber,
+                    job.Status.ToString(),
+                    job.CustomerName,
+                    job.CustomerNumber,
+                    job.Address,
+                    job.UpdatedAt)).ToArray()));
         }).Produces<JobOverviewViewModel>(StatusCodes.Status200OK);
 
         return app;
