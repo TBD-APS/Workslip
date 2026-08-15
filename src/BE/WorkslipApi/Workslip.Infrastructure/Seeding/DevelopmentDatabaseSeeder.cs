@@ -8,6 +8,7 @@ public sealed class DevelopmentDatabaseSeeder(
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
         await DatabaseSeeder.Seed(db, installationBaselineProvisioner, cancellationToken);
+        await DevelopmentTestUserAudienceReconciler.ReconcileAsync(db, cancellationToken);
         await platformIdentityBootstrapper.BootstrapAsync(cancellationToken);
     }
 }
