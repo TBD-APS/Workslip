@@ -57,8 +57,10 @@ namespace Workslip.Api.Endpoints
             // Stable, tenant-scoped analytics contract for Power BI. Power BI reads this API
             // instead of connecting directly to Azure SQL, so database credentials/schema stay private.
             group.MapGet("/all/report/power-bi/data", async (
+                [FromQuery] int? historyMonths,
                 HttpContext httpContext,
                 ICurrentUserContext currentUser,
+                IWorksheetRepository worksheets,
                 SqlDbContext db,
                 CancellationToken cancellationToken) =>
             {
@@ -66,6 +68,21 @@ namespace Workslip.Api.Endpoints
 
                 if (currentUser.OrganizationId is not Guid organizationId)
                     return Results.Unauthorized();
+
+                var selectedHistoryMonths = Math.Clamp(historyMonths ?? 24, 1, 120);
+                var currentMonth = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+                var firstMonth = currentMonth.AddMonths(-(selectedHistoryMonths - 1));
+                var worksheetEntries = new List<MyWorksheetEntryResponse>();
+
+                for (var month = firstMonth; month <= currentMonth; month = month.AddMonths(1))
+                {
+                    var monthEnd = month.AddMonths(1).AddDays(-1);
+                    worksheetEntries.AddRange(await worksheets.GetAllWorksheetsAsync(
+                        organizationId,
+                        month,
+                        monthEnd,
+                        cancellationToken));
+                }
 
                 var employees = await db.Users
                     .AsNoTracking()
@@ -79,20 +96,21 @@ namespace Workslip.Api.Endpoints
                     })
                     .ToListAsync(cancellationToken);
 
-                var workHours = await db.Worksheets
-                    .AsNoTracking()
-                    .Where(row => row.OrganizationId == organizationId)
-                    .OrderBy(row => row.WorkDate)
-                    .Select(row => new
+                var workHours = worksheetEntries
+                    .OrderBy(entry => entry.WorkDate)
+                    .ThenBy(entry => entry.UserDisplayName)
+                    .Select((entry, index) => new
                     {
-                        worksheetId = row.Id,
-                        jobId = row.JobId,
-                        userId = row.UserId,
-                        workDate = row.WorkDate.Date,
-                        hours = row.HoursWorked,
-                        sleptOnJob = row.SleptOnJob,
+                        worksheetId = $"export-{index + 1}",
+                        jobId = entry.JobId,
+                        userId = entry.UserId,
+                        workDate = entry.WorkDate,
+                        hours = entry.HoursWorked,
+                        sleptOnJob = false,
+                        billableHourlyRate = entry.BillableHourlyRate,
+                        billableAmount = entry.BillableAmount,
                     })
-                    .ToListAsync(cancellationToken);
+                    .ToArray();
 
                 var jobRows = await db.JobReports
                     .AsNoTracking()
@@ -140,6 +158,7 @@ namespace Workslip.Api.Endpoints
                 {
                     schemaVersion = 1,
                     generatedAtUtc = DateTimeOffset.UtcNow,
+                    historyMonths = selectedHistoryMonths,
                     employees,
                     workHours,
                     jobs,
