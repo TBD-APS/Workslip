@@ -5,7 +5,7 @@ using Workslip.Infrastructure.Schema;
 namespace Workslip.Infrastructure.Repositories;
 
 internal sealed class BillingAwareJobRepository(
-    AssignmentAwareJobRepository inner,
+    IJobRepository inner,
     SqlDbContext dbContext) : IJobRepository
 {
     public Task<JobReportResponse> CreateAsync(
