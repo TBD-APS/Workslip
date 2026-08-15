@@ -1,4 +1,6 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "node scripts/vercel-production-eligibility.mjs && npm run build",
   "git": {
     "deploymentEnabled": {
       "*": false,

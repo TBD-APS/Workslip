@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+      - 'release-*'
     paths:
       - '.github/ai-review/**'
       - '.github/workflows/ai-pr-review.yml'
@@ -11,6 +12,7 @@ on:
   push:
     branches:
       - main
+      - 'release-*'
     paths:
       - '.github/ai-review/**'
       - '.github/workflows/ai-pr-review.yml'
@@ -35,6 +37,7 @@ jobs:
           set -euo pipefail
           python3 -m json.tool .github/ai-review/schema.json >/dev/null
           python3 -m py_compile .github/ai-review/build-context.py
+          node --check .github/ai-review/github-models-review.mjs
           node --check .github/ai-review/normalize-review.mjs
           node --check .github/ai-review/aggregate.mjs
           node --check .github/ai-review/post-review.mjs
@@ -44,23 +47,44 @@ jobs:
         run: |
           set -euo pipefail
           workflow=.github/workflows/ai-pr-review.yml
+
           grep -Fq 'TRUSTED_BRANCH: main' "$workflow"
           grep -Fq 'persist-credentials: false' "$workflow"
+          grep -Fq 'github_models_review:' "$workflow"
+          grep -Fq 'models: read' "$workflow"
+          grep -Fq 'GITHUB_MODELS_REVIEW_B64:' "$workflow"
+          grep -Fq 'node .github/ai-review/github-models-review.mjs' "$workflow"
           grep -Fq 'openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56' "$workflow"
           grep -Fq 'anthropics/claude-code-action@239e3a730883eeb5c53db12b0fc9573b3024b126' "$workflow"
           grep -Fq 'github_token:' "$workflow"
           grep -Fq -- '--allowedTools Read,Grep,Glob' "$workflow"
           grep -Fq 'OWNER|MEMBER|COLLABORATOR' "$workflow"
           grep -Fq 'statuses: write' "$workflow"
-          if grep -Fq 'allow-users:' "$workflow"; then
-            echo 'OpenAI actor restrictions must not be weakened with allow-users.' >&2
+          grep -Fq 'pull-requests: write' "$workflow"
+          grep -Fq 'REVIEW_TOKEN:' "$workflow"
+          grep -Fq 'EXPECTED_REVIEW_USER:' "$workflow"
+
+          if grep -Fq 'Require personal review token configuration' "$workflow" || grep -Fq 'WORKSLIP_REVIEW_PAT is missing' "$workflow"; then
+            echo 'WORKSLIP_REVIEW_PAT must remain optional; github-actions[bot] is the fallback publisher.' >&2
             exit 1
           fi
-          if grep -Fq 'contents: write' "$workflow" || grep -Fq 'pull-requests: write' "$workflow" || grep -Fq 'id-token: write' "$workflow"; then
-            echo 'AI review workflow must not receive repository, PR or OIDC write permissions.' >&2
+
+          if [ "$(grep -Fc 'pull-requests: write' "$workflow")" -ne 1 ]; then
+            echo 'Only the trusted aggregate job may receive pull-request write permission.' >&2
             exit 1
           fi
+
+          if [ "$(grep -Fc 'models: read' "$workflow")" -ne 1 ]; then
+            echo 'Only the GitHub Models provider job may receive models:read.' >&2
+            exit 1
+          fi
+
+          if grep -Fq 'contents: write' "$workflow" || grep -Fq 'id-token: write' "$workflow"; then
+            echo 'AI review workflow must not receive contents write or OIDC write permissions.' >&2
+            exit 1
+          fi
+
           if grep -Eq '^[[:space:]]*ref:.*needs\.prepare\.outputs\.head_sha' "$workflow"; then
-            echo 'Secret-bearing review job must not checkout the PR head.' >&2
+            echo 'Review jobs must not checkout the PR head.' >&2
             exit 1
           fi

@@ -271,14 +271,47 @@ jobs:
           node --test scripts/playwright-scenarios-admin.test.mjs
           node --test scripts/playwright-synthetic-auth.test.mjs
 
-      - name: Validate Postman collection
-        working-directory: src/FE
-        run: >-
-          node -e
-          "JSON.parse(require('node:fs').readFileSync('../BE/WorkslipApi/Postman/postman_collection.json', 'utf8')); console.log('Postman collection JSON OK');"
+      - name: Validate hosted Postman runner syntax
+        run: |
+          bash -n src/BE/WorkslipApi/Postman/run-hosted-integration.sh
+          bash -n src/BE/WorkslipApi/Postman/run-integration-tests.sh
+          node -e "JSON.parse(require('node:fs').readFileSync('src/BE/WorkslipApi/Postman/postman_collection.json', 'utf8')); console.log('Postman collection JSON OK');"
 
       - name: Validate documentation
         run: python tools/docs/check_docs.py
+
+  postman:
+    name: Postman integration (ephemeral)
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Run isolated Postman integration suite
+        shell: bash
+        run: bash src/BE/WorkslipApi/Postman/run-hosted-integration.sh
+
+      - name: Upload backend diagnostics on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: postman-integration-backend-${{ github.run_id }}
+          path: ${{ runner.temp }}/workslip-postman-backend.log
+          if-no-files-found: warn
+          retention-days: 7
 
   ci-gate:
     name: CI Gate
@@ -290,6 +323,7 @@ jobs:
       - backend
       - frontend
       - contracts
+      - postman
     steps:
       - name: Verify required checks
         shell: bash
@@ -298,6 +332,7 @@ jobs:
           BACKEND_RESULT: ${{ needs.backend.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          POSTMAN_RESULT: ${{ needs.postman.result }}
         run: |
           set -Eeuo pipefail
 
@@ -308,14 +343,16 @@ jobs:
           fi
 
           if [[ "${CODE_CHANGED}" == 'true' ]]; then
-            # Non-documentation change: backend and frontend must have run and succeeded.
-            if [[ "${BACKEND_RESULT}" != 'success' || "${FRONTEND_RESULT}" != 'success' ]]; then
+            # Non-documentation changes require deterministic builds/tests plus real API runtime evidence.
+            if [[ "${BACKEND_RESULT}" != 'success' ||
+                  "${FRONTEND_RESULT}" != 'success' ||
+                  "${POSTMAN_RESULT}" != 'success' ]]; then
               echo "::error::One or more required CI jobs failed."
               exit 1
             fi
             echo "All required CI checks succeeded."
           else
-            # Documentation-only change: backend/frontend are skipped by design.
+            # Documentation-only changes skip code/runtime jobs by design.
             if [[ "${BACKEND_RESULT}" != 'skipped' && "${BACKEND_RESULT}" != 'success' ]]; then
               echo "::error::Backend job unexpectedly '${BACKEND_RESULT}' on a documentation-only change."
               exit 1
@@ -324,5 +361,9 @@ jobs:
               echo "::error::Frontend job unexpectedly '${FRONTEND_RESULT}' on a documentation-only change."
               exit 1
             fi
-            echo "Documentation-only change: backend/frontend skipped by design; documentation validated."
+            if [[ "${POSTMAN_RESULT}" != 'skipped' && "${POSTMAN_RESULT}" != 'success' ]]; then
+              echo "::error::Postman job unexpectedly '${POSTMAN_RESULT}' on a documentation-only change."
+              exit 1
+            fi
+            echo "Documentation-only change: backend/frontend/Postman skipped by design; documentation validated."
           fi

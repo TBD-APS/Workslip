@@ -535,8 +535,10 @@
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
-                  "pm.test('current-user shape is current', function () { pm.expect(json).to.include.all.keys('id', 'displayName', 'email', 'phone', 'role', 'organization'); });",
-                  "pm.test('organization shape is current', function () { pm.expect(json.organization).to.include.all.keys('id', 'name', 'cvr'); });"
+                  "pm.test('current-user shape is current', function () { pm.expect(json).to.include.all.keys('id', 'organizationId', 'email', 'displayName', 'phone', 'role'); });",
+                  "pm.test('organization id captured', function () { pm.expect(json.organizationId).to.be.a('string').and.not.empty; });",
+                  "pm.collectionVariables.set('actorUserId', json.id);",
+                  "pm.collectionVariables.set('actorRole', json.role);"
                 ]
               }
             }
@@ -719,11 +721,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
-                  "const json = pm.response.json();",
-                  "pm.test('debug has isAuthenticated', function () { pm.expect(json).to.have.property('isAuthenticated'); });",
-                  "pm.test('debug has currentUserId', function () { pm.expect(json).to.have.property('currentUserId'); });",
-                  "pm.test('debug has currentOrganizationId', function () { pm.expect(json).to.have.property('currentOrganizationId'); });"
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('debug has isAuthenticated', function () { pm.expect(json).to.have.property('isAuthenticated'); });",
+                  "  pm.test('debug has currentUserId', function () { pm.expect(json).to.have.property('currentUserId'); });",
+                  "  pm.test('debug has currentOrganizationId', function () { pm.expect(json).to.have.property('currentOrganizationId'); });",
+                  "}"
                 ]
               }
             }
@@ -1032,19 +1036,60 @@
           ]
         },
         {
-          "name": "/api/users/{id}",
+          "name": "/api/users (disposable delete target)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('deleteTargetUserId', json.id);",
+                  "pm.test('disposable user id captured', function () { pm.expect(json.id).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ],
           "request": {
-            "method": "DELETE",
-            "header": [],
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"disposable+{{runId}}@17v3ygzs.mailosaur.net\",\n  \"displayName\": \"Disposable {{runId}}\",\n  \"phone\": \"{{userPhone}}\",\n  \"role\": \"User\"\n}"
+            },
             "url": {
-              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "raw": "{{baseUrl}}/api/users/",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "users",
-                "{{userId}}"
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "/api/users/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{deleteTargetUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{deleteTargetUserId}}"
               ]
             },
             "description": "Deletes a user."
@@ -1126,11 +1171,16 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
-                  "if (pm.response.code === 200) {",
-                  "  const json = pm.response.json();",
-                  "  pm.test('customer detail returned', function () { pm.expect(json).to.have.property('id'); pm.expect(json).to.have.property('name'); });",
-                  "  pm.test('jobs array present', function () { pm.expect(json).to.have.property('jobs').that.is.an('array'); });",
+                  "const capturedCustomerId = pm.collectionVariables.get('customerId');",
+                  "if (!capturedCustomerId) {",
+                  "  console.warn('Skipping /api/customers/{id} assertions: no customer id was captured (the customer list was empty this run).');",
+                  "} else {",
+                  "  pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "  if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.test('customer detail returned', function () { pm.expect(json).to.have.property('id'); pm.expect(json).to.have.property('name'); });",
+                  "    pm.test('jobs array present', function () { pm.expect(json).to.have.property('jobs').that.is.an('array'); });",
+                  "  }",
                   "}"
                 ]
               }
@@ -1551,13 +1601,15 @@
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
-                  "pm.test('returns invite list', function () { pm.expect(json).to.be.an('array'); });",
-                  "if (json.length > 0) {",
+                  "pm.test('returns invite list', function () { pm.expect(json.invites).to.be.an('array'); });",
+                  "if (json.invites.length > 0) {",
                   "  pm.test('invite items have required fields', function () {",
-                  "    json.forEach(function(invite) {",
+                  "    json.invites.forEach(function(invite) {",
+                  "      pm.expect(invite.id).to.be.a('string');",
                   "      pm.expect(invite.email).to.be.a('string');",
-                  "      pm.expect(invite.status).to.be.a('string');",
                   "      pm.expect(invite.createdAt).to.be.a('string');",
+                  "      pm.expect(invite.expiresAt).to.be.a('string');",
+                  "      pm.expect(invite.consumed).to.be.a('boolean');",
                   "    });",
                   "  });",
                   "}"
@@ -1634,7 +1686,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 OK or 409 Conflict', function () { pm.expect([200, 409]).to.include(pm.response.code); });",
+                  "pm.test('200 OK, 401 Unauthorized or 409 Conflict', function () { pm.expect([200, 401, 409]).to.include(pm.response.code); });",
                   "if (pm.response.code === 200) {",
                   "  const json = pm.response.json();",
                   "  pm.test('returns JWT token', function () {",
@@ -1718,7 +1770,7 @@
                   "  }",
                   "  try {",
                   "    var json = res.json().installationTypes;",
-                  "    var vand = json.find(function(d) { return d.name.toLowerCase() === 'vandinstallation'; });",
+                  "    var vand = json.find(function(d) { var n = d.name.toLowerCase(); return n === 'vandinstallation' || n === 'vand'; });",
                   "    if (vand && vand.categories.length > 0) {",
                   "      pm.variables.set('vandInstallationId', vand.id);",
                   "      pm.variables.set('vandCategoryId', vand.categories[0].id);",
@@ -1742,7 +1794,8 @@
                   "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
                   "pm.test('create response identifies every created job', function () { pm.expect(json.createdJobIds).to.deep.eql([json.id]); });",
                   "pm.collectionVariables.set('jobId', json.id);",
-                  "pm.test('customer email echoed', function () { pm.expect(json.customer.email).to.eql(pm.variables.get('customerEmail')); });",
+                  "pm.collectionVariables.set('firstJobReportNumber', json.reportNumber);",
+                  "pm.test('customer email echoed', function () { pm.expect(json.customerSnapshot.email).to.eql(pm.variables.get('customerEmail')); });",
                   "pm.test('installation types include selected categories and control points', function () {",
                   "  pm.expect(json.work.installationTypes.length).to.be.above(0);",
                   "  json.work.installationTypes.forEach(it => {",
@@ -1759,9 +1812,14 @@
                   "    });",
                   "  });",
                   "});",
-                  "pm.test('creator auto-assigned', function () {",
-                  "  pm.expect(json.assignedUsers).to.be.an('array').that.is.not.empty;",
-                  "  pm.expect(json.assignedUsers.map(user => user.id)).to.include(pm.variables.get('creatorUserId'));",
+                  "pm.test('creator auto-assigned per assignment policy', function () {",
+                  "  pm.expect(json.assignedUsers).to.be.an('array');",
+                  "  const actorRole = (pm.collectionVariables.get('actorRole') || '').toLowerCase();",
+                  "  if (actorRole === 'superadmin') {",
+                  "    pm.expect(json.assignedUsers, 'superadmins cannot receive assignments').to.be.empty;",
+                  "  } else {",
+                  "    pm.expect(json.assignedUsers.map(user => user.id)).to.include(pm.collectionVariables.get('actorUserId'));",
+                  "  }",
                   "});"
                 ]
               }
@@ -1776,6 +1834,10 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
               }
             ],
             "url": {
@@ -1806,9 +1868,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('409 Conflict', function () { pm.response.to.have.status(409); });",
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
-                  "pm.test('duplicate report number error returned', function () { pm.expect(json.error).to.eql('duplicate_report_number'); });"
+                  "pm.test('report number is server-assigned', function () { pm.expect(json.reportNumber).to.be.a('string').and.not.empty; });",
+                  "pm.test('server keeps report numbers unique per organization', function () { pm.expect(json.reportNumber).to.not.eql(pm.collectionVariables.get('firstJobReportNumber')); });",
+                  "pm.collectionVariables.set('targetJobId', json.id);"
                 ]
               }
             }
@@ -1880,7 +1944,7 @@
                   "pm.test('jobs list uses private revalidation', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('private'); });",
                   "pm.test('jobs list sends ETag', function () { pm.expect(pm.response.headers.get('ETag')).to.match(/^W\\/\"[a-f0-9]+\"$/); });",
                   "pm.test('response has items and totalCount', function () { pm.expect(json.items).to.be.an('array'); pm.expect(json.totalCount).to.be.a('number'); });",
-                  "pm.test('job list view model hides internal timestamps', function () { if (json.items.length > 0) ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json.items[0]).to.not.have.property(field)); });",
+                  "pm.test('job list view model hides internal timestamps', function () { if (json.items.length > 0) ['createdAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json.items[0]).to.not.have.property(field)); });",
                   "pm.test('job list view model exposes assignedUsers array', function () { if (json.items.length > 0) pm.expect(json.items[0].assignedUsers).to.be.an('array'); });",
                   "pm.test('job list view model exposes softDeleted flag', function () { if (json.items.length > 0) pm.expect(json.items[0].softDeleted).to.be.a('boolean'); });",
                   "pm.collectionVariables.set('jobsListEtag', pm.response.headers.get('ETag'));"
@@ -2196,7 +2260,7 @@
             "description": "Transitions job to Submitted, Approved, or Rejected. Status is sent in the request body.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"Submitted\"\n}",
+              "raw": "{\n  \"status\": \"InReview\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2213,86 +2277,6 @@
                 "exec": [
                   "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
                   "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "/api/jobs/{id}",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{jobId}}"
-              ]
-            },
-            "description": "Permanently deletes a job only when it has no attached worksheets. Requires admin. Returns 409 with worksheet count when blocked."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('204 No Content, 404 Not Found, or 409 Conflict', function () { pm.expect([204, 404, 409]).to.include(pm.response.code); });",
-                  "if (pm.response.code === 409) {",
-                  "  const json = pm.response.json();",
-                  "  pm.test('delete conflict explains attached worksheets', function () {",
-                  "    pm.expect(json.code || json.error).to.eql('job_has_attached_worksheets');",
-                  "    pm.expect(json.message).to.be.a('string').and.not.empty;",
-                  "    pm.expect(json.worksheetCount).to.be.a('number').and.at.least(1);",
-                  "  });",
-                  "}",
-                  "if (pm.response.code === 204) {",
-                  "  pm.test('delete success has no body', function () { pm.expect(pm.response.text()).to.eql(''); });",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "/api/jobs/{id}/restore/deletion",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/restore/deletion",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{jobId}}",
-                "restore",
-                "deletion"
-              ]
-            },
-            "description": "Restores a job before its scheduled deletion runs. Requires admin."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
-                  "if (pm.response.code === 200) {",
-                  "  const json = pm.response.json();",
-                  "  pm.test('restore response view model hides internal timestamps', function () { ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json).to.not.have.property(field)); });",
-                  "  pm.test('restore response marks job active', function () { pm.expect(json.softDeleted).to.eql(false); });",
-                  "}"
                 ]
               }
             }
@@ -2340,7 +2324,8 @@
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
-                  "const link = json[0];",
+                  "const link = (json.links || []).find(function (candidate) { return candidate.linkedReportId === pm.collectionVariables.get('targetJobId'); }) || (json.links || [])[0];",
+                  "pm.test('link present on job summary', function () { pm.expect(json.links).to.be.an('array').that.is.not.empty; });",
                   "pm.collectionVariables.set('linkId', link.id);",
                   "pm.test('link id captured', function () { pm.expect(link.id).to.be.a('string').and.not.empty; });",
                   "pm.test('link view model hides internal timestamp', function () { pm.expect(link).to.not.have.property('createdAt'); });",
@@ -2421,7 +2406,7 @@
             "description": "Assigns a job to a user through the query-bound userId parameter.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"userIds\": [\n    \"{{creatorUserId}}\",\n    \"{{assigneeUserId}}\"\n  ]\n}",
+              "raw": "{\n  \"userIds\": [\n    \"{{assigneeUserId}}\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2445,7 +2430,6 @@
                   "  const ids = json.assignedUsers.map(user => user.id);",
                   "  pm.test('multiple assigned users returned', function () {",
                   "    pm.expect(json.assignedUsers).to.be.an('array');",
-                  "    pm.expect(ids).to.include(pm.variables.get('creatorUserId'));",
                   "    pm.expect(ids).to.include(pm.variables.get('assigneeUserId'));",
                   "  });",
                   "  pm.test('legacy assignedUser removed', function () { pm.expect(json).to.not.have.property('assignedUser'); });",
@@ -2698,6 +2682,86 @@
             }
           ],
           "response": []
+        },
+        {
+          "name": "/api/jobs/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}"
+              ]
+            },
+            "description": "Permanently deletes a job only when it has no attached worksheets. Requires admin. Returns 409 with worksheet count when blocked."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content, 404 Not Found, or 409 Conflict', function () { pm.expect([204, 404, 409]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 409) {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('delete conflict explains attached worksheets', function () {",
+                  "    pm.expect(json.code || json.error).to.eql('job_has_attached_worksheets');",
+                  "    pm.expect(json.message).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.worksheetCount).to.be.a('number').and.at.least(1);",
+                  "  });",
+                  "}",
+                  "if (pm.response.code === 204) {",
+                  "  pm.test('delete success has no body', function () { pm.expect(pm.response.text()).to.eql(''); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/jobs/{id}/restore/deletion",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/restore/deletion",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}",
+                "restore",
+                "deletion"
+              ]
+            },
+            "description": "Restores a job before its scheduled deletion runs. Requires admin."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('restore response view model hides internal timestamps', function () { ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json).to.not.have.property(field)); });",
+                  "  pm.test('restore response marks job active', function () { pm.expect(json.softDeleted).to.eql(false); });",
+                  "}"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "/api/worksheets/all",

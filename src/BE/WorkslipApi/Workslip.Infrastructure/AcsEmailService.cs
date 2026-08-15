@@ -25,6 +25,9 @@ public sealed class AcsEmailService(
 
     public async Task SendInviteEmailAsync(string toEmail, string token, CancellationToken cancellationToken)
     {
+        if (SkipBecauseAcsIsNotConfiguredInDevelopment())
+            return;
+
         var emailClient = new EmailClient(RequireConfigured(_acsConnectionString, "Azure:Acs:ConnectionString"));
         var senderAddress = RequireConfigured(_senderAddress, "Azure:Acs:SenderAddress");
         var headerText = RequireConfigured(_senderPlainHeaderText, "Azure:Acs:PLainHeaderText");
@@ -69,6 +72,9 @@ public sealed class AcsEmailService(
 
     public async Task SendOtcEmailAsync(string toEmail, string code, CancellationToken cancellationToken)
     {
+        if (SkipBecauseAcsIsNotConfiguredInDevelopment())
+            return;
+
         var emailClient = new EmailClient(RequireConfigured(_acsConnectionString, "Azure:Acs:ConnectionString"));
         var senderAddress = RequireConfigured(_senderAddress, "Azure:Acs:SenderAddress");
         var headerText = RequireConfigured(_otcHeaderText, "Azure:Acs:OtcHeaderText");
@@ -105,6 +111,26 @@ public sealed class AcsEmailService(
                 ex.ErrorCode);
             throw;
         }
+    }
+
+    private bool SkipBecauseAcsIsNotConfiguredInDevelopment()
+    {
+        if (!string.IsNullOrWhiteSpace(_acsConnectionString))
+            return false;
+
+        if (!string.Equals(
+            configuration["ASPNETCORE_ENVIRONMENT"],
+            "Development",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        logger.LogInformation(
+            "ACS is not configured; skipping email send in Development. CorrelationId={CorrelationId}",
+            correlationIdAccessor.CorrelationId);
+
+        return true;
     }
 
     private static string RequireConfigured(string? value, string key) =>
