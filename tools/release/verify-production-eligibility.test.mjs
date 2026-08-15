@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { chooseRun, validateEvidence } from './verify-production-eligibility.mjs';
 
 const SHA = 'a'.repeat(40);
 const OTHER_SHA = 'b'.repeat(40);
+const SCRIPT = fileURLToPath(new URL('./verify-production-eligibility.mjs', import.meta.url));
 
 function greenRun(overrides = {}) {
   return {
@@ -83,4 +86,13 @@ test('run discovery prefers success, waits for active CI and fails closed otherw
   assert.equal(chooseRun([greenRun({ status: 'in_progress', conclusion: null })], SHA).state, 'pending');
   assert.equal(chooseRun([greenRun({ conclusion: 'failure' })], SHA).state, 'failed');
   assert.equal(chooseRun([], SHA).state, 'missing');
+});
+
+test('CLI entrypoint executes and fails closed on invalid SHA', () => {
+  const result = spawnSync(process.execPath, [SCRIPT, '--repository', 'owner/repo', '--sha', 'not-a-sha'], {
+    encoding: 'utf8',
+    env: { ...process.env, GITHUB_TOKEN: '' },
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /production blocked: Production eligibility requires an exact 40-character commit SHA/);
 });
