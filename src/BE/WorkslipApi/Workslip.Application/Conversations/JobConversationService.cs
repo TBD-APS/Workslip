@@ -18,6 +18,7 @@ public interface IJobConversationService
 public sealed class JobConversationService(
     IJobConversationRepository repository,
     IJobService jobs,
+    IAssignmentRepository assignmentRepository,
     ICurrentUserContext currentUser,
     INotificationService notifications,
     IApplicationTransactionFactory transactionFactory) : IJobConversationService
@@ -37,6 +38,7 @@ public sealed class JobConversationService(
             return MapFailure<JobConversationResponse>(access);
 
         var (organizationId, userId, job) = access.Value;
+        var participants = await GetParticipantsAsync(organizationId, job, cancellationToken);
         var pageSize = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var pageOffset = Math.Max(offset ?? 0, 0);
         var messages = await repository.ListAsync(
@@ -53,7 +55,7 @@ public sealed class JobConversationService(
 
         return Result<JobConversationResponse>.Success(new JobConversationResponse(
             jobId,
-            job.AssignedUsers
+            participants.Values
                 .Select(user => new ConversationParticipantResponse(user.Id, user.DisplayName))
                 .OrderBy(user => user.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                 .ToArray(),
@@ -82,7 +84,7 @@ public sealed class JobConversationService(
             return InvalidMessage(nameof(request.Body), "Skriv en besked eller vælg en handling.");
         }
 
-        var participants = job.AssignedUsers.ToDictionary(user => user.Id);
+        var participants = await GetParticipantsAsync(organizationId, job, cancellationToken);
         var mentionedUserIds = (request.MentionedUserIds ?? [])
             .Where(id => id != Guid.Empty)
             .Distinct()
@@ -92,7 +94,7 @@ public sealed class JobConversationService(
         {
             return InvalidMessage(
                 nameof(request.MentionedUserIds),
-                "Du kan kun nævne medarbejdere, der er tildelt denne sag.");
+                "Du kan kun nævne brugere, der har adgang til denne sag.");
         }
 
         if ((request.ActionType is null) != (request.ActionTargetUserId is null))
@@ -106,7 +108,7 @@ public sealed class JobConversationService(
         {
             return InvalidMessage(
                 nameof(request.ActionTargetUserId),
-                "Handlingen kan kun sendes til en medarbejder, der er tildelt denne sag.");
+                "Handlingen kan kun sendes til en bruger, der har adgang til denne sag.");
         }
 
         if (request.ActionType == ConversationActionType.SubmitForReview
@@ -279,6 +281,19 @@ public sealed class JobConversationService(
             return MapFailure<ConversationAccess>(job);
 
         return Result<ConversationAccess>.Success(new ConversationAccess(organizationId, userId, job.Value));
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, AssignedUserResponse>> GetParticipantsAsync(
+        Guid organizationId,
+        JobReportSummaryResponse job,
+        CancellationToken cancellationToken)
+    {
+        var participants = job.AssignedUsers.ToDictionary(user => user.Id);
+        var admins = await assignmentRepository.GetOrganizationAdminsAsync(organizationId, cancellationToken);
+        foreach (var admin in admins)
+            participants.TryAdd(admin.Id, admin);
+
+        return participants;
     }
 
     private static bool CanUseConversations(string? role) =>
