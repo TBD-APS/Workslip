@@ -60,6 +60,9 @@ const docsPageElement = createElement(lazy(() =>
 const Settings = lazy(() =>
   import('../features/settings/routes/Settings').then((module) => ({ default: module.Settings })),
 );
+const BillingGuide = lazy(() =>
+  import('../features/settings/routes/BillingGuide').then((module) => ({ default: module.BillingGuide })),
+);
 const AuditorReportList = lazy(() =>
   import('../features/auditor/routes/AuditorReportList').then((module) => ({ default: module.AuditorReportList })),
 );
@@ -265,6 +268,7 @@ export const router = createBrowserRouter([
           { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
           { path: 'profil', element: <Profile /> },
           { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
+          { path: 'settings/billing-guide', element: <RoleGuard permission="user:manage"><BillingGuide /></RoleGuard> },
           { path: 'legal/:type', element: <LegalPage /> },
         ],
       },
