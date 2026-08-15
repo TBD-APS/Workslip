@@ -9,6 +9,7 @@ import {
   AuthStorage,
   clearReauthInFlight,
 } from '../../../providers/authContextValue';
+import { getAuthenticatedHomePath } from '../authenticatedDestination';
 import {
   clearEntraLoginSession,
   completeEntraLogin,
@@ -33,7 +34,7 @@ const isBackForwardNavigation = () =>
   (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type === 'back_forward';
 
 export const Login = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [historyInterruptedLogin] = useState(() =>
     !hasEntraLoginCallback() && hasEntraLoginSession() && isBackForwardNavigation(),
   );
@@ -100,7 +101,10 @@ export const Login = () => {
           clearReauthInFlight();
           clearEntraLoginSession();
           window.history.replaceState(null, '', '/login');
-          window.location.replace(result.returnTo);
+          const authenticatedReturnTo = result.returnTo === '/app'
+            ? getAuthenticatedHomePath(result.auth.user.role)
+            : result.returnTo;
+          window.location.replace(authenticatedReturnTo);
         })
         .catch((err: unknown) => {
           if (err instanceof InteractiveLoginRequiredError) {
@@ -159,7 +163,7 @@ export const Login = () => {
     }
   };
 
-  const handleDevLogin = async (email: string, redirect: string) => {
+  const handleDevLogin = async (email: string) => {
     if (!devLoginEnabled) return;
 
     setErrorMsg(null);
@@ -171,7 +175,7 @@ export const Login = () => {
       AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
       AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
       clearReauthInFlight();
-      window.location.replace(redirect);
+      window.location.replace(getAuthenticatedHomePath(response.user.role));
     } catch {
       setErrorMsg(`Dev login failed - ${email} not found`);
       setIsSubmitting(false);
@@ -179,7 +183,7 @@ export const Login = () => {
   };
 
   if (isAuthenticated) {
-    return <Navigate to="/app" replace />;
+    return <Navigate to={getAuthenticatedHomePath(user?.role)} replace />;
   }
 
   if (isReauth) {
@@ -269,15 +273,15 @@ export const Login = () => {
             {devLoginEnabled && (
               <div className="login-email-step" aria-label="Developer login">
                 {[
-                  { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net', redirect: '/app' },
-                  { label: 'Dev Login · Auditor', email: 'auditor@17v3ygzs.mailosaur.net', redirect: '/app/auditor' },
-                  { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net', redirect: '/app' },
-                  { label: 'Dev Login · Superadmin', email: 'superadmin@17v3ygzs.mailosaur.net', redirect: '/app' },
+                  { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net' },
+                  { label: 'Dev Login · Auditor', email: 'auditor@17v3ygzs.mailosaur.net' },
+                  { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net' },
+                  { label: 'Dev Login · Superadmin', email: 'superadmin@17v3ygzs.mailosaur.net' },
                 ].map((entry) => (
                   <button
                     key={entry.email}
                     type="button"
-                    onClick={() => void handleDevLogin(entry.email, entry.redirect)}
+                    onClick={() => void handleDevLogin(entry.email)}
                     disabled={isSubmitting}
                     className="btn btn-secondary login-submit-btn"
                   >
