@@ -8,36 +8,54 @@ public static class PowerBiReportUrlResolver
 {
     private const string PowerBiHost = "app.powerbi.com";
     private const string SecureEmbedBaseUrl = "https://app.powerbi.com/reportEmbed";
+    private const string ReportPagePrefix = "ReportSection";
 
     public static PowerBiReportUrls? Resolve(string? configuredUrl)
     {
         if (string.IsNullOrWhiteSpace(configuredUrl)
             || !Uri.TryCreate(configuredUrl.Trim(), UriKind.Absolute, out var uri)
             || uri.Scheme != Uri.UriSchemeHttps
+            || !uri.IsDefaultPort
+            || !string.IsNullOrEmpty(uri.UserInfo)
             || !string.Equals(uri.Host, PowerBiHost, StringComparison.OrdinalIgnoreCase)
-            || !TryGetReportCoordinates(uri, out var reportId, out var groupId, out var tenantId))
+            || !TryGetReportCoordinates(
+                uri,
+                out var reportId,
+                out var groupId,
+                out var tenantId,
+                out var pageName))
         {
             return null;
         }
 
         var parameters = new Dictionary<string, string?>
         {
-            ["reportId"] = reportId.ToString(),
+            ["reportId"] = reportId.ToString("D"),
             ["autoAuth"] = "true",
         };
 
         if (groupId.HasValue)
         {
-            parameters["groupId"] = groupId.Value.ToString();
+            parameters["groupId"] = groupId.Value.ToString("D");
         }
 
         if (tenantId.HasValue)
         {
-            parameters["ctid"] = tenantId.Value.ToString();
+            parameters["ctid"] = tenantId.Value.ToString("D");
         }
 
+        if (pageName is not null)
+        {
+            parameters["pageName"] = pageName;
+        }
+
+        var fallbackBuilder = new UriBuilder(uri)
+        {
+            Fragment = string.Empty,
+        };
+
         return new PowerBiReportUrls(
-            uri.AbsoluteUri,
+            fallbackBuilder.Uri.AbsoluteUri,
             QueryHelpers.AddQueryString(SecureEmbedBaseUrl, parameters));
     }
 
@@ -45,21 +63,39 @@ public static class PowerBiReportUrlResolver
         Uri uri,
         out Guid reportId,
         out Guid? groupId,
-        out Guid? tenantId)
+        out Guid? tenantId,
+        out string? pageName)
     {
         reportId = Guid.Empty;
         groupId = null;
-        tenantId = TryGetGuidQueryValue(uri, "ctid");
+        tenantId = null;
+        pageName = null;
+
+        if (!TryGetOptionalGuidQueryValue(uri, "ctid", out tenantId))
+        {
+            return false;
+        }
 
         if (string.Equals(uri.AbsolutePath.TrimEnd('/'), "/reportEmbed", StringComparison.OrdinalIgnoreCase))
         {
-            var reportIdValue = QueryHelpers.ParseQuery(uri.Query)["reportId"].FirstOrDefault();
-            if (!Guid.TryParse(reportIdValue, out reportId))
+            var query = QueryHelpers.ParseQuery(uri.Query);
+            if (!Guid.TryParse(query["reportId"].FirstOrDefault(), out reportId)
+                || !TryGetOptionalGuidQueryValue(uri, "groupId", out groupId))
             {
                 return false;
             }
 
-            groupId = TryGetGuidQueryValue(uri, "groupId");
+            var queryPageName = query["pageName"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(queryPageName))
+            {
+                if (!IsSafePageName(queryPageName))
+                {
+                    return false;
+                }
+
+                pageName = queryPageName;
+            }
+
             return true;
         }
 
@@ -74,23 +110,51 @@ public static class PowerBiReportUrlResolver
             return false;
         }
 
-        if (string.Equals(segments[1], "me", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(segments[1], "me", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!Guid.TryParse(segments[1], out var parsedGroupId))
+            {
+                return false;
+            }
+
+            groupId = parsedGroupId;
+        }
+
+        if (segments.Length >= 5 && IsSafePageName(segments[4]))
+        {
+            pageName = segments[4];
+        }
+
+        return true;
+    }
+
+    private static bool TryGetOptionalGuidQueryValue(Uri uri, string key, out Guid? value)
+    {
+        value = null;
+        var raw = QueryHelpers.ParseQuery(uri.Query)[key].FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(raw))
         {
             return true;
         }
 
-        if (!Guid.TryParse(segments[1], out var parsedGroupId))
+        if (!Guid.TryParse(raw, out var parsed))
         {
             return false;
         }
 
-        groupId = parsedGroupId;
+        value = parsed;
         return true;
     }
 
-    private static Guid? TryGetGuidQueryValue(Uri uri, string key)
+    private static bool IsSafePageName(string value)
     {
-        var value = QueryHelpers.ParseQuery(uri.Query)[key].FirstOrDefault();
-        return Guid.TryParse(value, out var parsed) ? parsed : null;
+        if (!value.StartsWith(ReportPagePrefix, StringComparison.Ordinal)
+            || value.Length > 128)
+        {
+            return false;
+        }
+
+        return value.All(character => char.IsAsciiLetterOrDigit(character)
+            || character is '_' or '-');
     }
 }
