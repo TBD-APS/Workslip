@@ -8,12 +8,13 @@ const job = (id: string, assignedUserIds: string[]) => ({
 }) as JobListItemViewModel;
 
 describe('quick navigator job search', () => {
-  it('only searches the jobs endpoint for explicit job intent', () => {
-    expect(getQuickJobSearchTerm('timer')).toBeNull();
-    expect(getQuickJobSearchTerm('kunde')).toBeNull();
+  it('searches jobs from ordinary craft-worker input without requiring a sag prefix', () => {
+    expect(getQuickJobSearchTerm('a')).toBeNull();
+    expect(getQuickJobSearchTerm('1234')).toBe('1234');
     expect(getQuickJobSearchTerm('sag 1234')).toBe('1234');
     expect(getQuickJobSearchTerm('job #AB12')).toBe('AB12');
-    expect(getQuickJobSearchTerm('1234')).toBe('1234');
+    expect(getQuickJobSearchTerm('Niels VVS')).toBe('Niels VVS');
+    expect(getQuickJobSearchTerm('Vestergade 12')).toBe('Vestergade 12');
   });
 
   it('keeps non-admin quick results scoped to assigned jobs', () => {
