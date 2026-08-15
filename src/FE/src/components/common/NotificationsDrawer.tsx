@@ -17,8 +17,8 @@ import { notificationListQueryKey } from '../../lib/notificationQueryKeys';
 import { useAuth } from '../../providers/useAuth';
 import { formatRelativeActivityTime } from './activityFeed';
 import { Drawer } from './Drawer';
-import './NotificationsDrawer.css';
 import './ActivityFeed.css';
+import './NotificationsDrawer.css';
 
 type NotificationItem = {
   id: string;
@@ -86,10 +86,8 @@ const getNotificationAvatarTone = (item: NotificationItem) => {
   return 'activity-avatar-primary';
 };
 
-const getNotificationGroupKey = (item: NotificationItem) => {
-  if (item.url) return `resource:${item.url}`;
-  return `event:${item.title.trim().toLocaleLowerCase('da-DK')}`;
-};
+const getNotificationGroupKey = (item: NotificationItem) =>
+  item.url ? `resource:${item.url}` : `event:${item.id}`;
 
 const groupNotifications = (items: NotificationItem[]): NotificationGroup[] => {
   const groups = new Map<string, NotificationGroup>();
