@@ -22,7 +22,6 @@ export function JobAuditorScopeControl({ jobId }: { jobId: string }) {
       setJobAuditorScope(jobId, next),
     onSuccess: (scope) => {
       queryClient.setQueryData(auditorScopeKey(jobId), scope);
-      queryClient.invalidateQueries({ queryKey: ['getApiJobs'] });
       setEditingReason(false);
       setReason('');
       notify.success(
