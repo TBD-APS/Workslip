@@ -51,7 +51,7 @@ public sealed class JobOverviewService(IJobService jobService) : IJobOverviewSer
             sortDirection: "desc",
             limit: RecentJobLimit,
             offset: 0,
-            cancellationToken);
+            cancellationToken: cancellationToken);
         if (!recent.IsSuccess) return Result<JobOverviewResponse>.Unauthorized();
 
         return Result<JobOverviewResponse>.Success(new JobOverviewResponse(
@@ -75,7 +75,7 @@ public sealed class JobOverviewService(IJobService jobService) : IJobOverviewSer
             sortDirection: null,
             limit: 1,
             offset: 0,
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         return result.IsSuccess
             ? Result<int>.Success(result.Value.TotalCount)
