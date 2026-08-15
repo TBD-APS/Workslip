@@ -37,10 +37,11 @@ function sameFinding(a, b) {
 const githubModels = decode(process.env.GITHUB_MODELS_REVIEW_B64, 'GitHub Models');
 const openai = decode(process.env.OPENAI_REVIEW_B64, 'OpenAI');
 const claude = decode(process.env.CLAUDE_REVIEW_B64, 'Claude');
-const reviews = [githubModels, openai, claude];
-// A provider without a configured credential or wired-in job is intentionally
-// disabled, not a failed reviewer: single-provider (Claude-only) operation is
-// a supported mode.
+const ollama = decode(process.env.OLLAMA_REVIEW_B64, 'Ollama');
+const reviews = [githubModels, openai, claude, ollama];
+// A provider without a configured credential/feature flag or wired-in job is
+// intentionally disabled, not a failed reviewer. Single-provider operation is
+// supported, while consensus requires two independent available providers.
 const enabled = reviews.filter((review) => review.configured !== false);
 const available = enabled.filter((review) => review.available);
 const contextTruncated = process.env.CONTEXT_TRUNCATED === 'true';
@@ -131,7 +132,7 @@ if (selected.length) {
 }
 
 if (!enabled.length) {
-  body += 'Configure at least one model credential before relying on this workflow.\n\n';
+  body += 'Configure at least one model credential or local provider before relying on this workflow.\n\n';
 } else if (!available.length) {
   body += 'Every configured review provider failed for this revision; see the workflow run for details.\n\n';
 }
