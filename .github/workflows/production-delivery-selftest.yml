@@ -13,6 +13,8 @@ on:
       - 'tools/release/configure-github-branch-rules.ps1'
       - 'tools/release/verify-production-eligibility.mjs'
       - 'tools/release/verify-production-eligibility.test.mjs'
+      - 'src/FE/scripts/vercel-production-eligibility.mjs'
+      - 'src/FE/scripts/vercel-production-eligibility.test.mjs'
       - 'src/FE/vercel.json'
       - 'Docs/operations/ci-quality-gates.md'
       - 'Docs/operations/feature-branch-safety.md'
@@ -29,6 +31,8 @@ on:
       - 'tools/release/configure-github-branch-rules.ps1'
       - 'tools/release/verify-production-eligibility.mjs'
       - 'tools/release/verify-production-eligibility.test.mjs'
+      - 'src/FE/scripts/vercel-production-eligibility.mjs'
+      - 'src/FE/scripts/vercel-production-eligibility.test.mjs'
       - 'src/FE/vercel.json'
       - 'Docs/operations/ci-quality-gates.md'
       - 'Docs/operations/feature-branch-safety.md'
@@ -48,11 +52,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Test exact-SHA production gate
+      - name: Test exact-SHA production gates
         run: |
           set -Eeuo pipefail
           node --check tools/release/verify-production-eligibility.mjs
           node --test tools/release/verify-production-eligibility.test.mjs
+          node --check src/FE/scripts/vercel-production-eligibility.mjs
+          node --test src/FE/scripts/vercel-production-eligibility.test.mjs
 
       - name: Verify Vercel production is green-gated and deterministic
         run: |
@@ -63,8 +69,11 @@ jobs:
           if (config.git?.deploymentEnabled?.main !== true || config.git?.deploymentEnabled?.['*'] !== false) {
             throw new Error('Vercel Git deployments must be disabled except for main.');
           }
-          if (!String(config.buildCommand || '').includes('verify-production-eligibility.mjs')) {
-            throw new Error('Vercel production build must run the exact-SHA production gate.');
+          if (!String(config.buildCommand || '').includes('scripts/vercel-production-eligibility.mjs')) {
+            throw new Error('Vercel production build must run the root-local exact-SHA production gate.');
+          }
+          if (String(config.buildCommand || '').includes('../')) {
+            throw new Error('Vercel production gate must not depend on files outside the configured Root Directory.');
           }
           if (String(config.buildCommand || '').includes('generate:api:dev')) {
             throw new Error('Vercel production must not generate API clients from the dev OpenAPI endpoint.');
