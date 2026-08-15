@@ -38,7 +38,14 @@ function handleModalKeyDown(event: KeyboardEvent) {
   if (event.key === 'Escape' && activeModal.canCloseOnEscape()) {
     event.preventDefault();
     event.stopImmediatePropagation();
-    activeModal.close();
+
+    // Keep the current top modal on the stack until this keydown dispatch has
+    // fully finished. Closing synchronously can unmount a nested modal while the
+    // same Escape event is still being processed, which allows the parent modal
+    // to become topmost and react to that same key press in some environments.
+    queueMicrotask(() => {
+      if (modalStack.at(-1)?.id === activeModal.id) activeModal.close();
+    });
     return;
   }
 
