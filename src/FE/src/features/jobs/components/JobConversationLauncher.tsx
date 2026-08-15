@@ -5,6 +5,8 @@ import { useGetApiJobsJobIdConversation } from '../../../api/generated/job-conve
 import { JobConversationDrawer } from './JobConversationDrawer';
 import './JobConversationLauncher.css';
 
+const CONVERSATION_REFETCH_INTERVAL_MS = 15_000;
+
 type JobConversationLauncherProps = {
   jobId: string;
   allowSubmitForReview: boolean;
@@ -27,7 +29,7 @@ export function JobConversationLauncher({
     query: {
       enabled: jobId.length > 0,
       staleTime: 10_000,
-      refetchInterval: 15_000,
+      refetchInterval: CONVERSATION_REFETCH_INTERVAL_MS,
       refetchIntervalInBackground: false,
     },
     request: { skipGlobalErrorToast: true },
