@@ -21,7 +21,12 @@ A production mutation is **fail-closed**. Frontend deployment, backend deploymen
 
 `failure`, `cancelled`, `timed_out`, `action_required`, `neutral`, `skipped`, a missing gate, a duplicate gate, a stale SHA or an unresolved CI run is not deployable. An older green ancestor is not sufficient.
 
-The shared implementation is `tools/release/verify-production-eligibility.mjs`. Production workflows and Vercel must use that gate rather than implementing different interpretations of “green”.
+The contract has two platform adapters because Vercel may isolate a configured Root Directory from repository-level files:
+
+- `tools/release/verify-production-eligibility.mjs` — GitHub Actions/manual production operations;
+- `src/FE/scripts/vercel-production-eligibility.mjs` — Vercel production build, physically inside the frontend Root Directory.
+
+Both implement the same exact-SHA/green-gate invariants and both are covered by `Production delivery · Self-test`. Do not add a third interpretation of “green”.
 
 ## Pull request CI
 
@@ -53,9 +58,9 @@ The same `CI` workflow runs after a merge to `main`.
 
 Core backend, frontend/API-contract and contract/documentation checks run again against the exact production revision. Code scanning remains owned by GitHub Default setup rather than being duplicated in the CI workflow.
 
-Both application surfaces now depend on that exact post-merge evidence:
+Both application surfaces depend on that exact post-merge evidence:
 
-- Vercel may receive the Git push immediately, but its configured `buildCommand` waits for the exact SHA to have a successful `CI Gate` and verifies the SHA is still current `main` before the frontend build proceeds.
+- Vercel may receive the Git push immediately, but its configured `buildCommand` runs the root-local Vercel adapter, waits for the exact SHA to have a successful `CI Gate`, and verifies the SHA is still current `main` before the frontend build proceeds.
 - Azure backend delivery is triggered by the completed `CI` run and validates the triggering run, exact SHA and `CI Gate`; it repeats the current-main check immediately before migrations/deployment so a release that becomes stale during artifact build cannot mutate production.
 
 This prevents frontend/backend drift caused by one platform releasing while the other revision is red, cancelled, stale or still validating.
@@ -68,9 +73,11 @@ This prevents frontend/backend drift caused by one platform releasing while the 
 
 The production build command first runs:
 
-`tools/release/verify-production-eligibility.mjs --source vercel`
+`node scripts/vercel-production-eligibility.mjs`
 
-The verifier uses Vercel's exact Git commit metadata, requires the `main` branch, waits for the exact post-merge `CI Gate`, and fails if `main` advances to another SHA before eligibility is proven. Only then does Vercel run the deterministic frontend build.
+The adapter uses Vercel's exact Git commit metadata, requires the `main` branch, waits for the exact post-merge `CI Gate`, and performs a second `main` read after validating the CI jobs so a SHA that becomes stale during verification is rejected. Only then does Vercel run the deterministic frontend build.
+
+The adapter intentionally lives under `src/FE`. Vercel documents that a configured Root Directory may prevent builds from accessing source outside that directory unless a separate project setting enables it. Production safety therefore does not depend on that dashboard option.
 
 The production build does **not** call `generate:api:dev` or fetch OpenAPI from a remote development API. The generated API client is committed and its parity with the same-revision backend contract is a blocking CI check.
 
@@ -89,18 +96,18 @@ The workflow:
 5. resolves the dedicated migration identity and applies reviewed migrations;
 6. verifies required diagnostics configuration;
 7. applies the production release-testing policy;
-8. deploys the exact-SHA artifact with bounded retries; and
+8. deploys the exact-SHA artifact with bounded retries and captures Azure deployment diagnostics on failure; and
 9. requires the API `/health` endpoint to recover before reporting the release successful.
 
 The old ancestor check is intentionally not used. A previously green SHA that is merely contained in a newer `main` is stale and cannot deploy.
 
 ### Database · Production migrations
 
-`.github/workflows/database-production-migrations.yml` is the explicit manual migration workflow. The `MIGRATE` confirmation is operator intent, not a validation bypass. Before Azure login or mutation it requires the selected ref to be `main` and the selected exact SHA to pass the same production eligibility gate.
+`.github/workflows/database-production-migrations.yml` is the explicit manual migration workflow. The `MIGRATE` confirmation is operator intent, not a validation bypass. Before Azure login or mutation it requires the selected ref to be `main` and the selected exact SHA to pass the same production eligibility gate. Node 24 is set up explicitly before the gate rather than relying on runner-image defaults.
 
 ### Infrastructure · Production reconcile
 
-`.github/workflows/infrastructure-production-reconcile.yml` remains the separate privileged infrastructure path. Before OIDC login or infrastructure mutation it requires `main` and a successful exact-SHA `CI Gate`. It preserves the dedicated infrastructure identity and post-reconcile API health verification.
+`.github/workflows/infrastructure-production-reconcile.yml` remains the separate privileged infrastructure path. Before OIDC login or infrastructure mutation it requires `main` and a successful exact-SHA `CI Gate`. It preserves the dedicated infrastructure identity and post-reconcile API health verification and sets up Node 24 explicitly for the gate.
 
 ### Production · Readiness smoke
 
@@ -128,23 +135,28 @@ Do not delete or rename an environment from its name alone. Verify usage, deploy
 The repository `main` ruleset is defense in depth and must enforce:
 
 - pull request required;
-- required status check `CI Gate`;
-- direct pushes blocked;
-- force pushes blocked;
+- required status checks `CI Gate` and `Feature change guard`;
+- no bypass actors;
+- direct pushes blocked by the pull-request rule;
+- non-fast-forward/force pushes blocked;
+- squash-only merge; and
 - merge remains an explicit human action.
 
 Current repository inspection for WOR-468 found the active `Prod Ruleset` requires a pull request, non-fast-forward protection and CodeQL, but does **not** yet contain `CI Gate` as a required status check and still has configured bypass actors. That settings gap must be corrected in GitHub repository administration; it is not represented as fixed merely by changing workflow YAML.
 
-Production delivery no longer trusts that ruleset as its only red-deploy defense: every maintained production mutation independently fails closed on the exact post-merge `CI Gate`. The ruleset remains necessary to prevent unvalidated code from being merged to `main` in the first place.
+`tools/release/configure-github-branch-rules.ps1` is the authoritative reconciliation command. Its apply payload contains no bypass actors, and its read-back verification now fails if GitHub reports bypass actors, wrong refs/rule types, wrong merge methods, wrong review count, wrong required checks or a non-strict status-check policy. `-VerifyOnly` is the acceptance evidence after an administrator applies the rules.
+
+Production delivery no longer trusts that ruleset as its only red-deploy defense: every maintained production mutation independently fails closed on the exact post-merge `CI Gate`. The ruleset remains necessary to prevent unvalidated code or modified gate logic from being placed on `main` in the first place.
 
 ## Production delivery self-test
 
 `.github/workflows/production-delivery-selftest.yml` protects the delivery implementation itself. It verifies:
 
-- red/cancelled/stale/missing/duplicate gates are rejected;
-- Vercel production contains the exact-SHA gate and no `generate:api:dev` dependency;
+- both Actions and Vercel adapters reject red/cancelled/stale/missing/duplicate gates;
+- Vercel production uses the Root-Directory-local exact-SHA gate and has no `generate:api:dev` or parent-directory dependency;
 - all privileged production workflows use the shared `workslip-production` lock and `prod` environment;
-- backend deployment revalidates before mutation and cannot fall back to ancestor semantics; and
+- backend deployment revalidates before mutation and cannot fall back to ancestor semantics;
+- the repository-protection source requires `CI Gate`, `Feature change guard`, no bypass actors and strict status checks; and
 - retired legacy workflow entrypoints do not reappear.
 
 ## Releases and tags
