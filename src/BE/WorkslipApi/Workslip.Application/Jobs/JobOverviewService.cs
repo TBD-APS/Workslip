@@ -25,7 +25,7 @@ public interface IJobOverviewService
     Task<Result<JobOverviewResponse>> GetAsync(CancellationToken cancellationToken);
 }
 
-public sealed class JobOverviewService(IJobService jobService, ICustomerService customerService) : IJobOverviewService
+public sealed class JobOverviewService(IJobService jobService, ICustomerService? customerService = null) : IJobOverviewService
 {
     private const int RecentJobLimit = 6;
     private static readonly List<JobStatus> AllStatuses =
@@ -68,7 +68,7 @@ public sealed class JobOverviewService(IJobService jobService, ICustomerService 
         foreach (var job in recent.Value.Items)
         {
             string? customerNumber = null;
-            if (job.Customer?.CustomerId is Guid customerId && customerId != Guid.Empty)
+            if (customerService is not null && job.Customer?.CustomerId is Guid customerId && customerId != Guid.Empty)
             {
                 var customer = await customerService.GetByIdAsync(customerId, cancellationToken);
                 if (customer.IsSuccess)
