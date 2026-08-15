@@ -4,7 +4,16 @@
     {
       "label": "Workslip: Start local full stack",
       "type": "shell",
-      "command": ".\\dev.ps1",
+      "command": ".\\start-local.cmd",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Workslip: Test local UI 3x",
+      "type": "shell",
+      "command": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\\test-local-ui-3x.ps1",
       "options": {
         "cwd": "${workspaceFolder}"
       },
