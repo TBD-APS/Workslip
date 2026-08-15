@@ -78,13 +78,9 @@ public static class DependencyInjection
         services.AddScoped<IJobLinkRepository, EfJobLinkRepository>();
         services.AddScoped<EfJobRepository>();
         services.AddScoped<IJobRepository>(serviceProvider =>
-        {
-            IJobRepository repository = serviceProvider.GetRequiredService<EfJobRepository>();
-            repository = new AssignmentAwareJobRepository(repository);
-            return new BillingAwareJobRepository(
-                repository,
-                serviceProvider.GetRequiredService<SqlDbContext>());
-        });
+            new BillingAwareJobRepository(
+                serviceProvider.GetRequiredService<EfJobRepository>(),
+                serviceProvider.GetRequiredService<SqlDbContext>()));
         services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
         services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();
