@@ -306,17 +306,18 @@ jobs:
         run: echo "review_b64=$(base64 -w0 provider-review.json)" >> "$GITHUB_OUTPUT"
 
   ollama_review:
-    name: Ollama local review
+    name: Ollama review
     needs: prepare
-    if: needs.prepare.outputs.eligible == 'true' && vars.OLLAMA_REVIEW_ENABLED == 'true'
-    runs-on: [self-hosted, ollama]
+    if: needs.prepare.outputs.eligible == 'true'
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
       pull-requests: read
     env:
-      OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL || 'http://127.0.0.1:11434' }}
-      OLLAMA_MODEL: ${{ vars.OLLAMA_REVIEW_MODEL || 'qwen3-coder:30b' }}
+      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+      OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL || 'https://ollama.com' }}
+      OLLAMA_MODEL: ${{ vars.OLLAMA_REVIEW_MODEL || 'qwen3-coder:480b' }}
       OLLAMA_TIMEOUT_MS: '900000'
       PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
       EXPECTED_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
@@ -344,6 +345,7 @@ jobs:
 
       - name: Run Ollama review
         id: ollama
+        if: env.OLLAMA_API_KEY != ''
         continue-on-error: true
         run: node .github/ai-review/ollama-review.mjs
 
@@ -351,7 +353,7 @@ jobs:
         if: always()
         env:
           ACTION_OUTCOME: ${{ steps.ollama.outcome }}
-          PROVIDER_CONFIGURED: 'true'
+          PROVIDER_CONFIGURED: ${{ env.OLLAMA_API_KEY != '' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -366,12 +368,7 @@ jobs:
         id: package
         if: always()
         shell: bash
-        run: |
-          node - <<'NODE'
-          const fs = require('node:fs');
-          const review = fs.readFileSync('provider-review.json');
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `review_b64=${review.toString('base64')}\n`);
-          NODE
+        run: echo "review_b64=$(base64 -w0 provider-review.json)" >> "$GITHUB_OUTPUT"
 
   aggregate:
     name: Aggregate AI review
