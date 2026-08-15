@@ -2,7 +2,8 @@
 param(
     [switch]$SkipInstall,
     [switch]$NoBrowser,
-    [switch]$CheckOnly
+    [switch]$CheckOnly,
+    [switch]$Mobile
 )
 
 Set-StrictMode -Version Latest
@@ -95,6 +96,28 @@ function Assert-PortFree([int]$Port, [string]$ServiceName) {
     }
 }
 
+function Get-MobileFrontendUrls([int]$Port) {
+    $addresses = @(
+        Get-NetIPConfiguration -ErrorAction SilentlyContinue |
+            Where-Object { $null -ne $_.IPv4DefaultGateway -and $null -ne $_.IPv4Address } |
+            ForEach-Object {
+                foreach ($address in @($_.IPv4Address)) {
+                    $ipAddress = [string]$address.IPAddress
+                    if (
+                        -not [string]::IsNullOrWhiteSpace($ipAddress) -and
+                        $ipAddress -notmatch '^127\.' -and
+                        $ipAddress -notmatch '^169\.254\.'
+                    ) {
+                        $ipAddress
+                    }
+                }
+            } |
+            Select-Object -Unique
+    )
+
+    return @($addresses | ForEach-Object { 'http://{0}:{1}' -f $_, $Port })
+}
+
 function New-EphemeralSigningKey {
     $bytes = New-Object byte[] 48
     $generator = [Security.Cryptography.RandomNumberGenerator]::Create()
@@ -158,6 +181,16 @@ if (-not (Test-Path $backendProject)) { throw "Backend project not found: $backe
 if (-not (Test-Path (Join-Path $frontendPath 'package-lock.json'))) { throw 'Frontend package-lock.json is missing.' }
 if (-not (Test-Path (Join-Path $backendPath 'appsettings.Development.json'))) { throw 'Tracked appsettings.Development.json is missing.' }
 Write-Ok 'Tracked Development configuration present'
+
+$mobileFrontendUrls = @()
+if ($Mobile) {
+    $mobileFrontendUrls = @(Get-MobileFrontendUrls 5270)
+    if ($mobileFrontendUrls.Count -eq 0) {
+        throw 'Mobile mode could not find an active IPv4 network adapter with a default gateway. Connect the PC and phone to the same Wi-Fi or trusted LAN.'
+    }
+
+    Write-Ok "Phone testing URL(s): $($mobileFrontendUrls -join ', ')"
+}
 
 Assert-PortFree 5262 'backend'
 Assert-PortFree 5270 'frontend'
@@ -259,9 +292,13 @@ try {
     Write-Ok "LocalJwt auth: $($me.email)"
 
     Write-Step 'Starting frontend using the already generated local contract'
-    $viteArgument = '"' + $viteEntry + '"'
+    $viteArguments = @('"' + $viteEntry + '"')
+    if ($Mobile) {
+        $viteArguments += @('--host', '0.0.0.0')
+    }
+
     $frontendProcess = Start-Process $nodeCommand `
-        -ArgumentList $viteArgument `
+        -ArgumentList $viteArguments `
         -WorkingDirectory $frontendPath `
         -RedirectStandardOutput $frontendOut `
         -RedirectStandardError $frontendErr `
@@ -274,6 +311,13 @@ try {
     Write-Host 'Workslip ready' -ForegroundColor Green
     Write-Host "  Backend:  $backendUrl"
     Write-Host "  Frontend: $frontendUrl"
+    if ($Mobile) {
+        foreach ($mobileUrl in $mobileFrontendUrls) {
+            Write-Host "  Phone:    $mobileUrl"
+        }
+        Write-Host '  Mobile API traffic is proxied through Vite; the backend remains localhost-only.'
+        Write-Host '  Use only on a trusted LAN. If Windows Firewall prompts for Node.js, allow Private networks only.' -ForegroundColor Yellow
+    }
     Write-Host "  Dev user: $devEmail"
     Write-Host "  Logs:     $logDirectory"
     Write-Host ''
