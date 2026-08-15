@@ -290,12 +290,6 @@ public sealed class AuthorizedJobService(
         }
     }
 
-    public Task<Result<JobReportSummaryResponse>> AssignAsync(
-        Guid jobId,
-        IReadOnlyList<Guid> userIds,
-        CancellationToken cancellationToken) =>
-        inner.AssignAsync(jobId, userIds, cancellationToken);
-
     public async Task<Result<JobReportSummaryResponse>> CreateLinksAsync(
         Guid reportId,
         CreateJobLinkRequest request,

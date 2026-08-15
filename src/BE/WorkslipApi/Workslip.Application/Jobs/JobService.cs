@@ -4,7 +4,6 @@ using FluentValidation.Results;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
-using Workslip.Application.Users;
 using Workslip.Application.Worksheets;
 using Workslip.Application.Notifications;
 using Workslip.Domain;
@@ -17,7 +16,6 @@ public sealed class JobService(
     IAssignmentRepository assignmentRepository,
     IJobLinkRepository linkRepository,
     IReferenceDataRepository referenceDataRepository,
-    IUserRepository userRepository,
     IWorksheetRepository worksheetRepository,
     HybridCache cache,
     IValidator<CreateJobRequest> createJobValidator,
@@ -445,8 +443,7 @@ public sealed class JobService(
 
         if (targetStatus == JobStatus.InReview)
         {
-            var users = await userRepository.GetByOrganizationIdAsync(organizationId.Value, 1000, 0, null, null, null, cancellationToken);
-            var admins = users.Where(x => x.Role == Roles.Admin);
+            var admins = await assignmentRepository.GetOrganizationAdminsAsync(organizationId.Value, cancellationToken);
             
             var queuedNotificationCount = 0;
             foreach (var admin in admins)
@@ -704,59 +701,6 @@ public sealed class JobService(
          return await ToSummaryResultAsync(restored, cancellationToken);
      }
 
-     public async Task<Result<JobReportSummaryResponse>> AssignAsync(Guid jobId, IReadOnlyList<Guid> userIds, CancellationToken cancellationToken)
-     {
-         var organizationId = currentUser.OrganizationId;
-            
-         if (organizationId is null)
-         {
-             return Result<JobReportSummaryResponse>.Unauthorized();
-         }
-
-        var invalidUserError = await ValidateAssignedUsersExistAsync(userIds, jobId, organizationId.Value, cancellationToken);
-        if (invalidUserError is not null) 
-            return invalidUserError;
-
-         await assignmentRepository.AssignAsync(jobId, organizationId.Value, userIds, currentUser.UserId, cancellationToken);
-        
-        var job = await _jobRepository.GetSingleJobAsync(jobId, organizationId.Value, cancellationToken);
-        if (job is null)
-         {
-             return Result<JobReportSummaryResponse>.NotFound();
-         }
-
-          await InvalidateJobCachesAsync(jobId, organizationId.Value, cancellationToken);
-          logger.LogInformation("Job assigned. JobId: {JobId}. AssignedUserCount: {Assigneds}.", jobId, userIds.Count);
-
-           var address = job.DestinationAddress ?? job.Customer?.Address ?? "Ingen adresse angivet";
-           var reportNumber = job.ReportNumber ?? "Uden nummer";
-           foreach (var userId in userIds)
-           {
-               if (userId == currentUser.UserId) 
-                 continue;
-                 
-               var assignedUser = await userRepository.GetByIdAsync(userId, cancellationToken);
-               var recipientName = assignedUser?.DisplayName ?? "Bruger";
-               await notificationService.QueueJobAssignedAsync(userId, recipientName, jobId, reportNumber, address, cancellationToken);
-           }
-
-           if (userIds.Count == 0)
-           {
-               var allUsers = await userRepository.GetByOrganizationIdAsync(organizationId.Value, 1000, 0, null, null, null, cancellationToken);
-               var admins = allUsers.Where(u => u.Role == Roles.Admin);
-
-               foreach (var admin in admins)
-               {
-                   if (admin.Id == currentUser.UserId)
-                       continue;
-
-                   await notificationService.QueueJobUnassignedAsync(admin.Id, admin.DisplayName, jobId, reportNumber, address, cancellationToken);
-               }
-           }
-
-          return await ToSummaryResultAsync(job, cancellationToken);
-     }
-
     private async Task<Result<JobReportSummaryResponse>> ToSummaryResultAsync(JobReportResponse report, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
@@ -1005,36 +949,6 @@ public sealed class JobService(
 
         return null;
     }
-    private async Task<Result<JobReportSummaryResponse>?> ValidateAssignedUsersExistAsync(
-        IReadOnlyList<Guid>? userIds, Guid jobId, Guid organizationId, CancellationToken cancellationToken)
-    {
-        if (userIds is null || userIds.Count == 0) 
-            return null;
-
-        foreach (var userId in userIds)
-        {
-            var assignedUser = await userRepository.GetByIdAsync(userId, cancellationToken);
-            if (assignedUser is not null
-                && assignedUser.OrganizationId == organizationId
-                && IsJobAssignableRole(assignedUser.Role))
-                continue;
-
-            logger.LogError("Job assignment validation failed. JobId: {JobId}. OrganizationId: {OrganizationId}. InvalidAssignedUserId: {InvalidAssignedUserId}.",
-                jobId, organizationId, userId);
-
-            return Result<JobReportSummaryResponse>.Invalid([new ValidationError
-            {
-                Identifier = nameof(AssignJobRequest.UserIds),
-                ErrorMessage = "Sager kan kun tildeles brugere eller administratorer i samme organisation."
-            }]);
-        }
-
-        return null;
-    }
-
-    private static bool IsJobAssignableRole(string? role) =>
-        JobAssignmentPolicy.CanReceiveAssignment(role);
-
     private async Task QueueDuplicatedJobAssignmentNotificationsAsync(
         JobReportResponse primaryJob,
         IReadOnlyList<Guid> createdJobIds,

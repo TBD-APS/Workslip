@@ -11,13 +11,13 @@ Coupling = fan-in + fan-out between `Workslip.Application.*` modules. File refs 
 | Module | Files | LOC | Fan-in | Fan-out | Inbound file refs | Outbound file refs | Coupling |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Auth | 5 | 263 | 8 | 1 | 20 | 2 | **9** |
-| Jobs | 29 | 3275 | 4 | 4 | 6 | 13 | **8** |
-| Users | 14 | 1671 | 5 | 2 | 9 | 4 | **7** |
+| Jobs | 29 | 3270 | 4 | 3 | 6 | 13 | **7** |
+| Users | 14 | 1671 | 4 | 2 | 8 | 4 | **6** |
 | Images | 4 | 443 | 1 | 3 | 1 | 3 | **4** |
 | Invitations | 6 | 726 | 0 | 3 | 0 | 7 | **3** |
 | Worksheets | 5 | 515 | 1 | 2 | 4 | 4 | **3** |
 | Customers | 7 | 562 | 0 | 2 | 0 | 2 | **2** |
-| Notifications | 8 | 277 | 1 | 1 | 1 | 1 | **2** |
+| Notifications | 8 | 277 | 1 | 1 | 2 | 1 | **2** |
 | Organizations | 7 | 594 | 0 | 2 | 0 | 4 | **2** |
 | Common | 3 | 167 | 1 | 0 | 1 | 0 | **1** |
 | Documents | 9 | 744 | 0 | 1 | 0 | 2 | **1** |
@@ -35,6 +35,7 @@ Coupling = fan-in + fan-out between `Workslip.Application.*` modules. File refs 
 | Worksheets -> Jobs | 3 |
 | Auth -> Users | 2 |
 | Documents -> Auth | 2 |
+| Jobs -> Notifications | 2 |
 | Organizations -> Auth | 2 |
 | Organizations -> Users | 2 |
 | (root) -> Auth | 1 |
@@ -53,8 +54,6 @@ Coupling = fan-in + fan-out between `Workslip.Application.*` modules. File refs 
 | Images -> Jobs | 1 |
 | Images -> Users | 1 |
 | Invitations -> Common | 1 |
-| Jobs -> Notifications | 1 |
-| Jobs -> Users | 1 |
 | Notifications -> Jobs | 1 |
 | Users -> Images | 1 |
 | Worksheets -> Auth | 1 |
@@ -140,8 +139,8 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 | File | LOC |
 | --- | --- |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Schema/SqlDbContext.cs` | 1485 |
-| `src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs` | 1153 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs` | 1077 |
+| `src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs` | 1067 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Schema/AuditPolicies.cs` | 926 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Diagnostics/ApplicationInsightsErrorDiagnosticsService.cs` | 879 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/JobReportPdfService.cs` | 679 |
@@ -152,7 +151,7 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfWorksheetRepository.cs` | 449 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Mappers/JobReportMapper.cs` | 437 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfCustomerRepository.cs` | 430 |
-| `src/BE/WorkslipApi/Workslip.Application/Jobs/AuthorizedJobService.cs` | 429 |
+| `src/BE/WorkslipApi/Workslip.Application/Jobs/AuthorizedJobService.cs` | 423 |
 | `src/BE/WorkslipApi/Configuration/LocalDevelopmentDatabaseMigrationRunner.cs` | 420 |
 
 ### Frontend
