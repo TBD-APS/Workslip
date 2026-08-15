@@ -13,7 +13,7 @@ namespace Workslip.Tests.Conversations;
 public sealed class JobConversationServiceTests
 {
     [Fact]
-    public async Task SendAsync_rejects_mentions_outside_assigned_job_participants()
+    public async Task SendAsync_rejects_mentions_outside_users_with_job_access()
     {
         var organizationId = Guid.NewGuid();
         var authorId = Guid.NewGuid();
@@ -32,6 +32,31 @@ public sealed class JobConversationServiceTests
 
         Assert.Equal(ResultStatus.Invalid, result.Status);
         Assert.Equal(0, repository.CreateCalls);
+    }
+
+    [Fact]
+    public async Task GetAsync_includes_assignees_and_organization_admins_as_participants()
+    {
+        var organizationId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var assigneeId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var assignments = new RecordingAssignmentRepository
+        {
+            Admins = [new AssignedUserResponse(adminId, "Kontor Admin")]
+        };
+        var service = CreateService(
+            new RecordingRepository(),
+            new RecordingJobService(CreateSummary(jobId, organizationId, [new(assigneeId, "Montør")])),
+            new TestCurrentUserContext(assigneeId, organizationId, Roles.User),
+            new RecordingNotificationService(),
+            assignmentRepository: assignments);
+
+        var result = await service.GetAsync(jobId, null, null, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(result.Value.Participants, participant => participant.Id == assigneeId);
+        Assert.Contains(result.Value.Participants, participant => participant.Id == adminId);
     }
 
     [Fact]
@@ -206,8 +231,15 @@ public sealed class JobConversationServiceTests
         IJobService jobs,
         ICurrentUserContext currentUser,
         INotificationService notifications,
-        IApplicationTransactionFactory? transactionFactory = null) =>
-        new(repository, jobs, currentUser, notifications, transactionFactory ?? new RecordingTransactionFactory());
+        IApplicationTransactionFactory? transactionFactory = null,
+        IAssignmentRepository? assignmentRepository = null) =>
+        new(
+            repository,
+            jobs,
+            assignmentRepository ?? new RecordingAssignmentRepository(),
+            currentUser,
+            notifications,
+            transactionFactory ?? new RecordingTransactionFactory());
 
     private static ConversationMessageResponse PendingActionMessage(
         Guid messageId,
@@ -294,6 +326,20 @@ public sealed class JobConversationServiceTests
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class RecordingAssignmentRepository : IAssignmentRepository
+    {
+        public IReadOnlyList<AssignedUserResponse> Admins { get; init; } = [];
+
+        public Task<IReadOnlyList<AssignedUserResponse>> GetOrganizationAdminsAsync(Guid organizationId, CancellationToken cancellationToken) =>
+            Task.FromResult(Admins);
+
+        public Task AssignAsync(Guid jobId, Guid organizationId, IReadOnlyList<Guid> userIds, Guid? actorId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<JobListItemResponse>> GetMyAssignedJobsAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<AssignedUserResponse>>> GetAssignedUsersByReportAsync(Guid organizationId, IEnumerable<Guid> reportIds, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<AssignedUserResponse>> GetAssignedUsersByIdsAsync(Guid organizationId, IReadOnlyList<Guid> userIds, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task AddAssignedUsersAsync(Guid organizationId, Guid reportId, IReadOnlyList<Guid> userIds, Guid? actorId, DateTimeOffset now, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class RecordingRepository : IJobConversationRepository
