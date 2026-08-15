@@ -136,6 +136,104 @@ public sealed class LocalDevelopmentDatabaseMigrationTests
             environment);
     }
 
+    [Fact]
+    public void CreatedTableNames_ExtractsSchemaQualifiedTables()
+    {
+        const string sql = """
+            SET XACT_ABORT ON;
+            BEGIN TRANSACTION;
+            CREATE TABLE dbo.UserBillingRates
+            (
+                OrganizationId uniqueidentifier NOT NULL
+            );
+            CREATE TABLE dbo.WorksheetBillingSnapshots
+            (
+                OrganizationId uniqueidentifier NOT NULL
+            );
+            COMMIT TRANSACTION;
+            """;
+
+        var tables = LocalDevelopmentDatabaseMigrationRunner.CreatedTableNames(sql);
+
+        Assert.Equal(
+            new[] { "UserBillingRates", "WorksheetBillingSnapshots" },
+            tables);
+    }
+
+    [Fact]
+    public void CreatedTableNames_ExtractsGuardedCreateTable()
+    {
+        const string sql = """
+            IF OBJECT_ID(N'dbo.KnowledgeDocuments', N'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.KnowledgeDocuments
+                (
+                    Id uniqueidentifier NOT NULL
+                );
+            END;
+            """;
+
+        Assert.Equal(
+            new[] { "KnowledgeDocuments" },
+            LocalDevelopmentDatabaseMigrationRunner.CreatedTableNames(sql));
+    }
+
+    [Fact]
+    public void CreatedTableNames_IgnoresTriggerAndIndexAndColumnStatements()
+    {
+        const string sql = """
+            ALTER TABLE dbo.JobReports ADD IsInAuditorScope bit NOT NULL;
+            CREATE INDEX IX_JobReports_Filial ON dbo.JobReports (FilialId);
+            CREATE OR ALTER TRIGGER dbo.TR_Example ON dbo.Users AFTER INSERT AS BEGIN SET NOCOUNT ON; END;
+            """;
+
+        Assert.Empty(LocalDevelopmentDatabaseMigrationRunner.CreatedTableNames(sql));
+    }
+
+    [Fact]
+    public void CreatesTableMissingFromSchema_TrueWhenCreatedTableAbsent()
+    {
+        const string sql = "CREATE TABLE dbo.UserBillingRates (OrganizationId uniqueidentifier NOT NULL);";
+        var existingTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Users",
+            "Worksheets"
+        };
+
+        Assert.True(
+            LocalDevelopmentDatabaseMigrationRunner.CreatesTableMissingFromSchema(sql, existingTables));
+    }
+
+    [Fact]
+    public void CreatesTableMissingFromSchema_FalseWhenCreatedTableAlreadyModeled()
+    {
+        const string sql = """
+            IF OBJECT_ID(N'dbo.OrganizationFilials', N'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.OrganizationFilials (Id uniqueidentifier NOT NULL);
+            END;
+            ALTER TABLE dbo.Users ADD FilialId uniqueidentifier NULL;
+            """;
+        var existingTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Users",
+            "OrganizationFilials"
+        };
+
+        Assert.False(
+            LocalDevelopmentDatabaseMigrationRunner.CreatesTableMissingFromSchema(sql, existingTables));
+    }
+
+    [Fact]
+    public void CreatesTableMissingFromSchema_FalseWhenMigrationCreatesNoTable()
+    {
+        const string sql = "ALTER TABLE dbo.JobReports ADD AuditorScopeReason nvarchar(500) NULL;";
+        var existingTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "JobReports" };
+
+        Assert.False(
+            LocalDevelopmentDatabaseMigrationRunner.CreatesTableMissingFromSchema(sql, existingTables));
+    }
+
     private static IConfiguration BuildConfiguration(
         string? connectionString,
         bool? applyLocalMigrations = null)
