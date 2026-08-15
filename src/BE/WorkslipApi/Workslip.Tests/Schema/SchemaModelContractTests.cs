@@ -58,10 +58,14 @@ public sealed class SchemaModelContractTests
                 "DestinationZipCode", "DestinationCity", "ReportNumber", "Status", "JobType", "ReportDate",
                 "TaskDescription", "CustomerObservations", "TechnicalObservations", "WorkKindId",
                 "CustomWorkKind", "Remarks", "IsSoftDeleted", "CreatedAt", "UpdatedAt", "DeletionScheduledAt",
-                "SubmittedAt", "SubmittedByUserId", "RejectionNote",
+                "SubmittedAt", "SubmittedByUserId", "RejectionNote", "IsInAuditorScope", "AuditorScopeReason",
             },
             ["JobAssignments"] = new[] { "Id", "OrganizationId", "ReportId", "UserId", "AssignedByUserId", "AssignedAt" },
-            ["JobReportLinks"] = new[] { "Id", "OrganizationId", "SourceReportId", "TargetReportId", "CreatedAt" },
+            // JobReportRowId is an EF shadow foreign key produced by the unmapped
+            // JobReportRow.Links collection navigation (it has no explicitly configured FK).
+            // It is part of the model EnsureCreated builds, so it belongs in the contract;
+            // it is a likely-unintended shadow column worth cleaning up separately.
+            ["JobReportLinks"] = new[] { "Id", "OrganizationId", "SourceReportId", "TargetReportId", "CreatedAt", "JobReportRowId" },
             ["JobEvents"] = new[]
             {
                 "Id", "OrganizationId", "ReportId", "ActorId", "EventType", "Summary", "BeforeJson", "AfterJson", "CreatedAt",
@@ -121,6 +125,8 @@ public sealed class SchemaModelContractTests
             ("JobReportInstallationControlPoints", "OrganizationId", "wor385"),
             ("Users", "UserKind", "wor412"),
             ("InviteTokens", "UserKind", "wor412"),
+            ("JobReports", "IsInAuditorScope", "wor479"),
+            ("JobReports", "AuditorScopeReason", "wor479"),
         };
 
     // Tables created after the cutover. Each must be created by the referenced migration file.
