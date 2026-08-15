@@ -60,9 +60,10 @@ export function useJobCreateWithAuditorScope(
       }),
     );
 
-    const failedJobIds = results.flatMap((result, index) =>
-      result.status === 'rejected' ? [jobIds[index]] : [],
-    );
+    const failedJobIds = results.flatMap((result, index) => {
+      const jobId = jobIds[index];
+      return result.status === 'rejected' && jobId ? [jobId] : [];
+    });
 
     setIsSavingAuditorScope(false);
 
