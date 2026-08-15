@@ -26,6 +26,8 @@ export function JobConversationLauncher({
     query: {
       enabled: jobId.length > 0,
       staleTime: 10_000,
+      refetchInterval: 15_000,
+      refetchIntervalInBackground: false,
     },
     request: { skipGlobalErrorToast: true },
   });
