@@ -1753,6 +1753,7 @@
                   "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
                   "pm.test('create response identifies every created job', function () { pm.expect(json.createdJobIds).to.deep.eql([json.id]); });",
                   "pm.collectionVariables.set('jobId', json.id);",
+                  "pm.collectionVariables.set('firstJobReportNumber', json.reportNumber);",
                   "pm.test('customer email echoed', function () { pm.expect(json.customerSnapshot.email).to.eql(pm.variables.get('customerEmail')); });",
                   "pm.test('installation types include selected categories and control points', function () {",
                   "  pm.expect(json.work.installationTypes.length).to.be.above(0);",
@@ -1826,9 +1827,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('409 Conflict', function () { pm.response.to.have.status(409); });",
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
-                  "pm.test('duplicate report number error returned', function () { pm.expect(json.error).to.eql('duplicate_report_number'); });"
+                  "pm.test('report number is server-assigned', function () { pm.expect(json.reportNumber).to.be.a('string').and.not.empty; });",
+                  "pm.test('server keeps report numbers unique per organization', function () { pm.expect(json.reportNumber).to.not.eql(pm.collectionVariables.get('firstJobReportNumber')); });"
                 ]
               }
             }
