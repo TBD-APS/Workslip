@@ -14,6 +14,7 @@ Documentation should make important behaviour easier to understand without becom
 | What is the public/runtime API contract? | Endpoint registrations and runtime OpenAPI |
 | Why was a durable technical choice made? | Accepted ADR |
 | How is production operated? | Current infrastructure/workflow definitions plus maintained runbooks |
+| What is the current product/company strategy, ICP and go-to-market direction? | [`strategy/WORKSLIP_STRATEGY.md`](strategy/WORKSLIP_STRATEGY.md) |
 | What work is planned/in progress? | Linear |
 | What did we previously plan or try? | Git/PR/Linear history |
 | What does law/contract require? | Current authoritative legal sources, signed terms and approved compliance records |
@@ -37,6 +38,7 @@ Do not keep issue implementation plans, completed task specs or superseded runbo
 | Pull-request evidence | [`../.github/pull_request_template.md`](../.github/pull_request_template.md) | Active |
 | Agent rules | [`../AGENTS.md`](../AGENTS.md) | Active |
 | Documentation rules | [`AGENTS.md`](AGENTS.md) | Active |
+| Product/company strategy | [`strategy/WORKSLIP_STRATEGY.md`](strategy/WORKSLIP_STRATEGY.md) | Active |
 | Validation | [`agents/VALIDATION.md`](agents/VALIDATION.md) | Active |
 | Frontend | [`../src/FE/README.md`](../src/FE/README.md) | Active |
 | Backend/API host | [`../src/BE/WorkslipApi/README.md`](../src/BE/WorkslipApi/README.md) | Active |
