@@ -51,6 +51,7 @@ public sealed record ApplicationEnvironmentRegistration(
     IReadOnlyList<ControlCenterSourceRegistration> Sources);
 
 public sealed record ObservedSignal<TState>(
+    ControlCenterSignalKind Kind,
     TState State,
     DateTimeOffset ObservedAt,
     DateTimeOffset? FreshUntil,
