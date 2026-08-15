@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
 import { notify } from '../../../lib/toast';
 import type { JobAuditorScopeDraft } from '../api/auditorScopeApi';
 import { setJobAuditorScope } from '../api/auditorScopeApi';
@@ -10,13 +11,18 @@ const DEFAULT_AUDITOR_SCOPE: JobAuditorScopeDraft = {
   reason: '',
 };
 
+type ResetPreserve = {
+  customerId?: string | null;
+  customerSnapshot?: CustomerSnapshotData | null;
+};
+
 /**
  * Keeps the Admin-only auditor decision on the creation surface instead of the
- * six-step job flow. The existing backend deliberately owns auditor scope in a
- * separate Admin mutation, so creation first produces a Draft with no work /
- * installation selection and then applies the scope before this hook lets the
- * user leave the create flow. A Draft without a matching installation type
- * cannot pass the server-side auditor discipline scope.
+ * six-step job flow. The backend owns auditor scope in a separate Admin mutation,
+ * so creation first produces a Draft with no work / installation selection and
+ * then applies the scope before this hook lets the user leave the create flow.
+ * A Draft without a matching installation type cannot pass the server-side
+ * auditor discipline scope.
  */
 export function useJobCreateWithAuditorScope(
   onCreated: (jobIds: string[]) => void,
@@ -31,13 +37,13 @@ export function useJobCreateWithAuditorScope(
   const applyAuditorScope = useCallback(async (
     jobIds: string[],
     completeCreatedJobIds: string[],
-  ) => {
+  ): Promise<boolean> => {
     if (auditorScope.isInAuditorScope) {
       setPendingAuditorScopeJobIds([]);
       setAllCreatedJobIds([]);
       setAuditorScopeError(false);
       onCreated(completeCreatedJobIds);
-      return;
+      return true;
     }
 
     setIsSavingAuditorScope(true);
@@ -68,13 +74,14 @@ export function useJobCreateWithAuditorScope(
         'Sagen er oprettet, men auditøradgangen kunne ikke gemmes. Prøv igen herfra.',
         { id: 'job-create-auditor-scope-error' },
       );
-      return;
+      return false;
     }
 
     setPendingAuditorScopeJobIds([]);
     setAllCreatedJobIds([]);
     setAuditorScopeError(false);
     onCreated(completeCreatedJobIds);
+    return true;
   }, [auditorScope.isInAuditorScope, auditorScope.reason, onCreated]);
 
   const handleBaseCreated = useCallback((jobIds: string[]) => {
@@ -86,29 +93,31 @@ export function useJobCreateWithAuditorScope(
 
   const retryAuditorScope = useCallback(() => {
     if (pendingAuditorScopeJobIds.length === 0 || allCreatedJobIds.length === 0) return;
-    void applyAuditorScope(pendingAuditorScopeJobIds, allCreatedJobIds).then(() => {
-      notify.success('Auditøradgangen er gemt', { id: 'job-create-auditor-scope-retry-success' });
-    });
+
+    void (async () => {
+      const saved = await applyAuditorScope(pendingAuditorScopeJobIds, allCreatedJobIds);
+      if (saved) {
+        notify.success('Auditøradgangen er gemt', { id: 'job-create-auditor-scope-retry-success' });
+      }
+    })();
   }, [allCreatedJobIds, applyAuditorScope, pendingAuditorScopeJobIds]);
 
-  const save = useCallback(() => {
+  const save = () => {
     if (pendingAuditorScopeJobIds.length > 0) {
       retryAuditorScope();
       return;
     }
     create.save();
-  }, [create, pendingAuditorScopeJobIds.length, retryAuditorScope]);
+  };
 
-  const reset = useCallback((
-    preserve?: { customerId?: string | null; customerSnapshot?: Parameters<typeof create.reset>[0] extends infer P ? P extends { customerSnapshot?: infer S } ? S : never : never },
-  ) => {
-    create.reset(preserve as Parameters<typeof create.reset>[0]);
+  const reset = (preserve?: ResetPreserve) => {
+    create.reset(preserve);
     setAuditorScope(DEFAULT_AUDITOR_SCOPE);
     setPendingAuditorScopeJobIds([]);
     setAllCreatedJobIds([]);
     setIsSavingAuditorScope(false);
     setAuditorScopeError(false);
-  }, [create]);
+  };
 
   return {
     ...create,
