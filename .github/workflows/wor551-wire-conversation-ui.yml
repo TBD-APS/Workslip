@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   wire:
-    if: github.event.head_commit.message == 'WOR-551 temporary conversation UI wiring'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -28,18 +27,8 @@ jobs:
           if import_anchor not in text:
               raise SystemExit('JobDetails import anchor not found')
           text = text.replace(import_anchor, import_anchor + "\nimport { JobConversationLauncher } from './JobConversationLauncher';", 1)
-          header_anchor = '''        onShowHistory={() => setHistoryOpen(true)}
-      />
-      <StepIndicators'''
-          header_replacement = '''        onShowHistory={() => setHistoryOpen(true)}
-      />
-      <div className="job-conversation-entry">
-        <JobConversationLauncher
-          jobId={details.job.id}
-          allowSubmitForReview={canSubmitForReview}
-        />
-      </div>
-      <StepIndicators'''
+          header_anchor = "        onShowHistory={() => setHistoryOpen(true)}\n      />\n      <StepIndicators"
+          header_replacement = "        onShowHistory={() => setHistoryOpen(true)}\n      />\n      <div className=\"job-conversation-entry\">\n        <JobConversationLauncher\n          jobId={details.job.id}\n          allowSubmitForReview={canSubmitForReview}\n        />\n      </div>\n      <StepIndicators"
           if header_anchor not in text:
               raise SystemExit('JobDetails header anchor not found')
           details.write_text(text.replace(header_anchor, header_replacement, 1))
@@ -55,19 +44,8 @@ jobs:
           if import_anchor not in text:
               raise SystemExit('CompletedJobReport import anchor not found')
           text = text.replace(import_anchor, import_anchor + "\nimport { JobConversationLauncher } from '../components/JobConversationLauncher';", 1)
-          history_anchor = '''          <button
-            className="btn btn-secondary report-overview-icon-action"
-            type="button"
-            onClick={() => setHistoryOpen(true)}'''
-          history_replacement = '''          <JobConversationLauncher
-            jobId={job.id}
-            allowSubmitForReview={job.status === JobStatus.Draft || job.status === JobStatus.Rejected}
-            compact
-          />
-          <button
-            className="btn btn-secondary report-overview-icon-action"
-            type="button"
-            onClick={() => setHistoryOpen(true)}'''
+          history_anchor = "          <button\n            className=\"btn btn-secondary report-overview-icon-action\"\n            type=\"button\"\n            onClick={() => setHistoryOpen(true)}"
+          history_replacement = "          <JobConversationLauncher\n            jobId={job.id}\n            allowSubmitForReview={job.status === JobStatus.Draft || job.status === JobStatus.Rejected}\n            compact\n          />\n          <button\n            className=\"btn btn-secondary report-overview-icon-action\"\n            type=\"button\"\n            onClick={() => setHistoryOpen(true)}"
           if history_anchor not in text:
               raise SystemExit('CompletedJobReport history button anchor not found')
           completed.write_text(text.replace(history_anchor, history_replacement, 1))
