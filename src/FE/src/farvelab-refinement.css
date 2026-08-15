@@ -35,13 +35,41 @@ html[data-theme="day"] body:has(.app-shell) {
   --border-strong: #c8d4e3;
   --surface-border: var(--border);
   --focus-ring: #2563eb;
-  --shadow-sm: 0 8px 22px rgba(20, 33, 61, 0.06);
-  --shadow-sm-raw: 0 3px 10px rgba(20, 33, 61, 0.06);
-  --shadow-lg: 0 24px 60px rgba(20, 33, 61, 0.12);
-  --shadow-accent: 0 10px 24px rgba(37, 99, 235, 0.18);
+  --shadow-sm: 0 6px 18px rgba(20, 33, 61, 0.055);
+  --shadow-sm-raw: 0 2px 8px rgba(20, 33, 61, 0.055);
+  --shadow-lg: 0 20px 52px rgba(20, 33, 61, 0.11);
+  --shadow-accent: 0 7px 18px rgba(37, 99, 235, 0.16);
 
   --nav-bg: rgba(255, 255, 255, 0.95);
   --safe-area-top-bg: #f4f7fb;
+}
+
+html[data-theme="night"] body:has(.app-shell) {
+  --on-primary: #ffffff;
+  --shadow-sm: 0 7px 20px rgba(1, 5, 16, 0.14);
+  --shadow-sm-raw: 0 3px 10px rgba(1, 5, 16, 0.13);
+  --shadow-lg: 0 22px 58px rgba(1, 5, 16, 0.3);
+  --shadow-accent: 0 8px 22px rgba(76, 102, 255, 0.2);
+}
+
+/* The app viewport must never become a horizontal scroll container. Keep
+ * feature-level intentional scrollers local (tables, chips, carousels) instead. */
+html:has(.app-shell),
+body:has(.app-shell),
+body:has(.app-shell) #root,
+body:has(.app-shell) .app-shell,
+body:has(.app-shell) .app-content,
+body:has(.app-shell) .page-container {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+html:has(.app-shell),
+body:has(.app-shell),
+body:has(.app-shell) #root,
+body:has(.app-shell) .app-shell {
+  overflow-x: clip;
 }
 
 html body:has(.app-shell) .app-shell {
@@ -69,6 +97,93 @@ html body:has(.app-shell) :is(.overview-recent-row, .data-table tbody tr):focus-
   outline-offset: -2px;
 }
 
+/* Filled actions always use high-contrast white foregrounds. Secondary and
+ * ghost actions remain neutral so hierarchy is still visible. */
+html body:has(.app-shell) :is(
+  .btn-primary,
+  .btn-danger,
+  .fab-create,
+  .status-filter-btn.selected
+) {
+  color: #ffffff;
+}
+
+html body:has(.app-shell) :is(.btn-primary, .btn-danger, .fab-create) {
+  box-shadow: var(--shadow-accent);
+}
+
+html body:has(.app-shell) :is(.btn-secondary, .btn-outline, .btn-outline-danger) {
+  box-shadow: var(--shadow-sm-raw);
+}
+
+/* Keep lift feedback deliberate and subtle. */
+@media (hover: hover) and (pointer: fine) {
+  html body:has(.app-shell) :is(
+    .btn-primary,
+    .btn-danger,
+    .fab-create,
+    .job-card,
+    .customer-card,
+    .overview-recent-card,
+    .time-overview-card,
+    .notification-item
+  ):hover {
+    transform: translateY(-1px);
+  }
+}
+
+/* Notification inbox uses the same semantic surfaces/elevation as the rest of
+ * the app. Push delivery itself stays owned by the service-worker/provider flow. */
+html body:has(.app-shell) .notifications-drawer {
+  background: var(--surface-modal);
+  border-left-color: var(--border);
+  box-shadow: var(--shadow-lg);
+}
+
+html body:has(.app-shell) .notifications-drawer .drawer-header {
+  background: color-mix(in srgb, var(--surface-modal) 94%, transparent);
+  border-bottom-color: var(--border);
+}
+
+html body:has(.app-shell) :is(.notifications-hero, .notifications-tabs, .notification-item) {
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm-raw);
+}
+
+html body:has(.app-shell) .notifications-hero {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--surface-selected) 52%, var(--surface-floating)),
+    var(--surface-floating)
+  );
+}
+
+html body:has(.app-shell) .notifications-tabs {
+  background: var(--surface-raised);
+}
+
+html body:has(.app-shell) .notifications-tabs button.active {
+  background: var(--surface-floating);
+  color: var(--text);
+  box-shadow: var(--shadow-sm-raw);
+}
+
+html body:has(.app-shell) .notification-item {
+  background: var(--surface-floating);
+}
+
+html body:has(.app-shell) .notification-item-unread {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--surface-selected) 76%, var(--surface-floating)),
+    var(--surface-floating) 58%
+  );
+}
+
+html body:has(.app-shell) .notification-badge {
+  color: #ffffff;
+}
+
 /* Docs remains routable, but is intentionally not part of the field-worker primary navigation. */
 html body:has(.app-shell) .app-header-actions > [aria-label="Docs"],
 html body:has(.app-shell) .bottom-nav a[href="/app/docs"] {
@@ -94,4 +209,25 @@ html body:has(.app-shell) .quick-nav-result:hover,
 html body:has(.app-shell) .quick-nav-result.active {
   background: var(--surface-selected);
   border-color: color-mix(in srgb, var(--primary) 24%, var(--border));
+}
+
+@media (max-width: 430px) {
+  html body:has(.app-shell) :is(
+    .app-header,
+    .app-header-actions,
+    .app-content,
+    .page-container,
+    .notifications-drawer,
+    .notifications-list,
+    .notification-item,
+    .notification-item-main
+  ) {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  html body:has(.app-shell) :is(.notification-item-title, .notification-body-line) {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
 }
