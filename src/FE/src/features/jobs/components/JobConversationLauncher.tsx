@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { MessageCircle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { JobConversationDrawer } from './JobConversationDrawer';
+import './JobConversationLauncher.css';
 
 type JobConversationLauncherProps = {
   jobId: string;
