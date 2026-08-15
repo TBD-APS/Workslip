@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   AtSign,
@@ -65,6 +65,7 @@ export function JobConversationDrawer({
   const [composerAction, setComposerAction] = useState<ComposerAction | null>(null);
   const [mentionsOpen, setMentionsOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const readAttemptedRef = useRef(false);
 
   const conversation = useGetApiJobsJobIdConversation(jobId, undefined, {
     query: {
@@ -92,8 +93,17 @@ export function JobConversationDrawer({
   );
 
   useEffect(() => {
-    if (!isOpen || !conversation.data || unreadCount <= 0 || markRead.isPending) return;
+    if (!isOpen) {
+      readAttemptedRef.current = false;
+      return;
+    }
+    if (unreadCount <= 0) {
+      readAttemptedRef.current = false;
+      return;
+    }
+    if (!conversation.data || markRead.isPending || readAttemptedRef.current) return;
 
+    readAttemptedRef.current = true;
     markRead.mutate(
       { jobId },
       {
