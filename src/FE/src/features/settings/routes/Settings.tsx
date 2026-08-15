@@ -175,7 +175,7 @@ export const Settings = () => {
       <div className="page-container">
         <div className="page-header">
           <h2>Administrativt</h2>
-          <p className="subtitle">Administrer invitationer</p>
+          <p className="subtitle">Administrer brugere og virksomhedsindstillinger</p>
         </div>
 
         <div className="section-card">
