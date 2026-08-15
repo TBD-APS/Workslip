@@ -1,4 +1,5 @@
 using Ardalis.Result;
+using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
 using Workslip.Domain;
 using Xunit;
@@ -17,7 +18,7 @@ public sealed class JobOverviewServiceTests
             [JobStatus.Approved] = 11,
             [JobStatus.Rejected] = 2,
         });
-        var service = new JobOverviewService(jobService);
+        var service = new JobOverviewService(jobService, new StubCustomerRepository());
 
         var result = await service.GetAsync(CancellationToken.None);
 
@@ -83,5 +84,20 @@ public sealed class JobOverviewServiceTests
         public Task<Result<JobReportSummaryResponse>> RestoreDeletionAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result> MarkJobAsSeenAsync(Guid id, string? viewType, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task InvalidateJobDetailCacheAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class StubCustomerRepository : ICustomerRepository
+    {
+        public Task<Guid> CreateCustomerAsync(Guid organizationId, CustomerData customer, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<CustomerListItemResponse>> ListAsync(Guid organizationId, int limit, int offset, string? search, string? sortBy, string? sortDirection, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<int> GetCustomerCountAsync(Guid organizationId, string? search, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CustomerDetailResponse?> GetByIdAsync(Guid organizationId, Guid id, CancellationToken cancellationToken) => Task.FromResult<CustomerDetailResponse?>(null);
+        public Task UpdateAsync(Guid organizationId, Guid id, CustomerData customer, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task SetFavoriteAsync(Guid organizationId, Guid id, bool isFavorite, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task DeleteAsync(Guid organizationId, Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<CustomerSearchResponse>> SearchAsync(Guid organizationId, string query, int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<CustomerSearchResponse>> GetFavoriteCustomersAsync(Guid organizationId, int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlySet<string>> GetExistingCustomerNumbersAsync(Guid organizationId, IReadOnlyCollection<string> customerNumbers, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CustomerBulkCreateResult> BulkCreateAsync(Guid organizationId, IReadOnlyList<CustomerData> customers, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }
