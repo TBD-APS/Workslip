@@ -26,6 +26,8 @@ jobs:
       - name: Rebase onto main
         run: |
           set -Eeuo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git fetch origin main
           git rebase origin/main
       - name: Refresh dependency evidence
@@ -36,8 +38,6 @@ jobs:
         run: |
           set -Eeuo pipefail
           rm .github/workflows/wor545-rebase.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
           if ! git diff --cached --quiet; then
             git commit -m 'RBJ-545: refresh dependency evidence after rebase'
