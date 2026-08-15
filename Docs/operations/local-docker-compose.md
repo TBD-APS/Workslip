@@ -15,7 +15,9 @@
 - `api` starts after `db` is healthy and reuses the existing Development startup path: on a fresh database it creates the schema from the EF model, baselines the migration ledger, seeds synthetic development data, and applies any pending `src/BE/infrastructure/database/migrations/*.sql` — the same behavior as running the backend natively against a fresh local SQL.
 - The startup's local-SQL safety guard only trusts provably-local hosts (`localhost`, `127.0.0.1`, …). The compose service host `db` is opted in explicitly via `WORKSLIP_ADDITIONAL_LOCAL_SQL_HOSTS=db`; the guard stays closed everywhere that variable is not set.
 - API source is volume-mounted at the repo-mirrored path `/src/BE/WorkslipApi`; `bin`/`obj` are shadowed with container-local volumes so host and container build artifacts never mix.
-- `fe` volume-mounts `src/FE` with a container-native `node_modules` volume (esbuild/rollup binaries are OS-specific). The browser calls the API directly on `http://localhost:5262` via `VITE_API_BASE_URL`; backend CORS already allows the 5270 origin.
+- `fe` volume-mounts `src/FE` with a container-native `node_modules` volume (esbuild/rollup binaries are OS-specific).
+- Browser API requests stay same-origin (`VITE_API_BASE_URL=/`). Vite proxies `/api` to `http://api:5262` inside the Compose network via `VITE_DEV_PROXY_TARGET`, so `localhost` versus `127.0.0.1` does not create browser CORS failures.
+- Local QA should use the Development-only `Dev Login` buttons on `/login`. Microsoft/Entra Vite variables are not required for the synthetic local dev-login flow.
 
 ## Everyday commands
 
@@ -27,6 +29,10 @@ docker compose down -v       # stop and wipe DB/node_modules/nuget volumes
 ```
 
 The native workflow (`./dev.ps1`, backend and frontend on the host) keeps working unchanged — it expects SQL on `localhost,1433`, which `docker compose up -d db` provides.
+
+## Local authentication
+
+For local browser QA open `/login` and use one of the Development-only buttons, normally `Dev Login · Admin`. That calls `/api/dev/token` through the same-origin Vite proxy. Do not copy production Entra secrets or production configuration into the local Compose stack just to make browser QA work.
 
 ## Migrating from the manual containers
 
