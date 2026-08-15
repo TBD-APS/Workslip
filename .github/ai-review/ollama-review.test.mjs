@@ -47,7 +47,11 @@ const server = http.createServer((req, res) => {
   req.setEncoding('utf8');
   req.on('data', (chunk) => { body += chunk; });
   req.on('end', () => {
-    requests.push({ url: req.url, body: JSON.parse(body) });
+    requests.push({
+      url: req.url,
+      authorization: req.headers.authorization || '',
+      body: JSON.parse(body),
+    });
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({
       message: {
@@ -65,31 +69,53 @@ const server = http.createServer((req, res) => {
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const address = server.address();
 assert.equal(typeof address, 'object');
+const fakeBaseUrl = `http://127.0.0.1:${address.port}`;
 
-const fixture = makeFixture();
+const localFixture = makeFixture();
+const cloudFixture = makeFixture();
 try {
-  const result = await runScript(fixture, {
-    OLLAMA_BASE_URL: `http://127.0.0.1:${address.port}`,
-    OLLAMA_MODEL: 'test-code-model',
+  const localResult = await runScript(localFixture, {
+    OLLAMA_BASE_URL: fakeBaseUrl,
+    OLLAMA_MODEL: 'local-test-code-model',
     OLLAMA_TIMEOUT_MS: '5000',
+    OLLAMA_API_KEY: '',
   });
 
-  assert.equal(result.code, 0, result.stderr);
+  assert.equal(localResult.code, 0, localResult.stderr);
   assert.equal(requests.length, 1);
   assert.equal(requests[0].url, '/api/chat');
-  assert.equal(requests[0].body.model, 'test-code-model');
+  assert.equal(requests[0].authorization, '');
+  assert.equal(requests[0].body.model, 'local-test-code-model');
   assert.equal(requests[0].body.stream, false);
   assert.equal(requests[0].body.options.temperature, 0.1);
   assert.equal(requests[0].body.format.type, 'object');
+  assert.match(requests[0].body.messages[0].content, /required JSON schema/i);
   assert.match(requests[0].body.messages[1].content, /BEGIN UNTRUSTED_PR_DATA/);
   assert.match(requests[0].body.messages[1].content, /Untrusted diff content/);
 
-  const raw = JSON.parse(fs.readFileSync(path.join(fixture, 'ollama-raw.json'), 'utf8'));
-  assert.equal(raw.summary, 'Looks safe.');
-  assert.deepEqual(raw.findings, []);
+  const cloudResult = await runScript(cloudFixture, {
+    OLLAMA_BASE_URL: fakeBaseUrl,
+    OLLAMA_MODEL: 'cloud-test-code-model',
+    OLLAMA_TIMEOUT_MS: '5000',
+    OLLAMA_API_KEY: 'test-secret',
+  });
+
+  assert.equal(cloudResult.code, 0, cloudResult.stderr);
+  assert.equal(requests.length, 2);
+  assert.equal(requests[1].authorization, 'Bearer test-secret');
+  assert.equal(requests[1].body.model, 'cloud-test-code-model');
+  assert.equal(Object.hasOwn(requests[1].body, 'format'), false, 'Ollama Cloud must not receive structured-output format');
+  assert.match(requests[1].body.messages[0].content, /required JSON schema/i);
+
+  const localRaw = JSON.parse(fs.readFileSync(path.join(localFixture, 'ollama-raw.json'), 'utf8'));
+  const cloudRaw = JSON.parse(fs.readFileSync(path.join(cloudFixture, 'ollama-raw.json'), 'utf8'));
+  assert.equal(localRaw.summary, 'Looks safe.');
+  assert.equal(cloudRaw.summary, 'Looks safe.');
+  assert.deepEqual(cloudRaw.findings, []);
 } finally {
   server.close();
-  fs.rmSync(fixture, { recursive: true, force: true });
+  fs.rmSync(localFixture, { recursive: true, force: true });
+  fs.rmSync(cloudFixture, { recursive: true, force: true });
 }
 
-console.log('Ollama AI review provider tests passed');
+console.log('Ollama AI review provider local/cloud tests passed');
