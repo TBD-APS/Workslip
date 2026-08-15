@@ -28,6 +28,7 @@ MAINTAINED_DOC_PATTERNS = (
     "Docs/compliance/GDPR_AI_ACT_BASELINE.md",
     "Docs/operations/*.md",
     "Docs/release/*.md",
+    "Docs/strategy/*.md",
     "Docs/testing/*.md",
     "site/*.md",
     "src/FE/README.md",
