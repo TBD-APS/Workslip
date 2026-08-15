@@ -173,7 +173,7 @@ public sealed class JobConversationService(
         if (!access.IsSuccess)
             return MapFailure<ConversationMessageResponse>(access);
 
-        var (organizationId, userId, _) = access.Value;
+        var (organizationId, userId, job) = access.Value;
         var message = await repository.GetByIdAsync(
             organizationId,
             jobId,
@@ -193,12 +193,20 @@ public sealed class JobConversationService(
 
         if (message.Action.Type == ConversationActionType.SubmitForReview)
         {
-            var transition = await jobs.ChangeStatusAsync(
-                jobId,
-                new ChangeJobStatusRequest(JobStatus.InReview),
-                cancellationToken);
-            if (!transition.IsSuccess)
-                return MapFailure<ConversationMessageResponse>(transition);
+            if (job.Status is JobStatus.Draft or JobStatus.Rejected)
+            {
+                var transition = await jobs.ChangeStatusAsync(
+                    jobId,
+                    new ChangeJobStatusRequest(JobStatus.InReview),
+                    cancellationToken);
+                if (!transition.IsSuccess)
+                    return MapFailure<ConversationMessageResponse>(transition);
+            }
+            else if (job.Status != JobStatus.InReview)
+            {
+                return Result<ConversationMessageResponse>.Conflict(
+                    "Sagen kan ikke længere sendes til gennemgang fra den aktuelle status.");
+            }
         }
 
         var resolved = await repository.TryResolveActionAsync(
