@@ -9,6 +9,7 @@ import { deleteProfileImage, uploadProfileImage } from '../../images/imageApi';
 import { profileImageQueryKey } from '../../images/imageQueryKeys';
 import { ProfileAvatar } from '../../images/ProfileAvatar';
 import { useProfileImage } from '../../images/profileImageQuery';
+import './Profile.css';
 
 const roleLabels: Record<string, string> = {
   Admin: 'Administrator',
@@ -105,21 +106,11 @@ export const Profile = () => {
   return (
     <div className="page-container">
       {fromInvite && (
-        <div style={{
-          padding: '1rem 1.25rem',
-          background: 'rgba(34, 197, 94, 0.1)',
-          border: '1px solid rgba(34, 197, 94, 0.25)',
-          borderRadius: '12px',
-          marginBottom: '1rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-          color: '#22c55e',
-        }}>
-          <PartyPopper size={20} />
-          <div>
-            <div style={{ fontWeight: 600 }}>Velkommen til Workslip!</div>
-            <div style={{ fontSize: '0.85rem', opacity: 0.85 }}>Din konto er oprettet. Du er nu klar til at gå i gang.</div>
+        <div className="profile-welcome-banner" role="status">
+          <PartyPopper size={20} aria-hidden="true" />
+          <div className="profile-welcome-banner-copy">
+            <div className="profile-welcome-banner-title">Velkommen til Workslip!</div>
+            <div className="profile-welcome-banner-description">Din konto er oprettet. Du er nu klar til at gå i gang.</div>
           </div>
         </div>
       )}
@@ -159,7 +150,7 @@ export const Profile = () => {
                     onClick={() => profileInputRef.current?.click()}
                     disabled={profileImageBusy}
                   >
-                    {profileUploadMutation.isPending ? <Loader2 size={15} className="spin" /> : <Camera size={15} />}
+                    {profileUploadMutation.isPending ? <Loader2 size={15} className="spin" aria-hidden="true" /> : <Camera size={15} aria-hidden="true" />}
                     {profileImageQuery.data ? 'Skift billede' : 'Tilføj billede'}
                   </button>
                   {profileImageQuery.data && (
@@ -169,7 +160,7 @@ export const Profile = () => {
                       onClick={() => profileDeleteMutation.mutate()}
                       disabled={profileImageBusy}
                     >
-                      {profileDeleteMutation.isPending ? <Loader2 size={15} className="spin" /> : <Trash2 size={15} />}
+                      {profileDeleteMutation.isPending ? <Loader2 size={15} className="spin" aria-hidden="true" /> : <Trash2 size={15} aria-hidden="true" />}
                       Fjern
                     </button>
                   )}
@@ -178,7 +169,7 @@ export const Profile = () => {
             </div>
             {!isEditing && (
               <button className="btn-icon" type="button" onClick={handleStartEdit} aria-label="Rediger profil" style={{ flexShrink: 0 }}>
-                <Pencil size={16} />
+                <Pencil size={16} aria-hidden="true" />
               </button>
             )}
           </div>
@@ -193,7 +184,7 @@ export const Profile = () => {
                   id="profile-display-name"
                   className="form-input"
                   value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
+                  onChange={(event) => setDisplayName(event.target.value)}
                   placeholder="Dit navn"
                 />
               </div>
@@ -203,25 +194,25 @@ export const Profile = () => {
                   id="profile-phone"
                   className="form-input"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(event) => setPhone(event.target.value)}
                   placeholder="Telefonnummer"
                 />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-secondary)' }}>
-                <Mail size={16} />
+                <Mail size={16} aria-hidden="true" />
                 <span style={{ color: 'var(--text-primary)' }}>{user.email}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-secondary)' }}>
-                <Shield size={16} />
+                <Shield size={16} aria-hidden="true" />
                 <span style={{ color: 'var(--text-primary)' }}>{roleLabels[user.role] ?? user.role}</span>
               </div>
               <div className="profile-edit-actions">
                 <button className="btn btn-secondary" type="button" onClick={handleCancel} disabled={patchMutation.isPending}>
-                  <X size={16} />
+                  <X size={16} aria-hidden="true" />
                   Annuller
                 </button>
                 <button className="btn btn-primary" type="button" onClick={handleSave} disabled={patchMutation.isPending}>
-                  {patchMutation.isPending ? <Loader2 size={16} className="spin" /> : <Save size={16} />}
+                  {patchMutation.isPending ? <Loader2 size={16} className="spin" aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
                   {patchMutation.isPending ? 'Gemmer...' : 'Gem'}
                 </button>
               </div>
@@ -229,15 +220,15 @@ export const Profile = () => {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-secondary)' }}>
-                <User size={16} />
+                <User size={16} aria-hidden="true" />
                 <span style={{ color: 'var(--text-primary)' }}>{user.displayName}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-secondary)' }}>
-                <Mail size={16} />
+                <Mail size={16} aria-hidden="true" />
                 <span style={{ color: 'var(--text-primary)' }}>{user.email}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-secondary)' }}>
-                <Shield size={16} />
+                <Shield size={16} aria-hidden="true" />
                 <span style={{ color: 'var(--text-primary)' }}>{roleLabels[user.role] ?? user.role}</span>
               </div>
             </div>
