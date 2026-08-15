@@ -79,7 +79,7 @@ export const AuditorReportList = () => {
 
   const handleSort = (field: string) => {
     if (sortBy === field) {
-      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+      setSortDirection((direction) => (direction === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortBy(field);
       setSortDirection('asc');
@@ -131,7 +131,7 @@ export const AuditorReportList = () => {
       job.customer?.contactPerson,
       job.customer?.phone,
       job.reportNumber,
-      ...job.assignedUsers.map((u) => u.displayName),
+      ...job.assignedUsers.map((user) => user.displayName),
     ].some((value) => value?.toLowerCase().includes(term)),
   );
 
@@ -232,104 +232,112 @@ export const AuditorReportList = () => {
 
       {isDesktop ? (
         <>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th className={`col-number sortable${sortBy === 'reportNumber' ? ' sorted' : ''}`}>
-                <button type="button" className="sort-trigger" onClick={() => handleSort('reportNumber')}>
-                  Sagsnr.<span className="sort-icon">{sortBy === 'reportNumber' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </button>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
-              </th>
-              <th className={`col-name sortable${sortBy === 'name' ? ' sorted' : ''}`}>
-                <button type="button" className="sort-trigger" onClick={() => handleSort('name')}>
-                  Kunde<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </button>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
-              </th>
-              <th className={`col-address sortable${sortBy === 'address' ? ' sorted' : ''}`}>
-                <button type="button" className="sort-trigger" onClick={() => handleSort('address')}>
-                  Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </button>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
-              </th>
-              <th className="col-status">
-                Status
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
-              </th>
-              <th className="col-installation">
-                Anlæg
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(4, e)} />
-              </th>
-              <th className={`col-hours sortable${sortBy === 'totalHours' ? ' sorted' : ''}`}>
-                <button type="button" className="sort-trigger" onClick={() => handleSort('totalHours')}>
-                  Timer<span className="sort-icon">{sortBy === 'totalHours' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </button>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(5, e)} />
-              </th>
-              <th className="col-users">
-                Medarbejdere
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(6, e)} />
-              </th>
-              <th className={`col-date sortable${sortBy === 'reportDate' ? ' sorted' : ''}`}>
-                <button type="button" className="sort-trigger" onClick={() => handleSort('reportDate')}>
-                  Rapp. dato<span className="sort-icon">{sortBy === 'reportDate' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </button>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(7, e)} />
-              </th>
-              <th className={`col-date sortable${sortBy === 'updatedAt' ? ' sorted' : ''}`}>
-                <button type="button" className="sort-trigger" onClick={() => handleSort('updatedAt')}>
-                  Opdateret<span className="sort-icon">{sortBy === 'updatedAt' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </button>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(8, e)} />
-              </th>
-              <th className="col-actions">
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(9, e)} />
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {displayedJobs.map((job) => (
-              <tr
-                key={job.id}
-                className="clickable"
-                onClick={() => navigate(`/app/completed/${job.id}`, { state: { from: '/app/auditor', readOnly: true } })}
-              >
-                <td><span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span></td>
-                <td>{job.customer?.name || 'Ukendt kunde'}</td>
-                <td>
-                  <span>{job.customer?.address || '—'}</span>
-                  <CopyAddressButton address={job.customer?.address} />
-                </td>
-                <td>
-                  <span className={`status-badge-cell cell-status-${job.status}`}>
-                    {formatJobStatus(job.status)}
-                  </span>
-                </td>
-                <td><InstallationTypeTags types={job.installationTypes} /></td>
-                <td className="cell-number">{job.totalHours != null ? `${job.totalHours}` : '—'}</td>
-                <td>
-                  <AuditorTableAssignedUsers users={job.assignedUsers} />
-                </td>
-                <td className="cell-date">{formatDateLong(job.reportDate) ?? '—'}</td>
-                <td className="cell-date">{formatDateLong(job.updatedAt) ?? '—'}</td>
-                <td className="col-actions">
-                  <ChevronRight size={16} className="row-link-icon" />
-                </td>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th className={`col-number sortable${sortBy === 'reportNumber' ? ' sorted' : ''}`}>
+                  <button type="button" className="sort-trigger" onClick={() => handleSort('reportNumber')}>
+                    Sagsnr.<span className="sort-icon">{sortBy === 'reportNumber' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                  </button>
+                  <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(0, event)} />
+                </th>
+                <th className={`col-name sortable${sortBy === 'name' ? ' sorted' : ''}`}>
+                  <button type="button" className="sort-trigger" onClick={() => handleSort('name')}>
+                    Kunde<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                  </button>
+                  <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(1, event)} />
+                </th>
+                <th className={`col-address sortable${sortBy === 'address' ? ' sorted' : ''}`}>
+                  <button type="button" className="sort-trigger" onClick={() => handleSort('address')}>
+                    Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                  </button>
+                  <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(2, event)} />
+                </th>
+                <th className="col-status">
+                  Status
+                  <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(3, event)} />
+                </th>
+                <th className="col-installation">
+                  Anlæg
+                  <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(4, event)} />
+                </th>
+                <th className={`col-hours sortable${sortBy === 'totalHours' ? ' sorted' : ''}`}>
+                  <button type="button" className="sort-trigger" onClick={() => handleSort('totalHours')}>
+                    Timer<span className="sort-icon">{sortBy === 'totalHours' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                  </button>
+                  <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(5, event)} />
+                </th>
+                <th className="col-users">
+                  Medarbejdere
+                  <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(6, event)} />
+                </th>
+                <th className={`col-date sortable${sortBy === 'reportDate' ? ' sorted' : ''}`}>
+                  <button type="button" className="sort-trigger" onClick={() => handleSort('reportDate')}>
+                    Rapp. dato<span className="sort-icon">{sortBy === 'reportDate' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                  </button>
+                  <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(7, event)} />
+                </th>
+                <th className={`col-date sortable${sortBy === 'updatedAt' ? ' sorted' : ''}`}>
+                  <button type="button" className="sort-trigger" onClick={() => handleSort('updatedAt')}>
+                    Opdateret<span className="sort-icon">{sortBy === 'updatedAt' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                  </button>
+                  <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(8, event)} />
+                </th>
+                <th className="col-actions">
+                  <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(9, event)} />
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        <PaginationControls
-          page={safeViewPage}
-          totalCount={jobs.length}
-          pageSize={PAGE_SIZE}
-          hasNextPage={query.hasNextPage ?? false}
-          isFetchingNextPage={query.isFetchingNextPage}
-          onPrev={() => setViewPage((p) => p - 1)}
-          onNext={() => setViewPage((p) => p + 1)}
-          onLoadMore={() => { void query.fetchNextPage(); }}
-        />
+            </thead>
+            <tbody>
+              {displayedJobs.map((job) => (
+                <tr
+                  key={job.id}
+                  className="clickable"
+                  tabIndex={0}
+                  onClick={() => navigate(`/app/completed/${job.id}`, { state: { from: '/app/auditor', readOnly: true } })}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      navigate(`/app/completed/${job.id}`, { state: { from: '/app/auditor', readOnly: true } });
+                    }
+                  }}
+                >
+                  <td><span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span></td>
+                  <td>{job.customer?.name || 'Ukendt kunde'}</td>
+                  <td>
+                    <span>{job.customer?.address || '—'}</span>
+                    <CopyAddressButton address={job.customer?.address} />
+                  </td>
+                  <td>
+                    <span className={`status-badge-cell cell-status-${job.status}`}>
+                      {formatJobStatus(job.status)}
+                    </span>
+                  </td>
+                  <td><InstallationTypeTags types={job.installationTypes} /></td>
+                  <td className="cell-number">{job.totalHours != null ? `${job.totalHours}` : '—'}</td>
+                  <td>
+                    <AuditorTableAssignedUsers users={job.assignedUsers} />
+                  </td>
+                  <td className="cell-date">{formatDateLong(job.reportDate) ?? '—'}</td>
+                  <td className="cell-date">{formatDateLong(job.updatedAt) ?? '—'}</td>
+                  <td className="col-actions">
+                    <ChevronRight size={16} className="row-link-icon" aria-hidden="true" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <PaginationControls
+            page={safeViewPage}
+            totalCount={jobs.length}
+            pageSize={PAGE_SIZE}
+            hasNextPage={query.hasNextPage ?? false}
+            isFetchingNextPage={query.isFetchingNextPage}
+            onPrev={() => setViewPage((page) => page - 1)}
+            onNext={() => setViewPage((page) => page + 1)}
+            onLoadMore={() => { void query.fetchNextPage(); }}
+          />
         </>
       ) : (
         <>
@@ -387,7 +395,10 @@ function ReportCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => 
       onClick={onOpen}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return;
-        if (event.key === 'Enter' || event.key === ' ') onOpen();
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onOpen();
+        }
       }}
       role="link"
       tabIndex={0}
@@ -402,7 +413,7 @@ function ReportCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => 
         </span>
       </div>
       <p className="job-address-row">
-        <MapPin size={14} />
+        <MapPin size={14} aria-hidden="true" />
         <span className="job-address">{address || 'Ingen adresse angivet'}</span>
         <CopyAddressButton address={address} />
       </p>
@@ -410,14 +421,14 @@ function ReportCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => 
         <span className="meta-item"><InstallationTypeTags types={job.installationTypes} /></span>
         {job.totalHours != null && (
           <span className="meta-item meta-hours">
-            <Timer size={14} /> {job.totalHours} timer
+            <Timer size={14} aria-hidden="true" /> {job.totalHours} timer
           </span>
         )}
       </div>
       <div className="job-card-footer">
         <AssignedUsers users={job.assignedUsers} />
         <span className="btn-icon" aria-label="Åbn rapport">
-          <ChevronRight size={20} />
+          <ChevronRight size={20} aria-hidden="true" />
         </span>
       </div>
     </div>
@@ -428,7 +439,7 @@ function AssignedUsers({ users }: { users: JobListItemViewModel['assignedUsers']
   if (users.length === 0) {
     return (
       <span className="unassigned">
-        <User size={12} />
+        <User size={12} aria-hidden="true" />
         <span>Ikke tildelt</span>
       </span>
     );
@@ -437,7 +448,7 @@ function AssignedUsers({ users }: { users: JobListItemViewModel['assignedUsers']
     <div className="job-assigned">
       {users.slice(0, 2).map((user) => (
         <span key={user.id} className="assigned-user">
-          <User size={12} />
+          <User size={12} aria-hidden="true" />
           <span>{user.displayName}</span>
         </span>
       ))}
