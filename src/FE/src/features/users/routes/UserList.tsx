@@ -120,7 +120,6 @@ export const UserList = () => {
         <ErrorState message="Kunne ikke hente brugere. Prøv igen." onRetry={() => void refetch()} />
       ) : showLoadingSkeleton || showPageLoading ? (
         isDesktop ? (
-          <>
           <table className="data-table">
             <thead>
               <tr>
@@ -132,8 +131,8 @@ export const UserList = () => {
               </tr>
             </thead>
             <tbody>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}>
+              {Array.from({ length: 5 }).map((_, index) => (
+                <tr key={index}>
                   <td><div className="skeleton skeleton-w-60" /></td>
                   <td><div className="skeleton skeleton-w-70" /></td>
                   <td><div className="skeleton skeleton-w-40" /></td>
@@ -143,7 +142,6 @@ export const UserList = () => {
               ))}
             </tbody>
           </table>
-          </>
         ) : (
           <div className="job-list">
             <SkeletonCard />
@@ -153,124 +151,133 @@ export const UserList = () => {
         )
       ) : (
         <>
-        {isDesktop ? (
-          <>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th className={`col-name sortable${sortBy === 'displayName' ? ' sorted' : ''}`}>
-                <button type="button" className="sort-trigger" onClick={() => handleSort('displayName')}>
-                  Navn<span className="sort-icon">{sortBy === 'displayName' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+          {isDesktop ? (
+            <>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th className={`col-name sortable${sortBy === 'displayName' ? ' sorted' : ''}`}>
+                      <button type="button" className="sort-trigger" onClick={() => handleSort('displayName')}>
+                        Navn<span className="sort-icon">{sortBy === 'displayName' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                      </button>
+                      <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(0, event)} />
+                    </th>
+                    <th className={`col-email sortable${sortBy === 'email' ? ' sorted' : ''}`}>
+                      <button type="button" className="sort-trigger" onClick={() => handleSort('email')}>
+                        Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                      </button>
+                      <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(1, event)} />
+                    </th>
+                    <th className={`col-role sortable${sortBy === 'role' ? ' sorted' : ''}`}>
+                      <button type="button" className="sort-trigger" onClick={() => handleSort('role')}>
+                        Rolle<span className="sort-icon">{sortBy === 'role' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                      </button>
+                      <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(2, event)} />
+                    </th>
+                    <th className="col-hours">Uge</th>
+                    <th className="col-actions">
+                      <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(3, event)} />
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageItems.map((user) => (
+                    <tr
+                      key={user.id}
+                      className="clickable"
+                      tabIndex={0}
+                      onClick={() => navigate(`/app/users/${user.id}`)}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          navigate(`/app/users/${user.id}`);
+                        }
+                      }}
+                    >
+                      <td><strong>{user.displayName}</strong></td>
+                      <td>
+                        <span className="inline-flex-center">
+                          <Mail size={14} className="text-muted" aria-hidden="true" />
+                          {user.email}
+                        </span>
+                      </td>
+                      <td>
+                        <UserRoleBadge role={user.role} displayName={user.roleDisplayName} />
+                      </td>
+                      <td className="col-hours">{formatHours(user.hoursThisWeek)}</td>
+                      <td className="col-actions">
+                        <ChevronRight size={16} className="row-link-icon" aria-hidden="true" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <PaginationControls
+                page={safeViewPage}
+                totalCount={totalCount}
+                pageSize={PAGE_SIZE}
+                onPrev={() => setViewPage((page) => Math.max(1, page - 1))}
+                onNext={() => {
+                  const nextPage = safeViewPage + 1;
+                  if (nextPage > totalPages) return;
+                  setViewPage(nextPage);
+                }}
+              />
+            </>
+          ) : (
+            <div className="job-list">
+              {pageItems.map((user) => (
+                <button
+                  key={user.id}
+                  className="job-card"
+                  onClick={() => navigate(`/app/users/${user.id}`)}
+                  type="button"
+                >
+                  <div className="job-card-top">
+                    <div>
+                      <h3 className="job-customer">{user.displayName}</h3>
+                    </div>
+                  </div>
+
+                  <div className="job-card-meta">
+                    <span className="meta-item">
+                      <Mail size={14} aria-hidden="true" />
+                      <span>{user.email}</span>
+                    </span>
+                    <UserRoleBadge role={user.role} displayName={user.roleDisplayName} />
+                  </div>
+
+                  <div className="user-hours-row">
+                    <Clock size={14} className="text-muted" aria-hidden="true" />
+                    <span>{formatHours(user.hoursThisWeek)} denne uge</span>
+                  </div>
+
+                  <div className="job-card-footer">
+                    <span />
+                    <span className="btn-icon" aria-label="Se bruger">
+                      <ChevronRight size={20} aria-hidden="true" />
+                    </span>
+                  </div>
                 </button>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
-              </th>
-              <th className={`col-email sortable${sortBy === 'email' ? ' sorted' : ''}`}>
-                <button type="button" className="sort-trigger" onClick={() => handleSort('email')}>
-                  Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </button>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
-              </th>
-              <th className={`col-role sortable${sortBy === 'role' ? ' sorted' : ''}`}>
-                <button type="button" className="sort-trigger" onClick={() => handleSort('role')}>
-                  Rolle<span className="sort-icon">{sortBy === 'role' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </button>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
-              </th>
-              <th className="col-hours">Uge</th>
-              <th className="col-actions">
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {pageItems.map((user) => (
-              <tr
-                key={user.id}
-                className="clickable"
-                onClick={() => navigate(`/app/users/${user.id}`)}
-              >
-                <td><strong>{user.displayName}</strong></td>
-                <td>
-                  <span className="inline-flex-center">
-                    <Mail size={14} className="text-muted" />
-                    {user.email}
-                  </span>
-                </td>
-                <td>
-                  <UserRoleBadge role={user.role} displayName={user.roleDisplayName} />
-                </td>
-                <td className="col-hours">{formatHours(user.hoursThisWeek)}</td>
-                <td className="col-actions">
-                  <ChevronRight size={16} className="row-link-icon" />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <PaginationControls
-          page={safeViewPage}
-          totalCount={totalCount}
-          pageSize={PAGE_SIZE}
-          onPrev={() => setViewPage((p) => Math.max(1, p - 1))}
-          onNext={() => {
-            const nextPage = safeViewPage + 1;
-            if (nextPage > totalPages) return;
-            setViewPage(nextPage);
-          }}
-        />
-        </>
-      ) : (
-        <div className="job-list">
-          {pageItems.map((user) => (
-            <button
-              key={user.id}
-              className="job-card"
-              onClick={() => navigate(`/app/users/${user.id}`)}
-              type="button"
-            >
-              <div className="job-card-top">
-                <div>
-                  <h3 className="job-customer">{user.displayName}</h3>
+              ))}
+
+              {users.length === 0 && !isFetchingNextPage && (
+                <div className="empty-state">
+                  <p>Ingen brugere fundet.</p>
                 </div>
-              </div>
+              )}
 
-              <div className="job-card-meta">
-                <span className="meta-item">
-                  <Mail size={14} />
-                  <span>{user.email}</span>
-                </span>
-                <UserRoleBadge role={user.role} displayName={user.roleDisplayName} />
-              </div>
-
-              <div className="user-hours-row">
-                <Clock size={14} className="text-muted" />
-                <span>{formatHours(user.hoursThisWeek)} denne uge</span>
-              </div>
-
-              <div className="job-card-footer">
-                <span />
-                <span className="btn-icon" aria-label="Se bruger">
-                  <ChevronRight size={20} />
-                </span>
-              </div>
-            </button>
-          ))}
-
-          {users.length === 0 && !isFetchingNextPage && (
-            <div className="empty-state">
-              <p>Ingen brugere fundet.</p>
+              {!isDesktop && (
+                <InfiniteScrollSentinel
+                  sentinelRef={sentinelRef}
+                  isLoading={isFetchingNextPage}
+                />
+              )}
             </div>
           )}
-
-          {!isDesktop && (
-            <InfiniteScrollSentinel
-              sentinelRef={sentinelRef}
-              isLoading={isFetchingNextPage}
-            />
-          )}
-        </div>
+        </>
       )}
-      </>)}
     </div>
   );
 };
