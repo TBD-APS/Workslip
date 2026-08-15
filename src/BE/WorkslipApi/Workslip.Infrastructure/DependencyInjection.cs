@@ -20,7 +20,6 @@ using Workslip.Infrastructure.Diagnostics;
 using Workslip.Infrastructure.Invitations;
 using Workslip.Infrastructure.Jobs;
 using Workslip.Infrastructure.Notifications;
-using Workslip.Infrastructure.Reporting;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Reporting;
 using Workslip.Infrastructure.Resilience;
@@ -77,8 +76,14 @@ public static class DependencyInjection
         services.AddScoped<IInvitationStatusRepository, EfInviteRepository>();
         services.AddScoped<IJobLinkRepository, EfJobLinkRepository>();
         services.AddScoped<EfJobRepository>();
-        services.AddScoped<AssignmentAwareJobRepository>();
-        services.AddScoped<IJobRepository, BillingAwareJobRepository>();
+        services.AddScoped<IJobRepository>(serviceProvider =>
+        {
+            IJobRepository repository = serviceProvider.GetRequiredService<EfJobRepository>();
+            repository = new AssignmentAwareJobRepository(repository);
+            return new BillingAwareJobRepository(
+                repository,
+                serviceProvider.GetRequiredService<SqlDbContext>());
+        });
         services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
         services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();
@@ -108,12 +113,6 @@ public static class DependencyInjection
                 ? ActivatorUtilities.CreateInstance<LocalDocumentAttachmentStorage>(serviceProvider)
                 : ActivatorUtilities.CreateInstance<AzureBlobDocumentAttachmentStorage>(serviceProvider);
         });
-
-        services.AddOptions<PowerBiExportOptions>()
-            .Configure<IConfiguration>((options, config) =>
-                config.GetSection(PowerBiExportOptions.SectionName).Bind(options));
-        services.AddSingleton<IPowerBiWorksheetExportStorage, AzureBlobPowerBiWorksheetExportStorage>();
-        services.AddScoped<PowerBiWorksheetExportScopeResolver>();
 
         services.AddOptions<PowerBiExportOptions>()
             .Configure<IConfiguration>((options, config) =>
