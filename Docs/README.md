@@ -49,6 +49,7 @@ Do not keep issue implementation plans, completed task specs or superseded runbo
 | CI/release expectations | [`operations/ci-quality-gates.md`](operations/ci-quality-gates.md) | Active |
 | Pages/domain operations | [`operations/github-pages-domain-runbook.md`](operations/github-pages-domain-runbook.md) | Active |
 | Application Insights dashboard | [`operations/APPLICATION_INSIGHTS_ERROR_DASHBOARD.md`](operations/APPLICATION_INSIGHTS_ERROR_DASHBOARD.md) | Active |
+| Power BI worksheet report | [`operations/power-bi-worksheet-report.md`](operations/power-bi-worksheet-report.md) | Activation gated |
 | Public site content | [`../site/README.md`](../site/README.md) | Active content surface |
 
 ## Writing rules that prevent drift

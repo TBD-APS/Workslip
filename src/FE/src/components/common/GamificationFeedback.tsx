@@ -9,6 +9,9 @@ export function triggerCompletionCelebration() {
   window.dispatchEvent(new Event(COMPLETION_EVENT));
   void playCompletionJingle();
 }
+import { CheckCircle2 } from 'lucide-react';
+import { playStartupJingle, primeFeedbackAudio } from '../../lib/feedbackSounds';
+import { COMPLETION_EVENT } from '../../lib/completionCelebration';
 
 export function GamificationFeedback() {
   const [showStartup, setShowStartup] = useState(true);

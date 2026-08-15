@@ -34,6 +34,8 @@ var appConfigValues = {
 
   'Azure:DocumentFileStorage:ContainerName': 'uploads'
   'Azure:DocumentFileStorage:LocalRootPath': 'UploadedFiles'
+  'PowerBiExport:HistoryMonths': '24'
+  'PowerBiExport:RefreshIntervalMinutes': '60'
 
   'Authorization:RoleHierarchy:Superadmin:0': 'Admin'
   'Authorization:RoleHierarchy:Admin:0': 'User'
