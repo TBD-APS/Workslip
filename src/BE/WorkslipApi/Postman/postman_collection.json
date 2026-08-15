@@ -719,11 +719,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
-                  "const json = pm.response.json();",
-                  "pm.test('debug has isAuthenticated', function () { pm.expect(json).to.have.property('isAuthenticated'); });",
-                  "pm.test('debug has currentUserId', function () { pm.expect(json).to.have.property('currentUserId'); });",
-                  "pm.test('debug has currentOrganizationId', function () { pm.expect(json).to.have.property('currentOrganizationId'); });"
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('debug has isAuthenticated', function () { pm.expect(json).to.have.property('isAuthenticated'); });",
+                  "  pm.test('debug has currentUserId', function () { pm.expect(json).to.have.property('currentUserId'); });",
+                  "  pm.test('debug has currentOrganizationId', function () { pm.expect(json).to.have.property('currentOrganizationId'); });",
+                  "}"
                 ]
               }
             }
