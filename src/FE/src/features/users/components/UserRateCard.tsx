@@ -1,41 +1,49 @@
-import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Pencil, Save, X } from 'lucide-react';
+import { useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { Banknote, Loader2, Pencil, Save, X } from 'lucide-react';
 import { NumericInput } from '../../../components/forms/NumericInput';
-import { customAxiosInstance } from '../../../api/fetcherOrval';
+import {
+  formatBillableHourlyRate,
+  normalizeBillableHourlyRate,
+  useUpdateUserBillingRate,
+  useUserBillingRate,
+} from '../hooks/useUserBillingRate';
 import { notify } from '../../../lib/toast';
+import './UserRateCard.css';
 
-type RateResponse = { userId: string; billableHourlyRate: number | null };
-const rateKey = (userId: string) => ['/api/job-costing/users', userId, 'rate'] as const;
+type RateValue = number | string | null;
 
-export function UserRateCard({ userId }: { userId: string }) {
-  const queryClient = useQueryClient();
+type UserRateEditorProps = {
+  userId: string;
+  rate: RateValue;
+  isLoading?: boolean;
+  isError?: boolean;
+  variant?: 'detail' | 'inline';
+  ariaLabel?: string;
+};
+
+export function UserRateEditor({
+  userId,
+  rate,
+  isLoading = false,
+  isError = false,
+  variant = 'detail',
+  ariaLabel = 'Fakturerbar timepris',
+}: UserRateEditorProps) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState('');
-  const query = useQuery({
-    queryKey: rateKey(userId),
-    queryFn: () => customAxiosInstance<RateResponse>({
-      url: `/api/job-costing/users/${userId}/rate`,
-      method: 'GET',
-    }),
-  });
+  const mutation = useUpdateUserBillingRate(userId);
+  const normalizedRate = normalizeBillableHourlyRate(rate);
 
-  const mutation = useMutation({
-    mutationFn: (billableHourlyRate: number | null) => customAxiosInstance<void>({
-      url: `/api/job-costing/users/${userId}/rate`,
-      method: 'PATCH',
-      data: { billableHourlyRate },
-    }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: rateKey(userId) });
-      setEditing(false);
-      notify.success('Timepris er opdateret');
-    },
-    onError: () => notify.error('Timeprisen kunne ikke gemmes'),
-  });
+  const stopClickPropagation = (event: MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+  };
+
+  const stopKeyboardPropagation = (event: KeyboardEvent<HTMLElement>) => {
+    event.stopPropagation();
+  };
 
   const beginEditing = () => {
-    setValue(query.data?.billableHourlyRate?.toString().replace('.', ',') ?? '');
+    setValue(normalizedRate?.toString().replace('.', ',') ?? '');
     setEditing(true);
   };
 
@@ -46,52 +54,99 @@ export function UserRateCard({ userId }: { userId: string }) {
       notify.error('Timeprisen skal være mellem 0 og 100.000 kr.');
       return;
     }
-    mutation.mutate(parsed);
+
+    mutation.mutate(
+      { id: userId, data: { billableHourlyRate: parsed } },
+      { onSuccess: () => setEditing(false) },
+    );
   };
 
   return (
-    <div className="section-card">
-      <div className="section-card-header">
-        <div>
-          <h3>Fakturerbar timepris</h3>
-          <p className="subtitle">Bruges i det administrative faktureringsgrundlag.</p>
-        </div>
-        {!editing && !query.isLoading && (
-          <button className="btn-icon" type="button" onClick={beginEditing} aria-label="Rediger timepris">
-            <Pencil size={16} />
-          </button>
+    <div
+      className={`user-rate-editor user-rate-editor--${variant}`}
+      onClick={stopClickPropagation}
+      onKeyDown={stopKeyboardPropagation}
+      role="group"
+      aria-label={ariaLabel}
+    >
+      <div className="user-rate-editor__icon" aria-hidden="true">
+        <Banknote size={variant === 'inline' ? 16 : 18} />
+      </div>
+
+      <div className="user-rate-editor__content">
+        {variant === 'detail' && <span className="user-rate-editor__label">Fakturerbar timepris</span>}
+
+        {isLoading ? (
+          <span className="user-rate-editor__value user-rate-editor__value--muted">
+            <Loader2 size={15} className="animate-spin" /> Henter...
+          </span>
+        ) : isError ? (
+          <span className="user-rate-editor__value user-rate-editor__value--error">Kunne ikke hentes</span>
+        ) : editing ? (
+          <div className="user-rate-editor__form">
+            <label className="sr-only" htmlFor={`user-hourly-rate-${userId}`}>Kr. pr. time</label>
+            <NumericInput
+              id={`user-hourly-rate-${userId}`}
+              value={value}
+              kind="decimal"
+              min={0}
+              max={100000}
+              onChange={setValue}
+              disabled={mutation.isPending}
+            />
+            <div className="user-rate-editor__actions">
+              <button
+                className="btn-icon user-rate-editor__action"
+                type="button"
+                onClick={() => setEditing(false)}
+                disabled={mutation.isPending}
+                aria-label="Annuller redigering af timepris"
+              >
+                <X size={16} />
+              </button>
+              <button
+                className="btn-icon user-rate-editor__action user-rate-editor__action--save"
+                type="button"
+                onClick={save}
+                disabled={mutation.isPending}
+                aria-label="Gem timepris"
+              >
+                {mutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <span className="user-rate-editor__value">{formatBillableHourlyRate(rate)}</span>
         )}
       </div>
-      {query.isLoading ? (
-        <span className="meta-item"><Loader2 size={16} className="animate-spin" /> Henter...</span>
-      ) : query.isError ? (
-        <p className="form-error">Timeprisen kunne ikke hentes.</p>
-      ) : editing ? (
-        <div className="form-group">
-          <label htmlFor="user-hourly-rate">Kr. pr. time</label>
-          <NumericInput
-            id="user-hourly-rate"
-            value={value}
-            kind="decimal"
-            min={0}
-            max={100000}
-            onChange={setValue}
-            disabled={mutation.isPending}
-          />
-          <div className="profile-edit-actions">
-            <button className="btn btn-secondary" type="button" onClick={() => setEditing(false)} disabled={mutation.isPending}>
-              <X size={16} /> Annuller
-            </button>
-            <button className="btn btn-primary" type="button" onClick={save} disabled={mutation.isPending}>
-              {mutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Gem
-            </button>
-          </div>
-        </div>
-      ) : (
-        <strong>{query.data?.billableHourlyRate == null
-          ? 'Ikke angivet'
-          : `${query.data.billableHourlyRate.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr./time`}</strong>
+
+      {!editing && !isLoading && !isError && (
+        <button
+          className="btn-icon user-rate-editor__edit"
+          type="button"
+          onClick={beginEditing}
+          aria-label={`Rediger timepris${variant === 'inline' ? `, ${formatBillableHourlyRate(rate)}` : ''}`}
+        >
+          <Pencil size={15} />
+        </button>
       )}
     </div>
+  );
+}
+
+export function UserRateCard({ userId }: { userId: string }) {
+  const query = useUserBillingRate(userId);
+
+  return (
+    <section className="user-rate-card" aria-label="Fakturerbar timepris">
+      <UserRateEditor
+        userId={userId}
+        rate={query.data?.billableHourlyRate ?? null}
+        isLoading={query.isLoading}
+        isError={query.isError}
+        variant="detail"
+      />
+      <p className="user-rate-card__hint">Bruges i det administrative faktureringsgrundlag.</p>
+    </section>
   );
 }

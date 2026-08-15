@@ -1,0 +1,189 @@
+.user-rate-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0 0 1rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-floating, var(--surface));
+  box-shadow: var(--shadow-sm-raw);
+}
+
+.user-rate-card__hint {
+  margin: 0 0 0 2.75rem;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+}
+
+.user-rate-editor {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.user-rate-editor--inline {
+  width: 100%;
+  min-height: 40px;
+  gap: 0.45rem;
+  padding: 0.1rem 0;
+}
+
+.user-rate-editor__icon {
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--surface-selected-strong);
+  color: var(--primary);
+}
+
+.user-rate-editor--inline .user-rate-editor__icon {
+  width: 1.7rem;
+  height: 1.7rem;
+  background: var(--surface-raised);
+  color: var(--text-muted);
+}
+
+.user-rate-editor__content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.user-rate-editor__label {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.015em;
+}
+
+.user-rate-editor__value {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: 750;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.user-rate-editor--inline .user-rate-editor__value {
+  font-size: var(--fs-sm);
+  font-weight: 650;
+}
+
+.user-rate-editor__value--muted {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.user-rate-editor__value--error {
+  color: var(--danger);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+}
+
+.user-rate-editor__form {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.user-rate-editor__form .form-input {
+  min-width: 0;
+  width: 100%;
+}
+
+.user-rate-editor__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.user-rate-editor__action,
+.user-rate-editor__edit {
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.user-rate-editor__action--save {
+  color: var(--primary);
+}
+
+.user-rate-editor--inline .user-rate-editor__edit {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.user-rate-table-cell {
+  min-width: 12rem;
+}
+
+.user-card-primary-action {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.user-card-primary-action:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--focus-ring) 45%, transparent);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+.user-rate-mobile-row {
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 430px) {
+  .user-rate-card {
+    padding: 0.75rem 0.8rem;
+  }
+
+  .user-rate-card__hint {
+    margin-left: 2.45rem;
+  }
+
+  .user-rate-editor {
+    gap: 0.5rem;
+  }
+
+  .user-rate-editor__icon {
+    width: 1.95rem;
+    height: 1.95rem;
+  }
+
+  .user-rate-editor__form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .user-rate-editor__actions {
+    justify-content: flex-end;
+  }
+
+  .user-rate-editor__action,
+  .user-rate-editor__edit,
+  .user-rate-editor--inline .user-rate-editor__edit {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
