@@ -99,28 +99,51 @@ if [[ "${api_ready}" != "true" ]]; then
   exit 73
 fi
 
-token_response="$(curl --fail --silent --show-error \
-  --request POST \
-  --header 'Content-Type: application/json' \
-  --data '{"email":"superadmin@17v3ygzs.mailosaur.net"}' \
-  "${API_URL}/api/dev/token")"
+get_dev_token() {
+  local email="$1"
+  local response
+  local token
 
-auth_token="$(node -e '
-  const response = JSON.parse(process.argv[1]);
-  if (typeof response.token !== "string" || response.token.length === 0) process.exit(1);
-  process.stdout.write(response.token);
-' "${token_response}")"
+  response="$(curl --fail --silent --show-error \
+    --request POST \
+    --header 'Content-Type: application/json' \
+    --data "{\"email\":\"${email}\"}" \
+    "${API_URL}/api/dev/token")"
 
-if [[ -z "${auth_token}" ]]; then
-  echo "ERROR: Development token endpoint returned no bearer token." >&2
-  exit 74
-fi
+  token="$(node -e '
+    const response = JSON.parse(process.argv[1]);
+    if (typeof response.token !== "string" || response.token.length === 0) process.exit(1);
+    process.stdout.write(response.token);
+  ' "${response}")"
 
-if [[ "${GITHUB_ACTIONS:-false}" == "true" ]]; then
-  echo "::add-mask::${auth_token}"
-fi
+  if [[ -z "${token}" ]]; then
+    echo "ERROR: Development token endpoint returned no bearer token for ${email}." >&2
+    exit 74
+  fi
 
-echo "Running Postman collection with Newman against the isolated local API."
+  if [[ "${GITHUB_ACTIONS:-false}" == "true" ]]; then
+    echo "::add-mask::${token}" >&2
+  fi
+
+  printf '%s' "${token}"
+}
+
+auth_token="$(get_dev_token 'superadmin@17v3ygzs.mailosaur.net')"
+admin_token="$(get_dev_token 'admin@17v3ygzs.mailosaur.net')"
+user_token="$(get_dev_token 'user@17v3ygzs.mailosaur.net')"
+auditor_token="$(get_dev_token 'auditor@17v3ygzs.mailosaur.net')"
+
+echo "Running focused Auditor-scope Postman regression against synthetic role identities."
+npx --yes newman run "${SCRIPT_DIR}/auditor_scope.postman_collection.json" \
+  --env-var "baseUrl=${API_URL}" \
+  --env-var "adminToken=${admin_token}" \
+  --env-var "userToken=${user_token}" \
+  --env-var "auditorToken=${auditor_token}" \
+  --reporters cli \
+  --timeout-request 30000 \
+  --bail
+
+echo "Running main Postman collection with Newman against the isolated local API."
 WORKSLIP_INTEGRATION_BASE_URL="${API_URL}" \
 WORKSLIP_AUTH_TOKEN="${auth_token}" \
   bash "${SCRIPT_DIR}/run-integration-tests.sh"
