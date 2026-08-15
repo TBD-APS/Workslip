@@ -77,6 +77,30 @@ Smaller leaks; same treatment as split 2. Bundle into one issue.
 
 **Measurable goal:** both cycles/edges at 0 in the map.
 
+## Frontend stylesheet migration (WOR-475)
+
+`src/FE/src/App.css` is still a legacy catch-all spanning shell, jobs, worksheets, attestation, users, invites, login and time overview. New styling must not make that file larger: `npm run check:app-css-budget` enforces a migration ceiling during the normal frontend build.
+
+Existing ownership seams are the model for the migration:
+
+| Styling domain | Owner path | Rule |
+| --- | --- | --- |
+| App shell desktop refinements | `components/layouts/AppLayout.desktop.css` | Keep selectors tied to `AppLayout` markup here. |
+| App shell focus/keyboard behavior | `components/layouts/AppLayout.focus.css` | Keep focus visibility and editable-control navigation behavior here. |
+| Job wizard theme | `features/jobs/jobWizardTheme.css` | Keep wizard-specific visual rules in the jobs feature. |
+| Superadmin organization session | `features/superadmin/organizationSession.css` | Keep session/banner behavior in the superadmin feature. |
+| Legacy mixed rules | `App.css` | No new domain styling; only shrink this file as owners absorb selectors. |
+
+Next extraction order is deliberately risk-based rather than based on selector count:
+
+1. shell/header/bottom-navigation rules → `components/layouts/` while preserving mobile safe-area and focus behavior;
+2. worksheet/calendar/time-entry rules → `features/worksheets/`;
+3. job list/card/report/attestation rules → `features/jobs/`;
+4. invite/login rules → their authentication/invitation owners;
+5. generic form/select primitives only after verifying they are truly shared components rather than coincidentally similar selectors.
+
+Each extraction must remove the original selectors in the same change; temporary duplicate selector blocks do not count as a split. Run frontend lint/tests/build and spot-check keyboard focus, reduced-motion and mobile/desktop breakpoints before merging an extraction.
+
 ## Non-goals (restating WOR-443)
 
 - No full rewrite, no microservices without a documented need.
