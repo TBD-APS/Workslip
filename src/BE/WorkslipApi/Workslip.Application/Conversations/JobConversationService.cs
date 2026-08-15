@@ -1,5 +1,6 @@
 using Ardalis.Result;
 using Workslip.Application.Auth;
+using Workslip.Application.Common;
 using Workslip.Application.Jobs;
 using Workslip.Application.Notifications;
 using Workslip.Domain;
@@ -18,7 +19,8 @@ public sealed class JobConversationService(
     IJobConversationRepository repository,
     IJobService jobs,
     ICurrentUserContext currentUser,
-    INotificationService notifications) : IJobConversationService
+    INotificationService notifications,
+    IApplicationTransactionFactory transactionFactory) : IJobConversationService
 {
     private const int MaxBodyLength = 4000;
     private const int DefaultPageSize = 50;
@@ -114,54 +116,64 @@ public sealed class JobConversationService(
                 "Sagen kan kun sendes til gennemgang fra kladde eller afvist status.");
         }
 
-        var message = await repository.CreateAsync(
-            organizationId,
-            jobId,
-            userId,
-            body,
-            mentionedUserIds,
-            request.ActionType,
-            request.ActionTargetUserId,
-            cancellationToken);
-
-        var reportNumber = job.ReportNumber ?? job.Id.ToString("N")[..8];
-        var address = job.DestinationAddress ?? job.CustomerSnapshot.Address ?? "Ingen adresse angivet";
-        var actionTargetId = request.ActionTargetUserId;
-
-        if (actionTargetId is Guid actionRecipientId
-            && actionRecipientId != userId
-            && participants.TryGetValue(actionRecipientId, out var actionRecipient))
+        await using var transaction = await transactionFactory.BeginTransactionAsync(cancellationToken);
+        try
         {
-            await notifications.QueueConversationActionRequestedAsync(
-                actionRecipient.Id,
-                actionRecipient.DisplayName,
+            var message = await repository.CreateAsync(
+                organizationId,
                 jobId,
-                reportNumber,
-                address,
-                message.AuthorDisplayName,
-                GetActionLabel(request.ActionType!.Value),
-                message.Id,
+                userId,
+                body,
+                mentionedUserIds,
+                request.ActionType,
+                request.ActionTargetUserId,
                 cancellationToken);
-        }
 
-        foreach (var mentionedId in mentionedUserIds)
+            var reportNumber = job.ReportNumber ?? job.Id.ToString("N")[..8];
+            var address = job.DestinationAddress ?? job.CustomerSnapshot.Address ?? "Ingen adresse angivet";
+            var actionTargetId = request.ActionTargetUserId;
+
+            if (actionTargetId is Guid actionRecipientId
+                && actionRecipientId != userId
+                && participants.TryGetValue(actionRecipientId, out var actionRecipient))
+            {
+                await notifications.QueueConversationActionRequestedAsync(
+                    actionRecipient.Id,
+                    actionRecipient.DisplayName,
+                    jobId,
+                    reportNumber,
+                    address,
+                    message.AuthorDisplayName,
+                    GetActionLabel(request.ActionType!.Value),
+                    message.Id,
+                    cancellationToken);
+            }
+
+            foreach (var mentionedId in mentionedUserIds)
+            {
+                if (mentionedId == userId || mentionedId == actionTargetId)
+                    continue;
+
+                var recipient = participants[mentionedId];
+                await notifications.QueueConversationMentionAsync(
+                    recipient.Id,
+                    recipient.DisplayName,
+                    jobId,
+                    reportNumber,
+                    address,
+                    message.AuthorDisplayName,
+                    message.Id,
+                    cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            return Result<ConversationMessageResponse>.Success(message);
+        }
+        catch
         {
-            if (mentionedId == userId || mentionedId == actionTargetId)
-                continue;
-
-            var recipient = participants[mentionedId];
-            await notifications.QueueConversationMentionAsync(
-                recipient.Id,
-                recipient.DisplayName,
-                jobId,
-                reportNumber,
-                address,
-                message.AuthorDisplayName,
-                message.Id,
-                cancellationToken);
+            await TryRollbackAsync(transaction, cancellationToken);
+            throw;
         }
-
-        return Result<ConversationMessageResponse>.Success(message);
     }
 
     public async Task<Result<ConversationMessageResponse>> ResolveActionAsync(
@@ -285,6 +297,21 @@ public sealed class JobConversationService(
         ConversationActionType.SubmitForReview => "Send sagen til gennemgang",
         _ => "Handling"
     };
+
+    private static async Task TryRollbackAsync(
+        IApplicationTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await transaction.RollbackAsync(cancellationToken);
+        }
+        catch
+        {
+            // Preserve the original write/delivery exception. The request is still failed,
+            // and endpoint idempotency will not be completed for an uncommitted transaction.
+        }
+    }
 
     private static Result<T> MapFailure<T>(Result<JobReportSummaryResponse> source) => source.Status switch
     {
