@@ -26,6 +26,35 @@ public sealed class LocalDevelopmentDatabaseMigrationTests
     }
 
     [Theory]
+    [InlineData("db")]
+    [InlineData("sql.internal.example.com")]
+    public void IsLocalDataSource_UnknownHost_DefaultsToNotLocal(string host)
+    {
+        Assert.False(LocalDevelopmentDatabaseMigrationRunner.IsLocalDataSource(host));
+    }
+
+    [Fact]
+    public void IsLocalDataSource_AllowlistedHost_RequiresExplicitEnvironmentOptIn()
+    {
+        var variable = LocalDevelopmentDatabaseMigrationRunner.AdditionalLocalHostsVariable;
+        var original = Environment.GetEnvironmentVariable(variable);
+        try
+        {
+            Environment.SetEnvironmentVariable(variable, "db, other-host");
+
+            Assert.True(LocalDevelopmentDatabaseMigrationRunner.IsLocalDataSource("db"));
+            Assert.True(LocalDevelopmentDatabaseMigrationRunner.IsLocalDataSource("DB,1433"));
+            Assert.True(LocalDevelopmentDatabaseMigrationRunner.IsLocalDataSource("other-host"));
+            Assert.False(LocalDevelopmentDatabaseMigrationRunner.IsLocalDataSource("db-prod"));
+            Assert.False(LocalDevelopmentDatabaseMigrationRunner.IsLocalDataSource("sql.example.com"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variable, original);
+        }
+    }
+
+    [Theory]
     [InlineData("Staging")]
     [InlineData("Production")]
     public void ShouldApplyLocalMigrations_NonDevelopmentNeverApplies(string environmentName)
