@@ -13,6 +13,7 @@ Current implementation is the technical source of truth. This area records durab
 - [`dependency-map.md`](dependency-map.md) — generated module coupling map; regenerate with `node tools/depmap/depmap.mjs`.
 - [`frontend-design-accessibility.md`](frontend-design-accessibility.md) — authenticated frontend visual system, semantic tokens and accessibility baseline.
 - [`frontend-stylesheet-boundaries.md`](frontend-stylesheet-boundaries.md) — ownership and migration rules for the legacy `App.css` boundary.
+- [`job-repository-composition.md`](job-repository-composition.md) — ownership boundary between Jobs application assignment policy and infrastructure repository decorators.
 - [`workslip-docs.md`](workslip-docs.md) — product Docs trust boundary, persistence and repository-documentation separation.
 
 Useful future views, when they can be kept concise and stable:
