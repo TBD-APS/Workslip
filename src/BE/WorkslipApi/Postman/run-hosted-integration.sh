@@ -123,6 +123,6 @@ fi
 echo "Running Postman collection with Newman against the isolated local API."
 WORKSLIP_INTEGRATION_BASE_URL="${API_URL}" \
 WORKSLIP_AUTH_TOKEN="${auth_token}" \
-  "${SCRIPT_DIR}/run-integration-tests.sh"
+  bash "${SCRIPT_DIR}/run-integration-tests.sh"
 
 echo "Postman integration suite completed successfully."
