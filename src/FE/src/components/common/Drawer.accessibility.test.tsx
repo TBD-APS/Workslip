@@ -75,6 +75,7 @@ describe('Drawer accessibility', () => {
     renderHarness();
     fireEvent.click(screen.getByRole('button', { name: 'Åbn historik' }));
 
+    const drawer = screen.getByRole('dialog', { name: 'Historik' });
     const nestedTrigger = screen.getByRole('button', { name: 'Åbn bekræftelse' });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Tilbage fra historik' })).toHaveFocus());
     nestedTrigger.focus();
@@ -84,10 +85,10 @@ describe('Drawer accessibility', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
 
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Bekræft handling' })).not.toBeInTheDocument());
-    expect(screen.getByRole('dialog', { name: 'Historik' })).toHaveClass('open');
+    expect(drawer).toHaveClass('open');
     expect(nestedTrigger).toHaveFocus();
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Historik' })).not.toHaveClass('open'));
+    await waitFor(() => expect(drawer).not.toHaveClass('open'));
   });
 });
