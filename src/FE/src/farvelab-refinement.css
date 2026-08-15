@@ -1,6 +1,9 @@
-/* WOR-502 — restrained Farvelab refinement for the primary Workslip surfaces. */
+/* WOR-502 — restrained Farvelab refinement for the primary Workslip surfaces.
+ * `html` intentionally raises specificity above the older Farvelab layer so the
+ * refinement remains authoritative even when AppLayout CSS is lazy-loaded later.
+ */
 
-[data-theme="day"] body:has(.app-shell) {
+html[data-theme="day"] body:has(.app-shell) {
   --bg: #f4f7fb;
   --text: #14213d;
   --text-primary: #14213d;
@@ -41,54 +44,54 @@
   --safe-area-top-bg: #f4f7fb;
 }
 
-body:has(.app-shell) .app-shell {
+html body:has(.app-shell) .app-shell {
   background:
     radial-gradient(circle at 4% -8%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 28rem),
     var(--bg);
 }
 
-body:has(.app-shell) :is(.overview-recent-card, .data-table, .job-card, .customer-card, .time-overview-card) {
+html body:has(.app-shell) :is(.overview-recent-card, .data-table, .job-card, .customer-card, .time-overview-card) {
   background: var(--surface-floating);
   border-color: var(--border);
   box-shadow: var(--shadow-sm-raw);
 }
 
-body:has(.app-shell) :is(.overview-recent-row, .data-table tbody tr) {
+html body:has(.app-shell) :is(.overview-recent-row, .data-table tbody tr) {
   background: var(--surface-floating);
 }
 
-body:has(.app-shell) :is(.overview-recent-row, .data-table tbody tr):hover {
+html body:has(.app-shell) :is(.overview-recent-row, .data-table tbody tr):hover {
   background: var(--surface);
 }
 
-body:has(.app-shell) :is(.overview-recent-row, .data-table tbody tr):focus-visible {
+html body:has(.app-shell) :is(.overview-recent-row, .data-table tbody tr):focus-visible {
   outline: 3px solid color-mix(in srgb, var(--focus-ring) 32%, transparent);
   outline-offset: -2px;
 }
 
 /* Docs remains routable, but is intentionally not part of the field-worker primary navigation. */
-body:has(.app-shell) .app-header-actions > [aria-label="Docs"],
-body:has(.app-shell) .bottom-nav a[href="/app/docs"] {
+html body:has(.app-shell) .app-header-actions > [aria-label="Docs"],
+html body:has(.app-shell) .bottom-nav a[href="/app/docs"] {
   display: none;
 }
 
-body:has(.app-shell) .quick-nav-dialog {
+html body:has(.app-shell) .quick-nav-dialog {
   background: var(--surface-modal);
   border-color: var(--border);
   box-shadow: var(--shadow-lg);
 }
 
-body:has(.app-shell) .quick-nav-search-wrap {
+html body:has(.app-shell) .quick-nav-search-wrap {
   background: var(--surface-input);
   border-color: var(--border-strong);
 }
 
-body:has(.app-shell) .quick-nav-result {
+html body:has(.app-shell) .quick-nav-result {
   border-color: transparent;
 }
 
-body:has(.app-shell) .quick-nav-result:hover,
-body:has(.app-shell) .quick-nav-result.active {
+html body:has(.app-shell) .quick-nav-result:hover,
+html body:has(.app-shell) .quick-nav-result.active {
   background: var(--surface-selected);
   border-color: color-mix(in srgb, var(--primary) 24%, var(--border));
 }
