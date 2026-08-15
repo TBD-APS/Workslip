@@ -1,5 +1,6 @@
 using Ardalis.Result;
 using Workslip.Application.Auth;
+using Workslip.Application.Common;
 using Workslip.Application.Conversations;
 using Workslip.Application.Jobs;
 using Workslip.Application.Notifications;
@@ -42,11 +43,13 @@ public sealed class JobConversationServiceTests
         var targetId = Guid.NewGuid();
         var repository = new RecordingRepository { TargetDisplayName = "Mikkel" };
         var notifications = new RecordingNotificationService();
+        var transactionFactory = new RecordingTransactionFactory();
         var service = CreateService(
             repository,
             new RecordingJobService(CreateSummary(jobId, organizationId, [new(targetId, "Mikkel")])),
             new TestCurrentUserContext(authorId, organizationId, Roles.Admin),
-            notifications);
+            notifications,
+            transactionFactory);
 
         var result = await service.SendAsync(
             jobId,
@@ -62,6 +65,39 @@ public sealed class JobConversationServiceTests
         Assert.Empty(notifications.Mentions);
         Assert.Equal(targetId, notifications.Actions[0].UserId);
         Assert.Equal("Send sagen til gennemgang", notifications.Actions[0].ActionLabel);
+        Assert.Equal(1, transactionFactory.Transaction.CommitCalls);
+        Assert.Equal(0, transactionFactory.Transaction.RollbackCalls);
+    }
+
+    [Fact]
+    public async Task SendAsync_rolls_back_message_when_notification_queue_fails()
+    {
+        var organizationId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var authorId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        var repository = new RecordingRepository { TargetDisplayName = "Mikkel" };
+        var notifications = new RecordingNotificationService { ThrowOnAction = true };
+        var transactionFactory = new RecordingTransactionFactory();
+        var service = CreateService(
+            repository,
+            new RecordingJobService(CreateSummary(jobId, organizationId, [new(targetId, "Mikkel")])),
+            new TestCurrentUserContext(authorId, organizationId, Roles.Admin),
+            notifications,
+            transactionFactory);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.SendAsync(
+            jobId,
+            new CreateConversationMessageRequest(
+                "Kan du bekræfte?",
+                [targetId],
+                ConversationActionType.Acknowledge,
+                targetId),
+            CancellationToken.None));
+
+        Assert.Equal(1, repository.CreateCalls);
+        Assert.Equal(0, transactionFactory.Transaction.CommitCalls);
+        Assert.Equal(1, transactionFactory.Transaction.RollbackCalls);
     }
 
     [Fact]
@@ -75,22 +111,7 @@ public sealed class JobConversationServiceTests
         var jobs = new RecordingJobService(summary);
         var repository = new RecordingRepository
         {
-            ExistingMessage = new ConversationMessageResponse(
-                messageId,
-                jobId,
-                Guid.NewGuid(),
-                "Admin",
-                "Send den ind",
-                [],
-                new ConversationActionResponse(
-                    ConversationActionType.SubmitForReview,
-                    targetId,
-                    "Mikkel",
-                    ConversationActionStatus.Pending,
-                    null,
-                    null,
-                    null),
-                DateTimeOffset.UtcNow)
+            ExistingMessage = PendingActionMessage(messageId, jobId, targetId, ConversationActionType.SubmitForReview)
         };
         var service = CreateService(
             repository,
@@ -102,6 +123,33 @@ public sealed class JobConversationServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(JobStatus.InReview, jobs.LastStatusRequest?.Status);
+        Assert.Equal(1, repository.ResolveCalls);
+        Assert.Equal(ConversationActionStatus.Completed, result.Value.Action?.Status);
+    }
+
+    [Fact]
+    public async Task ResolveAction_recovers_when_job_transition_already_succeeded_but_action_is_still_pending()
+    {
+        var organizationId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        var messageId = Guid.NewGuid();
+        var summary = CreateSummary(jobId, organizationId, [new(targetId, "Mikkel")], JobStatus.InReview);
+        var jobs = new RecordingJobService(summary);
+        var repository = new RecordingRepository
+        {
+            ExistingMessage = PendingActionMessage(messageId, jobId, targetId, ConversationActionType.SubmitForReview)
+        };
+        var service = CreateService(
+            repository,
+            jobs,
+            new TestCurrentUserContext(targetId, organizationId, Roles.User),
+            new RecordingNotificationService());
+
+        var result = await service.ResolveActionAsync(jobId, messageId, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(jobs.LastStatusRequest);
         Assert.Equal(1, repository.ResolveCalls);
         Assert.Equal(ConversationActionStatus.Completed, result.Value.Action?.Status);
     }
@@ -120,22 +168,7 @@ public sealed class JobConversationServiceTests
             [new(targetId, "Mikkel"), new(otherUserId, "Søren")]));
         var repository = new RecordingRepository
         {
-            ExistingMessage = new ConversationMessageResponse(
-                messageId,
-                jobId,
-                Guid.NewGuid(),
-                "Admin",
-                "Bekræft",
-                [],
-                new ConversationActionResponse(
-                    ConversationActionType.Acknowledge,
-                    targetId,
-                    "Mikkel",
-                    ConversationActionStatus.Pending,
-                    null,
-                    null,
-                    null),
-                DateTimeOffset.UtcNow)
+            ExistingMessage = PendingActionMessage(messageId, jobId, targetId, ConversationActionType.Acknowledge)
         };
         var service = CreateService(
             repository,
@@ -172,20 +205,44 @@ public sealed class JobConversationServiceTests
         IJobConversationRepository repository,
         IJobService jobs,
         ICurrentUserContext currentUser,
-        INotificationService notifications) =>
-        new(repository, jobs, currentUser, notifications);
+        INotificationService notifications,
+        IApplicationTransactionFactory? transactionFactory = null) =>
+        new(repository, jobs, currentUser, notifications, transactionFactory ?? new RecordingTransactionFactory());
+
+    private static ConversationMessageResponse PendingActionMessage(
+        Guid messageId,
+        Guid jobId,
+        Guid targetId,
+        ConversationActionType type) =>
+        new(
+            messageId,
+            jobId,
+            Guid.NewGuid(),
+            "Admin",
+            type == ConversationActionType.SubmitForReview ? "Send den ind" : "Bekræft",
+            [],
+            new ConversationActionResponse(
+                type,
+                targetId,
+                "Mikkel",
+                ConversationActionStatus.Pending,
+                null,
+                null,
+                null),
+            DateTimeOffset.UtcNow);
 
     private static JobReportSummaryResponse CreateSummary(
         Guid jobId,
         Guid organizationId,
-        IReadOnlyList<AssignedUserResponse> assignedUsers) =>
+        IReadOnlyList<AssignedUserResponse> assignedUsers,
+        JobStatus status = JobStatus.Draft) =>
         new(
             jobId,
             organizationId,
             "Test organization",
             "12345678",
             "R-1",
-            JobStatus.Draft,
+            status,
             null,
             new CustomerSnapshotResponse("Kunde", null, null, "Kundevej 1", null),
             "Jobvej 2",
@@ -210,6 +267,34 @@ public sealed class JobConversationServiceTests
         Guid? UserId,
         Guid? OrganizationId,
         string? Role) : ICurrentUserContext;
+
+    private sealed class RecordingTransactionFactory : IApplicationTransactionFactory
+    {
+        public RecordingTransaction Transaction { get; } = new();
+
+        public Task<IApplicationTransaction> BeginTransactionAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IApplicationTransaction>(Transaction);
+    }
+
+    private sealed class RecordingTransaction : IApplicationTransaction
+    {
+        public int CommitCalls { get; private set; }
+        public int RollbackCalls { get; private set; }
+
+        public Task CommitAsync(CancellationToken cancellationToken)
+        {
+            CommitCalls++;
+            return Task.CompletedTask;
+        }
+
+        public Task RollbackAsync(CancellationToken cancellationToken)
+        {
+            RollbackCalls++;
+            return Task.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
 
     private sealed class RecordingRepository : IJobConversationRepository
     {
@@ -319,6 +404,7 @@ public sealed class JobConversationServiceTests
     {
         public List<MentionCall> Mentions { get; } = [];
         public List<ActionCall> Actions { get; } = [];
+        public bool ThrowOnAction { get; init; }
 
         public Task QueueConversationMentionAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, string actorName, Guid messageId, CancellationToken cancellationToken)
         {
@@ -328,6 +414,9 @@ public sealed class JobConversationServiceTests
 
         public Task QueueConversationActionRequestedAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, string actorName, string actionLabel, Guid messageId, CancellationToken cancellationToken)
         {
+            if (ThrowOnAction)
+                throw new InvalidOperationException("notification queue failed");
+
             Actions.Add(new ActionCall(userId, recipientName, jobId, actionLabel, messageId));
             return Task.CompletedTask;
         }
