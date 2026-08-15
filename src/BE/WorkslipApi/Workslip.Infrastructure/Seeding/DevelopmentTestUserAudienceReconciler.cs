@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Workslip.Domain;
+using Workslip.Domain.Models;
 
 namespace Workslip.Infrastructure.Schema;
 
@@ -47,14 +48,30 @@ internal static class DevelopmentTestUserAudienceReconciler
                 continue;
             }
 
+            if (!string.Equals(user.UserKind, UserKinds.Member, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             user.UserKind = UserKinds.InternalTest;
             user.UpdatedAt = DateTimeOffset.UtcNow;
             changed = true;
         }
 
-        if (changed)
+        if (!changed)
+        {
+            return;
+        }
+
+        var previousIsSeeding = db.IsSeeding;
+        db.IsSeeding = true;
+        try
         {
             await db.SaveChangesAsync(cancellationToken);
+        }
+        finally
+        {
+            db.IsSeeding = previousIsSeeding;
         }
     }
 
@@ -64,7 +81,7 @@ internal static class DevelopmentTestUserAudienceReconciler
         string DisplayName,
         string Role)
     {
-        public bool Matches(Workslip.Domain.Models.UserDataRow user) =>
+        public bool Matches(UserDataRow user) =>
             string.Equals(user.Email, Email, StringComparison.OrdinalIgnoreCase)
             && string.Equals(user.DisplayName, DisplayName, StringComparison.Ordinal)
             && string.Equals(user.Role, Role, StringComparison.OrdinalIgnoreCase);
