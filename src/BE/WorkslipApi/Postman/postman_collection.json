@@ -536,7 +536,9 @@
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
                   "pm.test('current-user shape is current', function () { pm.expect(json).to.include.all.keys('id', 'organizationId', 'email', 'displayName', 'phone', 'role'); });",
-                  "pm.test('organization id captured', function () { pm.expect(json.organizationId).to.be.a('string').and.not.empty; });"
+                  "pm.test('organization id captured', function () { pm.expect(json.organizationId).to.be.a('string').and.not.empty; });",
+                  "pm.collectionVariables.set('actorUserId', json.id);",
+                  "pm.collectionVariables.set('actorRole', json.role);"
                 ]
               }
             }
@@ -1751,7 +1753,7 @@
                   "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
                   "pm.test('create response identifies every created job', function () { pm.expect(json.createdJobIds).to.deep.eql([json.id]); });",
                   "pm.collectionVariables.set('jobId', json.id);",
-                  "pm.test('customer email echoed', function () { pm.expect(json.customer.email).to.eql(pm.variables.get('customerEmail')); });",
+                  "pm.test('customer email echoed', function () { pm.expect(json.customerSnapshot.email).to.eql(pm.variables.get('customerEmail')); });",
                   "pm.test('installation types include selected categories and control points', function () {",
                   "  pm.expect(json.work.installationTypes.length).to.be.above(0);",
                   "  json.work.installationTypes.forEach(it => {",
@@ -1768,9 +1770,14 @@
                   "    });",
                   "  });",
                   "});",
-                  "pm.test('creator auto-assigned', function () {",
-                  "  pm.expect(json.assignedUsers).to.be.an('array').that.is.not.empty;",
-                  "  pm.expect(json.assignedUsers.map(user => user.id)).to.include(pm.variables.get('creatorUserId'));",
+                  "pm.test('creator auto-assigned per assignment policy', function () {",
+                  "  pm.expect(json.assignedUsers).to.be.an('array');",
+                  "  const actorRole = (pm.collectionVariables.get('actorRole') || '').toLowerCase();",
+                  "  if (actorRole === 'superadmin') {",
+                  "    pm.expect(json.assignedUsers, 'superadmins cannot receive assignments').to.be.empty;",
+                  "  } else {",
+                  "    pm.expect(json.assignedUsers.map(user => user.id)).to.include(pm.collectionVariables.get('actorUserId'));",
+                  "  }",
                   "});"
                 ]
               }
