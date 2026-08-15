@@ -7,7 +7,17 @@ echo   Workslip - lokal udvikling
 echo ========================================
 echo.
 
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev.ps1"
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\dev\prepare-local-start.ps1"
+set "PREP_EXIT=%ERRORLEVEL%"
+if not "%PREP_EXIT%"=="0" (
+  echo.
+  echo [FEJL] Kunne ikke forberede Workslip lokalt.
+  echo.
+  pause
+  exit /b %PREP_EXIT%
+)
+
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev.ps1" -Mobile
 set "EXIT_CODE=%ERRORLEVEL%"
 
 if not "%EXIT_CODE%"=="0" (
@@ -21,6 +31,7 @@ if not "%EXIT_CODE%"=="0" (
 
 echo.
 echo [OK] Workslip er startet lokalt.
-echo Overblik: http://127.0.0.1:5270/app/overblik
+echo Computer: http://127.0.0.1:5270/app/overblik
+echo Telefon-link vises ovenfor under "Phone".
 echo.
 exit /b 0
