@@ -9,6 +9,10 @@
   background: var(--surface-card, #fff);
 }
 
+.auditor-scope-card--create {
+  margin-top: 1rem;
+}
+
 .auditor-scope-card--internal {
   border-style: dashed;
 }
@@ -105,14 +109,39 @@
   font-size: 0.8125rem;
 }
 
+.auditor-scope-card__actions--heading {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.auditor-scope-create-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: -0.25rem auto 1rem;
+  max-width: 72rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--border-color, #d8dee6);
+  border-radius: 0.75rem;
+  background: var(--surface-card, #fff);
+}
+
+.auditor-scope-create-error p {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted, #667085);
+}
+
 @media (max-width: 640px) {
-  .auditor-scope-card {
+  .auditor-scope-card,
+  .auditor-scope-create-error {
     margin-inline: 0.75rem;
     padding: 0.875rem;
   }
 
   .auditor-scope-card__heading,
-  .auditor-scope-card__editor-footer {
+  .auditor-scope-card__editor-footer,
+  .auditor-scope-create-error {
     align-items: stretch;
     flex-direction: column;
   }
@@ -123,7 +152,8 @@
   }
 
   .auditor-scope-card__heading .btn,
-  .auditor-scope-card__actions .btn {
+  .auditor-scope-card__actions .btn,
+  .auditor-scope-create-error .btn {
     width: 100%;
   }
 }
