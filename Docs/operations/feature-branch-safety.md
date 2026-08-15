@@ -21,13 +21,15 @@ pwsh ./tools/release/configure-github-branch-rules.ps1 -VerifyOnly
 
 The intended repository rules are:
 
-- `main`: pull request required, `CI Gate` and `Feature change guard` required, squash only, ref deletion and non-fast-forward updates blocked;
+- `main`: pull request required, `CI Gate` and `Feature change guard` required, squash only, **no bypass actors**, ref deletion and non-fast-forward updates blocked;
 - `release-*`: same integration protection;
-- `rbj--*`: ref deletion and non-fast-forward updates blocked while ordinary fast-forward development pushes remain allowed.
+- `rbj--*`: no bypass actors, ref deletion and non-fast-forward updates blocked while ordinary fast-forward development pushes remain allowed.
 
-`-WhatIf` previews the intended reconciliation and deliberately does not claim external state. A normal run reconciles the rules and then reads GitHub back to verify the expected ref targets, active enforcement, rule types and required status checks. `-VerifyOnly` performs the same read-back verification without mutating GitHub.
+`-WhatIf` previews the intended reconciliation and deliberately does not claim external state. A normal run reconciles the rules and then reads GitHub back to verify the expected ref targets, active enforcement, rule types, required status checks, strict status-check policy, allowed merge method, approving-review count and absence of bypass actors. `-VerifyOnly` performs the same read-back verification without mutating GitHub.
 
-Do not claim the external protection is active from repository code or green CI alone. WOR-436 is complete only after `-VerifyOnly` succeeds against the repository state.
+A payload that declares `bypass_actors = @()` is not sufficient evidence by itself. Verification must inspect the external ruleset returned by GitHub and fail if bypass actors are present.
+
+Do not claim the external protection is active from repository code or green CI alone. The ruleset acceptance is complete only after `-VerifyOnly` succeeds against repository state with an authenticated administrator session.
 
 ## High-risk product changes
 

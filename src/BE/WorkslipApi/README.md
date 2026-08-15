@@ -196,6 +196,8 @@ Use [`../../../Docs/agents/VALIDATION.md`](../../../Docs/agents/VALIDATION.md) f
 
 ## Deployment
 
-The production API workflow is `.github/workflows/main_api-mrsoftware-prod.yml`. It builds/publishes the API, authenticates through GitHub OIDC, deploys to Azure App Service and performs its health check.
+The production API workflow is `.github/workflows/backend-production-deploy.yml` (**Backend · Production deploy**). It only builds an artifact after the exact `main` SHA has a successful post-merge `CI Gate`, re-verifies that the SHA is still current `main` immediately before production mutation, then applies reviewed migrations, authenticates through GitHub OIDC, deploys the exact-SHA package to Azure App Service and requires the health check to recover.
+
+A red, cancelled, missing or stale CI revision is not deployable. The shared eligibility contract is `tools/release/verify-production-eligibility.mjs`; see [`../../../Docs/operations/ci-quality-gates.md`](../../../Docs/operations/ci-quality-gates.md) for the full production delivery model.
 
 A successful deployment is not proof that login, SQL access, external integrations or critical user flows work. Smoke-test the affected runtime path when deployment is part of the change.
