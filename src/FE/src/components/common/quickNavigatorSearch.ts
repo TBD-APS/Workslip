@@ -2,11 +2,10 @@ import type { JobListItemViewModel } from '../../api/generated/models';
 
 export function getQuickJobSearchTerm(query: string): string | null {
   const trimmed = query.trim();
-  const hasJobIntent = /^(sag|job)\b/i.test(trimmed) || /^\d+$/.test(trimmed);
-  if (!hasJobIntent) return null;
+  if (trimmed.length < 2) return null;
 
-  const term = trimmed.replace(/^(sag|job)\s*#?\s*/i, '').trim();
-  return term.length >= 2 ? term : null;
+  const withoutPrefix = trimmed.replace(/^(sag|job)\s*#?\s*/i, '').trim();
+  return withoutPrefix.length >= 2 ? withoutPrefix : null;
 }
 
 export function filterQuickNavigationJobs(
