@@ -29,6 +29,24 @@ public sealed class UserServiceAuthorizationTests
     }
 
     [Fact]
+    public async Task CreateAsync_WhenPersistenceFails_DeletesNewlyCreatedEntraUser()
+    {
+        var persistenceException = new InvalidOperationException("database unavailable");
+        var repository = new FakeUserRepository { CreateException = persistenceException };
+        var entra = new FakeEntraService();
+        var service = CreateService(Roles.Admin, repository, entra);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(
+            new CreateUserRequest("synthetic@example.test", "Synthetic", "+4512345678", Roles.User),
+            CancellationToken.None));
+
+        Assert.Same(persistenceException, thrown);
+        Assert.Equal(1, entra.CreateCalls);
+        Assert.Equal(1, entra.DeleteCalls);
+        Assert.Equal("entra-new", entra.DeletedEntraUserId);
+    }
+
+    [Fact]
     public async Task UpdateAsync_AdminCannotPromoteUserToSuperadmin()
     {
         var target = CreateUser(Roles.User);
@@ -204,6 +222,8 @@ public sealed class UserServiceAuthorizationTests
     private sealed class FakeEntraService : IUserEntraService
     {
         public int CreateCalls { get; private set; }
+        public int DeleteCalls { get; private set; }
+        public string? DeletedEntraUserId { get; private set; }
 
         public Task<CreateEntraUserResult> CreateUserAsync(string email, string displayName, CancellationToken ct)
         {
@@ -214,7 +234,12 @@ public sealed class UserServiceAuthorizationTests
         public Task<CreateEntraUserResult> EnsureInvitedUserAsync(string email, CancellationToken ct) =>
             Task.FromResult(new CreateEntraUserResult("entra-existing", email, email, Created: false));
 
-        public Task DeleteUserAsync(string entraUserId, CancellationToken ct) => Task.CompletedTask;
+        public Task DeleteUserAsync(string entraUserId, CancellationToken ct)
+        {
+            DeleteCalls++;
+            DeletedEntraUserId = entraUserId;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeClaimsCacheInvalidator : IUserClaimsCacheInvalidator
@@ -237,6 +262,7 @@ public sealed class UserServiceAuthorizationTests
     {
         public UserDataRow? ExistingById { get; init; }
         public string ActorUserKind { get; init; } = UserKinds.Member;
+        public Exception? CreateException { get; init; }
         public UserDataRow? LastCreated { get; private set; }
         public int CreateCalls { get; private set; }
         public int UpdateCalls { get; private set; }
@@ -272,6 +298,11 @@ public sealed class UserServiceAuthorizationTests
         {
             CreateCalls++;
             LastCreated = user;
+            if (CreateException is not null)
+            {
+                return Task.FromException<Guid>(CreateException);
+            }
+
             return Task.FromResult(user.Id);
         }
 
