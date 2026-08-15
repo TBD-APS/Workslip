@@ -27,7 +27,7 @@ function finding(title, confidence = 0.91) {
   };
 }
 
-function run({ githubModels = '', openai = '', claude = '', truncated = false } = {}) {
+function run({ githubModels = '', openai = '', claude = '', ollama = '', truncated = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'workslip-ai-review-'));
   const output = path.join(dir, 'output.txt');
   const result = spawnSync(process.execPath, [script], {
@@ -38,6 +38,7 @@ function run({ githubModels = '', openai = '', claude = '', truncated = false } 
       GITHUB_MODELS_REVIEW_B64: githubModels,
       OPENAI_REVIEW_B64: openai,
       CLAUDE_REVIEW_B64: claude,
+      OLLAMA_REVIEW_B64: ollama,
       CONTEXT_TRUNCATED: String(truncated),
       PR_NUMBER: '123',
       HEAD_SHA: 'abcdef1234567890',
@@ -65,29 +66,55 @@ assert.equal(
   'true',
 );
 assert.equal(
+  run({
+    githubModels: encoded('GitHub Models', [finding('Tenant authorization can be bypassed')]),
+    ollama: encoded('Ollama', [finding('Tenant authorization bypass on update')]),
+  }).blocking,
+  'true',
+);
+assert.equal(
   run({ githubModels: encoded('GitHub Models', [finding('Tenant authorization can be bypassed')]) }).blocking,
   'false',
 );
 assert.equal(
   run({
     githubModels: encoded('GitHub Models', [finding('Tenant authorization can be bypassed')]),
-    openai: encoded('OpenAI', [finding('Tenant authorization bypass on update')]),
+    ollama: encoded('Ollama', [finding('Tenant authorization bypass on update')]),
     truncated: true,
   }).blocking,
   'false',
 );
 assert.equal(run({}).providers, '0');
 
+const ollamaOnly = run({
+  githubModels: disabled('GitHub Models'),
+  openai: disabled('OpenAI'),
+  claude: disabled('Claude'),
+  ollama: encoded('Ollama', [finding('Tenant authorization bypass on update')]),
+});
+assert.equal(ollamaOnly.blocking, 'false');
+assert.equal(ollamaOnly.providers, '1');
+assert.equal(ollamaOnly.enabled, '1');
+
 const claudeOnly = run({ openai: disabled('OpenAI'), claude: encoded('Claude', [finding('Tenant authorization bypass on update')]) });
 assert.equal(claudeOnly.blocking, 'false');
 assert.equal(claudeOnly.providers, '1');
 assert.equal(claudeOnly.enabled, '1');
 
-const bothProviders = run({ openai: encoded('OpenAI', []), claude: encoded('Claude', []) });
-assert.equal(bothProviders.providers, '2');
-assert.equal(bothProviders.enabled, '2');
+const threeProviders = run({
+  githubModels: encoded('GitHub Models', []),
+  claude: encoded('Claude', []),
+  ollama: encoded('Ollama', []),
+});
+assert.equal(threeProviders.providers, '3');
+assert.equal(threeProviders.enabled, '3');
 
-const nothingConfigured = run({ openai: disabled('OpenAI'), claude: disabled('Claude') });
+const nothingConfigured = run({
+  githubModels: disabled('GitHub Models'),
+  openai: disabled('OpenAI'),
+  claude: disabled('Claude'),
+  ollama: disabled('Ollama'),
+});
 assert.equal(nothingConfigured.blocking, 'false');
 assert.equal(nothingConfigured.providers, '0');
 assert.equal(nothingConfigured.enabled, '0');
