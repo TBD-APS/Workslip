@@ -30,7 +30,9 @@ foreach ($port in @(5262, 5270)) {
 
 $deadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
 do {
-    $busy = @(5262, 5270 | Where-Object { @(Get-NetTCPConnection -State Listen -LocalPort $_ -ErrorAction SilentlyContinue).Count -gt 0 })
+    $busy = @(@(5262, 5270) | Where-Object {
+        @(Get-NetTCPConnection -State Listen -LocalPort $_ -ErrorAction SilentlyContinue).Count -gt 0
+    })
     if ($busy.Count -eq 0) {
         Write-Host '[OK] Lokale Workslip-porte er klar' -ForegroundColor Green
         exit 0
