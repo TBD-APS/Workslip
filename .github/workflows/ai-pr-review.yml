@@ -305,9 +305,77 @@ jobs:
         shell: bash
         run: echo "review_b64=$(base64 -w0 provider-review.json)" >> "$GITHUB_OUTPUT"
 
+  ollama_review:
+    name: Ollama local review
+    needs: prepare
+    if: needs.prepare.outputs.eligible == 'true' && vars.OLLAMA_REVIEW_ENABLED == 'true'
+    runs-on: [self-hosted, ollama]
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL || 'http://127.0.0.1:11434' }}
+      OLLAMA_MODEL: ${{ vars.OLLAMA_REVIEW_MODEL || 'qwen3-coder:30b' }}
+      OLLAMA_TIMEOUT_MS: '900000'
+      PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+      EXPECTED_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+      CI_CONCLUSION: ${{ needs.prepare.outputs.ci_conclusion }}
+    outputs:
+      review_b64: ${{ steps.package.outputs.review_b64 }}
+      context_truncated: ${{ steps.context.outputs.truncated }}
+    steps:
+      - name: Checkout trusted review policy only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.TRUSTED_BRANCH }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Build sanitized review context
+        id: context
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          metadata="$(python3 .github/ai-review/build-context.py)"
+          echo "truncated=$(printf '%s' "$metadata" | jq -r '.diff_truncated')" >> "$GITHUB_OUTPUT"
+
+      - name: Run Ollama review
+        id: ollama
+        continue-on-error: true
+        run: node .github/ai-review/ollama-review.mjs
+
+      - name: Normalize Ollama result
+        if: always()
+        env:
+          ACTION_OUTCOME: ${{ steps.ollama.outcome }}
+          PROVIDER_CONFIGURED: 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          RAW_REVIEW=''
+          if [ -f ollama-raw.json ]; then
+            RAW_REVIEW="$(cat ollama-raw.json)"
+          fi
+          export RAW_REVIEW
+          node .github/ai-review/normalize-review.mjs Ollama
+
+      - name: Package Ollama result
+        id: package
+        if: always()
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const review = fs.readFileSync('provider-review.json');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `review_b64=${review.toString('base64')}\n`);
+          NODE
+
   aggregate:
     name: Aggregate AI review
-    needs: [prepare, github_models_review, openai_review, claude_review]
+    needs: [prepare, github_models_review, openai_review, claude_review, ollama_review]
     if: always() && needs.prepare.outputs.eligible == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -321,7 +389,8 @@ jobs:
       GITHUB_MODELS_REVIEW_B64: ${{ needs.github_models_review.outputs.review_b64 }}
       OPENAI_REVIEW_B64: ${{ needs.openai_review.outputs.review_b64 }}
       CLAUDE_REVIEW_B64: ${{ needs.claude_review.outputs.review_b64 }}
-      CONTEXT_TRUNCATED: ${{ needs.github_models_review.outputs.context_truncated == 'true' || needs.openai_review.outputs.context_truncated == 'true' || needs.claude_review.outputs.context_truncated == 'true' }}
+      OLLAMA_REVIEW_B64: ${{ needs.ollama_review.outputs.review_b64 }}
+      CONTEXT_TRUNCATED: ${{ needs.github_models_review.outputs.context_truncated == 'true' || needs.openai_review.outputs.context_truncated == 'true' || needs.claude_review.outputs.context_truncated == 'true' || needs.ollama_review.outputs.context_truncated == 'true' }}
       PERSONAL_REVIEW_TOKEN: ${{ secrets.WORKSLIP_REVIEW_PAT }}
     steps:
       - name: Checkout trusted aggregator only
