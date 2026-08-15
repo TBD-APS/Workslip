@@ -245,6 +245,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
             .AsNoTracking()
             .Where(user => user.OrganizationId == organizationId && user.Role == Roles.Admin)
             .OrderBy(user => user.DisplayName)
+            .Take(1000)
             .Select(user => new AssignedUserResponse(user.Id, user.DisplayName))
             .ToArrayAsync(cancellationToken);
     }
