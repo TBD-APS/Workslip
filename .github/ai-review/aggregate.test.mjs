@@ -7,7 +7,11 @@ import path from 'node:path';
 const script = new URL('./aggregate.mjs', import.meta.url).pathname;
 
 function encoded(provider, findings) {
-  return Buffer.from(JSON.stringify({ provider, available: true, reason: '', summary: `${provider} summary`, risk: 'high', findings })).toString('base64');
+  return Buffer.from(JSON.stringify({ provider, available: true, configured: true, reason: '', summary: `${provider} summary`, risk: 'high', findings })).toString('base64');
+}
+
+function disabled(provider) {
+  return Buffer.from(JSON.stringify({ provider, available: false, configured: false, reason: 'provider credential is not configured', summary: '', risk: 'low', findings: [] })).toString('base64');
 }
 
 function finding(title, confidence = 0.91) {
@@ -57,5 +61,19 @@ assert.equal(
   run(encoded('OpenAI', [finding('Tenant authorization can be bypassed')]), encoded('Claude', [finding('Tenant authorization bypass on update')]), true).blocking,
   'false',
 );
+
+const claudeOnly = run(disabled('OpenAI'), encoded('Claude', [finding('Tenant authorization bypass on update')]));
+assert.equal(claudeOnly.blocking, 'false');
+assert.equal(claudeOnly.providers, '1');
+assert.equal(claudeOnly.enabled, '1');
+
+const bothProviders = run(encoded('OpenAI', []), encoded('Claude', []));
+assert.equal(bothProviders.providers, '2');
+assert.equal(bothProviders.enabled, '2');
+
+const nothingConfigured = run(disabled('OpenAI'), disabled('Claude'));
+assert.equal(nothingConfigured.blocking, 'false');
+assert.equal(nothingConfigured.providers, '0');
+assert.equal(nothingConfigured.enabled, '0');
 
 console.log('AI review consensus tests passed');

@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   Building2,
   CalendarDays,
   ClipboardList,
@@ -26,6 +27,7 @@ interface QuickNavigatorCommandOptions {
   canViewTimer: boolean;
   canManageUsers: boolean;
   canViewCustomers: boolean;
+  canViewDocs: boolean;
   canEditCustomers: boolean;
   canCreateJobs: boolean;
   canManageOrganization: boolean;
@@ -39,6 +41,7 @@ export function buildQuickNavigatorCommands({
   canViewTimer,
   canManageUsers,
   canViewCustomers,
+  canViewDocs,
   canEditCustomers,
   canCreateJobs,
   canManageOrganization,
@@ -82,6 +85,15 @@ export function buildQuickNavigatorCommands({
     path: '/app/customers',
     keywords: ['kunde', 'kunder', 'firma', 'virksomhed'],
     icon: Building2,
+  });
+
+  if (canViewDocs) commands.push({
+    id: 'docs',
+    label: 'Docs',
+    description: 'Åbn intern viden og dokumentation',
+    path: '/app/docs',
+    keywords: ['docs', 'dokument', 'dokumenter', 'viden', 'wiki', 'onboarding', 'procedure'],
+    icon: BookOpen,
   });
 
   if (canCreateJobs) commands.push({

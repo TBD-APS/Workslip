@@ -1,5 +1,5 @@
 import { useNavigate, useLocation, NavLink, Navigate, Outlet } from 'react-router-dom';
-import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell, Search } from 'lucide-react';
+import { BookOpen, ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell, Search } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can, useCan, useIsSuperAdmin } from '../../providers/permissions';
 import { useRef, useState } from 'react';
@@ -38,6 +38,7 @@ export const AppLayout = () => {
   const canViewTimer = useCan('worksheet:view');
   const canManageUsers = useCan('user:manage');
   const canViewCustomers = useCan('customer:view');
+  const canViewDocs = useCan('docs:view');
   const canEditCustomers = useCan('customer:edit');
   const canCreateJobs = useCan('job:create');
   const canViewAllJobs = useCan('job:viewAll');
@@ -66,10 +67,6 @@ export const AppLayout = () => {
   const handleLogout = () => {
     clearOrganizationSession();
     logout();
-    // Navigate immediately rather than waiting for ProtectedRoute to render
-    // a <Navigate to="/login"> — avoids a single frame of protected content
-    // still being visible after the user clicked logout, and prevents a
-    // browser-back race where the protected URL is briefly visible again.
     navigate('/login', { replace: true });
   };
 
@@ -79,8 +76,6 @@ export const AppLayout = () => {
       return;
     }
 
-    // A full navigation recreates AuthProvider with the restored token and
-    // clears all in-memory tenant queries before the Superadmin page renders.
     window.location.assign('/superadmin');
   };
 
@@ -100,7 +95,6 @@ export const AppLayout = () => {
     <AppScrollRestoreBoundary restoreKey={restoreScrollKey}>
     <DropdownProvider>
       <div ref={scrollContainerRef} className="app-shell">
-        {/* Top Header for Mobile */}
       <header className="app-header">
         <button className="logo logo-header" onClick={() => navigate(isSuperadmin && !organizationSession ? '/superadmin' : appHomePath)}>
           <svg className="logo-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -126,6 +120,18 @@ export const AppLayout = () => {
           >
             <Search size={18} />
           </button>
+          {canViewDocs && canUseAppCommands && (
+            <button
+              type="button"
+              onClick={() => navigate('/app/docs')}
+              className="user-avatar"
+              aria-label="Docs"
+              title="Docs"
+              aria-current={location.pathname.startsWith('/app/docs') ? 'page' : undefined}
+            >
+              <BookOpen size={18} />
+            </button>
+          )}
           {canUseNotifications && (
             <button
               type="button"
@@ -211,6 +217,7 @@ export const AppLayout = () => {
         canViewTimer={canUseAppCommands && canViewTimer}
         canManageUsers={canUseAppCommands && canManageUsers}
         canViewCustomers={canUseAppCommands && canViewCustomers}
+        canViewDocs={canUseAppCommands && canViewDocs}
         canEditCustomers={canUseAppCommands && canEditCustomers}
         canCreateJobs={canUseAppCommands && canCreateJobs}
         canManageOrganization={canManageOrganization}
@@ -229,12 +236,10 @@ export const AppLayout = () => {
         </div>
       )}
 
-      {/* Main Content Area */}
       <main className="app-content">
         <Outlet />
       </main>
 
-      {/* Bottom Navigation (Mobile First) */}
       <nav className="bottom-nav">
         <NavLink to={appHomePath} end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive(appHomePath)}>
           <ClipboardList size={24} />
@@ -258,6 +263,12 @@ export const AppLayout = () => {
             <span>Kunder</span>
           </NavLink>
         </Can>
+        <Can permission="docs:view">
+          <NavLink to="/app/docs" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/docs')}>
+            <BookOpen size={24} />
+            <span>Docs</span>
+          </NavLink>
+        </Can>
         <button
           type="button"
           className={`nav-item quick-nav-mobile-trigger ${quickNavigatorOpen ? 'active' : ''}`}
@@ -271,7 +282,6 @@ export const AppLayout = () => {
         </button>
       </nav>
 
-      {/* Floating Create Button - only on Sager list */}
       {location.pathname === '/app' && (
         <Can permission="job:create">
           <button className="fab-create" onClick={() => setCreateSheetOpen(true)} aria-label="Opret ny sag">
@@ -280,7 +290,6 @@ export const AppLayout = () => {
         </Can>
       )}
 
-      {/* Floating Create Button - on Customers list */}
       {location.pathname === '/app/customers' && (
         <Can permission="user:manage">
           <button className="fab-create" onClick={() => setCreateSheetOpen(true)} aria-label="Opret ny kunde">
