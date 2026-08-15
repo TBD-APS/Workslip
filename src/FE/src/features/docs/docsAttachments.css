@@ -112,8 +112,8 @@
 }
 
 .docs-attachment-action {
-  width: 2.2rem;
-  height: 2.2rem;
+  width: 44px;
+  height: 44px;
   display: inline-grid;
   place-items: center;
   border: 1px solid transparent;
@@ -123,14 +123,23 @@
   cursor: pointer;
 }
 
-.docs-attachment-action:hover:not(:disabled) {
-  border-color: var(--border);
-  background: var(--surface-selected);
-  color: var(--text);
+@media (hover: hover) and (pointer: fine) {
+  .docs-attachment-action:hover:not(:disabled) {
+    border-color: var(--border);
+    background: var(--surface-selected);
+    color: var(--text);
+  }
+
+  .docs-attachment-action--danger:hover:not(:disabled) {
+    border-color: var(--danger);
+    background: var(--status-red-bg);
+    color: var(--status-red-text);
+  }
 }
 
-.docs-attachment-action--danger:hover:not(:disabled) {
-  color: var(--danger);
+.docs-attachment-action:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .docs-attachment-action:disabled {
@@ -161,7 +170,7 @@
 .docs-audio-preview audio {
   width: 100%;
   min-width: 0;
-  height: 2.4rem;
+  min-height: 44px;
 }
 
 @media (max-width: 600px) {
