@@ -54,3 +54,15 @@ pwsh ./src/BE/infrastructure/run-database-migrations.ps1 -Environment prod -Vali
 ## Production execution
 
 After green CI on `main`, the backend deployment authenticates first with the ordinary GitHub deployment identity only to discover the dedicated migration identity, then switches to that identity for migration execution. The migration identity has database DDL/data permissions and SQL-firewall management only for the target SQL server. The ordinary API runtime identity keeps normal data read/write access and must not retain `db_ddladmin`.
+
+## Schema contract guard
+
+Local development and tests build the schema from the EF model (`EnsureCreated`), while production changes only through these migration files. Nothing at runtime compares the two, so a column added to the EF model without a migration is invisible until production fails.
+
+`SchemaModelContractTests` (in `Workslip.Tests`) closes that gap: it pins the EF model against an explicit schema contract and fails whenever they diverge. When you change the schema:
+
+1. Add or edit a migration here so production is brought in line.
+2. Update `ExpectedColumnsByTable` in `SchemaModelContractTests` to match the new model.
+3. For a column added to a pre-existing table, or a new table, add its entry to `MigrationBackedColumns`/`MigrationCreatedTables` so the test also confirms a migration actually establishes it.
+
+The test only proves the model and the migration set agree. It cannot see whether a given database has actually had the migrations applied — for that (including pre-cutover columns that never reached production), diff the live `INFORMATION_SCHEMA.COLUMNS` against the model.
