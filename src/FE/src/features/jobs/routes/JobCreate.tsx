@@ -4,8 +4,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getGetApiJobsQueryKey } from '../../../api/generated/jobs/jobs';
-import { useJobCreate } from '../hooks/useJobCreate';
+import { useJobCreateWithAuditorScope } from '../hooks/useJobCreateWithAuditorScope';
 import { CreateOverviewStep } from '../components/steps/CreateOverviewStep';
+import { JobAuditorScopeControl } from '../components/JobAuditorScopeControl';
 import { NavigationGuard } from '../../../components/forms/NavigationGuard';
 import { useModalAccessibility } from '../../../components/common/useModalAccessibility';
 import { emptyForm, getLinkableJobs, sameForm } from '../utils';
@@ -14,6 +15,7 @@ import type { CustomerSnapshotData } from '../../../api/generated/models/custome
 import type { JobListItemViewModel } from '../../../api/generated/models';
 import { JobStatus } from '../../../api/generated/models';
 import { apiClient } from '../../../lib/axios';
+import { useIsAdmin } from '../../../providers/permissions';
 
 type JobCreateLocationState = {
   fromCustomer?: boolean;
@@ -24,6 +26,7 @@ type JobCreateLocationState = {
 export const JobCreate = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const isAdmin = useIsAdmin();
   const locationState = location.state as JobCreateLocationState | null;
 
   const initialForm: JobForm | undefined = locationState?.fromCustomer && locationState.customerSnapshot
@@ -45,7 +48,7 @@ export const JobCreate = () => {
   });
   const linkableJobs = getLinkableJobs(jobsData, undefined);
 
-  const create = useJobCreate(setCreatedJobIds, initialForm);
+  const create = useJobCreateWithAuditorScope(setCreatedJobIds, initialForm);
 
   useEffect(() => {
     document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -72,7 +75,14 @@ export const JobCreate = () => {
     navigate(`/app/job/${createdJobIds[0]}`, { replace: true, state: { from: '/app' } });
   };
 
-  const hasUnsavedChanges = createdJobIds.length === 0 && (!sameForm(create.form, initialFormBaseline) || create.linkedJobIds.length > 0);
+  const auditorScopeChanged = isAdmin
+    && (!create.auditorScope.isInAuditorScope || create.auditorScope.reason.length > 0);
+  const hasUnsavedChanges = createdJobIds.length === 0 && (
+    !sameForm(create.form, initialFormBaseline)
+    || create.linkedJobIds.length > 0
+    || auditorScopeChanged
+    || create.hasPendingAuditorScope
+  );
 
   return (
     <div className="page-container">
@@ -92,6 +102,32 @@ export const JobCreate = () => {
         isLoadingJobs={isLoadingJobs}
       />
 
+      {isAdmin && (
+        <div className="job-create-auditor-scope">
+          <JobAuditorScopeControl
+            value={create.auditorScope}
+            onChange={create.updateAuditorScope}
+            disabled={create.isSaving || create.hasPendingAuditorScope}
+          />
+          {create.auditorScopeError && (
+            <div className="auditor-scope-create-error" role="alert">
+              <div>
+                <strong>Auditøradgangen blev ikke gemt</strong>
+                <p>Sagen er allerede oprettet. Prøv igen her, så du ikke kommer til at oprette en kopi.</p>
+              </div>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={create.retryAuditorScope}
+                disabled={create.isSaving}
+              >
+                {create.isSaving ? 'Prøver igen...' : 'Prøv igen'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="step-nav">
         <button className="step-nav-btn step-nav-btn-back" type="button" onClick={() => navigate(-1)}>
           Tilbage
@@ -100,7 +136,7 @@ export const JobCreate = () => {
           className="step-nav-btn step-nav-btn-next step-nav-btn-next--wide"
           type="button"
           onClick={create.save}
-          disabled={create.isSaving}
+          disabled={create.isSaving || create.hasPendingAuditorScope}
         >
           {create.isSaving ? <Loader2 className="animate-spin" size={18} aria-hidden="true" /> : null}
           <span>{create.isSaving ? 'Gemmer...' : 'Opret sag'}</span>

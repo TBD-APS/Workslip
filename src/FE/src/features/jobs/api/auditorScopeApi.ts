@@ -5,22 +5,21 @@ export type JobAuditorScope = {
   reason?: string | null;
 };
 
+export type JobAuditorScopeDraft = {
+  isInAuditorScope: boolean;
+  reason: string;
+};
+
 export type SetJobAuditorScopeRequest = {
   isInAuditorScope: boolean;
   reason?: string | null;
 };
-
-export function getJobAuditorScope(jobId: string) {
-  return customAxiosInstance<JobAuditorScope>({
-    url: `/api/jobs/${jobId}/auditor-scope`,
-    method: 'GET',
-  });
-}
 
 export function setJobAuditorScope(jobId: string, data: SetJobAuditorScopeRequest) {
   return customAxiosInstance<JobAuditorScope>({
     url: `/api/jobs/${jobId}/auditor-scope`,
     method: 'PUT',
     data,
+    skipGlobalErrorToast: true,
   });
 }
