@@ -102,7 +102,7 @@ fi
 token_response="$(curl --fail --silent --show-error \
   --request POST \
   --header 'Content-Type: application/json' \
-  --data '{"email":"admin@17v3ygzs.mailosaur.net"}' \
+  --data '{"email":"superadmin@17v3ygzs.mailosaur.net"}' \
   "${API_URL}/api/dev/token")"
 
 auth_token="$(node -e '
