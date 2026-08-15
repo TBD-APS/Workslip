@@ -22,6 +22,10 @@ vi.mock('../../../providers/permissions/usePermissions', () => ({
   useIsAdmin: () => mocks.isAdmin,
 }));
 
+vi.mock('../components/JobAuditorScopeControl', () => ({
+  JobAuditorScopeControl: ({ jobId }: { jobId: string }) => <div>{`auditor-scope:${jobId}`}</div>,
+}));
+
 function RouteProbe({ mode }: { mode: string }) {
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? 'none';
@@ -75,18 +79,20 @@ describe('JobEntryRoute', () => {
     expect(await screen.findByText('report:/app/completed/job-1:from=/app')).toBeInTheDocument();
   });
 
-  it('routes rejected jobs to the report for admins', async () => {
+  it('routes rejected jobs to the report for admins and exposes the admin-only scope control', async () => {
     mocks.isAdmin = true;
     mocks.job = { status: JobStatus.Rejected, jobType: 'KLS' };
     renderRoute('/app/job/job-1', { from: '/app' });
 
     expect(await screen.findByText('report:/app/completed/job-1:from=/app')).toBeInTheDocument();
+    expect(screen.getByText('auditor-scope:job-1')).toBeInTheDocument();
   });
 
   it('keeps auditor-style read-only entry in the report even for a draft status', () => {
     renderRoute('/app/completed/job-1', { from: '/app/auditor', readOnly: true });
 
     expect(screen.getByText('report:/app/completed/job-1:from=/app/auditor')).toBeInTheDocument();
+    expect(screen.queryByText('auditor-scope:job-1')).not.toBeInTheDocument();
   });
 
   it('routes Diverse jobs to the report regardless of status', async () => {
