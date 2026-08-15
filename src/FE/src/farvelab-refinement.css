@@ -134,10 +134,15 @@ html body:has(.app-shell) :is(.btn-secondary, .btn-outline, .btn-outline-danger)
 
 /* Notification inbox uses the same semantic surfaces/elevation as the rest of
  * the app. Push delivery itself stays owned by the service-worker/provider flow. */
-html body:has(.app-shell) .notifications-drawer .drawer-panel {
+html body:has(.app-shell) .notifications-drawer {
   background: var(--surface-modal);
-  border-color: var(--border);
+  border-left-color: var(--border);
   box-shadow: var(--shadow-lg);
+}
+
+html body:has(.app-shell) .notifications-drawer .drawer-header {
+  background: color-mix(in srgb, var(--surface-modal) 94%, transparent);
+  border-bottom-color: var(--border);
 }
 
 html body:has(.app-shell) :is(.notifications-hero, .notifications-tabs, .notification-item) {
@@ -175,7 +180,7 @@ html body:has(.app-shell) .notification-item-unread {
   );
 }
 
-html body:has(.app-shell) :is(.notification-badge, .notification-error .btn-primary) {
+html body:has(.app-shell) .notification-badge {
   color: #ffffff;
 }
 
