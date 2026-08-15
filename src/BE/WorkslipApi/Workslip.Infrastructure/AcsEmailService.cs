@@ -25,7 +25,7 @@ public sealed class AcsEmailService(
 
     public async Task SendInviteEmailAsync(string toEmail, string token, CancellationToken cancellationToken)
     {
-        if (SkipBecauseAcsIsNotConfiguredInDevelopment("invite"))
+        if (SkipBecauseAcsIsNotConfiguredInDevelopment())
             return;
 
         var emailClient = new EmailClient(RequireConfigured(_acsConnectionString, "Azure:Acs:ConnectionString"));
@@ -72,7 +72,7 @@ public sealed class AcsEmailService(
 
     public async Task SendOtcEmailAsync(string toEmail, string code, CancellationToken cancellationToken)
     {
-        if (SkipBecauseAcsIsNotConfiguredInDevelopment("OTC"))
+        if (SkipBecauseAcsIsNotConfiguredInDevelopment())
             return;
 
         var emailClient = new EmailClient(RequireConfigured(_acsConnectionString, "Azure:Acs:ConnectionString"));
@@ -113,7 +113,7 @@ public sealed class AcsEmailService(
         }
     }
 
-    private bool SkipBecauseAcsIsNotConfiguredInDevelopment(string emailKind)
+    private bool SkipBecauseAcsIsNotConfiguredInDevelopment()
     {
         if (!string.IsNullOrWhiteSpace(_acsConnectionString))
             return false;
@@ -127,8 +127,7 @@ public sealed class AcsEmailService(
         }
 
         logger.LogInformation(
-            "ACS is not configured; skipping {EmailKind} email send in Development. CorrelationId={CorrelationId}",
-            emailKind,
+            "ACS is not configured; skipping email send in Development. CorrelationId={CorrelationId}",
             correlationIdAccessor.CorrelationId);
 
         return true;

@@ -535,8 +535,8 @@
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
-                  "pm.test('current-user shape is current', function () { pm.expect(json).to.include.all.keys('id', 'displayName', 'email', 'phone', 'role', 'organization'); });",
-                  "pm.test('organization shape is current', function () { pm.expect(json.organization).to.include.all.keys('id', 'name', 'cvr'); });"
+                  "pm.test('current-user shape is current', function () { pm.expect(json).to.include.all.keys('id', 'organizationId', 'email', 'displayName', 'phone', 'role'); });",
+                  "pm.test('organization id captured', function () { pm.expect(json.organizationId).to.be.a('string').and.not.empty; });"
                 ]
               }
             }
