@@ -1,9 +1,25 @@
 ﻿import { useCallback, useEffect, useRef, useState } from 'react';
 
 const LAST_ACTIVE_KEY = 'statusFilter:lastActive';
+const JOB_STATUS_QUERY_KEY = 'status';
+const JOB_STATUSES = new Set(['Draft', 'InReview', 'Approved', 'Rejected']);
+
+function getStatusFromUrl<T extends string>(sectionKey: string): T[] | null {
+  if (sectionKey !== 'mine-jobs' || typeof window === 'undefined') return null;
+
+  const requested = new URLSearchParams(window.location.search).get(JOB_STATUS_QUERY_KEY);
+  return requested && JOB_STATUSES.has(requested) ? [requested as T] : null;
+}
 
 export function getSavedStatusFilter<T extends string>(sectionKey: string, defaults: T[]): T[] {
   try {
+    const urlStatus = getStatusFromUrl<T>(sectionKey);
+    if (urlStatus) {
+      sessionStorage.setItem(LAST_ACTIVE_KEY, sectionKey);
+      sessionStorage.setItem(`statusFilter:${sectionKey}`, JSON.stringify(urlStatus));
+      return urlStatus;
+    }
+
     const lastActive = sessionStorage.getItem(LAST_ACTIVE_KEY);
     sessionStorage.setItem(LAST_ACTIVE_KEY, sectionKey);
 
@@ -28,6 +44,17 @@ export function getSavedStatusFilter<T extends string>(sectionKey: string, defau
 
 export function saveStatusFilter(sectionKey: string, statuses: string[]) {
   sessionStorage.setItem(`statusFilter:${sectionKey}`, JSON.stringify(statuses));
+
+  if (sectionKey === 'mine-jobs' && typeof window !== 'undefined') {
+    const url = new URL(window.location.href);
+    const selected = statuses[0];
+    if (selected && JOB_STATUSES.has(selected)) {
+      url.searchParams.set(JOB_STATUS_QUERY_KEY, selected);
+    } else {
+      url.searchParams.delete(JOB_STATUS_QUERY_KEY);
+    }
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }
 }
 
 /** Call on mount on pages that are section boundaries (e.g. UserList, any page outside the filter's section). */
