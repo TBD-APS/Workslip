@@ -1,10 +1,10 @@
 import { useCallback, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Heart, Loader2, Mail, MapPin, MoreHorizontal, Phone, Plus, TrendingUp, Upload, Users } from 'lucide-react';
-import { createPortal } from 'react-dom';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Heart, Mail, MapPin, MoreHorizontal, Phone, Plus, TrendingUp, Upload, Users } from 'lucide-react';
 import { type CustomerListItemViewModel } from '../../../api/generated/models';
 import { Can } from '../../../providers/permissions/Can';
+import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { ErrorState } from '../../../components/ErrorState';
 import { CopyAddressButton } from '../../../components/CopyAddressButton';
 import { SearchBar } from '../../../components/filters/SearchBar';
@@ -35,11 +35,9 @@ export const CustomerList = () => {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingImport, setPendingImport] = useState<File | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
 
   const handleImport = async () => {
     if (!pendingImport) return;
-    setIsImporting(true);
     try {
       const formData = new FormData();
       formData.append('file', pendingImport);
@@ -52,8 +50,7 @@ export const CustomerList = () => {
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch {
       // Toast handled by axios interceptor.
-    } finally {
-      setIsImporting(false);
+      throw new Error('customer_import_failed');
     }
   };
 
@@ -139,14 +136,14 @@ export const CustomerList = () => {
                       type="file"
                       accept=".xlsx,.csv"
                       hidden
-                      onChange={(e) => setPendingImport(e.target.files?.[0] ?? null)}
+                      onChange={(event) => setPendingImport(event.target.files?.[0] ?? null)}
                     />
                     <button className="btn btn-secondary" type="button" onClick={() => fileInputRef.current?.click()}>
-                      <Upload size={16} />
+                      <Upload size={16} aria-hidden="true" />
                       <span>Importér</span>
                     </button>
                     <button className="btn btn-primary" onClick={() => navigate('/app/customers/new')} type="button">
-                      <Plus size={18} />
+                      <Plus size={18} aria-hidden="true" />
                       <span>Ny kunde</span>
                     </button>
                   </>
@@ -162,7 +159,7 @@ export const CustomerList = () => {
       {favoriteCustomers.length > 0 && !search && (
         <div className="favorite-customers-section">
           <div className="favorite-customers-header">
-            <TrendingUp size={16} />
+            <TrendingUp size={16} aria-hidden="true" />
             <span>Favoritkunder</span>
           </div>
           <div className="favorite-customers-grid">
@@ -187,7 +184,6 @@ export const CustomerList = () => {
         <ErrorState message="Kunne ikke hente kunder. Prøv igen." onRetry={() => void refetch()} />
       ) : showLoadingSkeleton || showPageLoading ? (
         isDesktop ? (
-          <>
           <table className="data-table">
             <thead>
               <tr>
@@ -202,8 +198,8 @@ export const CustomerList = () => {
               </tr>
             </thead>
             <tbody>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}>
+              {Array.from({ length: 5 }).map((_, index) => (
+                <tr key={index}>
                   <td><div className="skeleton skeleton-w-70" /></td>
                   <td><div className="skeleton skeleton-w-30" /></td>
                   <td><div className="skeleton skeleton-w-60" /></td>
@@ -216,7 +212,6 @@ export const CustomerList = () => {
               ))}
             </tbody>
           </table>
-          </>
         ) : (
           <div className="job-list">
             <SkeletonCard />
@@ -226,250 +221,245 @@ export const CustomerList = () => {
         )
       ) : (
         <>
-        {isDesktop ? (
-          <>
-          <table className="data-table">
-          <thead>
-            <tr>
-              <th className={`col-name sortable${sortBy === 'name' ? ' sorted' : ''}`}>
-                <button type="button" className="sort-trigger" onClick={() => handleSort('name')}>
-                  Navn<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </button>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
-              </th>
-              <th className="col-number">
-                <span>Kundenummer</span>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
-              </th>
-              <th className={`col-address sortable${sortBy === 'address' ? ' sorted' : ''}`}>
-                <button type="button" className="sort-trigger" onClick={() => handleSort('address')}>
-                  Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </button>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
-              </th>
-              <th className={`col-email sortable${sortBy === 'email' ? ' sorted' : ''}`}>
-                <button type="button" className="sort-trigger" onClick={() => handleSort('email')}>
-                  Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </button>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
-              </th>
-              <th className={`col-contact sortable${sortBy === 'contactPerson' ? ' sorted' : ''}`}>
-                <button type="button" className="sort-trigger" onClick={() => handleSort('contactPerson')}>
-                  Kontakt<span className="sort-icon">{sortBy === 'contactPerson' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </button>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(4, e)} />
-              </th>
-              <th className={`col-phone sortable${sortBy === 'phone' ? ' sorted' : ''}`}>
-                <button type="button" className="sort-trigger" onClick={() => handleSort('phone')}>
-                  Telefon<span className="sort-icon">{sortBy === 'phone' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </button>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(5, e)} />
-              </th>
-              <th className={`col-hours sortable${sortBy === 'jobCount' ? ' sorted' : ''}`}>
-                <button type="button" className="sort-trigger" onClick={() => handleSort('jobCount')}>
-                  Sager<span className="sort-icon">{sortBy === 'jobCount' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </button>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(6, e)} />
-              </th>
-              <th className="col-actions">
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(7, e)} />
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {pageItems.map((customer) => (
-              <tr
-                key={customer.id}
-                className="clickable"
-                onClick={() => navigate(`/app/customers/${customer.id}`)}
-              >
-                <td>
-                  <div className="flex-row-center">
-                    <span>{customer.name}</span>
-                  </div>
-                </td>
-                <td>{customer.customerNumber}</td>
-                <td>
-                  <span>{customer.address}</span>
-                  <CopyAddressButton address={customer.address} />
-                </td>
-                <td>{customer.email}</td>
-                <td>{customer.contactPerson}</td>
-                <td>{customer.phone}</td>
-                <td className="cell-number">{customer.jobCount}</td>
-                <td className="col-actions">
-                  <div className="flex-row-end">
-                    <span className={`btn-icon ${customer.isFavorite ? 'text-red' : 'opacity-30'}`} title={customer.isFavorite ? 'Favorit' : ''}>
-                        <Heart size={16} fill={customer.isFavorite ? 'currentColor' : 'none'} />
-                      </span>
-                    <Can permission="customer:edit">
-                      <button
-                        type="button"
-                        className="btn-icon opacity-50"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleActionMenu(e, customer.id);
-                        }}
-                        aria-label="Handlinger"
-                        title="Handlinger"
-                      >
-                        <MoreHorizontal size={16} />
+          {isDesktop ? (
+            <>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th className={`col-name sortable${sortBy === 'name' ? ' sorted' : ''}`}>
+                      <button type="button" className="sort-trigger" onClick={() => handleSort('name')}>
+                        Navn<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                       </button>
-                    </Can>
-                    <ChevronRight size={16} className="row-link-icon" />
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <PaginationControls
-          page={safeViewPage}
-          totalCount={totalCount}
-          pageSize={PAGE_SIZE}
-          onPrev={() => setViewPage((p) => Math.max(1, p - 1))}
-          onNext={() => {
-            const nextPage = safeViewPage + 1;
-            if (nextPage > totalPages) return;
-            setViewPage(nextPage);
-          }}
-        />
-        </>
-      ) : (
-        <div className="job-list">
-          {pageItems.map((customer) => {
-            const openCustomer = () => navigate(`/app/customers/${customer.id}`);
-
-            return (
-              <div key={customer.id} className="job-card-wrapper">
-                <div
-                  className="job-card"
-                  onClick={openCustomer}
-                  onKeyDown={(event) => {
-                    if (event.target !== event.currentTarget) return;
-                    if (event.key === 'Enter' || event.key === ' ') openCustomer();
-                  }}
-                  role="link"
-                  tabIndex={0}
-                >
-                  <div className="job-card-top job-card-top-center">
-                    <div className="customer-card-identity">
-                      <h3 className="customer-name">{customer.name}</h3>
-                      {customer.customerNumber && (
-                        <span className="text-muted customer-number">#{customer.customerNumber}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="job-card-body">
-                    <span className="meta-item customer-job-count">
-                      {customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}
-                    </span>
-                    {customer.address && (
-                      <span className="meta-item">
-                        <MapPin size={14} />
+                      <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(0, event)} />
+                    </th>
+                    <th className="col-number">
+                      <span>Kundenummer</span>
+                      <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(1, event)} />
+                    </th>
+                    <th className={`col-address sortable${sortBy === 'address' ? ' sorted' : ''}`}>
+                      <button type="button" className="sort-trigger" onClick={() => handleSort('address')}>
+                        Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                      </button>
+                      <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(2, event)} />
+                    </th>
+                    <th className={`col-email sortable${sortBy === 'email' ? ' sorted' : ''}`}>
+                      <button type="button" className="sort-trigger" onClick={() => handleSort('email')}>
+                        Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                      </button>
+                      <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(3, event)} />
+                    </th>
+                    <th className={`col-contact sortable${sortBy === 'contactPerson' ? ' sorted' : ''}`}>
+                      <button type="button" className="sort-trigger" onClick={() => handleSort('contactPerson')}>
+                        Kontakt<span className="sort-icon">{sortBy === 'contactPerson' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                      </button>
+                      <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(4, event)} />
+                    </th>
+                    <th className={`col-phone sortable${sortBy === 'phone' ? ' sorted' : ''}`}>
+                      <button type="button" className="sort-trigger" onClick={() => handleSort('phone')}>
+                        Telefon<span className="sort-icon">{sortBy === 'phone' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                      </button>
+                      <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(5, event)} />
+                    </th>
+                    <th className={`col-hours sortable${sortBy === 'jobCount' ? ' sorted' : ''}`}>
+                      <button type="button" className="sort-trigger" onClick={() => handleSort('jobCount')}>
+                        Sager<span className="sort-icon">{sortBy === 'jobCount' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                      </button>
+                      <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(6, event)} />
+                    </th>
+                    <th className="col-actions">
+                      <div className="col-resize-handle" onMouseDown={(event) => handleMouseDown(7, event)} />
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageItems.map((customer) => (
+                    <tr
+                      key={customer.id}
+                      className="clickable"
+                      tabIndex={0}
+                      onClick={() => navigate(`/app/customers/${customer.id}`)}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          navigate(`/app/customers/${customer.id}`);
+                        }
+                      }}
+                    >
+                      <td>
+                        <div className="flex-row-center">
+                          <span>{customer.name}</span>
+                        </div>
+                      </td>
+                      <td>{customer.customerNumber}</td>
+                      <td>
                         <span>{customer.address}</span>
                         <CopyAddressButton address={customer.address} />
-                      </span>
-                    )}
-                    {customer.email && (
-                      <span className="meta-item">
-                        <Mail size={14} />
-                        <span>{customer.email}</span>
-                      </span>
-                    )}
-                    {customer.contactPerson && (
-                      <span className="meta-item">
-                        <Users size={14} />
-                        <span>{customer.contactPerson}</span>
-                      </span>
-                    )}
-                    {customer.phone && (
-                      <span className="meta-item">
-                        <Phone size={14} />
-                        <span>{customer.phone}</span>
-                      </span>
-                    )}
-                  </div>
+                      </td>
+                      <td>{customer.email}</td>
+                      <td>{customer.contactPerson}</td>
+                      <td>{customer.phone}</td>
+                      <td className="cell-number">{customer.jobCount}</td>
+                      <td className="col-actions">
+                        <div className="flex-row-end">
+                          <span className={`btn-icon ${customer.isFavorite ? 'text-red' : 'opacity-30'}`} title={customer.isFavorite ? 'Favorit' : ''}>
+                            <Heart size={16} fill={customer.isFavorite ? 'currentColor' : 'none'} />
+                          </span>
+                          <Can permission="customer:edit">
+                            <button
+                              type="button"
+                              className="btn-icon opacity-50"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                toggleActionMenu(event, customer.id);
+                              }}
+                              aria-label="Handlinger"
+                              title="Handlinger"
+                            >
+                              <MoreHorizontal size={16} aria-hidden="true" />
+                            </button>
+                          </Can>
+                          <ChevronRight size={16} className="row-link-icon" aria-hidden="true" />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <PaginationControls
+                page={safeViewPage}
+                totalCount={totalCount}
+                pageSize={PAGE_SIZE}
+                onPrev={() => setViewPage((page) => Math.max(1, page - 1))}
+                onNext={() => {
+                  const nextPage = safeViewPage + 1;
+                  if (nextPage > totalPages) return;
+                  setViewPage(nextPage);
+                }}
+              />
+            </>
+          ) : (
+            <div className="job-list">
+              {pageItems.map((customer) => {
+                const openCustomer = () => navigate(`/app/customers/${customer.id}`);
 
-                  <div className="job-card-footer">
-                    <span className={`btn-icon ${customer.isFavorite ? 'text-red' : 'opacity-30'}`} title={customer.isFavorite ? 'Favorit' : ''}>
-                      <Heart size={18} fill={customer.isFavorite ? 'currentColor' : 'none'} />
-                    </span>
-                    <span className="btn-icon" aria-label="Se kunde">
-                      <ChevronRight size={20} />
-                    </span>
-                  </div>
-                </div>
-
-                <Can permission="customer:edit">
-                  <div className="worksheet-actions-menu-root customer-actions-anchor">
-                    <button
-                      type="button"
-                      className="btn-icon customer-actions-btn"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        toggleActionMenu(event, customer.id);
+                return (
+                  <div key={customer.id} className="job-card-wrapper">
+                    <div
+                      className="job-card"
+                      onClick={openCustomer}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          openCustomer();
+                        }
                       }}
-                      aria-label="Åbn handlinger for kunde"
-                      aria-expanded={openActionMenu?.customerId === customer.id}
-                      title="Handlinger"
+                      role="link"
+                      tabIndex={0}
                     >
-                      <MoreHorizontal size={18} />
-                    </button>
-                  </div>
-                </Can>
-              </div>
-            );
-          })}
+                      <div className="job-card-top job-card-top-center">
+                        <div className="customer-card-identity">
+                          <h3 className="customer-name">{customer.name}</h3>
+                          {customer.customerNumber && (
+                            <span className="text-muted customer-number">#{customer.customerNumber}</span>
+                          )}
+                        </div>
+                      </div>
 
-          {customers.length === 0 && !isFetchingNextPage && (
-            <div className="empty-state">
-              <p>Ingen kunder fundet.</p>
+                      <div className="job-card-body">
+                        <span className="meta-item customer-job-count">
+                          {customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}
+                        </span>
+                        {customer.address && (
+                          <span className="meta-item">
+                            <MapPin size={14} aria-hidden="true" />
+                            <span>{customer.address}</span>
+                            <CopyAddressButton address={customer.address} />
+                          </span>
+                        )}
+                        {customer.email && (
+                          <span className="meta-item">
+                            <Mail size={14} aria-hidden="true" />
+                            <span>{customer.email}</span>
+                          </span>
+                        )}
+                        {customer.contactPerson && (
+                          <span className="meta-item">
+                            <Users size={14} aria-hidden="true" />
+                            <span>{customer.contactPerson}</span>
+                          </span>
+                        )}
+                        {customer.phone && (
+                          <span className="meta-item">
+                            <Phone size={14} aria-hidden="true" />
+                            <span>{customer.phone}</span>
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="job-card-footer">
+                        <span className={`btn-icon ${customer.isFavorite ? 'text-red' : 'opacity-30'}`} title={customer.isFavorite ? 'Favorit' : ''}>
+                          <Heart size={18} fill={customer.isFavorite ? 'currentColor' : 'none'} aria-hidden="true" />
+                        </span>
+                        <span className="btn-icon" aria-label="Se kunde">
+                          <ChevronRight size={20} aria-hidden="true" />
+                        </span>
+                      </div>
+                    </div>
+
+                    <Can permission="customer:edit">
+                      <div className="worksheet-actions-menu-root customer-actions-anchor">
+                        <button
+                          type="button"
+                          className="btn-icon customer-actions-btn"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleActionMenu(event, customer.id);
+                          }}
+                          aria-label="Åbn handlinger for kunde"
+                          aria-expanded={openActionMenu?.customerId === customer.id}
+                          title="Handlinger"
+                        >
+                          <MoreHorizontal size={18} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </Can>
+                  </div>
+                );
+              })}
+
+              {customers.length === 0 && !isFetchingNextPage && (
+                <div className="empty-state">
+                  <p>Ingen kunder fundet.</p>
+                </div>
+              )}
+
+              {!isDesktop && (
+                <InfiniteScrollSentinel
+                  sentinelRef={sentinelRef}
+                  isLoading={isFetchingNextPage}
+                />
+              )}
             </div>
           )}
-
-          {!isDesktop && (
-            <InfiniteScrollSentinel
-              sentinelRef={sentinelRef}
-              isLoading={isFetchingNextPage}
-            />
-          )}
-        </div>
+        </>
       )}
-      </>)}
 
       {ActionMenuPortal}
       {EditDialog}
       {DeleteDialog}
-      {pendingImport && (
-        <CustomerImportConfirmDialog
-          file={pendingImport}
-          isImporting={isImporting}
-          onConfirm={() => void handleImport()}
-          onClose={() => setPendingImport(null)}
-        />
-      )}
+      <ConfirmDialog
+        open={Boolean(pendingImport)}
+        title="Godkend kundeimport"
+        message={pendingImport
+          ? `Importér kunder fra ${pendingImport.name}? Rækker med eksisterende kundenummer springes over. Importen kan ikke fortrydes samlet.`
+          : 'Importér de valgte kunder?'}
+        confirmLabel="Importér"
+        pendingLabel="Importerer…"
+        onConfirm={handleImport}
+        onClose={() => setPendingImport(null)}
+      />
     </div>
   );
 };
-
-function CustomerImportConfirmDialog({ file, isImporting, onConfirm, onClose }: { file: File; isImporting: boolean; onConfirm: () => void; onClose: () => void }) {
-  return createPortal(
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="customer-import-title">
-      <div className="modal-card">
-        <h3 id="customer-import-title">Godkend kundeimport</h3>
-        <p>Importér kunder fra <strong>{file.name}</strong>?</p>
-        <p className="subtitle">Rækker med eksisterende kundenummer springes over. Importen kan ikke fortrydes samlet.</p>
-        <div className="modal-actions">
-          <button className="btn btn-primary" type="button" onClick={onConfirm} disabled={isImporting}>
-            {isImporting && <Loader2 className="animate-spin" size={16} />}
-            <span>{isImporting ? 'Importerer...' : 'Importér'}</span>
-          </button>
-          <button className="btn btn-secondary" type="button" onClick={onClose} disabled={isImporting}>Annuller</button>
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
