@@ -1,0 +1,227 @@
+.job-history-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  margin-bottom: 0.8rem;
+  padding: 0.1rem 0.1rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.job-history-overview strong {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+
+.job-history-overview span {
+  max-width: 32rem;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}
+
+.job-history-feed {
+  min-width: 0;
+}
+
+.job-history-event {
+  background: var(--surface-floating, var(--surface));
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm-raw);
+}
+
+.job-history-event-trigger,
+.job-history-event-static {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+}
+
+.job-history-actor {
+  font-weight: 750;
+}
+
+.job-history-expand svg {
+  transition: transform 0.15s ease;
+}
+
+.job-history-chevron-expanded {
+  transform: rotate(180deg);
+}
+
+.job-history-details {
+  animation: job-history-details-in 0.16s ease both;
+}
+
+.job-history-change-list {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.job-history-change-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.7fr) minmax(0, 1.3fr);
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.job-history-change-row:last-child {
+  border-bottom: 0;
+}
+
+.job-history-change-row > strong {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.job-history-change-values {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 0.4rem;
+  align-items: start;
+}
+
+.job-history-change-values-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.job-history-change-values > span:not(.job-history-change-arrow),
+.job-history-change-values-single {
+  min-width: 0;
+}
+
+.job-history-change-values > span:not(.job-history-change-arrow) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.job-history-change-label {
+  color: var(--text-dim);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.job-history-change-old,
+.job-history-change-new {
+  min-width: 0;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.job-history-change-old {
+  color: var(--text-muted);
+}
+
+.job-history-change-new {
+  font-weight: 600;
+}
+
+.job-history-change-arrow {
+  padding-top: 1.05rem;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+
+.job-history-value-empty {
+  color: var(--text-dim);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.job-history-empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.4rem;
+  padding: 2.1rem 1rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.job-history-empty > svg {
+  margin-bottom: 0.15rem;
+  color: var(--primary);
+}
+
+.job-history-empty strong {
+  color: var(--text);
+  font-size: var(--fs-body);
+}
+
+.job-history-empty span {
+  font-size: var(--fs-sm);
+}
+
+.job-history-skeleton {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.job-history-skeleton > span {
+  display: block;
+  height: 5.2rem;
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, var(--surface) 15%, var(--surface-raised) 50%, var(--surface) 85%);
+  background-size: 220% 100%;
+  animation: job-history-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes job-history-details-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes job-history-shimmer {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
+
+@media (max-width: 430px) {
+  .job-history-change-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.35rem;
+  }
+
+  .job-history-change-values {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 0.28rem;
+  }
+
+  .job-history-change-arrow {
+    padding-top: 1.02rem;
+  }
+}
+
+@media (max-width: 340px) {
+  .job-history-change-values:not(.job-history-change-values-single) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .job-history-change-arrow {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .job-history-details,
+  .job-history-skeleton > span,
+  .job-history-expand svg {
+    animation: none !important;
+    transition: none !important;
+  }
+}
