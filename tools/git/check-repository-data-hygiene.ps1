@@ -4,6 +4,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+$ownedSyntheticSeedPaths = @(
+    'src/be/workslipapi/workslip.infrastructure/customerdata.csv'
+)
+
 function Test-CustomerExportPath {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -12,6 +16,13 @@ function Test-CustomerExportPath {
     $extension = [System.IO.Path]::GetExtension($fileName)
 
     if ($extension -notin @('.csv', '.xlsx', '.xls', '.json')) {
+        return $false
+    }
+
+    # The current development customer seed is a verified synthetic fixture
+    # (DEMO identifiers and .invalid email addresses) owned by DatabaseSeeder.
+    # Keep the exception exact so another export with the same filename elsewhere is rejected.
+    if ($ownedSyntheticSeedPaths -contains $normalized) {
         return $false
     }
 
@@ -40,6 +51,8 @@ if ($SelfTest) {
         @{ Path = 'exports/kundedata_2026.xlsx'; Expected = $true },
         @{ Path = 'tmp/customer_contacts.json'; Expected = $true },
         @{ Path = 'Docs/customerdata.csv'; Expected = $true },
+        @{ Path = 'src/BE/WorkslipApi/Workslip.Infrastructure/customerdata.csv'; Expected = $false },
+        @{ Path = 'other/customerdata.csv'; Expected = $true },
         @{ Path = 'tests/fixtures/synthetic-customer.json'; Expected = $false },
         @{ Path = 'tests/testdata/anonymized-kundedata.json'; Expected = $false },
         @{ Path = 'src/Customers/CustomerDataRow.cs'; Expected = $false },
