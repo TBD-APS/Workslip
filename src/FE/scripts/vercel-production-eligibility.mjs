@@ -1,3 +1,6 @@
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 const CI_WORKFLOW = 'frontend-validation.yml';
 const REQUIRED_GATE = 'CI Gate';
 const API_BASE = 'https://api.github.com';
@@ -92,7 +95,7 @@ async function jobs(repository, runId) {
 }
 
 function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
 async function main() {
@@ -144,7 +147,9 @@ async function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+const invokedPath = process.argv[1] ? resolve(process.argv[1]) : '';
+const modulePath = resolve(fileURLToPath(import.meta.url));
+if (invokedPath && invokedPath === modulePath) {
   main().catch((error) => {
     console.error(`[release] Vercel production blocked: ${error.message}`);
     process.exitCode = 1;
