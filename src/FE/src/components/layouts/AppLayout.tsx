@@ -209,7 +209,7 @@ export const AppLayout = () => {
         onOpen={() => setQuickNavigatorOpen(true)}
         onClose={() => setQuickNavigatorOpen(false)}
         homePath={appHomePath}
-        homeLabel={isAuditorSession ? 'Rapporter' : 'Sager'}
+        homeLabel={isAuditorSession ? 'Rapporter' : 'Overblik'}
         canUseAppCommands={canUseAppCommands}
         canSearchJobs={canSearchJobs}
         canViewAllJobs={canViewAllJobs}
@@ -243,7 +243,7 @@ export const AppLayout = () => {
       <nav className="bottom-nav">
         <NavLink to={appHomePath} end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive(appHomePath)}>
           <ClipboardList size={24} />
-          <span>{isAuditorSession ? 'Rapporter' : 'Sager'}</span>
+          <span>{isAuditorSession ? 'Rapporter' : 'Overblik'}</span>
         </NavLink>
         <Can permission="worksheet:view">
           <NavLink to="/app/timer" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/timer')}>

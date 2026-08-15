@@ -18,6 +18,9 @@ const InviteAccept = lazy(() =>
 const AppLayout = lazy(() =>
   import('../components/layouts/AppLayout').then((module) => ({ default: module.AppLayout })),
 );
+const Overview = lazy(() =>
+  import('../features/overview/routes/Overview').then((module) => ({ default: module.Overview })),
+);
 const JobList = lazy(() =>
   import('../features/jobs/routes/JobList').then((module) => ({ default: module.JobList })),
 );
@@ -239,6 +242,7 @@ export const router = createBrowserRouter([
         ),
         children: [
           { index: true, element: <JobList /> },
+          { path: 'overblik', element: <Overview /> },
           { path: 'timer', element: <MyWorksheets /> },
           { path: 'create', element: <Create /> },
           { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
