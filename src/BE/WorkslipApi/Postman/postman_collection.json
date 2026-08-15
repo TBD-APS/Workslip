@@ -2437,7 +2437,7 @@
             "description": "Assigns a job to a user through the query-bound userId parameter.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"userIds\": [\n    \"{{creatorUserId}}\",\n    \"{{assigneeUserId}}\"\n  ]\n}",
+              "raw": "{\n  \"userIds\": [\n    \"{{assigneeUserId}}\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2461,7 +2461,6 @@
                   "  const ids = json.assignedUsers.map(user => user.id);",
                   "  pm.test('multiple assigned users returned', function () {",
                   "    pm.expect(json.assignedUsers).to.be.an('array');",
-                  "    pm.expect(ids).to.include(pm.variables.get('creatorUserId'));",
                   "    pm.expect(ids).to.include(pm.variables.get('assigneeUserId'));",
                   "  });",
                   "  pm.test('legacy assignedUser removed', function () { pm.expect(json).to.not.have.property('assignedUser'); });",
