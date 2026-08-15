@@ -10,10 +10,12 @@ on:
       - '.github/workflows/infrastructure-production-reconcile.yml'
       - '.github/workflows/production-readiness-smoke.yml'
       - '.github/workflows/production-delivery-selftest.yml'
+      - 'tools/release/configure-github-branch-rules.ps1'
       - 'tools/release/verify-production-eligibility.mjs'
       - 'tools/release/verify-production-eligibility.test.mjs'
       - 'src/FE/vercel.json'
       - 'Docs/operations/ci-quality-gates.md'
+      - 'Docs/operations/feature-branch-safety.md'
       - 'Docs/architecture/adr/0005-main-as-production-boundary.md'
   push:
     branches: [main]
@@ -24,10 +26,12 @@ on:
       - '.github/workflows/infrastructure-production-reconcile.yml'
       - '.github/workflows/production-readiness-smoke.yml'
       - '.github/workflows/production-delivery-selftest.yml'
+      - 'tools/release/configure-github-branch-rules.ps1'
       - 'tools/release/verify-production-eligibility.mjs'
       - 'tools/release/verify-production-eligibility.test.mjs'
       - 'src/FE/vercel.json'
       - 'Docs/operations/ci-quality-gates.md'
+      - 'Docs/operations/feature-branch-safety.md'
       - 'Docs/architecture/adr/0005-main-as-production-boundary.md'
 
 permissions:
@@ -90,6 +94,17 @@ jobs:
             echo 'Backend production deploy must not accept an older green ancestor SHA.' >&2
             exit 1
           fi
+
+      - name: Verify repository protection source is fail-closed
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rules=tools/release/configure-github-branch-rules.ps1
+          grep -Fq "RequiredStatusChecks = @('CI Gate', 'Feature change guard')" "${rules}"
+          grep -Fq "-Name 'Workslip main protection'" "${rules}"
+          grep -Fq "-IncludedRefs @('refs/heads/main')" "${rules}"
+          grep -Fq 'bypass_actors = @()' "${rules}"
+          grep -Fq 'strict_required_status_checks_policy = $true' "${rules}"
 
       - name: Reject retired production workflow entrypoints
         shell: bash
