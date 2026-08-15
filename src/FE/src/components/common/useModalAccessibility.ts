@@ -17,6 +17,7 @@ type ModalStackEntry = {
 };
 
 const modalStack: ModalStackEntry[] = [];
+const handledEscapeEvents = new WeakSet<KeyboardEvent>();
 
 type UseModalAccessibilityOptions = {
   open: boolean;
@@ -39,11 +40,14 @@ function handleModalKeyDown(event: KeyboardEvent) {
     event.preventDefault();
     event.stopImmediatePropagation();
 
-    // This is the single capture-phase keydown listener for the whole modal stack.
-    // Close the captured topmost modal synchronously so React state and focus teardown
-    // stay inside the Escape event lifecycle. stopImmediatePropagation prevents any
-    // other listener from reacting to the same key press, while the captured entry
-    // guarantees a newly exposed parent modal cannot handle this Escape retroactively.
+    // React can synchronously remove and re-register this document listener while
+    // closing a nested modal. Some event environments can then invoke the newly
+    // registered listener with the same KeyboardEvent, exposing the parent modal to
+    // the original Escape press. Track the event object so one physical Escape can
+    // close at most one modal while keeping state and focus teardown synchronous.
+    if (handledEscapeEvents.has(event)) return;
+    handledEscapeEvents.add(event);
+
     activeModal.close();
     return;
   }
