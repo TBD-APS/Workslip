@@ -27,6 +27,8 @@ The supported first-run contract is:
 8. start Vite on `http://127.0.0.1:5270` using the already generated local contract;
 9. open the frontend unless `-NoBrowser` was requested.
 
+The canonical bootstrap forces browser API traffic to same-origin `/api` for the Vite process. This prevents an ignored local `VITE_API_BASE_URL` value from bypassing the maintained proxy or becoming invalid when the frontend is opened from another device. The caller's environment value is restored after the child processes have started.
+
 Backend and frontend logs are written under the operating-system temporary directory at `workslip-dev-logs`, not inside the repository.
 
 ## Phone testing on the local network
@@ -43,7 +45,7 @@ Use the maintained mobile mode instead of changing `vite.config.ts`, exposing th
 Phone:    http://192.168.1.42:5270
 ```
 
-Open the printed URL in Safari/Chrome on a phone connected to the same trusted Wi-Fi/LAN. Browser API requests continue through Vite's same-origin `/api` proxy to the localhost backend, so SQL Server LocalDB and the backend port are not exposed to the network.
+Open the printed URL in Safari/Chrome on a phone connected to the same trusted Wi-Fi/LAN. Browser API requests continue through Vite's same-origin `/api` proxy to the localhost backend, so SQL Server LocalDB and the backend port are not exposed to the network. The bootstrap's same-origin override also prevents a stale `.env.local` value such as `VITE_API_BASE_URL=http://localhost:5262` from making the phone call its own localhost.
 
 If Windows Firewall prompts for Node.js, allow **Private networks only**. The bootstrap does not create or widen firewall rules automatically. Avoid mobile mode on public/untrusted networks because the Vite development server, frontend source and synthetic development session are reachable by devices that can connect to that LAN endpoint.
 
@@ -87,6 +89,7 @@ Normal Development startup is local-only:
 - synthetic dev users authenticate through `/api/dev/token` and LocalJwt, not Entra;
 - the bootstrap generates a LocalJwt signing key only in the process environment for the started backend and restores the parent shell afterwards;
 - Azure App Configuration, Entra identity provisioning, ACS email and production credentials are not prerequisites for the normal local login/read path;
+- the canonical Vite process uses same-origin API traffic rather than inheriting a machine-specific browser API target;
 - `-Mobile` broadens only the Vite listener to the LAN; the backend and LocalDB remain loopback/local-only behind the Vite API proxy.
 
 The explicit platform Superadmin bootstrap remains a separate operator workflow described in the backend README. Do not broaden its remote-SQL exception into normal local development.
