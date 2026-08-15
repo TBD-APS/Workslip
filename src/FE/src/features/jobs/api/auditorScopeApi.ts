@@ -5,6 +5,11 @@ export type JobAuditorScope = {
   reason?: string | null;
 };
 
+export type JobAuditorScopeDraft = {
+  isInAuditorScope: boolean;
+  reason: string;
+};
+
 export type SetJobAuditorScopeRequest = {
   isInAuditorScope: boolean;
   reason?: string | null;
