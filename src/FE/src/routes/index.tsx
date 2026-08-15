@@ -1,5 +1,5 @@
 import { WifiOff } from 'lucide-react';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { createElement, lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, Outlet, createBrowserRouter, useLocation, useNavigate } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import { reportFrontendError } from '../applicationInsights';
@@ -51,6 +51,9 @@ const MyWorksheets = lazy(() =>
 const CustomerDetail = lazy(() =>
   import('../features/customers/routes/CustomerDetail').then((module) => ({ default: module.CustomerDetail })),
 );
+const docsPageElement = createElement(lazy(() =>
+  import('../features/docs/DocsPage').then((module) => ({ default: module.DocsPage })),
+));
 const Settings = lazy(() =>
   import('../features/settings/routes/Settings').then((module) => ({ default: module.Settings })),
 );
@@ -248,6 +251,9 @@ export const router = createBrowserRouter([
           { path: 'customers/new', element: <RoleGuard permission="customer:edit"><CreateCustomerPage /></RoleGuard> },
           { path: 'customers/:id', element: <RoleGuard permission="customer:view"><CustomerDetail /></RoleGuard> },
           { path: 'customers/:id/edit', element: <RoleGuard permission="customer:edit"><EditCustomerPage /></RoleGuard> },
+          { path: 'docs', element: <RoleGuard permission="docs:view">{docsPageElement}</RoleGuard> },
+          { path: 'docs/new', element: <RoleGuard permission="docs:edit">{docsPageElement}</RoleGuard> },
+          { path: 'docs/:id', element: <RoleGuard permission="docs:view">{docsPageElement}</RoleGuard> },
           { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
           { path: 'profil', element: <Profile /> },
           { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },

@@ -29,15 +29,14 @@ interface QuickNavigatorProps {
   canViewTimer: boolean;
   canManageUsers: boolean;
   canViewCustomers: boolean;
+  canViewDocs: boolean;
   canEditCustomers: boolean;
   canCreateJobs: boolean;
   canManageOrganization: boolean;
   showProfile: boolean;
 }
 
-const normalize = (value: string) =>
-  value.trim().toLocaleLowerCase('da-DK');
-
+const normalize = (value: string) => value.trim().toLocaleLowerCase('da-DK');
 const isReadonlyState = (status: JobStatus) =>
   status === JobStatus.InReview || status === JobStatus.Approved;
 
@@ -54,6 +53,7 @@ export function QuickNavigator({
   canViewTimer,
   canManageUsers,
   canViewCustomers,
+  canViewDocs,
   canEditCustomers,
   canCreateJobs,
   canManageOrganization,
@@ -78,6 +78,7 @@ export function QuickNavigator({
     canViewTimer,
     canManageUsers,
     canViewCustomers,
+    canViewDocs,
     canEditCustomers,
     canCreateJobs,
     canManageOrganization,
@@ -89,6 +90,7 @@ export function QuickNavigator({
     canManageUsers,
     canUseAppCommands,
     canViewCustomers,
+    canViewDocs,
     canViewTimer,
     homeLabel,
     homePath,
@@ -98,7 +100,6 @@ export function QuickNavigator({
   const filteredCommands = useMemo(() => {
     const needle = normalize(query);
     if (!needle) return commands;
-
     return commands.filter((command) =>
       [command.label, command.description, ...command.keywords]
         .some((value) => normalize(value).includes(needle)),
@@ -134,21 +135,18 @@ export function QuickNavigator({
         onOpen();
       }
     };
-
     window.addEventListener('keydown', handleShortcut);
     return () => window.removeEventListener('keydown', handleShortcut);
   }, [onOpen]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
-
     previousFocusRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
-
     return () => {
       window.cancelAnimationFrame(frame);
       document.body.style.overflow = previousOverflow;
@@ -158,14 +156,12 @@ export function QuickNavigator({
 
   useEffect(() => {
     if (!isOpen || !canSearchJobs || !jobSearchTerm) return undefined;
-
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setJobResultTerm(jobSearchTerm);
       setJobs([]);
       setIsSearchingJobs(true);
       setJobSearchFailed(false);
-
       try {
         const response = await apiClient.get('/api/jobs', {
           params: { search: jobSearchTerm, limit: 5, offset: 0 },
@@ -181,7 +177,6 @@ export function QuickNavigator({
         if (!controller.signal.aborted) setIsSearchingJobs(false);
       }
     }, 180);
-
     return () => {
       window.clearTimeout(timer);
       controller.abort();
@@ -196,7 +191,6 @@ export function QuickNavigator({
       navigate(result.command.path);
       return;
     }
-
     const path = isReadonlyState(result.job.status)
       ? `/app/completed/${result.job.id}`
       : `/app/job/${result.job.id}`;
@@ -211,13 +205,11 @@ export function QuickNavigator({
       setActiveIndex(results.length === 0 ? 0 : (safeActiveIndex + 1) % results.length);
       return;
     }
-
     if (event.key === 'ArrowUp') {
       event.preventDefault();
       setActiveIndex(results.length === 0 ? 0 : (safeActiveIndex - 1 + results.length) % results.length);
       return;
     }
-
     if (event.key === 'Enter' && results[safeActiveIndex]) {
       event.preventDefault();
       selectResult(results[safeActiveIndex]);
@@ -230,13 +222,11 @@ export function QuickNavigator({
       resetAndClose();
       return;
     }
-
     if (event.key !== 'Tab') return;
     const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
       'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
     );
     if (!focusable?.length) return;
-
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
     if (event.shiftKey && document.activeElement === first) {
@@ -350,7 +340,7 @@ export function QuickNavigator({
             <div className="quick-nav-empty">
               <Search size={22} aria-hidden="true" />
               <strong>Ingen resultater</strong>
-              <span>Prøv fx “timer”, “kunde” eller “sag 1234”.</span>
+              <span>Prøv fx “timer”, “docs”, “kunde” eller “sag 1234”.</span>
             </div>
           )}
 
