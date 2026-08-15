@@ -1,0 +1,32 @@
+name: WOR-479 · Temporary contract capture
+
+on:
+  pull_request:
+    branches:
+      - rbj--474-job-infrastructure-composition
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Generate branch API client
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: src/FE
+        run: npm ci
+
+      - name: Generate branch-matched client
+        uses: ./.github/actions/generate-frontend-api
