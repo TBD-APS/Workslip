@@ -2,8 +2,7 @@ name: Kimi Gate A - WOR-502 Design Integration
 
 on:
   push:
-    branches:
-      - rbj--637-kimi-gate-a-runner
+    branches: [rbj--637-kimi-gate-a-runner]
     paths:
       - .github/workflows/kimi-gate-a-wor-502-review-correction.yml
 
@@ -22,12 +21,13 @@ jobs:
       KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
       MOONSHOT_BASE_URL: https://api.moonshot.ai/v1
       FEATURE_BRANCH: rbj--502-kimi-global-search
+
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Prepare trusted broker and feature workspace
+      - name: Prepare trusted broker and current WOR-502 head
         id: runtime
         shell: bash
         run: |
@@ -44,49 +44,41 @@ jobs:
           git config user.name 'Kimi Worker'
           git config user.email 'kimi-worker@users.noreply.github.com'
 
-      - name: Kimi - wire intended design into active QuickNavigator
+      - name: Kimi - wire the intended design into the active QuickNavigator
         env:
           KIMI_MODEL: ${{ steps.runtime.outputs.model }}
         shell: bash
         run: |
           cat >/tmp/wor502-design-review.txt <<'EOF'
-          Product-owner review: the active site still showed the old QuickNavigator because the previous Gate A brief implemented search logic but incorrectly forbade folder mode and CSS changes. AppLayout already imports and mounts QuickNavigator correctly. Fix the ACTIVE QuickNavigator implementation, not AppLayout and not an unused parallel UnifiedSearch component.
+          Product-owner rejection: the site still showed the old QuickNavigator. AppLayout already mounts QuickNavigator correctly; the previous worker brief accidentally kept the old visual shell. Implement the intended design in the ACTIVE QuickNavigator, not an unused parallel component.
 
-          Work from the current WOR-502 feature head exactly as checked out. It may contain a separate product-owner palette correction; preserve all pre-existing feature-head changes. Your mutation boundary remains only the allowed QuickNavigator files below.
+          Preserve every pre-existing WOR-502 feature-head change, including separate palette work. You may mutate only the broker's QuickNavigator allowlist.
 
-          Required outcome:
-          - modular home / folder / search modes;
-          - Header, SearchField, FolderGrid, Results and Footer are separate imported/rendered components;
-          - home folder cards for only supported families: Sager, Kunder, Navigation;
-          - mixed search rows visibly distinguish Navigation / Sag / Kunde with icon, title, subtitle, badge and ArrowRight;
-          - header kicker/title, folder back button, LoaderCircle meta row, empty/error states and keyboard footer;
-          - Escape closes search or backs out of folder; Backspace with empty folder query may return home;
-          - active keyboard row scrolls into view;
-          - CSS actually implements the folder grid/cards and result badges using Workslip design variables;
-          - import every Lucide/component/API symbol actually used; leave no dead imports or dead parallel components.
+          Required structure:
+          - QuickNavigator.tsx = view/navigation/focus orchestration only.
+          - It MUST import and render QuickNavigatorHeader, QuickNavigatorSearchField, QuickNavigatorFolderGrid, QuickNavigatorResults and QuickNavigatorFooter.
+          - It MUST import and call useQuickNavigatorSearch. Remote fetch/debounce/loading/errors/stale-result suppression belong in that hook, not inline in QuickNavigator.tsx.
+          - Home/folder/search modes; folder cards for Sager/Kunder/Navigation only; visible Navigation/Sag/Kunde result badges; back button; LoaderCircle; empty/error states; keyboard footer; active-row scroll.
+          - QuickNavigator.css must visibly implement the new folder grid/cards/result badges with Workslip variables.
 
-          Search correctness is mandatory:
-          - local Navigation filtering remains immediate;
-          - remote Sager and Kunder are each bounded to 5;
-          - use the supplied generated customer search contract (`getApiCustomersSearch` / its query key) rather than editing generated files;
-          - remote requests are debounced ~180-200 ms;
-          - stale remote results are hidden while debounce is pending, so Enter/click cannot select a previous query;
-          - job visibility remains scoped by canViewAllJobs/currentUserId and backend auth remains authoritative;
-          - generated JobStatus constants choose editable vs completed job route;
-          - source-specific failure does not remove healthy results/local commands;
-          - customer and job navigation preserve return context.
+          Exact customer contract — do not guess it again:
+          `GetApiCustomersSearchParams = { query?: string; limit?: number | string }`.
+          There is NO customer parameter named `search`.
+          Customer API/query-key calls must use `{ query: trimmedTerm, limit: 5 }`.
+          useQuickNavigatorSearch.ts must use the generated `getApiCustomersSearch` and `getGetApiCustomersSearchQueryKey` contracts supplied in context.
 
-          React quality rules from prior failed attempts:
-          - all hooks unconditionally before any early return;
-          - never read/write refs or mutate DOM during render;
-          - effects are for external synchronization/listeners/focus/body scroll with cleanup, not synchronous derived-state reset;
-          - state resets happen in explicit event paths or are derived cleanly.
+          Search behavior:
+          - Navigation local filtering is immediate.
+          - Sager/Kunder remote results bounded to 5.
+          - remote debounce ~200 ms with old remote results hidden while pending.
+          - preserve canViewAllJobs/currentUserId scoping, generated JobStatus routing and return-context navigation.
+          - one remote source failure must not erase healthy/local results.
 
-          Preserve dialog accessible name `Hvor vil du hen?`, focus trap and current mobile/desktop trigger compatibility. No backend/config/generated/dependency/unrelated edits. Draft only; no merge/deploy.
+          React rules: hooks unconditional before early returns; no ref/DOM reads or mutations during render; no synchronous derived-state resets inside effects; no dead imports. Keep accessible dialog name `Hvor vil du hen?`. No backend/generated/config/dependency edits. Draft only.
           EOF
           python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/wor502-design-review.txt
 
-      - name: Enforce Kimi path boundary
+      - name: Enforce Kimi mutation boundary
         env:
           KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
         shell: bash
@@ -101,10 +93,9 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: src/FE
-        shell: bash
         run: npm ci
 
-      - name: Validator -> Kimi repair loop
+      - name: Validator to Kimi repair loop
         env:
           KIMI_MODEL: ${{ steps.runtime.outputs.model }}
           KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
@@ -124,8 +115,8 @@ jobs:
             enforce_scope || exit $?
             : > /tmp/kimi-validator.log
             set +e
-
             cd src/FE
+
             mapfile -t tests < <(find src/components/common -maxdepth 1 -type f -iname '*navigator*.test.ts*' -print)
             test_status=0
             if ((${#tests[@]})); then
@@ -149,21 +140,20 @@ jobs:
               echo "Validator green on attempt ${attempt}."
               exit 0
             fi
-
             if (( attempt == 3 )); then
-              echo "Validator still red after 3 Kimi repair opportunities."
+              echo 'Validator still red after 3 Kimi repair opportunities.'
               cat /tmp/kimi-validator.log
               exit 30
             fi
 
             cat >/tmp/kimi-repair.txt <<EOF
-          Deterministic validator rejected the current WOR-502 QuickNavigator candidate on repair attempt ${attempt}. Fix the exact validator failures appended below. Preserve the modular new design, all search correctness, and every pre-existing feature-head change. Do not edit unrelated files, generated code, backend, config or dependencies. Do not suppress lint or weaken tests. Hooks must be unconditional before early returns; no refs/DOM mutations during render; no synchronous derived-state resets in effects. If validator output mentions files outside the allowed QuickNavigator boundary, do not edit them.
+          Validator rejected your WOR-502 QuickNavigator candidate on attempt ${attempt}. Correct the exact errors below without removing the modular design or changing files outside the QuickNavigator allowlist. Customer search params are EXACTLY `{ query?: string; limit?: number | string }`; never use `search` for customer search. Keep remote orchestration in useQuickNavigatorSearch.ts, with QuickNavigator.tsx importing/calling that hook. Do not suppress validators.
           EOF
             cat /tmp/kimi-validator.log >> /tmp/kimi-repair.txt
             python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/kimi-repair.txt
           done
 
-      - name: Static wiring proof
+      - name: Static import and render wiring proof
         shell: bash
         run: |
           set -euo pipefail
@@ -173,27 +163,29 @@ jobs:
 
           for component in QuickNavigatorHeader QuickNavigatorSearchField QuickNavigatorFolderGrid QuickNavigatorResults QuickNavigatorFooter; do
             test -f "src/FE/src/components/common/${component}.tsx" || { echo "Missing ${component}.tsx"; exit 40; }
-            grep -q "import.*${component}" "$q" || { echo "${component} not imported by active QuickNavigator"; exit 41; }
-            grep -q "<${component}" "$q" || { echo "${component} imported but not rendered"; exit 42; }
+            grep -q "import.*${component}" "$q" || { echo "${component} is not imported by active QuickNavigator"; exit 41; }
+            grep -q "<${component}" "$q" || { echo "${component} is imported but not rendered"; exit 42; }
           done
 
-          grep -q 'quick-nav-folder-grid' "$css" || { echo 'Folder grid CSS missing'; exit 43; }
-          grep -q 'quick-nav-folder-card' "$css" || { echo 'Folder card CSS missing'; exit 44; }
-          grep -q 'quick-nav-result-badge' "$css" || { echo 'Result badge CSS missing'; exit 45; }
-          test -f "$hook" || { echo 'Search orchestration hook missing'; exit 46; }
-          grep -q 'getApiCustomersSearch' "$hook" || { echo 'Generated customer search API is not hooked up'; exit 47; }
-          grep -q 'useDebounce' "$hook" || { echo 'Remote debounce is not hooked up'; exit 48; }
-          echo 'Static wiring proof passed.'
+          test -f "$hook" || { echo 'useQuickNavigatorSearch.ts missing'; exit 43; }
+          grep -q 'import.*useQuickNavigatorSearch' "$q" || { echo 'Search hook not imported by active QuickNavigator'; exit 44; }
+          grep -q 'useQuickNavigatorSearch(' "$q" || { echo 'Search hook imported but not called'; exit 45; }
+          grep -q 'getApiCustomersSearch' "$hook" || { echo 'Generated customer API not used in search hook'; exit 46; }
+          grep -q 'getGetApiCustomersSearchQueryKey' "$hook" || { echo 'Generated customer query key not used'; exit 47; }
+          grep -q 'useDebounce' "$hook" || { echo 'Remote debounce not wired in search hook'; exit 48; }
+          grep -q 'query:' "$hook" || { echo 'Customer query parameter missing'; exit 49; }
+          grep -q 'limit: 5' "$hook" || { echo 'Bounded customer search limit missing'; exit 50; }
+          grep -q 'quick-nav-folder-grid' "$css" || { echo 'Folder grid CSS missing'; exit 51; }
+          grep -q 'quick-nav-folder-card' "$css" || { echo 'Folder card CSS missing'; exit 52; }
+          grep -q 'quick-nav-result-badge' "$css" || { echo 'Result badge CSS missing'; exit 53; }
+          echo 'Static import/render/search wiring proof passed.'
 
       - name: Focused authenticated QuickNavigator browser smoke
         env:
           WORKSLIP_PLAYWRIGHT_SCENARIO: quick-navigator
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash src/FE/scripts/run-playwright-ephemeral.sh
+        run: bash src/FE/scripts/run-playwright-ephemeral.sh
 
-      - name: Commit and push Kimi design
+      - name: Commit and push only if feature head stayed unchanged
         env:
           KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
         shell: bash
@@ -201,12 +193,12 @@ jobs:
           set -euo pipefail
           git fetch origin "$FEATURE_BRANCH"
           remote_head="$(git rev-parse "origin/$FEATURE_BRANCH")"
-          if [[ "$remote_head" != "$KIMI_START_HEAD" ]]; then
-            echo "Feature branch advanced during Kimi run: start=$KIMI_START_HEAD remote=$remote_head. Refusing stale push; rerun from latest feature head."
+          [[ "$remote_head" == "$KIMI_START_HEAD" ]] || {
+            echo "Feature branch advanced during run: start=$KIMI_START_HEAD remote=$remote_head. Refusing stale push."
             exit 60
-          fi
+          }
           git add src/FE/src/components/common
-          git diff --cached --quiet && { echo 'Kimi produced no feature delta'; exit 50; }
+          git diff --cached --quiet && { echo 'Kimi produced no feature delta'; exit 61; }
           git commit -m 'RBJ-502: wire modular global search design'
           git push origin "$FEATURE_BRANCH"
           echo "Kimi design head: $(git rev-parse HEAD)"
