@@ -4,64 +4,98 @@
 
 **Owner:** Workslip release maintainers
 
-**Source of truth:** `.github/workflows/frontend-validation.yml`, `src/FE/scripts/run-playwright-ephemeral.sh`, `src/FE/scripts/playwright-ephemeral-auth.mjs`, `src/FE/config/release-environments.json`, `.github/workflows/playwright-prod-smoke.yml`, and run evidence
+**Source of truth:** `.github/workflows/frontend-validation.yml`, `src/FE/scripts/run-playwright-ephemeral.sh`, `src/FE/scripts/playwright-ephemeral-auth.mjs`, `src/FE/config/release-environments.json`, `tools/release/resolve-release-environment.mjs`, `.github/workflows/playwright-prod-smoke.yml`, and run evidence
 
 **Review cadence:** Before changing a browser-test target, authentication method, or destructive scenario
 
-## Two separate browser-test lanes
+## Validation lanes
 
-Workslip deliberately separates **PR regression evidence** from **production smoke evidence**.
+Workslip deliberately separates **PR regression evidence** from **deployed production smoke evidence**.
 
-### 1. PR-CI authenticated browser regression
+### PR-CI authenticated browser regression
 
 Every non-documentation change runs `Playwright integration (ephemeral)` as a blocking `CI Gate` dependency.
 
-The job creates a disposable full stack from the exact checked-out SHA:
+The job creates a disposable full stack from the exact checked-out revision:
 
 - Vite frontend on loopback;
 - ASP.NET Core API on loopback with `ASPNETCORE_ENVIRONMENT=Development`;
 - disposable SQL Server database;
 - development seed data only;
-- a per-run SQL password and JWT signing key;
+- per-run SQL password and JWT signing key;
 - headless Chromium.
 
-The browser receives a synthetic Development JWT through the existing `/api/dev/token` endpoint, stores it through the same `localStorage.authToken` contract used by the frontend, and then boots the normal authenticated React/API path. `/api/auth/me` must succeed before the UI assertion is accepted.
+The browser receives a synthetic Development JWT through the existing `/api/dev/token` endpoint, stores it through the same `localStorage.authToken` contract used by the frontend, and then boots the normal authenticated React/API path. `/api/auth/me` must succeed before a UI assertion is accepted.
 
-This is **not a deployed authentication mechanism**. `playwright-ephemeral-auth.mjs` rejects any app or API origin that is not `localhost`, `127.0.0.1`, or `::1`, and the backend endpoint remains available only in ASP.NET Development. A production, Vercel, staging, arbitrary remote, disguised-loopback, credentialed, or path-bearing URL fails before a token request is made.
+This is **not a deployed authentication mechanism**. `playwright-ephemeral-auth.mjs` rejects any app or API origin that is not `localhost`, `127.0.0.1`, or `::1`, and the backend endpoint remains available only in ASP.NET Development. A production, Vercel, arbitrary remote, disguised-loopback, credentialed, or path-bearing URL fails before a token request is made.
 
 The initial blocking browser regression proves:
 
-- authenticated browser bootstrap against the disposable API/database;
-- the iPhone viewport hides Quick Navigator desktop keyboard hints (`Esc`, `↑/↓`, `Enter` footer);
-- desktop keeps those keyboard hints visible.
+- authenticated Admin bootstrap against the disposable API/database;
+- iPhone viewport hides Quick Navigator desktop keyboard hints (`Esc`, `↑/↓`, `Enter` footer);
+- desktop `Ctrl+K` opens Quick Navigator and the keyboard hints remain visible.
 
 Backend/frontend process logs are uploaded only on failure. Browser storage state, bearer tokens, traces, customer data, and authenticated screenshots are not uploaded.
 
-## 2. Production Playwright
+### Production Playwright
 
-Production remains restricted to the write-free `public-smoke` against `https://app.mrsoftware.dk`.
+The deployed production lane remains only:
 
-`src/FE/config/release-environments.json` keeps:
+- `public-smoke` against `https://app.mrsoftware.dk`.
 
-- `enableDevelopmentEndpoints: false` for production;
-- `allowDestructivePlaywright: false` for production;
-- no runnable deployed staging target unless separately approved later.
+It opens the public application in Chromium at the iPhone 13 viewport and verifies that the page responds. It does not authenticate, send an OTC, create data, or invoke an API mutation.
 
-The production workflow authenticates nobody, sends no OTC, creates no data, and invokes no mutation. A destructive/authenticated scenario must never be redirected to production as a fallback.
+`src/FE/config/release-environments.json` remains fail-closed:
 
-## OTC authentication coverage
+- production has `enableDevelopmentEndpoints: false` and `allowDestructivePlaywright: false`;
+- staging has no URL and is not a runnable target;
+- `playwright-release-runner.mjs` rejects every non-public scenario against production.
+
+The production workflow exposes no destructive/authenticated fallback. A failed or unavailable PR browser lane must never be replaced by mutations against production.
+
+## Maintained critical suite
+
+The broader critical scenario harness remains in the repository for focused release/local validation and future expansion. It includes auth/session, KLS lifecycle, rejection, draft recovery, tenant/role isolation, invitation onboarding, assignment lifecycle, customer lifecycle, worksheet integrity and diverse lifecycle scenarios.
+
+Those scenarios are distinct from the small blocking PR smoke. Do not automatically move every critical scenario into every PR: add browser-level coverage where the regression risk justifies its runtime and fixture cost.
+
+The critical/release harness still models deployed authentication through the normal one-time-code UI. There is no approved automated inbox reader today, so its non-interactive deployed authenticated mode remains fail-closed. An explicitly opted-in local headed/TTY run can use operator-entered OTC where policy permits.
+
+The new ephemeral lane does not weaken that rule. It removes mailbox delivery as a prerequisite for generic frontend → API → database regression by using the already-existing Development-only synthetic token boundary on localhost.
+
+## Assignment duplication coverage
+
+`assignment-lifecycle` models the WOR-424 requirement rather than fabricating random users:
+
+1. an Admin resolves the stable configured `User` and `Admin` identities in the active test organization;
+2. the Admin creates a KLS task with **Opret en kopi af sagen til hver medarbejder** enabled;
+3. the test proves there is exactly one independent copy per assignee;
+4. each assignee completes and submits only their own copy;
+5. the Admin approves both copies individually.
+
+The harness never creates identities just to make a scenario pass. If configured identities are missing or have unexpected roles, the scenario stops without exposing their addresses.
+
+## Authentication and evidence boundaries
 
 The real Workslip login contract remains:
 
 `/api/auth/send-code` → `/api/auth/verify-code/{code}` → `/api/auth/me`.
 
-Generic authenticated UI regression no longer depends on reading a mailbox in CI. The ephemeral lane tests application authorization/session behavior through a Development-only synthetic token boundary, while the deployed OTC flow remains a separate auth concern.
+The ephemeral PR lane tests authenticated application behavior with the Development-only synthetic token and still requires the normal frontend session bootstrap plus `/api/auth/me`. It does **not** claim to test email delivery or OTC verification.
 
-The maintained critical/release harness may still use interactive OTC for explicitly approved headed local runs. There is no automatic mailbox reader, Graph integration, Mailosaur dependency, static production token, or hidden deployed auth bypass.
+For deployed/OTC testing, the maintained critical harness uses the configured role identities described in `synthetic-test-identities.md`. No Graph/shared-mailbox provider or static application-token fallback is introduced by the ephemeral lane.
 
-## Security boundary
+Artifacts stay minimized:
 
-The Development token is acceptable only when all of these are true:
+- production public smoke may save a screenshot;
+- authenticated critical scenarios retain no screenshots while redaction is insufficient for identity/customer data;
+- ephemeral authenticated PR smoke uploads no browser screenshots, traces, bearer tokens or storage state;
+- reports/logs must redact OTC values, bearer tokens, query secrets and personal identifiers;
+- disposable PR data lives only in the ephemeral SQL container.
+
+## Security boundary for Development auth
+
+`/api/dev/token` is acceptable for the PR browser lane only when all of these are true:
 
 1. frontend target is loopback;
 2. API target is loopback;
@@ -72,11 +106,30 @@ The Development token is acceptable only when all of these are true:
 
 Breaking any target-origin rule must fail before `/api/dev/token` is called.
 
-Do not add `/api/dev/token` to Production/Staging endpoint maps. Do not make the browser harness accept remote hosts through configuration. Do not introduce a mailbox/provider integration merely to support generic browser regression.
+Do not add `/api/dev/token` to Production/Staging endpoint maps. Do not make the browser helper accept remote hosts through configuration. Do not add a mailbox/provider integration merely to support generic browser regression.
+
+## Local Windows validation
+
+The existing release helper remains available for the production public smoke:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\playwright\run-critical-local.ps1 `
+  -Mode Direct `
+  -Target Production `
+  -Scenario public-smoke
+```
+
+It installs the version-matched Playwright runtime when required, validates release policy/source tests, resolves the committed target, and writes evidence under `artifacts/playwright-prod-smoke`.
+
+If an operator network requires an outbound HTTP(S) proxy, `WORKSLIP_PLAYWRIGHT_PROXY` may contain only a credential-free proxy origin. A local operator may additionally set `WORKSLIP_PLAYWRIGHT_IGNORE_HTTPS_ERRORS=true` only together with that explicit proxy when TLS interception prevents Chromium trust. Such a run proves browser flow/connectivity, not the target certificate chain.
+
+`-Mode Workflow` intentionally supports only the public production smoke. A destructive critical scenario or staging target is rejected before Docker/`act` work begins.
+
+The ephemeral authenticated runner is Linux/CI-oriented because it owns a disposable SQL Server container and local API/frontend processes. Do not point it at a deployed URL.
 
 ## CI ownership
 
-`CI Gate` requires, for non-documentation changes:
+For non-documentation changes, `CI Gate` requires:
 
 - Backend;
 - Frontend + API contract;
@@ -84,10 +137,10 @@ Do not add `/api/dev/token` to Production/Staging endpoint maps. Do not make the
 - Postman integration (ephemeral);
 - Playwright integration (ephemeral).
 
-The contracts job syntax-checks the browser scripts and shell runner and runs focused tests for the loopback-only auth boundary. A green source test is not a substitute for the real Chromium job; both are required.
+The contracts job syntax-checks the browser scripts/shell runner and runs focused tests for the loopback-only auth boundary. Green source tests do not replace the real Chromium job; both are required.
 
 ## Future expansion
 
 Additional authenticated browser scenarios should reuse the ephemeral lane when they need real frontend → API → SQL behavior. Add scenarios only where browser-level regression protection is valuable; do not duplicate unit/API coverage for trivial mappings.
 
-A separately deployed staging environment may still be justified later for provider callbacks, networking, deployment-specific behavior, or full release-candidate testing. It is no longer a prerequisite for ordinary authenticated browser regression.
+A separately deployed staging environment may still be justified later for provider callbacks, networking, deployment-specific behavior, true release-candidate infrastructure or production-like identity delivery. It is no longer a prerequisite for ordinary authenticated browser regression.
