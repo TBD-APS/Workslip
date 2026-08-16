@@ -49,14 +49,16 @@ jobs:
         shell: bash
         run: |
           cat >/tmp/wor502-review.txt <<'EOF'
-          Pre-PR reviewer feedback. These are product/architecture correctness issues, not style requests:
+          Pre-PR reviewer feedback. The first six items may already be fixed; preserve those fixes. Correct any remaining issue below without redesigning the feature:
 
-          1. Customer search currently calls the generated customer search API without `limit: 5`. This quick navigator must stay bounded; use the exact generated params `{ query, limit: 5 }` consistently in both query key and query function.
-          2. The jobs React Query key does not include the presentation/user scope inputs that affect the hook's visible job result (`canViewAllJobs`, `currentUserId`). Include the relevant scope identity in the quick-navigator jobs key so cached search state cannot be ambiguously reused across a scope/user change. Do not claim this replaces backend authorization.
-          3. QuickNavigator compares job status to raw strings. Restore the generated `JobStatus` contract/constants (`JobStatus.InReview`, `JobStatus.Approved`) rather than duplicating enum literals.
-          4. The input placeholder says only “side eller sag”; customers are now a first-class result. Make the placeholder accurately say side/sag/kunde.
-          5. The UI requirement says mixed results must be visibly distinguishable as Navigation / Sag / Kunde. Keep existing layout/CSS, but make the result type clear in visible copy (for example in the secondary line) without adding a CSS rewrite.
-          6. `jobSearchDegraded/customerSearchDegraded` says “Viser tidligere resultater”, but the current React Query configuration does not deliberately keep previous data across query keys and we explicitly do not want stale cross-query matches. Remove the misleading degraded/previous-results contract and messaging. Keep source-specific error state so one failed source does not discard healthy-source results or local commands.
+          1. Customer search must stay bounded: use exact generated params `{ query, limit: 5 }` consistently in query key and query function.
+          2. Jobs React Query key must include presentation/user scope inputs (`canViewAllJobs`, `currentUserId`) that affect visible job results. This is cache scoping, not authorization.
+          3. Use generated `JobStatus.InReview` / `JobStatus.Approved`, not duplicated string literals.
+          4. Placeholder must accurately mention side, sag and kunde.
+          5. Mixed results must be visibly distinguishable as Navigation / Sag / Kunde using existing layout/CSS.
+          6. Do not claim stale previous results are being shown unless the query is deliberately configured for that. Keep source-specific error state and healthy-source results.
+          7. Remote search currently reacts directly to every raw keystroke. Restore a small debounce for remote requests using the repo's existing `useDebounce<T>(value, delayMs)` from `src/FE/src/hooks/useDebounce.ts`; around 180–200 ms is appropriate. Local command filtering should remain immediate. Derive remote job/customer terms from the debounced query, while cancellation/query-key behavior still prevents stale matches.
+          8. Ensure the Navigation type is also explicit in visible secondary copy; jobs and customers already show their type. Do not add new CSS just for this.
 
           Keep the existing modular split. Do not add folders, Users/Docs remote search, new dependencies, CSS rewrite, or unrelated cleanup. This remains browser-unvalidated and draft-only.
           EOF
@@ -93,6 +95,6 @@ jobs:
           set -euo pipefail
           git add src/FE/src/components/common
           git diff --cached --quiet && { echo 'Kimi made no review correction'; exit 30; }
-          git commit -m 'RBJ-502: address pre-PR search review findings'
+          git commit -m 'RBJ-502: finish pre-PR search review corrections'
           git push origin "$FEATURE_BRANCH"
           echo "Corrected Kimi head: $(git rev-parse HEAD)"
