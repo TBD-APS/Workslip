@@ -24,7 +24,8 @@ $expectedEvidence = [
     'BadDbProvider.php',
     'Illuminate\\Support\\Facades\\DB',
     'BadPdoProvider.php',
-    'raw PDO client',
+    'raw PDO import/client',
+    'BadAliasedPdoProvider.php',
     'BadCredentialProvider.php',
     'database environment credential access',
 ];
@@ -36,4 +37,4 @@ foreach ($expectedEvidence as $expected) {
     }
 }
 
-fwrite(STDOUT, "Forbidden DB facade, raw PDO and DB credential fixtures failed for the intended reasons.\n");
+fwrite(STDOUT, "Forbidden DB facade, raw/aliased PDO and DB credential fixtures failed for the intended reasons.\n");
