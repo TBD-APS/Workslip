@@ -1,0 +1,7 @@
+/.env
+/vendor/
+/build/
+/bootstrap/cache/*
+!/bootstrap/cache/.gitignore
+/storage/logs/*
+!/storage/logs/.gitignore
