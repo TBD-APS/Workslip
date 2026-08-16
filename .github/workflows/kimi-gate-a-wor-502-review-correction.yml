@@ -49,7 +49,7 @@ jobs:
         shell: bash
         run: |
           cat >/tmp/wor502-review.txt <<'EOF'
-          Pre-PR reviewer feedback. The first six items may already be fixed; preserve those fixes. Correct any remaining issue below without redesigning the feature:
+          Pre-PR reviewer feedback. Items 1-8 may already be fixed; preserve those fixes. Correct the remaining race without redesigning the feature:
 
           1. Customer search must stay bounded: use exact generated params `{ query, limit: 5 }` consistently in query key and query function.
           2. Jobs React Query key must include presentation/user scope inputs (`canViewAllJobs`, `currentUserId`) that affect visible job results. This is cache scoping, not authorization.
@@ -57,8 +57,9 @@ jobs:
           4. Placeholder must accurately mention side, sag and kunde.
           5. Mixed results must be visibly distinguishable as Navigation / Sag / Kunde using existing layout/CSS.
           6. Do not claim stale previous results are being shown unless the query is deliberately configured for that. Keep source-specific error state and healthy-source results.
-          7. Remote search currently reacts directly to every raw keystroke. Restore a small debounce for remote requests using the repo's existing `useDebounce<T>(value, delayMs)` from `src/FE/src/hooks/useDebounce.ts`; around 180–200 ms is appropriate. Local command filtering should remain immediate. Derive remote job/customer terms from the debounced query, while cancellation/query-key behavior still prevents stale matches.
-          8. Ensure the Navigation type is also explicit in visible secondary copy; jobs and customers already show their type. Do not add new CSS just for this.
+          7. Debounce remote requests using the existing `useDebounce<T>(value, delayMs)` around 180–200 ms while local command filtering remains immediate.
+          8. Navigation must also be explicit in visible secondary copy.
+          9. Current debounce implementation passes `debouncedQuery` from QuickNavigator into the hook, so after the raw input changes the previous remote jobs/customers can remain visible and selectable for ~200 ms. That is not acceptable: a fast click/Enter could open a result for the previous query. Keep the raw input query as the source of UI truth and ensure remote results/errors are hidden while debounce is pending. Prefer moving debounce responsibility into `useQuickNavigatorSearch` (or an equivalent clean design) so it can compare raw query vs debounced query. During that pending interval return no old remote jobs/customers, suppress old remote errors, and expose loading/pending state if the raw query has remote-search intent. Once debounced query catches up, query by the debounced value. Local command results must remain immediate.
 
           Keep the existing modular split. Do not add folders, Users/Docs remote search, new dependencies, CSS rewrite, or unrelated cleanup. This remains browser-unvalidated and draft-only.
           EOF
@@ -95,6 +96,6 @@ jobs:
           set -euo pipefail
           git add src/FE/src/components/common
           git diff --cached --quiet && { echo 'Kimi made no review correction'; exit 30; }
-          git commit -m 'RBJ-502: finish pre-PR search review corrections'
+          git commit -m 'RBJ-502: prevent stale results during search debounce'
           git push origin "$FEATURE_BRANCH"
           echo "Corrected Kimi head: $(git rev-parse HEAD)"
