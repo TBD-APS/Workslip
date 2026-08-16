@@ -28,7 +28,6 @@ export const Profile = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
-  const [profileImageFeedback, setProfileImageFeedback] = useState('');
   const patchMutation = usePatchApiAuthMe();
   const profileImageQuery = useProfileImage(user?.id);
 
@@ -38,18 +37,12 @@ export const Profile = () => {
       if (user?.id) {
         await queryClient.invalidateQueries({ queryKey: profileImageQueryKey(user.id) });
       }
-      const message = 'Profilbillede opdateret';
-      setProfileImageFeedback(message);
-      notify.success(message);
+      notify.success('Profilbillede opdateret');
     },
-    onError: (error) => {
-      const message = getUploadErrorMessage(error, {
-        fallback: 'Kunne ikke uploade profilbilledet. Prøv igen.',
-        tooLarge: `Profilbilledet må højst være ${MAX_IMAGE_UPLOAD_MB} MB.`,
-      });
-      setProfileImageFeedback(message);
-      notify.error(message);
-    },
+    onError: (error) => notify.error(getUploadErrorMessage(error, {
+      fallback: 'Kunne ikke uploade profilbilledet. Prøv igen.',
+      tooLarge: `Profilbilledet må højst være ${MAX_IMAGE_UPLOAD_MB} MB.`,
+    })),
   });
 
   const profileDeleteMutation = useMutation({
@@ -59,9 +52,7 @@ export const Profile = () => {
         queryClient.removeQueries({ queryKey: profileImageQueryKey(user.id) });
         await queryClient.invalidateQueries({ queryKey: profileImageQueryKey(user.id) });
       }
-      const message = 'Profilbillede fjernet';
-      setProfileImageFeedback(message);
-      notify.success(message);
+      notify.success('Profilbillede fjernet');
     },
     onError: () => notify.error('Kunne ikke fjerne profilbilledet. Prøv igen.'),
   });
@@ -106,17 +97,14 @@ export const Profile = () => {
 
     const validationError = validateImageUpload(file);
     if (validationError) {
-      setProfileImageFeedback(validationError);
       notify.error(validationError);
       return;
     }
 
-    setProfileImageFeedback('');
     profileUploadMutation.mutate(file);
   };
 
   const profileImageBusy = profileUploadMutation.isPending || profileDeleteMutation.isPending;
-  const profileImageFeedbackId = 'profile-image-upload-feedback';
 
   return (
     <div className="page-container">
@@ -156,13 +144,9 @@ export const Profile = () => {
                     className="sr-only"
                     type="file"
                     accept={IMAGE_UPLOAD_ACCEPT}
-                    aria-describedby={profileImageFeedbackId}
                     onChange={(event) => handleProfileImage(event.target.files)}
                     disabled={profileImageBusy}
                   />
-                  <span id={profileImageFeedbackId} className="sr-only" role="status" aria-live="polite">
-                    {profileImageFeedback}
-                  </span>
                   <button
                     type="button"
                     className="btn btn-secondary"
