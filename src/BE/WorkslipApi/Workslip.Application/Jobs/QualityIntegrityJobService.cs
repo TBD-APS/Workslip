@@ -26,9 +26,16 @@ public sealed class QualityIntegrityJobService(AuthorizedJobService inner) : IJo
         string? sortDirection,
         int? limit,
         int? offset,
-        CancellationToken cancellationToken) =>
-        inner.ListAsync(
-            statuses,
+        CancellationToken cancellationToken)
+    {
+        var effectiveStatuses = statuses is not null
+            && statuses.Contains(JobStatus.Draft)
+            && !statuses.Contains(JobStatus.Reopened)
+                ? [.. statuses, JobStatus.Reopened]
+                : statuses;
+
+        return inner.ListAsync(
+            effectiveStatuses,
             reportNumber,
             customerName,
             customerEmail,
@@ -39,6 +46,7 @@ public sealed class QualityIntegrityJobService(AuthorizedJobService inner) : IJo
             limit,
             offset,
             cancellationToken);
+    }
 
     public Task<Result<IReadOnlyList<JobListItemResponse>>> GetMyAssignedJobsAsync(
         CancellationToken cancellationToken) =>
