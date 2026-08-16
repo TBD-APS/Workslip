@@ -27,9 +27,12 @@
         "script": { "type": "text/javascript", "exec": [
           "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
           "const json = pm.response.json();",
-          "pm.test('auditor list has a candidate', function () { pm.expect(json.items).to.be.an('array').and.not.empty; });",
+          "pm.test('auditor list has candidates', function () { pm.expect(json.items).to.be.an('array').and.not.empty; });",
           "pm.test('totalCount matches visible list', function () { pm.expect(json.totalCount).to.be.a('number').and.above(0); });",
-          "pm.collectionVariables.set('auditorScopeJobId', json.items[0].id);",
+          "const mutableCandidate = json.items.find(function (item) { const status = String(item.status).toLowerCase(); return status !== 'approved' && status !== '2'; });",
+          "pm.test('auditor list has a mutable non-Approved candidate', function () { pm.expect(mutableCandidate, 'Expected a non-Approved auditor-visible job fixture').to.exist; });",
+          "if (!mutableCandidate) { throw new Error('No mutable non-Approved auditor-scope fixture is available.'); }",
+          "pm.collectionVariables.set('auditorScopeJobId', mutableCandidate.id);",
           "pm.collectionVariables.set('auditorCountBefore', String(json.totalCount));"
         ] }
       }]
