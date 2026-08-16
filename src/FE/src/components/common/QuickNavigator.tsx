@@ -7,6 +7,7 @@ import { QuickNavigatorResults } from './QuickNavigatorResults';
 import type { QuickNavigatorSearchScope } from './quickNavigatorTypes';
 import type { JobListItemViewModel } from '../../api/generated/models';
 import type { CustomerSearchViewModel } from '../../api/generated/models';
+import { JobStatus } from '../../api/generated/models';
 import './QuickNavigator.css';
 
 export type QuickNavigatorResult =
@@ -163,7 +164,7 @@ export function QuickNavigator({
       navigate(`/app/customers/${result.customer.id}`, { state: { from } });
       return;
     }
-    const path = result.job.status === 'InReview' || result.job.status === 'Approved'
+    const path = result.job.status === JobStatus.InReview || result.job.status === JobStatus.Approved
       ? `/app/completed/${result.job.id}`
       : `/app/job/${result.job.id}`;
     const from = `${location.pathname}${location.search}${location.hash}`;
@@ -251,7 +252,7 @@ export function QuickNavigator({
               setActiveIndex(0);
             }}
             onKeyDown={handleInputKeyDown}
-            placeholder="Søg efter side eller sag…"
+            placeholder="Søg efter side, sag eller kunde…"
             aria-label="Søg i Workslip"
             autoComplete="off"
             spellCheck={false}

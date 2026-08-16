@@ -24,8 +24,6 @@ export function QuickNavigatorResults({
     isLoadingCustomers,
     jobError,
     customerError,
-    jobSearchDegraded,
-    customerSearchDegraded,
     jobs,
     customers,
   } = searchResult;
@@ -75,7 +73,7 @@ export function QuickNavigatorResults({
               <span className="quick-nav-result-icon"><FileText size={19} /></span>
               <span className="quick-nav-result-copy">
                 <strong>{title} · {customer}</strong>
-                <span>{address || 'Åbn sag'}</span>
+                <span>{address ? `${address} · ` : ''}Sag</span>
               </span>
               <ArrowRight size={17} className="quick-nav-result-arrow" aria-hidden="true" />
             </button>
@@ -95,7 +93,7 @@ export function QuickNavigatorResults({
             <span className="quick-nav-result-icon"><Building2 size={19} /></span>
             <span className="quick-nav-result-copy">
               <strong>{customer.name}</strong>
-              <span>{customer.address || 'Åbn kunde'}</span>
+              <span>{customer.address ? `${customer.address} · ` : ''}Kunde</span>
             </span>
             <ArrowRight size={17} className="quick-nav-result-arrow" aria-hidden="true" />
           </button>
@@ -127,18 +125,6 @@ export function QuickNavigatorResults({
       {customerError && customers.length === 0 && (
         <div className="quick-nav-search-error" role="status">
           Kunder kunne ikke søges lige nu.
-        </div>
-      )}
-
-      {jobSearchDegraded && (
-        <div className="quick-nav-search-error" role="status">
-          Søgning efter sager er midlertidigt nedsat. Viser tidligere resultater.
-        </div>
-      )}
-
-      {customerSearchDegraded && (
-        <div className="quick-nav-search-error" role="status">
-          Søgning efter kunder er midlertidigt nedsat. Viser tidligere resultater.
         </div>
       )}
     </div>

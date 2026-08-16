@@ -44,7 +44,7 @@ export function useQuickNavigatorSearch(scope: QuickNavigatorSearchScope): Quick
   const customersEnabled = isOpen && canViewCustomers && customerSearchTerm !== null;
 
   const jobsQuery = useQuery<JobListItemViewModel[], Error>({
-    queryKey: ['quick-navigator', 'jobs', jobSearchTerm ?? ''],
+    queryKey: ['quick-navigator', 'jobs', jobSearchTerm ?? '', canViewAllJobs, currentUserId ?? ''],
     queryFn: ({ signal }) => fetchJobs(jobSearchTerm!, signal),
     enabled: jobsEnabled,
     staleTime: 30_000,
@@ -52,9 +52,9 @@ export function useQuickNavigatorSearch(scope: QuickNavigatorSearchScope): Quick
   });
 
   const customersQuery = useQuery<CustomerSearchViewModel[], Error>({
-    queryKey: getGetApiCustomersSearchQueryKey({ query: customerSearchTerm ?? '' }),
+    queryKey: getGetApiCustomersSearchQueryKey({ query: customerSearchTerm ?? '', limit: 5 }),
     queryFn: ({ signal }) =>
-      getApiCustomersSearch({ query: customerSearchTerm! }, undefined, signal),
+      getApiCustomersSearch({ query: customerSearchTerm!, limit: 5 }, undefined, signal),
     enabled: customersEnabled,
     staleTime: 30_000,
     retry: 1,
@@ -71,12 +71,6 @@ export function useQuickNavigatorSearch(scope: QuickNavigatorSearchScope): Quick
   const jobError = jobsQuery.isError && !jobsQuery.isLoading;
   const customerError = customersQuery.isError && !customersQuery.isLoading;
 
-  // Degraded = we have a previous result but the current query is in error
-  const jobSearchDegraded =
-    jobError && filteredJobs.length > 0 && jobsQuery.data !== undefined;
-  const customerSearchDegraded =
-    customerError && (customersQuery.data?.length ?? 0) > 0 && customersQuery.data !== undefined;
-
   return {
     jobs: filteredJobs,
     customers: customersQuery.data ?? [],
@@ -85,7 +79,5 @@ export function useQuickNavigatorSearch(scope: QuickNavigatorSearchScope): Quick
     isLoadingCustomers,
     jobError,
     customerError,
-    jobSearchDegraded,
-    customerSearchDegraded,
   };
 }

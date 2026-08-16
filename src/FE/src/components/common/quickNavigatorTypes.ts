@@ -9,8 +9,6 @@ export interface QuickNavigatorSearchResult {
   isLoadingCustomers: boolean;
   jobError: boolean;
   customerError: boolean;
-  jobSearchDegraded: boolean;
-  customerSearchDegraded: boolean;
 }
 
 export interface QuickNavigatorSearchScope {
