@@ -1,5 +1,7 @@
 @charset "UTF-8";
 
+@import './components/forms/FormPrimitives.css';
+
 @font-face {
   font-family: 'Inter';
   font-style: normal;
