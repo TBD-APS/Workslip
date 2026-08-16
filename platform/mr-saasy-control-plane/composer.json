@@ -1,0 +1,42 @@
+{
+  "$schema": "https://getcomposer.org/schema.json",
+  "name": "mr-saasy/control-plane",
+  "type": "project",
+  "description": "Provider-neutral MR SAAS'y AI control plane with enforced trust boundaries.",
+  "license": "proprietary",
+  "require": {
+    "php": "^8.3",
+    "laravel/framework": "^13.0"
+  },
+  "require-dev": {
+    "deptrac/deptrac": "^4.7",
+    "phpunit/phpunit": "^12.5"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "app/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Tests\\": "tests/"
+    }
+  },
+  "scripts": {
+    "test": "@php artisan test",
+    "architecture": [
+      "@php scripts/forbid-ai-db-symbols.php",
+      "vendor/bin/deptrac analyse --config-file=deptrac.yaml --no-cache",
+      "vendor/bin/deptrac analyse --config-file=tests/Architecture/deptrac.legal.yaml --no-cache",
+      "@php scripts/assert-forbidden-deptrac-fixtures.php",
+      "@php scripts/render-architecture.php"
+    ]
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "sort-packages": true
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
