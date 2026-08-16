@@ -67,8 +67,8 @@ type JobWizardTutorialProps = {
 export function JobWizardTutorial({ currentStep }: JobWizardTutorialProps) {
   const [isOpen, setIsOpen] = useState(shouldOpenGuideInitially);
   const stepIndex = Math.min(Math.max(currentStep, 0), JOB_STEPS.length - 1);
-  const step = JOB_STEPS[stepIndex];
-  const guide = GUIDE_COPY[stepIndex];
+  const step = JOB_STEPS[stepIndex] ?? JOB_STEPS[0];
+  const guide = GUIDE_COPY[stepIndex] ?? GUIDE_COPY[0];
   const StepIcon = step.icon;
 
   const closeGuide = () => {
@@ -137,10 +137,10 @@ export function JobWizardTutorial({ currentStep }: JobWizardTutorialProps) {
                   key={wizardStep.label}
                   className={`job-wizard-tutorial-progress-step${isActive ? ' is-active' : ''}${isPast ? ' is-past' : ''}`}
                   aria-current={isActive ? 'step' : undefined}
+                  aria-label={isActive ? `${wizardStep.label} - aktuelt trin` : wizardStep.label}
                   title={wizardStep.label}
                 >
                   <span className="job-wizard-tutorial-progress-dot" aria-hidden="true" />
-                  <span className="sr-only">{wizardStep.label}</span>
                 </span>
               );
             })}
