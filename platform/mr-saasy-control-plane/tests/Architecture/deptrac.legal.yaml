@@ -1,19 +1,19 @@
 deptrac:
   paths:
-    - ./tests/Architecture/Fixtures/Legal
+    - ./Fixtures/Legal
   layers:
     - name: ProviderContracts
       collectors:
         - type: directory
-          value: tests/Architecture/Fixtures/Legal/ProviderContracts/.*
+          value: Fixtures/Legal/ProviderContracts/.*
     - name: ProviderAdapters
       collectors:
         - type: directory
-          value: tests/Architecture/Fixtures/Legal/Providers/.*
+          value: Fixtures/Legal/Providers/.*
     - name: InfrastructureHttp
       collectors:
         - type: directory
-          value: tests/Architecture/Fixtures/Legal/Http/.*
+          value: Fixtures/Legal/Http/.*
   ruleset:
     ProviderContracts: ~
     ProviderAdapters:
