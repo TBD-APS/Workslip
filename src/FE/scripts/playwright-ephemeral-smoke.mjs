@@ -13,6 +13,7 @@ const API_URL = requireLoopbackOrigin(
 const ADMIN_EMAIL = String(process.env.WORKSLIP_PLAYWRIGHT_ADMIN_EMAIL || 'admin@17v3ygzs.mailosaur.net').trim();
 const REQUESTED_SCENARIO = String(process.env.WORKSLIP_PLAYWRIGHT_SCENARIO || 'all').trim().toLowerCase();
 const UI_TIMEOUT = 25_000;
+const LARGE_UPLOAD_TIMEOUT = 60_000;
 const APP_SHELL_OBSERVED_KEY = '__workslip_playwright_app_shell_observed';
 
 const { chromium, devices } = await import('playwright');
@@ -21,6 +22,7 @@ const browser = await chromium.launch({ headless: true });
 const scenarios = new Map([
   ['auth-session', verifyAuthSessionResilience],
   ['quick-navigator', verifyQuickNavigator],
+  ['document-upload', verifyMobileDocumentAttachmentUpload],
 ]);
 
 try {
@@ -286,6 +288,53 @@ async function verifyDesktopQuickNavigator() {
 
     assert.equal(await dialog.locator('.quick-nav-search-wrap kbd').isVisible(), true, 'Esc key hint must remain visible on desktop.');
     assert.equal(await dialog.locator('.quick-nav-footer').isVisible(), true, 'Keyboard shortcut footer must remain visible on desktop.');
+    session.assertNoPageErrors();
+  } finally {
+    await context.close();
+  }
+}
+
+async function verifyMobileDocumentAttachmentUpload() {
+  const { context } = await authenticatedContext(devices['iPhone 13']);
+  try {
+    const session = await openAuthenticatedApp(context);
+    const { page } = session;
+
+    await page.goto(`${APP_URL}/app/docs/new`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+    await page.waitForURL((url) => url.pathname === '/app/docs/new', { timeout: UI_TIMEOUT });
+    await page.getByLabel('Titel').fill(`Upload cap ${Date.now()}`);
+
+    const createResponsePromise = page.waitForResponse((response) =>
+      response.request().method() === 'POST'
+        && new URL(response.url()).pathname === '/api/docs/',
+    { timeout: UI_TIMEOUT });
+    await page.getByRole('button', { name: 'Gem', exact: true }).click();
+    const createResponse = await createResponsePromise;
+    assert.ok(createResponse.ok(), `Document create returned HTTP ${createResponse.status()}.`);
+    const document = await createResponse.json();
+    assert.ok(document?.id, 'Created document response did not contain an id.');
+    await page.waitForURL((url) => url.pathname === `/app/docs/${document.id}`, { timeout: UI_TIMEOUT });
+
+    const input = page.locator('input.docs-file-input[type="file"]');
+    await input.waitFor({ state: 'attached', timeout: UI_TIMEOUT });
+    const largeMp3 = Buffer.alloc(75 * 1024 * 1024);
+    largeMp3.set([0x49, 0x44, 0x33, 0x04]);
+
+    const uploadResponsePromise = page.waitForResponse((response) =>
+      response.request().method() === 'POST'
+        && new URL(response.url()).pathname === `/api/docs/${document.id}/attachments`,
+    { timeout: LARGE_UPLOAD_TIMEOUT });
+    await input.setInputFiles({
+      name: 'boundary-75mb.mp3',
+      mimeType: 'audio/mpeg',
+      buffer: largeMp3,
+    });
+    const uploadResponse = await uploadResponsePromise;
+    assert.ok(uploadResponse.ok(), `75 MB document attachment returned HTTP ${uploadResponse.status()}.`);
+
+    await page.getByText('Filen er tilføjet.', { exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await page.getByText('boundary-75mb.mp3', { exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.match(await page.locator('.docs-attachments-help').innerText(), /maks\. 75 MB pr\. fil/);
     session.assertNoPageErrors();
   } finally {
     await context.close();
