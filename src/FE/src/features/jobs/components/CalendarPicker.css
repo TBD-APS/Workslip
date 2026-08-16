@@ -3,9 +3,11 @@
   min-height: 44px;
 }
 
+/* A chosen date is selection state, so use Workslip petrol rather than the
+   signal-orange primary action colour. */
 .calendar-picker-day.selected {
-  background: var(--primary);
-  color: var(--on-primary);
+  background: var(--color-primary);
+  color: var(--brand-cream);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -15,8 +17,9 @@
   }
 
   .calendar-picker-day.selected:hover {
-    background: var(--primary-hover);
-    color: var(--on-primary);
+    background: var(--color-primary);
+    color: var(--brand-cream);
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--brand-cream) 22%, transparent);
   }
 }
 
