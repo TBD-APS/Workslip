@@ -29,6 +29,7 @@
       "@php artisan test"
     ],
     "architecture": [
+      "@php scripts/forbid-workslip-coupling.php",
       "@php scripts/forbid-ai-db-symbols.php",
       "@php scripts/assert-forbidden-symbol-fixture.php",
       "vendor/bin/deptrac analyse --config-file=deptrac.yaml --no-cache",
