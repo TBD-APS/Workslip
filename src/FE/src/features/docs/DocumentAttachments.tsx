@@ -4,15 +4,18 @@ import { Download, File as FileIcon, FileAudio, FileImage, FileText, Pause, Play
 import type { DocumentAttachmentInfoResponse } from '../../api/generated/models';
 import { ConfirmDeleteDialog } from '../../components/common/ConfirmDeleteDialog';
 import { notify } from '../../lib/toast';
+import { getUploadErrorMessage } from '../../lib/uploadError';
 import {
   deleteDocumentAttachment,
   downloadDocumentAttachment,
   listDocumentAttachments,
   uploadDocumentAttachment,
 } from './docsApi';
-
-const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
-const ACCEPTED_FILES = '.mp3,.wav,.ogg,.mp4,.pdf,.png,.jpg,.jpeg,.webp,.txt,.md,.csv';
+import {
+  ACCEPTED_DOCUMENT_FILES,
+  MAX_DOCUMENT_ATTACHMENT_MB,
+  validateDocumentAttachment,
+} from './documentUploadPolicy';
 
 const formatBytes = (bytes: number | string): string => {
   const value = Number(bytes);
@@ -79,7 +82,10 @@ export function DocumentAttachments({ documentId, canEdit }: DocumentAttachments
       await queryClient.invalidateQueries({ queryKey: ['docs', 'attachments', documentId] });
       notify.success('Filen er tilføjet.');
     },
-    onError: () => notify.error('Filen kunne ikke uploades.'),
+    onError: (error) => notify.error(getUploadErrorMessage(error, {
+      fallback: 'Filen kunne ikke uploades. Prøv igen.',
+      tooLarge: `Filen må højst være ${MAX_DOCUMENT_ATTACHMENT_MB} MB.`,
+    })),
   });
 
   const deleteMutation = useMutation({
@@ -95,12 +101,9 @@ export function DocumentAttachments({ documentId, canEdit }: DocumentAttachments
 
   const handleFile = (file: File | undefined) => {
     if (!file) return;
-    if (file.size <= 0) {
-      notify.error('Filen er tom.');
-      return;
-    }
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      notify.error('Filen må højst være 20 MB.');
+    const validationError = validateDocumentAttachment(file);
+    if (validationError) {
+      notify.error(validationError);
       return;
     }
     uploadMutation.mutate(file);
@@ -157,7 +160,7 @@ export function DocumentAttachments({ documentId, canEdit }: DocumentAttachments
                 ref={inputRef}
                 className="docs-file-input"
                 type="file"
-                accept={ACCEPTED_FILES}
+                accept={ACCEPTED_DOCUMENT_FILES}
                 onChange={(event) => {
                   handleFile(event.target.files?.[0]);
                   event.currentTarget.value = '';
@@ -175,7 +178,7 @@ export function DocumentAttachments({ documentId, canEdit }: DocumentAttachments
           )}
         </div>
 
-        <p className="docs-attachments-help">MP3/WAV/OGG, MP4, PDF, billeder, TXT/MD eller CSV · maks. 20 MB pr. fil.</p>
+        <p className="docs-attachments-help">MP3/WAV/OGG, MP4, PDF, billeder, TXT/MD eller CSV · maks. {MAX_DOCUMENT_ATTACHMENT_MB} MB pr. fil.</p>
 
         {attachmentsQuery.isLoading && <div className="docs-attachments-state">Henter filer…</div>}
         {attachmentsQuery.isError && (
