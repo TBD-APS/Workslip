@@ -1,5 +1,11 @@
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
 
+function normalizedHostname(url) {
+  return url.hostname.startsWith('[') && url.hostname.endsWith(']')
+    ? url.hostname.slice(1, -1)
+    : url.hostname;
+}
+
 export function requireLoopbackOrigin(value, label = 'URL') {
   let url;
   try {
@@ -11,7 +17,8 @@ export function requireLoopbackOrigin(value, label = 'URL') {
   if (!['http:', 'https:'].includes(url.protocol)) {
     throw new Error(`${label} must use HTTP(S).`);
   }
-  if (!LOOPBACK_HOSTS.has(url.hostname)) {
+  const hostname = normalizedHostname(url);
+  if (!LOOPBACK_HOSTS.has(hostname)) {
     throw new Error(`${label} must target loopback; got ${url.hostname}.`);
   }
   if (url.username || url.password || url.search || url.hash) {
