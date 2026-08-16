@@ -203,7 +203,7 @@ async function waitForTransientToastsToClear(page, timeout = 10_000) {
     }
   }
 }
-async function clickNext(page, nextStep) { const button = await revealStepNavigation(page); await waitForEnabled(button, `Næste before ${nextStep}`); await waitForTransientToastsToClear(page); await button.click(); await waitForWizardStep(page, nextStep); }
+async function clickNext(page, nextStep) { await waitForTransientToastsToClear(page); const button = await revealStepNavigation(page); await waitForEnabled(button, `Næste before ${nextStep}`); await button.click(); await waitForWizardStep(page, nextStep); }
 async function clickWizardStep(page, label) { const button = page.getByRole('button', { name: new RegExp(`^${escapeRegex(label)}`) }); await button.click(); await waitForWizardStep(page, label); }
 async function clickByTextCandidates(locator, values, description) { for (const value of values) { const match = locator.filter({ hasText: value }).first(); if (await match.isVisible().catch(() => false)) { await match.click(); return; } } throw new Error(`No visible ${description} matched runtime values: ${values.join(', ')}.`); }
 async function checkRadioByCandidates(page, values, description) {
