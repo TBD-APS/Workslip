@@ -35,6 +35,40 @@ public interface INotificationService
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Conversation notifications are not implemented by this notification service.");
 
+    Task QueueConversationActionRequestedAsync(
+        Guid userId,
+        string recipientName,
+        Guid jobId,
+        string jobNumber,
+        string customerAddress,
+        string actorName,
+        string actionLabel,
+        Guid messageId,
+        string actionType,
+        CancellationToken cancellationToken) =>
+        QueueConversationActionRequestedAsync(
+            userId,
+            recipientName,
+            jobId,
+            jobNumber,
+            customerAddress,
+            actorName,
+            actionLabel,
+            messageId,
+            cancellationToken);
+
+    Task QueueConversationReminderAsync(
+        Guid userId,
+        string recipientName,
+        Guid jobId,
+        string jobNumber,
+        string customerAddress,
+        string reminderText,
+        Guid messageId,
+        DateTimeOffset dueUtc,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Conversation reminders are not implemented by this notification service.");
+
     Task<Result> DeleteAsync(Guid userId, Guid notificationId, CancellationToken cancellationToken);
 
     (string Title, string Body) GetLocalizedText(NotificationType notificationType, string jobNumber, string customerAddress, string recipientName, string? rejectionNote = null);
