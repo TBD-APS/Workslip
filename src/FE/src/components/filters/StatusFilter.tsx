@@ -49,7 +49,9 @@ export function activateStatusFilter(sectionKey: string, statuses: string[]) {
     }
     sessionStorage.setItem(LAST_ACTIVE_KEY, sectionKey);
     saveStatusFilter(sectionKey, statuses);
-  } catch {}
+  } catch {
+    // sessionStorage can be unavailable in restricted browser contexts; navigation still proceeds.
+  }
 }
 
 /** Call on mount on pages that are section boundaries (e.g. UserList, any page outside the filter's section). */
