@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__);
 $command = sprintf(
-    '%s analyse --config-file=%s --no-cache --fail-on-uncovered --formatter=table 2>&1',
+    '%s analyse --config-file=%s --no-cache --fail-on-uncovered --report-uncovered --formatter=table 2>&1',
     escapeshellarg($root.'/vendor/bin/deptrac'),
     escapeshellarg($root.'/tests/Architecture/deptrac.uncovered.yaml'),
 );
