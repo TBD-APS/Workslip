@@ -80,10 +80,7 @@ public static class ControlCenterSummaryProjection
             {
                 var observed = application.OperationalSignals.Any(signal =>
                     signal.Kind == source.Kind &&
-                    string.Equals(
-                        signal.Evidence.Provider,
-                        source.Evidence.Provider,
-                        StringComparison.OrdinalIgnoreCase));
+                    signal.Evidence.HasSameSourceIdentity(source.Evidence));
 
                 if (!observed)
                 {
