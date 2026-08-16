@@ -7,6 +7,7 @@ import { ArrowLeft, Loader2, Mail } from 'lucide-react';
 import { notify } from '../../../lib/toast';
 import { clearReauthInFlight } from '../../../providers/authContextValue';
 import { useAuth } from '../../../providers/useAuth';
+import { getAuthenticatedHomePath } from '../authenticatedDestination';
 import { sendAuthCode } from '../api/devToken';
 import { sanitizeReturnTo } from '../api/entraLogin';
 import { OneTimeCodeInput } from './OneTimeCodeInput';
@@ -77,10 +78,13 @@ export function OneTimeCodeLogin({ onBack }: OneTimeCodeLoginProps) {
     setErrorMsg(null);
     setIsSubmitting(true);
     try {
-      const success = await login(email, data.code);
-      if (success) {
+      const role = await login(email, data.code);
+      if (role) {
         clearReauthInFlight();
-        navigate(returnTo, { replace: true });
+        const destination = returnTo === '/app'
+          ? getAuthenticatedHomePath(role)
+          : returnTo;
+        navigate(destination, { replace: true });
       } else {
         setErrorMsg('Ugyldig kode. Prøv igen.');
         notify.error('Ugyldig kode. Prøv igen.');
