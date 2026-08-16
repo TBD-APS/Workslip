@@ -2,6 +2,8 @@
 
 This file contains the repository-wide rules that implementation agents must follow. Scoped `AGENTS.md` files add only rules that are specific to their directory.
 
+All agent roles/providers must also load the provider-neutral [`Shared Agent Handbook`](Docs/agents/AGENT_HANDBOOK.md). It defines the common MR SAAS'y/Workslip mental model, role/provider separation, Control Center checkpoint contract, privacy defaults and plug-and-play onboarding expectations. This `AGENTS.md` remains authoritative for repository engineering rules when wording overlaps.
+
 ## Before changing code
 
 1. Inspect the current branch/worktree and read the Linear issue that owns the change.

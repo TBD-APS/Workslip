@@ -29,7 +29,7 @@ namespace Workslip.Application.Jobs
         {
             var errors = new List<ValidationError>();
 
-            // Skip submit validation for Diverse jobs
+            // Diverse jobs intentionally bypass the KLS completion workflow.
             if (report.JobType == JobType.Diverse)
             {
                 return errors;
@@ -41,6 +41,26 @@ namespace Workslip.Application.Jobs
             if (report.InstallationTypes.Count == 0)
             {
                 errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.InstallationTypes), ErrorMessage = "Vælg mindst én installationstype." });
+            }
+            else
+            {
+                foreach (var installationType in report.InstallationTypes)
+                {
+                    foreach (var category in installationType.Categories)
+                    {
+                        if (category.IsIrrelevant)
+                            continue;
+
+                        if (!category.ControlPoints.Any(controlPoint => controlPoint.IsChecked))
+                        {
+                            errors.Add(new ValidationError
+                            {
+                                Identifier = nameof(JobReportResponse.InstallationTypes),
+                                ErrorMessage = $"Mindst et kontrolpunkt skal vælges for \"{installationType.Name} i {category.Name}\"."
+                            });
+                        }
+                    }
+                }
             }
 
             var workKindsByLabel = referenceData.WorkKinds
@@ -61,6 +81,36 @@ namespace Workslip.Application.Jobs
             else if (!workKind.RequiresCustomWorkKind && !string.IsNullOrWhiteSpace(report.WorkKind.CustomWorkKind))
             {
                 errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.WorkKind), ErrorMessage = "Brugerdefineret tekst er kun tilladt for arbejdstyper, der kræver det." });
+            }
+
+            if (report.Worksheets.Count == 0)
+            {
+                errors.Add(new ValidationError
+                {
+                    Identifier = nameof(JobReportResponse.Worksheets),
+                    ErrorMessage = "Tilføj mindst én timeseddel."
+                });
+            }
+
+            if (report.ClosureFlags.Count == 0)
+            {
+                errors.Add(new ValidationError
+                {
+                    Identifier = nameof(JobReportResponse.ClosureFlags),
+                    ErrorMessage = "Vælg mindst én afslutningsstatus."
+                });
+            }
+            else if (report.ClosureFlags.Count == 1
+                     && string.Equals(
+                         report.ClosureFlags[0].NormalizedLabel,
+                         ClosureFlagLabels.OperationMaintenanceInstructions,
+                         StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add(new ValidationError
+                {
+                    Identifier = nameof(JobReportResponse.ClosureFlags),
+                    ErrorMessage = "Vælg også Ikke færdig, Færdig eller Klar til faktura."
+                });
             }
 
             return errors;

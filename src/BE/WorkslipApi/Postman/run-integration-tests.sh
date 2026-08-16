@@ -17,8 +17,21 @@ case "$BASE_URL" in
 esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COLLECTION="$SCRIPT_DIR/postman_collection.json"
+SOURCE_COLLECTION="$SCRIPT_DIR/postman_collection.json"
+COLLECTION="$(mktemp "${TMPDIR:-/tmp}/workslip-postman-collection.XXXXXX.json")"
 ENVIRONMENT="$SCRIPT_DIR/workslip.integration.postman_environment.json"
+
+cleanup() {
+  rm -f "$COLLECTION"
+}
+trap cleanup EXIT
+
+# Prepare a temporary execution copy. The bootstrap bearer token is seeded into
+# collection scope (not Newman environment scope) so the Development-only token
+# request can deliberately switch to the tenant identity used by the remaining
+# workflow. The preparation also completes the canonical job fixture with the
+# minimum worksheet required by the authoritative submit-ready rules.
+node "$SCRIPT_DIR/prepare-integration-collection.mjs" "$SOURCE_COLLECTION" "$COLLECTION"
 
 args=(
   run "$COLLECTION"
@@ -28,9 +41,5 @@ args=(
   --timeout-request 30000
   --bail
 )
-
-if [ -n "${WORKSLIP_AUTH_TOKEN:-}" ]; then
-  args+=(--env-var "authToken=$WORKSLIP_AUTH_TOKEN")
-fi
 
 npx --yes newman "${args[@]}"
