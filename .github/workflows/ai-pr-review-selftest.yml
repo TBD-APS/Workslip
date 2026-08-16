@@ -35,6 +35,7 @@ jobs:
       - name: Validate review sources
         run: |
           set -euo pipefail
+          ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ai-pr-review.yml')"
           python3 -m json.tool .github/ai-review/schema.json >/dev/null
           python3 -m py_compile .github/ai-review/build-context.py
           node --check .github/ai-review/openai-model-selection.mjs
