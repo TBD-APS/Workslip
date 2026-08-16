@@ -77,6 +77,8 @@ The production build command first runs:
 
 The adapter uses Vercel's exact Git commit metadata, requires the `main` branch, waits for the exact post-merge `CI Gate`, and performs a second `main` read after validating the CI jobs so a SHA that becomes stale during verification is rejected. Only then does Vercel run the deterministic frontend build.
 
+The adapter reads public GitHub API evidence without a Vercel-held GitHub token. A genuine GitHub rate-limit response (`429`, or `403` with rate-limit evidence) is treated as a transient dependency condition only inside the adapter's existing bounded eligibility window. The adapter waits according to `Retry-After`/rate-limit reset metadata when available, then restarts verification from a fresh current-`main` read and fresh exact-SHA CI evidence. It never reuses previously fetched evidence across a rate-limit retry. If the bounded window cannot accommodate the retry or expires, production remains blocked. Ordinary `401`, permission `403` and other GitHub API failures remain terminal and are not converted into retries.
+
 The adapter intentionally lives under `src/FE`. Vercel documents that a configured Root Directory may prevent builds from accessing source outside that directory unless a separate project setting enables it. Production safety therefore does not depend on that dashboard option.
 
 The production build does **not** call `generate:api:dev` or fetch OpenAPI from a remote development API. The generated API client is committed and its parity with the same-revision backend contract is a blocking CI check.
@@ -154,6 +156,7 @@ Production delivery no longer trusts that ruleset as its only red-deploy defense
 
 - both Actions and Vercel adapters reject red/cancelled/stale/missing/duplicate gates;
 - Vercel production uses the Root-Directory-local exact-SHA gate and has no `generate:api:dev` or parent-directory dependency;
+- the Vercel adapter retries only positively identified GitHub rate-limit responses within its bounded eligibility window while ordinary API authorization failures remain terminal;
 - all privileged production workflows use the shared `workslip-production` lock and `prod` environment;
 - backend deployment revalidates before mutation and cannot fall back to ancestor semantics;
 - the repository-protection source requires `CI Gate`, `Feature change guard`, no bypass actors and strict status checks; and
