@@ -37,7 +37,7 @@ const UserList = lazy(() =>
   import('../features/users/routes/UserList').then((module) => ({ default: module.UserList })),
 );
 const UserDetail = lazy(() =>
-  import('../features/users/routes/UserDetailWithRate').then((module) => ({ default: module.UserDetail })),
+  import('../features/users/routes/UserDetailWithRate').then((module) => ({ default: module.UserDetailWithRate })),
 );
 const CustomerList = lazy(() =>
   import('../features/customers/routes/CustomerList').then((module) => ({ default: module.CustomerList })),
