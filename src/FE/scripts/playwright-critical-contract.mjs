@@ -188,7 +188,22 @@ async function revealStepNavigation(page) {
   await page.waitForTimeout(150);
   return button;
 }
-async function clickNext(page, nextStep) { const button = await revealStepNavigation(page); await waitForEnabled(button, `Næste before ${nextStep}`); await button.click(); await waitForWizardStep(page, nextStep); }
+async function waitForTransientToastsToClear(page, timeout = 10_000) {
+  await page.mouse.move(4, 4);
+  try {
+    await page.waitForFunction(
+      () => !document.querySelector('[data-sonner-toast][data-visible="true"]'),
+      undefined,
+      { timeout },
+    );
+  } catch {
+    const visible = await page.locator('[data-sonner-toast][data-visible="true"]').count();
+    if (visible > 0) {
+      throw new Error(`Transient toast blocked wizard navigation for more than ${timeout}ms.`);
+    }
+  }
+}
+async function clickNext(page, nextStep) { const button = await revealStepNavigation(page); await waitForEnabled(button, `Næste before ${nextStep}`); await waitForTransientToastsToClear(page); await button.click(); await waitForWizardStep(page, nextStep); }
 async function clickWizardStep(page, label) { const button = page.getByRole('button', { name: new RegExp(`^${escapeRegex(label)}`) }); await button.click(); await waitForWizardStep(page, label); }
 async function clickByTextCandidates(locator, values, description) { for (const value of values) { const match = locator.filter({ hasText: value }).first(); if (await match.isVisible().catch(() => false)) { await match.click(); return; } } throw new Error(`No visible ${description} matched runtime values: ${values.join(', ')}.`); }
 async function checkRadioByCandidates(page, values, description) {
