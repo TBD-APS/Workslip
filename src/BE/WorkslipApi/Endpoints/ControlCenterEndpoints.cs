@@ -20,7 +20,7 @@ public static class ControlCenterEndpoints
         {
             HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.GetSnapshotAsync(cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
+            return Workslip.Api.Helpers.ResultExtensions.ToHttpResult(result);
         })
         .Produces<ControlCenterSnapshot>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status401Unauthorized)
@@ -36,11 +36,11 @@ public static class ControlCenterEndpoints
             var snapshotResult = await service.GetSnapshotAsync(cancellationToken);
             if (!snapshotResult.IsSuccess)
             {
-                return ResultExtensions.ToHttpResult(snapshotResult);
+                return Workslip.Api.Helpers.ResultExtensions.ToHttpResult(snapshotResult);
             }
 
             var summary = ControlCenterSummaryProjection.FromSnapshot(snapshotResult.Value);
-            return ResultExtensions.ToHttpResult(Result<ControlCenterSummary>.Success(summary));
+            return Workslip.Api.Helpers.ResultExtensions.ToHttpResult(Result<ControlCenterSummary>.Success(summary));
         })
         .Produces<ControlCenterSummary>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status401Unauthorized)
