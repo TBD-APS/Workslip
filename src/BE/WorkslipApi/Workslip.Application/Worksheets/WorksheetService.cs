@@ -234,10 +234,7 @@ public class WorksheetService : IWorksheetService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
-                "Unable to read daily hours before worksheet upsert. UserId: {UserId}, WorkDate: {WorkDate}",
-                request.UserId,
-                request.WorkDate);
+            _logger.LogError(ex, "Unable to read daily hours before worksheet upsert.");
             return Result<JobReportSummaryResponse>.Error("worksheet_daily_hours_lookup_failed");
         }
 
@@ -284,10 +281,7 @@ public class WorksheetService : IWorksheetService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Daily hours limit notification failed after worksheet upsert. UserId: {UserId}, WorkDate: {WorkDate}",
-                    request.UserId,
-                    request.WorkDate);
+                _logger.LogError(ex, "Daily hours limit notification failed after worksheet upsert.");
             }
         }
 
