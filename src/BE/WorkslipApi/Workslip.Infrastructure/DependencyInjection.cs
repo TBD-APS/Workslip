@@ -39,6 +39,7 @@ public static class DependencyInjection
         services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
         services.AddScoped<IApplicationTransactionFactory, EfApplicationTransactionFactory>();
 
+        services.AddScoped<JobReopenReasonContext>();
         services.AddScoped<TenantIntegrityInterceptor>();
         services.AddScoped<JobStatusTransitionInterceptor>();
         services.AddScoped<ApprovedJobImmutabilityGuard>();
@@ -83,7 +84,8 @@ public static class DependencyInjection
         services.AddScoped<IJobRepository>(serviceProvider =>
             new BillingAwareJobRepository(
                 serviceProvider.GetRequiredService<EfJobRepository>(),
-                serviceProvider.GetRequiredService<SqlDbContext>()));
+                serviceProvider.GetRequiredService<SqlDbContext>(),
+                serviceProvider.GetRequiredService<JobReopenReasonContext>()));
         services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
         services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();
