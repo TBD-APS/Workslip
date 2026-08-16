@@ -8,7 +8,6 @@ import { useTheme } from '../../providers/ThemeProvider';
 import { CreateBottomSheet } from '../common/CreateBottomSheet';
 import { NotificationsDrawer } from '../common/NotificationsDrawer';
 import { QuickNavigator } from '../common/QuickNavigator';
-import { ProfileAvatar } from '../../features/images/ProfileAvatar';
 import {
   AUDITOR_AUTHENTICATED_PATH,
   getAuthenticatedHomePath,
@@ -131,10 +130,6 @@ export const AppLayout = () => {
           Workslip
         </button>
         <div className="app-header-actions">
-          <span className="app-header-user" title={user?.email ?? ''}>
-            <User size={16} />
-            <span>{user?.displayName ?? user?.email ?? ''}</span>
-          </span>
           <button
             type="button"
             onClick={() => setQuickNavigatorOpen(true)}
@@ -201,6 +196,31 @@ export const AppLayout = () => {
             </button>
             {settingsMenuOpen && (
               <div className="app-header-settings-menu" role="menu" aria-label="Indstillinger og konto">
+                {!isSuperadmin && (
+                  <button
+                    type="button"
+                    className="app-header-settings-item"
+                    role="menuitem"
+                    onClick={() => {
+                      setSettingsMenuOpen(false);
+                      navigate('/app/profil');
+                    }}
+                  >
+                    <User size={16} aria-hidden="true" />
+                    <span>Profil</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="app-header-settings-item"
+                  role="menuitem"
+                  onClick={toggleTheme}
+                >
+                  {theme === 'night'
+                    ? <Sun size={16} aria-hidden="true" />
+                    : <Moon size={16} aria-hidden="true" />}
+                  <span>{theme === 'night' ? 'Dagtilstand' : 'Nattilstand'}</span>
+                </button>
                 {canManageUsers && (
                   <button
                     type="button"
@@ -230,26 +250,6 @@ export const AppLayout = () => {
               </div>
             )}
           </div>
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="user-avatar"
-            aria-label={theme === 'night' ? 'Skift til dagtilstand' : 'Skift til nattilstand'}
-            title={theme === 'night' ? 'Dagtilstand' : 'Nattilstand'}
-          >
-            {theme === 'night' ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-          {!isSuperadmin && (
-            <button
-              type="button"
-              onClick={() => navigate('/app/profil')}
-              className="user-avatar"
-              aria-label="Profil"
-              title="Profil"
-            >
-              <ProfileAvatar userId={user?.id} displayName={user?.displayName} />
-            </button>
-          )}
         </div>
       </header>
 
