@@ -113,6 +113,7 @@ jobs:
           KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
         shell: bash
         run: |
+          set +e
           set -uo pipefail
           : > /tmp/kimi-prevalidate.log
           mapfile -t tests < <(find src/components/common -maxdepth 1 -type f -iname '*navigator*.test.ts*' -print)
@@ -167,6 +168,7 @@ jobs:
           KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
         shell: bash
         run: |
+          set +e
           set -uo pipefail
           : > /tmp/kimi-buildvalidate.log
           mapfile -t tests < <(find src/components/common -maxdepth 1 -type f -iname '*navigator*.test.ts*' -print)
