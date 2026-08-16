@@ -91,16 +91,14 @@ export function ControlPointsStep({
 
                 <div className="control-points-list">
                   <button
-                    className={`multi-select-option selection-row control-point-irrelevant-row${isIrrelevant ? ' selected' : ''}`}
+                    className={`btn btn-sm ${isIrrelevant ? 'btn-primary' : 'btn-outline'}`}
                     type="button"
                     onClick={() => onToggleCategoryIrrelevant(instType.id, cat.id)}
                     aria-label={`${isIrrelevant ? 'Marker' : 'Umarker'} ${cat.name} som ${isIrrelevant ? 'relevant' : 'ikke relevant'}`}
                     title={isIrrelevant ? 'Marker som relevant' : 'Marker som ikke relevant'}
                     aria-pressed={isIrrelevant}
                   >
-                    <span className="multi-select-option-text">
-                      <span>Irrelevant</span>
-                    </span>
+                    Irrelevant
                   </button>
 
                   {!isIrrelevant && (cat.controlPoints ?? []).sort(bySortOrder).map((cp) => (
