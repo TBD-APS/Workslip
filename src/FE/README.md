@@ -90,7 +90,7 @@ Vercel Git deployment is enabled only for `main`. A production deployment record
 
 The Vercel adapter lives inside `src/FE` deliberately. Vercel projects with a configured Root Directory may prevent build commands from reading files outside that directory, so production safety must not depend on an unverified dashboard setting. The adapter implements the same exact-SHA/green-gate contract as the Actions release verifier and both are covered by `Production delivery · Self-test`.
 
-The verifier uses Vercel's Git metadata and GitHub's public repository API; it does not require a Vercel-held GitHub API token. Red, cancelled, stale, missing or unresolved CI evidence blocks the build. See [`../../Docs/operations/ci-quality-gates.md`](../../Docs/operations/ci-quality-gates.md) for the complete production boundary.
+The verifier uses Vercel's Git metadata and GitHub's public repository API; it does not require a Vercel-held GitHub API token. Genuine GitHub rate-limit responses are retried only inside the existing bounded eligibility window, and every retry restarts the current-`main` and exact-CI checks from fresh API evidence. If the window expires, production remains blocked. Ordinary authentication, permission and other API failures remain terminal. Red, cancelled, stale, missing or unresolved CI evidence also blocks the build.
 
 ## Validation
 
