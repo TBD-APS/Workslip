@@ -4,6 +4,7 @@ import type { UserViewModel } from '../api/generated/models';
 export const AUTH_TOKEN_KEY = 'authToken';
 export const USER_EMAIL_KEY = 'userEmail';
 export const REAUTH_IN_FLIGHT_KEY = 'workslip.reauthInFlight';
+export const AUTH_TRANSITION_ATTRIBUTE = 'data-auth-transition';
 
 /**
  * TTL on the reauthInFlight flag. If the redirect is interrupted (browser
@@ -78,7 +79,8 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   user: UserViewModel | null;
   isLoading: boolean;
-  login: (email: string, code: string) => Promise<boolean>;
+  login: (email: string, code: string) => Promise<string | null>;
+  establishSession: (token: string, email: string, role?: string | null) => void;
   logout: () => void;
   clearLocalSession: () => void;
   updateUser: (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => void;

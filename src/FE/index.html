@@ -7,6 +7,33 @@
     <meta name="description" content="Workslip - Den digitale arbejdsseddel til VVS-virksomheder. KLS-compliant, nem at bruge, og fuldt integreret jobflow." />
     <title>Workslip | Din samarbejdspartner</title>
 
+    <script>
+      (() => {
+        let theme = null;
+        let hasAuthToken = false;
+
+        try {
+          const storedTheme = localStorage.getItem('theme');
+          if (storedTheme === 'day' || storedTheme === 'night') theme = storedTheme;
+          hasAuthToken = Boolean(localStorage.getItem('authToken'));
+        } catch {
+          // Storage can be unavailable in hardened/private browser modes.
+        }
+
+        if (!theme) {
+          theme = window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'night' : 'day';
+        }
+
+        document.documentElement.setAttribute('data-theme', theme);
+        if (hasAuthToken) document.documentElement.setAttribute('data-auth-transition', '');
+
+        const themeColor = document.querySelector('meta[name="theme-color"]');
+        if (themeColor) {
+          themeColor.setAttribute('content', theme === 'night' ? '#0B1020' : '#F4F7FB');
+        }
+      })();
+    </script>
+
     <!-- PWA capability -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />

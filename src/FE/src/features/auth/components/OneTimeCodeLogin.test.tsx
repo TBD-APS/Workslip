@@ -57,7 +57,9 @@ function renderLogin(returnTo: string) {
       <Routes>
         <Route path="/login" element={<OneTimeCodeLogin onBack={vi.fn()} />} />
         <Route path="/app" element={<h1>App</h1>} />
+        <Route path="/app/overblik" element={<h1>Overblik</h1>} />
         <Route path="/app/customers/:id" element={<h1>Kunde</h1>} />
+        <Route path="/superadmin" element={<h1>Superadmin</h1>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -73,7 +75,7 @@ async function completeLogin() {
 }
 
 beforeEach(() => {
-  mocks.login.mockReset().mockResolvedValue(true);
+  mocks.login.mockReset().mockResolvedValue('User');
   mocks.sendAuthCode.mockReset().mockResolvedValue(undefined);
   mocks.clearReauthInFlight.mockReset();
 });
@@ -94,11 +96,20 @@ describe('OneTimeCodeLogin return navigation', () => {
     expect(mocks.clearReauthInFlight).toHaveBeenCalledOnce();
   });
 
-  it('falls back to app home for an unsafe return target', async () => {
+  it('falls back to the role home for an unsafe return target', async () => {
     renderLogin('//example.com/phishing');
 
     await completeLogin();
 
-    expect(await screen.findByRole('heading', { name: 'App' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Overblik' })).toBeInTheDocument();
+  });
+
+  it('routes a platform Superadmin directly to Superadmin', async () => {
+    mocks.login.mockResolvedValueOnce('Superadmin');
+    renderLogin('/app');
+
+    await completeLogin();
+
+    expect(await screen.findByRole('heading', { name: 'Superadmin' })).toBeInTheDocument();
   });
 });

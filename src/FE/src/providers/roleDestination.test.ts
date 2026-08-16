@@ -3,6 +3,7 @@ import { ROLES } from './permissions';
 import {
   AUDITOR_AUTHENTICATED_PATH,
   DEFAULT_AUTHENTICATED_PATH,
+  SUPERADMIN_AUTHENTICATED_PATH,
   getAuthenticatedHomePath,
 } from '../features/auth/authenticatedDestination';
 
@@ -15,7 +16,11 @@ describe('role destination', () => {
     expect(getAuthenticatedHomePath(ROLES.Auditor)).toBe(AUDITOR_AUTHENTICATED_PATH);
   });
 
-  it.each([ROLES.User, ROLES.Admin, ROLES.Superadmin])('keeps %s on the standard home', (role) => {
+  it('routes platform Superadmin directly to Superadmin', () => {
+    expect(getAuthenticatedHomePath(ROLES.Superadmin)).toBe(SUPERADMIN_AUTHENTICATED_PATH);
+  });
+
+  it.each([ROLES.User, ROLES.Admin])('keeps %s on the standard home', (role) => {
     expect(getAuthenticatedHomePath(role)).toBe(DEFAULT_AUTHENTICATED_PATH);
   });
 });

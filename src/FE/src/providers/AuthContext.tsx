@@ -3,6 +3,7 @@ import { FullscreenSystemState } from '../components/common/FullscreenSystemStat
 import { preloadPrimaryAppRoute } from '../routes/preloadPrimaryAppRoute';
 import {
   AUTH_TOKEN_KEY,
+  AUTH_TRANSITION_ATTRIBUTE,
   AuthContext,
   AuthStorage,
   clearReauthInFlight,
@@ -30,28 +31,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void preloadPrimaryAppRoute().catch(() => undefined);
   }, [authToken]);
 
+  const establishSession = useCallback<AuthContextType['establishSession']>((token, email, role) => {
+    document.documentElement.setAttribute(AUTH_TRANSITION_ATTRIBUTE, '');
+    void preloadPrimaryAppRoute(role).catch(() => undefined);
+    AuthStorage.setItem(AUTH_TOKEN_KEY, token);
+    AuthStorage.setItem(USER_EMAIL_KEY, email);
+    clearReauthInFlight();
+    setAuthToken(token);
+  }, []);
+
   const clearStoredSession = useCallback(() => {
     AuthStorage.removeItem(AUTH_TOKEN_KEY);
     AuthStorage.removeItem(USER_EMAIL_KEY);
     clearReauthInFlight();
+    document.documentElement.removeAttribute(AUTH_TRANSITION_ATTRIBUTE);
     setAuthToken(null);
   }, []);
 
   const login = useCallback(
-    async (email: string, code: string): Promise<boolean> => {
+    async (email: string, code: string): Promise<string | null> => {
       try {
         const { verifyAuthCode } = await import('../features/auth/api/devToken');
         const response = await verifyAuthCode(email, code);
-        AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
-        AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
-        setAuthToken(response.token);
-        clearReauthInFlight();
-        return true;
+        establishSession(response.token, response.user.email, response.user.role);
+        return response.user.role;
       } catch {
-        return false;
+        return null;
       }
     },
-    [],
+    [establishSession],
   );
 
   const publicValue = useMemo<AuthContextType>(
@@ -61,12 +69,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: null,
       isLoading: false,
       login,
+      establishSession,
       logout: clearStoredSession,
       clearLocalSession: clearStoredSession,
       updateUser: () => undefined,
       meQuery: publicMeQuery,
     }),
-    [clearStoredSession, login],
+    [clearStoredSession, establishSession, login],
   );
 
   if (!authToken) {
@@ -78,12 +87,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       fallback={(
         <FullscreenSystemState
           title="Tjekker login"
-          message="Vi kontrollerer din session og gør Workslip klar."
+          message="Vi kontrollerer din session og forbinder til Workslip."
         />
       )}
     >
       <AuthenticatedAppProvider
         login={login}
+        establishSession={establishSession}
         clearSession={clearStoredSession}
       >
         {children}

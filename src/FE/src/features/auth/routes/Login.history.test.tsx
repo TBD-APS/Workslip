@@ -3,8 +3,11 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Login } from './Login';
 
-const { authState, entraMocks } = vi.hoisted(() => ({
-  authState: { isAuthenticated: true },
+const { authState, authMocks, entraMocks } = vi.hoisted(() => ({
+  authState: { isAuthenticated: true, user: null as { role?: string } | null },
+  authMocks: {
+    establishSession: vi.fn(),
+  },
   entraMocks: {
     clearEntraLoginSession: vi.fn(),
     completeEntraLogin: vi.fn(),
@@ -18,6 +21,8 @@ const { authState, entraMocks } = vi.hoisted(() => ({
 vi.mock('../../../providers/useAuth', () => ({
   useAuth: () => ({
     isAuthenticated: authState.isAuthenticated,
+    user: authState.user,
+    establishSession: authMocks.establishSession,
   }),
 }));
 
@@ -34,6 +39,7 @@ function renderLogin(initialEntries: string[] = ['/login'], initialIndex = initi
       { path: '/login', element: <Login /> },
       { path: '/app', element: <div>App</div> },
       { path: '/app/overblik', element: <div>Overblik</div> },
+      { path: '/superadmin', element: <div>Superadmin</div> },
     ],
     { initialEntries, initialIndex },
   );
@@ -44,8 +50,10 @@ function renderLogin(initialEntries: string[] = ['/login'], initialIndex = initi
 
 beforeEach(() => {
   authState.isAuthenticated = true;
+  authState.user = null;
   localStorage.clear();
   window.history.replaceState(null, '', '/login');
+  authMocks.establishSession.mockReset();
   entraMocks.clearEntraLoginSession.mockReset();
   entraMocks.completeEntraLogin.mockReset();
   entraMocks.hasEntraLoginCallback.mockReset().mockReturnValue(false);
@@ -71,6 +79,38 @@ describe('Login browser history handling', () => {
 
     expect(await screen.findByText('Før login')).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/before');
+  });
+
+  it('completes a Microsoft callback inside the SPA and routes Superadmin directly', async () => {
+    authState.isAuthenticated = false;
+    entraMocks.hasEntraLoginCallback.mockReturnValue(true);
+    entraMocks.completeEntraLogin.mockResolvedValue({
+      auth: {
+        token: 'token',
+        tokenType: 'Bearer',
+        expiresIn: 3600,
+        user: {
+          userId: 'user-1',
+          organizationId: 'organization-1',
+          email: 'superadmin@example.com',
+          displayName: 'Superadmin',
+          role: 'Superadmin',
+        },
+      },
+      returnTo: '/app',
+    });
+    window.history.replaceState(null, '', '/login?code=callback&state=state');
+
+    const router = renderLogin(['/login?code=callback&state=state']);
+
+    await waitFor(() => expect(authMocks.establishSession).toHaveBeenCalledWith(
+      'token',
+      'superadmin@example.com',
+      'Superadmin',
+    ));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/superadmin'));
+    expect(await screen.findByText('Superadmin')).toBeInTheDocument();
+    expect(entraMocks.clearEntraLoginSession).toHaveBeenCalled();
   });
 
   it('recovers an interactive login restored from the back-forward cache', async () => {
