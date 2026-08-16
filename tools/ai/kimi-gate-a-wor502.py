@@ -47,10 +47,7 @@ def call_kimi(stage, system, task, context, max_tokens):
         request = urllib.request.Request(
             BASE + '/chat/completions',
             data=body,
-            headers={
-                'Authorization': 'Bearer ' + KEY,
-                'Content-Type': 'application/json',
-            },
+            headers={'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json'},
             method='POST',
         )
         chunks = []
@@ -85,7 +82,6 @@ def call_kimi(stage, system, task, context, max_tokens):
         except (TimeoutError, urllib.error.URLError) as exc:
             last_error = type(exc).__name__
             continue
-
         raw = ''.join(chunks)
         if not raw.strip():
             last_error = last_error or 'empty provider stream'
@@ -129,10 +125,7 @@ stage1_allowed = {
     COMMON + 'quickNavigatorTypes.ts',
     COMMON + 'useQuickNavigatorSearch.ts',
 }
-stage1_required = {
-    COMMON + 'quickNavigatorSearch.test.ts',
-    COMMON + 'useQuickNavigatorSearch.ts',
-}
+stage1_required = {COMMON + 'quickNavigatorSearch.test.ts', COMMON + 'useQuickNavigatorSearch.ts'}
 stage1_context = read_context([
     'src/FE/AGENTS.md',
     COMMON + 'quickNavigatorSearch.ts',
@@ -161,14 +154,9 @@ stage1_task = '\n'.join([
 ])
 result1, model1, usage1 = call_kimi('stage1', stage1_system, stage1_task, stage1_context, 10000)
 files1 = write_files('stage1', result1, stage1_allowed, stage1_required)
-
-# Avoid immediately consuming the provider again after a large coding response.
 time.sleep(10)
 
-stage2_allowed = {
-    COMMON + 'QuickNavigator.tsx',
-    COMMON + 'QuickNavigatorResults.tsx',
-}
+stage2_allowed = {COMMON + 'QuickNavigator.tsx', COMMON + 'QuickNavigatorResults.tsx'}
 stage2_required = set(stage2_allowed)
 stage2_context = read_context([
     'src/FE/AGENTS.md',
@@ -196,6 +184,7 @@ stage2_task = '\n'.join([
     "Show useful loading/degraded source messages while retaining healthy-source results and local commands when another source fails.",
     "No folder mode. No remote Users or Docs search. No unrelated cleanup. Keep exported QuickNavigator props exactly compatible with AppLayout.",
     "This remains a draft candidate until localhost browser acceptance; do not claim browser validation.",
+    "IMPORTANT deterministic feedback from the previous rejected attempt: ESLint reported an unused ArrowRight import and react-hooks/set-state-in-effect because activeIndex was synchronously reset inside useEffect([query]). Do not repeat either error. Reset selection at the query input/change event boundary or another lint-compliant design, and leave no unused imports.",
 ])
 result2, model2, usage2 = call_kimi('stage2', stage2_system, stage2_task, stage2_context, 15000)
 files2 = write_files('stage2', result2, stage2_allowed, stage2_required)
