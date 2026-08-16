@@ -7,6 +7,7 @@ import {
 } from '../../api/generated/customers/customers';
 import type { JobListItemViewModel } from '../../api/generated/models';
 import type { CustomerSearchViewModel } from '../../api/generated/models';
+import { useDebounce } from '../../hooks/useDebounce';
 import {
   getQuickJobSearchTerm,
   getCustomerSearchTerm,
@@ -37,8 +38,16 @@ export function useQuickNavigatorSearch(scope: QuickNavigatorSearchScope): Quick
     isOpen,
   } = scope;
 
-  const jobSearchTerm = getQuickJobSearchTerm(query);
-  const customerSearchTerm = getCustomerSearchTerm(query);
+  const debouncedQuery = useDebounce(query, 200);
+
+  const jobSearchTerm = getQuickJobSearchTerm(debouncedQuery);
+  const customerSearchTerm = getCustomerSearchTerm(debouncedQuery);
+
+  const rawJobSearchTerm = getQuickJobSearchTerm(query);
+  const rawCustomerSearchTerm = getCustomerSearchTerm(query);
+
+  const hasRemoteJobIntent = rawJobSearchTerm !== null;
+  const hasRemoteCustomerIntent = rawCustomerSearchTerm !== null;
 
   const jobsEnabled = isOpen && canSearchJobs && jobSearchTerm !== null;
   const customersEnabled = isOpen && canViewCustomers && customerSearchTerm !== null;
@@ -60,20 +69,22 @@ export function useQuickNavigatorSearch(scope: QuickNavigatorSearchScope): Quick
     retry: 1,
   });
 
+  const isDebouncing = query !== debouncedQuery;
+
   const filteredJobs = useMemo(() => {
     const raw = jobsQuery.data ?? [];
     return filterQuickNavigationJobs(raw, canViewAllJobs, currentUserId);
   }, [jobsQuery.data, canViewAllJobs, currentUserId]);
 
-  const isLoadingJobs = jobsEnabled && jobsQuery.isLoading;
-  const isLoadingCustomers = customersEnabled && customersQuery.isLoading;
+  const isLoadingJobs = isOpen && canSearchJobs && hasRemoteJobIntent && (isDebouncing || jobsQuery.isLoading);
+  const isLoadingCustomers = isOpen && canViewCustomers && hasRemoteCustomerIntent && (isDebouncing || customersQuery.isLoading);
 
-  const jobError = jobsQuery.isError && !jobsQuery.isLoading;
-  const customerError = customersQuery.isError && !customersQuery.isLoading;
+  const jobError = !isDebouncing && jobsQuery.isError && !jobsQuery.isLoading;
+  const customerError = !isDebouncing && customersQuery.isError && !customersQuery.isLoading;
 
   return {
-    jobs: filteredJobs,
-    customers: customersQuery.data ?? [],
+    jobs: isDebouncing ? [] : filteredJobs,
+    customers: isDebouncing ? [] : (customersQuery.data ?? []),
     isLoading: isLoadingJobs || isLoadingCustomers,
     isLoadingJobs,
     isLoadingCustomers,

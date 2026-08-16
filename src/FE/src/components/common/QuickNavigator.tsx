@@ -8,7 +8,6 @@ import type { QuickNavigatorSearchScope } from './quickNavigatorTypes';
 import type { JobListItemViewModel } from '../../api/generated/models';
 import type { CustomerSearchViewModel } from '../../api/generated/models';
 import { JobStatus } from '../../api/generated/models';
-import { useDebounce } from '../../hooks/useDebounce';
 import './QuickNavigator.css';
 
 export type QuickNavigatorResult =
@@ -65,8 +64,6 @@ export function QuickNavigator({
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const debouncedQuery = useDebounce(query, 200);
-
   const commands = useMemo(() => buildQuickNavigatorCommands({
     homePath,
     homeLabel,
@@ -107,9 +104,9 @@ export function QuickNavigator({
     canViewAllJobs,
     currentUserId,
     canViewCustomers,
-    query: debouncedQuery,
+    query,
     isOpen,
-  }), [canSearchJobs, canViewAllJobs, currentUserId, canViewCustomers, debouncedQuery, isOpen]);
+  }), [canSearchJobs, canViewAllJobs, currentUserId, canViewCustomers, query, isOpen]);
 
   const searchResult = useQuickNavigatorSearch(searchScope);
 
