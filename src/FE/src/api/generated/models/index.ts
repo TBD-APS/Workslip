@@ -99,6 +99,7 @@ export * from './jobDeleteErrorResponse';
 export * from './jobHistoryResponse';
 export * from './jobLinkInfoResponse';
 export * from './jobListItemViewModel';
+export * from './jobOverviewRecentJobViewModel';
 export * from './jobOverviewViewModel';
 export * from './jobReportSummaryClosureFlagResponse';
 export * from './jobReportSummaryObservationResponse';
