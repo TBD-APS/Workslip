@@ -5,6 +5,7 @@ import {
   chooseRun,
   githubRateLimitRetryMs,
   parseGitHubRepository,
+  productionGateMode,
   validateGate,
 } from './vercel-production-eligibility.mjs';
 
@@ -32,6 +33,36 @@ function gate(overrides = {}) {
     ...overrides,
   };
 }
+
+test('preview and development builds skip only the production eligibility gate', () => {
+  assert.deepEqual(
+    productionGateMode({ vercelEnv: 'preview', commitRef: 'release-4.9.0' }),
+    { enforce: false, environment: 'preview' },
+  );
+  assert.deepEqual(
+    productionGateMode({ vercelEnv: 'development', commitRef: 'feature/test' }),
+    { enforce: false, environment: 'development' },
+  );
+});
+
+test('production and manual gate execution remain fail-closed', () => {
+  assert.deepEqual(
+    productionGateMode({ vercelEnv: 'production', commitRef: 'main' }),
+    { enforce: true, environment: 'production' },
+  );
+  assert.deepEqual(
+    productionGateMode({}),
+    { enforce: true, environment: 'manual' },
+  );
+  assert.throws(
+    () => productionGateMode({ vercelEnv: 'production', commitRef: 'release-4.9.0' }),
+    /only release main/,
+  );
+  assert.throws(
+    () => productionGateMode({ vercelEnv: 'staging', commitRef: 'main' }),
+    /Unsupported VERCEL_ENV/,
+  );
+});
 
 test('parses GitHub HTTPS and SSH remotes for metadata fallback', () => {
   assert.equal(parseGitHubRepository('https://github.com/rasm105k/Workslip-v2.0.git'), 'rasm105k/Workslip-v2.0');
