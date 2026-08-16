@@ -84,16 +84,33 @@ export function LocationTracking() {
 
   const sendPosition = useCallback(async (position: GeolocationPosition) => {
     if (!sessionId.current) return;
+
+    const capturedAt = new Date(position.timestamp).toISOString();
     await apiClient.post('/api/location/pings', {
       sessionId: sessionId.current,
       latitude: position.coords.latitude,
       longitude: position.coords.longitude,
       accuracyMeters: position.coords.accuracy,
-      capturedAt: new Date(position.timestamp).toISOString(),
+      capturedAt,
     });
+
     setPermissionError(null);
-    await loadStatus();
-  }, [loadStatus]);
+    setStatus((current) => ({
+      sessionId: sessionId.current,
+      active: true,
+      capturedAt,
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      accuracyMeters: position.coords.accuracy,
+      ...current,
+      sessionId: sessionId.current,
+      active: true,
+      capturedAt,
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      accuracyMeters: position.coords.accuracy,
+    }));
+  }, []);
 
   const startTracking = async () => {
     if (!('geolocation' in navigator)) {
