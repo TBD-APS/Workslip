@@ -66,8 +66,9 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs');
           const config = JSON.parse(fs.readFileSync('src/FE/vercel.json', 'utf8'));
-          if (config.git?.deploymentEnabled?.main !== true || config.git?.deploymentEnabled?.['*'] !== false) {
-            throw new Error('Vercel Git deployments must be disabled except for main.');
+          const deployments = config.git?.deploymentEnabled;
+          if (deployments?.main !== true || deployments?.['**'] !== false || Object.keys(deployments).length !== 2) {
+            throw new Error('Vercel automatic Git deployments must use a globstar deny-all rule with only main explicitly enabled.');
           }
           if (!String(config.buildCommand || '').includes('scripts/vercel-production-eligibility.mjs')) {
             throw new Error('Vercel production build must run the root-local exact-SHA production gate.');

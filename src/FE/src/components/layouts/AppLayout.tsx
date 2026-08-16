@@ -47,6 +47,9 @@ export const AppLayout = () => {
   const isAuditorSession = appHomePath === AUDITOR_AUTHENTICATED_PATH;
   const canUseAppCommands = !isSuperadmin || Boolean(organizationSession);
   const canSearchJobs = canUseAppCommands && !isAuditorSession;
+  const profileInitial = user?.displayName?.trim().charAt(0).toUpperCase()
+    || user?.email?.trim().charAt(0).toUpperCase()
+    || '?';
 
   const { theme, toggle: toggleTheme } = useTheme();
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
@@ -146,33 +149,21 @@ export const AppLayout = () => {
               )}
             </button>
           )}
-          <Can permission="organization:manage">
-            <button
-              type="button"
-              onClick={() => navigate('/superadmin')}
-              className="user-avatar"
-              aria-label="Superadmin"
-              title="Superadmin"
-              aria-current={location.pathname === '/superadmin' ? 'page' : undefined}
-            >
-              <ShieldCheck size={18} />
-            </button>
-          </Can>
           <div ref={settingsMenuRef} className="app-header-settings">
             <button
               type="button"
               onClick={() => setSettingsMenuOpen((open) => !open)}
               className="user-avatar"
-              aria-label="Indstillinger og konto"
+              aria-label="Profil og konto"
               aria-haspopup="menu"
               aria-expanded={settingsMenuOpen}
-              title="Indstillinger"
-              aria-current={location.pathname.startsWith('/app/settings') || location.pathname.startsWith('/app/docs') ? 'page' : undefined}
+              title="Profil"
+              aria-current={location.pathname.startsWith('/app/profil') || location.pathname.startsWith('/app/settings') || location.pathname.startsWith('/app/docs') || location.pathname === '/superadmin' ? 'page' : undefined}
             >
-              <Settings size={18} />
+              <span aria-hidden="true">{profileInitial}</span>
             </button>
             {settingsMenuOpen && (
-              <div className="app-header-settings-menu" role="menu" aria-label="Indstillinger og konto">
+              <div className="app-header-settings-menu" role="menu" aria-label="Profil og konto">
                 {!isSuperadmin && (
                   <button
                     type="button"
@@ -185,6 +176,20 @@ export const AppLayout = () => {
                   >
                     <User size={16} aria-hidden="true" />
                     <span>Profil</span>
+                  </button>
+                )}
+                {canManageOrganization && (
+                  <button
+                    type="button"
+                    className="app-header-settings-item"
+                    role="menuitem"
+                    onClick={() => {
+                      setSettingsMenuOpen(false);
+                      navigate('/superadmin');
+                    }}
+                  >
+                    <ShieldCheck size={16} aria-hidden="true" />
+                    <span>Superadmin</span>
                   </button>
                 )}
                 {canViewDocs && canUseAppCommands && (
