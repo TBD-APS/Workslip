@@ -52,6 +52,8 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
     if (libraryInputRef.current) libraryInputRef.current.value = '';
     if (files.length === 0) return;
 
+    setUploadFeedback('');
+    const feedbackMessages: string[] = [];
     const validationResults = files.map((file) => ({ file, error: validateImageUpload(file) }));
     const rejected = validationResults
       .filter((item): item is { file: File; error: string } => Boolean(item.error));
@@ -64,10 +66,9 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
       const message = rejected.length === 1
         ? reasons
         : `${rejected.length} billeder blev afvist. ${reasons}`;
-      setUploadFeedback(message);
+      feedbackMessages.push(message);
+      setUploadFeedback(feedbackMessages.join(' '));
       notify.error(message);
-    } else {
-      setUploadFeedback('');
     }
     if (validFiles.length === 0) return;
 
@@ -84,7 +85,8 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
           fallback: `Kunne ikke uploade billede ${index + 1} af ${validFiles.length}. Prøv igen.`,
           tooLarge: `Billedet må højst være ${MAX_IMAGE_UPLOAD_MB} MB.`,
         });
-        setUploadFeedback(message);
+        if (!feedbackMessages.includes(message)) feedbackMessages.push(message);
+        setUploadFeedback(feedbackMessages.join(' '));
         notify.error(message);
       }
     }
@@ -93,7 +95,8 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
     if (uploadedCount > 0) {
       await queryClient.invalidateQueries({ queryKey: jobImagesQueryKey(jobId) });
       const message = `${uploadedCount} billede${uploadedCount === 1 ? '' : 'r'} uploadet`;
-      setUploadFeedback(message);
+      feedbackMessages.push(message);
+      setUploadFeedback(feedbackMessages.join(' '));
       notify.success(message);
     }
   };
