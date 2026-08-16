@@ -1,4 +1,4 @@
-name: Kimi Gate A - WOR-502 Pre-PR Correction
+name: Kimi Gate A - WOR-502 Design Integration
 
 on:
   push:
@@ -11,13 +11,13 @@ permissions:
   contents: write
 
 concurrency:
-  group: kimi-gate-a-wor-502-pre-pr
+  group: kimi-gate-a-wor-502-design
   cancel-in-progress: false
 
 jobs:
-  correct:
+  integrate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
       MOONSHOT_BASE_URL: https://api.moonshot.ai/v1
@@ -27,7 +27,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Prepare trusted correction broker and checkout Kimi feature
+      - name: Prepare trusted Kimi broker and checkout feature branch
         id: runtime
         shell: bash
         run: |
@@ -43,29 +43,50 @@ jobs:
           git config user.name 'Kimi Worker'
           git config user.email 'kimi-worker@users.noreply.github.com'
 
-      - name: Give pre-PR review findings back to Kimi
+      - name: Give product-owner design wiring feedback to Kimi
         env:
           KIMI_MODEL: ${{ steps.runtime.outputs.model }}
         shell: bash
         run: |
-          cat >/tmp/wor502-review.txt <<'EOF'
-          Pre-PR reviewer feedback. Items 1-8 may already be fixed; preserve those fixes. Correct the remaining race without redesigning the feature:
+          cat >/tmp/wor502-design-review.txt <<'EOF'
+          Product-owner review: the feature still LOOKS like the old QuickNavigator. Search logic works, but the intended design from the earlier UnifiedSearch proposal was never wired into the active component.
 
-          1. Customer search must stay bounded: use exact generated params `{ query, limit: 5 }` consistently in query key and query function.
-          2. Jobs React Query key must include presentation/user scope inputs (`canViewAllJobs`, `currentUserId`) that affect visible job results. This is cache scoping, not authorization.
-          3. Use generated `JobStatus.InReview` / `JobStatus.Approved`, not duplicated string literals.
-          4. Placeholder must accurately mention side, sag and kunde.
-          5. Mixed results must be visibly distinguishable as Navigation / Sag / Kunde using existing layout/CSS.
-          6. Do not claim stale previous results are being shown unless the query is deliberately configured for that. Keep source-specific error state and healthy-source results.
-          7. Debounce remote requests using the existing `useDebounce<T>(value, delayMs)` around 180–200 ms while local command filtering remains immediate.
-          8. Navigation must also be explicit in visible secondary copy.
-          9. Current debounce implementation passes `debouncedQuery` from QuickNavigator into the hook, so after the raw input changes the previous remote jobs/customers can remain visible and selectable for ~200 ms. That is not acceptable: a fast click/Enter could open a result for the previous query. Keep the raw input query as the source of UI truth and ensure remote results/errors are hidden while debounce is pending. Prefer moving debounce responsibility into `useQuickNavigatorSearch` (or an equivalent clean design) so it can compare raw query vs debounced query. During that pending interval return no old remote jobs/customers, suppress old remote errors, and expose loading/pending state if the raw query has remote-search intent. Once debounced query catches up, query by the debounced value. Local command results must remain immediate.
+          Root cause already established by reviewer: AppLayout correctly imports/renders QuickNavigator, but the previous Gate A brief explicitly forbade folder mode and CSS changes. Therefore the active QuickNavigator kept the old visual shell. Correct that now.
 
-          Keep the existing modular split. Do not add folders, Users/Docs remote search, new dependencies, CSS rewrite, or unrelated cleanup. This remains browser-unvalidated and draft-only.
+          Required outcome:
+          1. Keep AppLayout untouched. QuickNavigator is already mounted there.
+          2. Wire the NEW UI into the existing QuickNavigator.tsx render path. Do not create an unused parallel UnifiedSearch component.
+          3. Reintroduce the visual/interaction concepts from the supplied proposal, using the existing `quick-nav-*` namespace and design tokens:
+             - home / folder / search view modes;
+             - header kicker + title with back button in folder mode;
+             - search field with correct mode-specific placeholder and Esc/back hint;
+             - meta row with counts and LoaderCircle searching state;
+             - home folder-card grid;
+             - mixed result rows with visible type badge, icon, title/subtitle and ArrowRight;
+             - empty states and source-specific error states;
+             - footer with keyboard hints;
+             - smooth active-row keyboard scrolling;
+             - Escape closes search or goes back from folder view; Backspace on empty folder query may go home.
+          4. The earlier proposal relied on Lucide imports such as ArrowLeft, ArrowRight, Building2, ClipboardList, ChevronRight, FileText, Folder, FolderOpen, LoaderCircle, Search and X. Import only the icons actually used, but do not omit required imports and leave dead/unwired markup.
+          5. Keep this modular. `QuickNavigator.tsx` should orchestrate state/navigation only. Use/import subcomponents from the allowed set such as `QuickNavigatorHeader.tsx`, `QuickNavigatorSearchField.tsx`, `QuickNavigatorFolderGrid.tsx`, and `QuickNavigatorResults.tsx`. Do NOT paste the whole former UnifiedSearch into one file.
+          6. Update `QuickNavigator.css` so the new folder/grid/header/result-badge UI is actually visible. Reuse Workslip CSS variables and responsive behavior; no hard-coded brand palette and no unrelated App.css work.
+          7. Preserve already validated search behavior exactly:
+             - local Navigation command filtering is immediate;
+             - remote Sager/Kunder stay bounded to 5;
+             - remote search is debounced ~200 ms;
+             - previous remote results are hidden while debounce is pending;
+             - generated JobStatus constants determine completed/editable route;
+             - customer/job permission scope remains unchanged;
+             - one remote source failing does not delete healthy results/local commands.
+          8. Folder design must not invent unsupported data APIs. For this pass, make folders for the actually supported result families: Sager (when allowed), Kunder (when allowed), and Navigation. Do not fake Users/Docs remote results merely to match the old mockup. Existing Docs/User navigation commands can still appear under Navigation.
+          9. Folder mode must be meaningful even before a remote query. Do not repeat the old proposal bug where opening a folder clears query and therefore shows a permanently empty remote-data folder. A folder can provide a scoped search experience and clear guidance; only show result counts when they are real.
+          10. Keep aria dialog/focus trap/mobile/keyboard behavior compatible with existing tests. Dialog accessible name must remain `Hvor vil du hen?`.
+
+          This is still a Draft PR and browser-unaccepted until focused browser validation passes. Do not merge or deploy.
           EOF
-          python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/wor502-review.txt
+          python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/wor502-design-review.txt
 
-      - name: Enforce correction scope
+      - name: Enforce design integration scope
         shell: bash
         run: |
           set -euo pipefail
@@ -73,29 +94,37 @@ jobs:
           { git diff --name-only "$base"; git ls-files --others --exclude-standard; } | sort -u | tee /tmp/feature-files.txt
           while IFS= read -r p; do
             case "$p" in
-              src/FE/src/components/common/QuickNavigator.tsx|src/FE/src/components/common/QuickNavigatorResults.tsx|src/FE/src/components/common/quickNavigatorSearch.ts|src/FE/src/components/common/quickNavigatorSearch.test.ts|src/FE/src/components/common/quickNavigatorTypes.ts|src/FE/src/components/common/useQuickNavigatorSearch.ts) ;;
+              src/FE/src/components/common/QuickNavigator.tsx|src/FE/src/components/common/QuickNavigator.css|src/FE/src/components/common/QuickNavigatorHeader.tsx|src/FE/src/components/common/QuickNavigatorSearchField.tsx|src/FE/src/components/common/QuickNavigatorFolderGrid.tsx|src/FE/src/components/common/QuickNavigatorResults.tsx|src/FE/src/components/common/QuickNavigator.test.tsx|src/FE/src/components/common/quickNavigatorSearch.ts|src/FE/src/components/common/quickNavigatorSearch.test.ts|src/FE/src/components/common/quickNavigatorTypes.ts|src/FE/src/components/common/useQuickNavigatorSearch.ts) ;;
               *) echo "Out-of-scope feature path: $p"; exit 20 ;;
             esac
           done < /tmp/feature-files.txt
 
-      - name: Validate corrected feature
+      - name: Validate design integration
         working-directory: src/FE
         shell: bash
         run: |
           set -euo pipefail
           npm ci
           mapfile -t tests < <(find src/components/common -maxdepth 1 -type f -iname '*navigator*.test.ts*' -print)
-          npx vitest run "${tests[@]}"
+          if ((${#tests[@]})); then npx vitest run "${tests[@]}"; fi
           mapfile -t files < <({ git diff --name-only "$(git merge-base origin/main HEAD)" -- '*.ts' '*.tsx'; git ls-files --others --exclude-standard -- 'src/components/common/*.ts' 'src/components/common/*.tsx'; } | sort -u | sed 's#^src/FE/##')
           npx eslint "${files[@]}"
           npm run build
 
-      - name: Commit Kimi review correction
+      - name: Run focused authenticated QuickNavigator browser smoke
+        env:
+          WORKSLIP_PLAYWRIGHT_SCENARIO: quick-navigator
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash src/FE/scripts/run-playwright-ephemeral.sh
+
+      - name: Commit Kimi design integration
         shell: bash
         run: |
           set -euo pipefail
           git add src/FE/src/components/common
-          git diff --cached --quiet && { echo 'Kimi made no review correction'; exit 30; }
-          git commit -m 'RBJ-502: prevent stale results during search debounce'
+          git diff --cached --quiet && { echo 'Kimi made no design integration change'; exit 30; }
+          git commit -m 'RBJ-502: wire modular global search design'
           git push origin "$FEATURE_BRANCH"
-          echo "Corrected Kimi head: $(git rev-parse HEAD)"
+          echo "Kimi design head: $(git rev-parse HEAD)"
