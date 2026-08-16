@@ -26,6 +26,7 @@ import { JobWorksheetsStep } from './steps/JobWorksheetsStep';
 import { WorkCategoryStep } from './steps/WorkCategoryStep';
 import { JOB_STEPS } from './steps/jobSteps';
 import { JobHistoryDrawer } from './JobHistoryDrawer';
+import { JobConversationLauncher } from './JobConversationLauncher';
 import { JobStatusDots } from './JobStatusDots';
 import { ClosureFlagLabels } from '../closureFlagLabels';
 
@@ -190,6 +191,12 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
         onDelete={canDeleteJob ? handleDelete : undefined}
         onShowHistory={() => setHistoryOpen(true)}
       />
+      <div className="job-conversation-entry">
+        <JobConversationLauncher
+          jobId={details.job.id}
+          allowSubmitForReview={canSubmitForReview}
+        />
+      </div>
       <StepIndicators
         currentStep={details.currentStep}
         onStepChange={handleStepChange}
