@@ -12,6 +12,13 @@ public interface INotificationService
     Task QueueJobUnassignedAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, CancellationToken cancellationToken);
     Task QueueJobDeletedAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, CancellationToken cancellationToken);
 
+    Task QueueDailyHoursLimitReachedAsync(
+        Guid userId,
+        string recipientName,
+        DateOnly workDate,
+        decimal hours,
+        CancellationToken cancellationToken) => Task.CompletedTask;
+
     Task QueueConversationMentionAsync(
         Guid userId,
         string recipientName,
