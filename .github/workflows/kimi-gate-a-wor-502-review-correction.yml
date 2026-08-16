@@ -40,6 +40,7 @@ jobs:
           echo "model=$model" >> "$GITHUB_OUTPUT"
           git fetch origin main "$FEATURE_BRANCH"
           git switch --force-create "$FEATURE_BRANCH" "origin/$FEATURE_BRANCH"
+          echo "feature_head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           git config user.name 'Kimi Worker'
           git config user.email 'kimi-worker@users.noreply.github.com'
 
@@ -87,28 +88,31 @@ jobs:
           python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/wor502-design-review.txt
 
       - name: Enforce design integration scope
+        env:
+          KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
         shell: bash
         run: |
           set -euo pipefail
-          base="$(git merge-base origin/main HEAD)"
-          { git diff --name-only "$base"; git ls-files --others --exclude-standard; } | sort -u | tee /tmp/feature-files.txt
+          { git diff --name-only "$KIMI_START_HEAD"; git ls-files --others --exclude-standard; } | sort -u | tee /tmp/kimi-files.txt
           while IFS= read -r p; do
             case "$p" in
               src/FE/src/components/common/QuickNavigator.tsx|src/FE/src/components/common/QuickNavigator.css|src/FE/src/components/common/QuickNavigatorHeader.tsx|src/FE/src/components/common/QuickNavigatorSearchField.tsx|src/FE/src/components/common/QuickNavigatorFolderGrid.tsx|src/FE/src/components/common/QuickNavigatorResults.tsx|src/FE/src/components/common/QuickNavigator.test.tsx|src/FE/src/components/common/quickNavigatorSearch.ts|src/FE/src/components/common/quickNavigatorSearch.test.ts|src/FE/src/components/common/quickNavigatorTypes.ts|src/FE/src/components/common/useQuickNavigatorSearch.ts) ;;
-              *) echo "Out-of-scope feature path: $p"; exit 20 ;;
+              *) echo "Out-of-scope Kimi delta: $p"; exit 20 ;;
             esac
-          done < /tmp/feature-files.txt
+          done < /tmp/kimi-files.txt
 
       - name: Validate design integration
         working-directory: src/FE
+        env:
+          KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
         shell: bash
         run: |
           set -euo pipefail
           npm ci
           mapfile -t tests < <(find src/components/common -maxdepth 1 -type f -iname '*navigator*.test.ts*' -print)
           if ((${#tests[@]})); then npx vitest run "${tests[@]}"; fi
-          mapfile -t files < <({ git diff --name-only "$(git merge-base origin/main HEAD)" -- '*.ts' '*.tsx'; git ls-files --others --exclude-standard -- 'src/components/common/*.ts' 'src/components/common/*.tsx'; } | sort -u | sed 's#^src/FE/##')
-          npx eslint "${files[@]}"
+          mapfile -t files < <({ git diff --name-only "$KIMI_START_HEAD" -- '*.ts' '*.tsx'; git ls-files --others --exclude-standard -- 'src/components/common/*.ts' 'src/components/common/*.tsx'; } | sort -u | sed 's#^src/FE/##')
+          if ((${#files[@]})); then npx eslint "${files[@]}"; fi
           npm run build
 
       - name: Run focused authenticated QuickNavigator browser smoke
