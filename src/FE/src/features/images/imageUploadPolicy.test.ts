@@ -10,6 +10,10 @@ describe('image upload policy', () => {
     expect(validateImageUpload(makeFile(11 * 1024 * 1024))).toBeNull();
   });
 
+  it('accepts the exact 25 MB boundary', () => {
+    expect(validateImageUpload(makeFile(MAX_IMAGE_UPLOAD_BYTES))).toBeNull();
+  });
+
   it('rejects images above 25 MB with a specific size message', () => {
     expect(validateImageUpload(makeFile(MAX_IMAGE_UPLOAD_BYTES + 1))).toBe('Billedet må højst være 25 MB.');
   });
