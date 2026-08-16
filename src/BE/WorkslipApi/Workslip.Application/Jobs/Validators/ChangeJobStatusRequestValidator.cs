@@ -10,7 +10,8 @@ public sealed class ChangeJobStatusRequestValidator : AbstractValidator<ChangeJo
         JobStatus.Draft,
         JobStatus.InReview,
         JobStatus.Approved,
-        JobStatus.Rejected
+        JobStatus.Rejected,
+        JobStatus.Reopened
     ];
 
     public ChangeJobStatusRequestValidator()
@@ -23,5 +24,10 @@ public sealed class ChangeJobStatusRequestValidator : AbstractValidator<ChangeJo
             .NotEmpty()
             .When(x => x.Status == JobStatus.Rejected)
             .WithMessage("Begrundelse er påkrævet ved afvisning.");
+
+        RuleFor(x => x.RejectionNote)
+            .NotEmpty()
+            .When(x => x.Status == JobStatus.Reopened)
+            .WithMessage("Begrundelse er påkrævet ved genåbning.");
     }
 }
