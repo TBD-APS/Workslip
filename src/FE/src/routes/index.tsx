@@ -54,6 +54,9 @@ const MyWorksheets = lazy(() =>
 const CustomerDetail = lazy(() =>
   import('../features/customers/routes/CustomerDetail').then((module) => ({ default: module.CustomerDetail })),
 );
+const LocationTracking = lazy(() =>
+  import('../features/location/routes/LocationTracking').then((module) => ({ default: module.LocationTracking })),
+);
 const docsPageElement = createElement(lazy(() =>
   import('../features/docs/DocsPage').then((module) => ({ default: module.DocsPage })),
 ));
@@ -127,11 +130,6 @@ const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupReco
   />
 );
 
-/**
- * A stored token and a loaded user are separate states. Temporary API startup
- * failures must not clear a potentially valid session or leave the app spinning
- * indefinitely.
- */
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { hasAuthToken, isAuthenticated, isLoading, clearLocalSession, meQuery } = useAuth();
   const location = useLocation();
@@ -145,11 +143,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     if (!hasAuthToken || isAuthenticated) return undefined;
-
-    const timer = window.setTimeout(() => {
-      setStartupTimedOut(true);
-    }, AUTH_STARTUP_GRACE_MS);
-
+    const timer = window.setTimeout(() => setStartupTimedOut(true), AUTH_STARTUP_GRACE_MS);
     return () => window.clearTimeout(timer);
   }, [hasAuthToken, isAuthenticated, retryAttempt]);
 
@@ -157,7 +151,6 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     setIsRetrying(true);
     setStartupTimedOut(false);
     setRetryAttempt((attempt) => attempt + 1);
-
     try {
       await meQuery.refetch();
     } catch {
@@ -172,13 +165,8 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     navigate(loginUrl, { replace: true });
   };
 
-  if (isAuthenticated) {
-    return <>{children}</>;
-  }
-
-  if (!hasAuthToken) {
-    return <Navigate to={loginUrl} replace />;
-  }
+  if (isAuthenticated) return <>{children}</>;
+  if (!hasAuthToken) return <Navigate to={loginUrl} replace />;
 
   if (startupTimedOut || meQuery.isError) {
     return (
@@ -228,9 +216,6 @@ function RootErrorBoundary() {
   );
 }
 
-// The router is intentionally exported from this route module; Fast Refresh only
-// applies to the component definitions above, while the router instance is consumed
-// by the application bootstrap.
 // eslint-disable-next-line react-refresh/only-export-components
 export const router = createBrowserRouter([
   {
@@ -251,6 +236,8 @@ export const router = createBrowserRouter([
           { index: true, element: <JobList /> },
           { path: 'overblik', element: <Overview /> },
           { path: 'timer', element: <MyWorksheets /> },
+          { path: 'gps', element: <LocationTracking /> },
+          { path: 'dispatch', element: <LocationTracking /> },
           { path: 'create', element: <Create /> },
           { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
           { path: 'job/simple/new', element: <RoleGuard permission="job:create"><SimpleJobCreate /></RoleGuard> },
@@ -298,10 +285,7 @@ export const router = createBrowserRouter([
           },
         ],
       },
-      {
-        path: '*',
-        element: <NotFoundPage />,
-      },
+      { path: '*', element: <NotFoundPage /> },
     ],
   },
 ]);
