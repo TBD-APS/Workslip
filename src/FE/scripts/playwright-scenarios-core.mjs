@@ -84,7 +84,7 @@ async function authSessionFlow(session) {
     }, { screenshot: requestedRole === 'Superadmin' });
   }
 
-  await session.step('profile image accepts more than 10 MB and surfaces validation details', async () => {
+  await session.step('profile image honors 25 MB boundary and surfaces validation details', async () => {
     await session.login('Admin');
     await session.page.goto(`${APP_URL}/app/profil`, { waitUntil: 'domcontentloaded' });
     await session.page.waitForURL((url) => url.pathname === '/app/profil', { timeout: UI_TIMEOUT });
@@ -96,22 +96,39 @@ async function authSessionFlow(session) {
     const input = session.page.locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]').first();
     await input.waitFor({ state: 'attached', timeout: UI_TIMEOUT });
 
-    const jpeg = Buffer.alloc(11 * 1024 * 1024);
-    jpeg[0] = 0xFF;
-    jpeg[1] = 0xD8;
-    jpeg[2] = 0xFF;
+    const tinyPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZlksAAAAASUVORK5CYII=',
+      'base64',
+    );
+    const boundaryImage = Buffer.alloc(25 * 1024 * 1024);
+    tinyPng.copy(boundaryImage);
     const successfulUpload = session.page.waitForResponse(
       (response) => response.request().method() === 'PUT' && response.url().includes('/api/auth/me/profile-image'),
       { timeout: API_TIMEOUT },
     );
-    await input.setInputFiles({ name: 'large-profile.jpg', mimeType: 'image/jpeg', buffer: jpeg });
+    await input.setInputFiles({ name: 'profile-boundary.png', mimeType: 'image/png', buffer: boundaryImage });
     const successfulUploadResponse = await successfulUpload;
     if (!successfulUploadResponse.ok()) {
-      throw new Error(`11 MB profile upload returned HTTP ${successfulUploadResponse.status()}.`);
+      throw new Error(`25 MB profile upload returned HTTP ${successfulUploadResponse.status()}.`);
     }
     await session.page.getByText('Profilbillede opdateret', { exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
     await session.apiExpect('DELETE', '/api/auth/me/profile-image', undefined, [200, 204]);
+
+    let oversizedRequestSeen = false;
+    const observeOversizedRequest = (request) => {
+      if (request.method() === 'PUT' && request.url().includes('/api/auth/me/profile-image')) oversizedRequestSeen = true;
+    };
+    session.page.on('request', observeOversizedRequest);
+    const oversizedImage = Buffer.alloc((25 * 1024 * 1024) + 1);
+    tinyPng.copy(oversizedImage);
+    await input.setInputFiles({ name: 'profile-too-large.png', mimeType: 'image/png', buffer: oversizedImage });
+    await session.page.getByText('Billedet må højst være 25 MB.', { exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await session.page.waitForTimeout(250);
+    session.page.off('request', observeOversizedRequest);
+    if (oversizedRequestSeen) {
+      throw new Error('Profile image above 25 MB reached the API instead of being rejected client-side.');
+    }
 
     const mismatchedImage = Buffer.alloc(1024);
     mismatchedImage.set([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
