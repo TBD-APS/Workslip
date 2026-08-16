@@ -35,6 +35,7 @@ class DecisionResult:
     patch_label: str
     rationale: str
     provider_activity_attempt: int
+    candidate_source: str
 
 
 @dataclass
@@ -54,10 +55,47 @@ class ToolResult:
 
 
 @dataclass
+class SandboxInput:
+    run_id: str
+    attempt: int
+    source_code: str
+    test_code: str
+
+
+@dataclass
+class SandboxEvidence:
+    sandbox_id: str
+    sandbox_name: str
+    image: str
+    exit_code: int
+    output: str
+    source_sha256: str
+    test_sha256: str
+    network_disabled: bool
+    read_only_root: bool
+    capabilities_dropped: bool
+    no_new_privileges: bool
+    memory_limit_bytes: int
+    pids_limit: int
+    tmpfs_workspace: bool
+    bind_mount_count: int
+    destroyed: bool
+
+
+@dataclass
+class SandboxResult:
+    passed: bool
+    evidence: SandboxEvidence
+
+
+@dataclass
 class GateInput:
     run_id: str
     attempt: int
     patch_label: str
+    sandbox_passed: bool
+    sandbox_exit_code: int
+    sandbox_output: str
 
 
 @dataclass
@@ -84,6 +122,7 @@ class AttemptRecord:
     gate_passed: bool
     outcome: str
     feedback: Optional[GateFeedback] = None
+    sandbox: Optional[SandboxEvidence] = None
 
 
 @dataclass
