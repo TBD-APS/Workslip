@@ -49,6 +49,54 @@ public sealed class DocumentAttachmentServiceTests
     }
 
     [Fact]
+    public async Task Upload_accepts_file_above_former_twenty_megabyte_limit()
+    {
+        var organizationId = Guid.NewGuid();
+        var document = CreateDocument();
+        var docs = new DocumentRepositoryStub { ExistingDocument = document };
+        var attachments = new AttachmentRepositoryStub();
+        var storage = new AttachmentStorageStub();
+        var service = CreateService(docs, attachments, storage, new TestCurrentUserContext(Guid.NewGuid(), organizationId, "Admin"));
+
+        await using var content = new MemoryStream([0x49, 0x44, 0x33, 0x04]);
+        var result = await service.UploadAsync(
+            document.Id,
+            new DocumentAttachmentUpload(content, 21L * 1024L * 1024L, "large.mp3", "audio/mpeg"),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(75, DocumentAttachmentService.MaxAttachmentSizeMegabytes);
+        Assert.Equal(1, storage.UploadCount);
+        Assert.Equal(1, attachments.CreateCount);
+    }
+
+    [Fact]
+    public async Task Upload_rejects_file_above_seventy_five_megabytes_before_storage()
+    {
+        var organizationId = Guid.NewGuid();
+        var document = CreateDocument();
+        var docs = new DocumentRepositoryStub { ExistingDocument = document };
+        var attachments = new AttachmentRepositoryStub();
+        var storage = new AttachmentStorageStub();
+        var service = CreateService(docs, attachments, storage, new TestCurrentUserContext(Guid.NewGuid(), organizationId, "Admin"));
+
+        await using var content = new MemoryStream([0x49, 0x44, 0x33, 0x04]);
+        var result = await service.UploadAsync(
+            document.Id,
+            new DocumentAttachmentUpload(
+                content,
+                DocumentAttachmentService.MaxAttachmentSizeBytes + 1,
+                "too-large.mp3",
+                "audio/mpeg"),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Invalid, result.Status);
+        Assert.Contains(result.ValidationErrors, error => error.ErrorMessage == "Filen må højst være 75 MB.");
+        Assert.Equal(0, storage.UploadCount);
+        Assert.Equal(0, attachments.CreateCount);
+    }
+
+    [Fact]
     public async Task Upload_mp3_uses_current_tenant_and_persists_metadata()
     {
         var organizationId = Guid.NewGuid();
