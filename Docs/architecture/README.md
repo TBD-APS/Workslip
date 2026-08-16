@@ -39,6 +39,7 @@ Do not create a page merely to fill the list. Add it only when it reduces redisc
 - [`adr/0008-user-audience-separation.md`](adr/0008-user-audience-separation.md)
 - [`adr/0009-platform-control-center-read-model.md`](adr/0009-platform-control-center-read-model.md)
 - [`adr/0010-mr-saasy-control-plane-bootstrap-boundary.md`](adr/0010-mr-saasy-control-plane-bootstrap-boundary.md)
+- [`adr/0011-customer-portfolio-ui-in-mr-saasy.md`](adr/0011-customer-portfolio-ui-in-mr-saasy.md)
 
 Two historical accepted ADRs already use number `0003`. Keep their filenames stable so existing links do not break; allocate the next new ADR number after the highest existing number and do not create another duplicate.
 
