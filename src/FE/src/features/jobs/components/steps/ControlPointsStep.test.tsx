@@ -58,7 +58,7 @@ describe('ControlPointsStep', () => {
     expect(onReasonChange).toHaveBeenCalledWith('Ny begrundelse');
   });
 
-  it('announces the action that the irrelevant toggle will perform', () => {
+  it('models Irrelevant as a selection toggle instead of a primary action', () => {
     const callbacks = {
       onToggleControlPoint: vi.fn(),
       onToggleCategoryIrrelevant: vi.fn(),
@@ -72,7 +72,11 @@ describe('ControlPointsStep', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Marker installation som ikke relevant' })).toBeInTheDocument();
+    const unselected = screen.getByRole('button', { name: 'Marker installation som ikke relevant' });
+    expect(unselected).toHaveAttribute('aria-pressed', 'false');
+    expect(unselected).toHaveClass('control-point-irrelevant-toggle');
+    expect(unselected).not.toHaveClass('selected');
+    expect(unselected).not.toHaveClass('btn-primary');
 
     rerender(
       <ControlPointsStep
@@ -89,6 +93,9 @@ describe('ControlPointsStep', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Marker installation som relevant' })).toBeInTheDocument();
+    const selected = screen.getByRole('button', { name: 'Marker installation som relevant' });
+    expect(selected).toHaveAttribute('aria-pressed', 'true');
+    expect(selected).toHaveClass('control-point-irrelevant-toggle', 'selected');
+    expect(selected).not.toHaveClass('btn-primary');
   });
 });

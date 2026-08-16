@@ -178,17 +178,49 @@ async function waitForWizardStep(page, label) { await page.getByRole('button', {
 async function currentWizardStep(page) { for (const label of ['Sagsdetaljer', 'Anlægstyper', 'Kontrolpunkter', 'Timesedler', 'Afslutning', 'Attestering']) if (await page.getByRole('button', { name: `${label} - aktuelt trin`, exact: true }).isVisible().catch(() => false)) return label; return null; }
 async function revealStepNavigation(page) {
   const button = page.getByRole('button', { name: 'Næste', exact: true });
-  if (await button.isVisible().catch(() => false)) return button;
   const shell = page.locator('.app-shell').first();
   if (await shell.count()) {
-    await shell.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    await shell.evaluate((element) => {
+      const bottom = Math.max(0, element.scrollHeight - element.clientHeight);
+      element.scrollTop = bottom;
+      element.dispatchEvent(new Event('scroll'));
+    });
+    await page.waitForTimeout(40);
+    await shell.evaluate((element) => {
+      element.scrollTop = Math.max(0, element.scrollTop - 4);
+      element.dispatchEvent(new Event('scroll'));
+    });
   } else {
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.evaluate(() => {
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' });
+      window.dispatchEvent(new Event('scroll'));
+      window.scrollBy({ top: -4, behavior: 'instant' });
+      window.dispatchEvent(new Event('scroll'));
+    });
   }
-  await page.waitForTimeout(150);
+  await button.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.waitForTimeout(40);
+  if (!await button.isVisible()) {
+    throw new Error('Wizard navigation became hidden again before interaction.');
+  }
   return button;
 }
-async function clickNext(page, nextStep) { const button = await revealStepNavigation(page); await waitForEnabled(button, `Næste before ${nextStep}`); await button.click(); await waitForWizardStep(page, nextStep); }
+async function waitForTransientToastsToClear(page, timeout = 10_000) {
+  await page.mouse.move(4, 4);
+  try {
+    await page.waitForFunction(
+      () => !document.querySelector('[data-sonner-toast][data-visible="true"]'),
+      undefined,
+      { timeout },
+    );
+  } catch {
+    const visible = await page.locator('[data-sonner-toast][data-visible="true"]').count();
+    if (visible > 0) {
+      throw new Error(`Transient toast blocked wizard navigation for more than ${timeout}ms.`);
+    }
+  }
+}
+async function clickNext(page, nextStep) { await waitForTransientToastsToClear(page); const button = await revealStepNavigation(page); await waitForEnabled(button, `Næste before ${nextStep}`); await button.click(); await waitForWizardStep(page, nextStep); }
 async function clickWizardStep(page, label) { const button = page.getByRole('button', { name: new RegExp(`^${escapeRegex(label)}`) }); await button.click(); await waitForWizardStep(page, label); }
 async function clickByTextCandidates(locator, values, description) { for (const value of values) { const match = locator.filter({ hasText: value }).first(); if (await match.isVisible().catch(() => false)) { await match.click(); return; } } throw new Error(`No visible ${description} matched runtime values: ${values.join(', ')}.`); }
 async function checkRadioByCandidates(page, values, description) {

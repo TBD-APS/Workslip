@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Workslip.Application.Conversations;
 
 public enum ConversationActionType
@@ -20,15 +22,15 @@ public sealed record ConversationParticipantResponse(
     string DisplayName);
 
 public sealed record ConversationActionResponse(
-    ConversationActionType Type,
-    Guid TargetUserId,
-    string TargetDisplayName,
-    ConversationActionStatus Status,
+    [property: Required] ConversationActionType Type,
+    [property: Required] Guid TargetUserId,
+    [property: Required] string TargetDisplayName,
+    [property: Required] ConversationActionStatus Status,
     DateTimeOffset? DueUtc,
     Guid? ResolvedByUserId,
     string? ResolvedByDisplayName,
     DateTimeOffset? ResolvedUtc,
-    bool CanResolve = true)
+    [property: Required] bool CanResolve = true)
 {
     public ConversationActionResponse(
         ConversationActionType type,

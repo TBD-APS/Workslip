@@ -8,10 +8,10 @@ import type { ConversationActionStatus } from './conversationActionStatus';
 import type { ConversationActionType } from './conversationActionType';
 
 export interface ConversationActionResponse {
-  type?: ConversationActionType;
-  targetUserId?: string;
-  targetDisplayName?: string;
-  status?: ConversationActionStatus;
+  type: ConversationActionType;
+  targetUserId: string;
+  targetDisplayName: string;
+  status: ConversationActionStatus;
   /** @nullable */
   dueUtc?: string | null;
   /** @nullable */
@@ -20,5 +20,5 @@ export interface ConversationActionResponse {
   resolvedByDisplayName?: string | null;
   /** @nullable */
   resolvedUtc?: string | null;
-  canResolve?: boolean;
+  canResolve: boolean;
 }
