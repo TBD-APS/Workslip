@@ -1,8 +1,8 @@
 # Workslip AI pull-request review
 
-**Status:** Release candidate. GitHub Models is the default provider and uses the job-scoped `GITHUB_TOKEN`; no separate model API key or personal review PAT is required for the baseline review path. Ollama is supported as an optional independent reviewer through Ollama Cloud in GitHub Actions, and the same provider client can be run manually against a local Ollama instance.
+**Status:** Active trusted review pipeline. The supported automated provider paths are OpenAI, Claude and Ollama. GitHub Models was retired by GitHub and is no longer part of the active pipeline.
 
-This automation adds an advisory review signal after Workslip's normal `CI` succeeds. It does not replace CI, CodeQL, human review, browser/runtime evidence or the repository owner's explicit merge decision.
+This automation adds an advisory exact-head review signal after Workslip's normal `CI` succeeds. It does not replace CI, CodeQL, human review, browser/runtime evidence or the repository owner's explicit merge decision.
 
 ## Review model
 
@@ -10,81 +10,87 @@ This automation adds an advisory review signal after Workslip's normal `CI` succ
 2. `AI PR Review` runs automatically after successful PR CI only for `OWNER`, `MEMBER` or `COLLABORATOR` authors. External-contributor PRs require explicit `workflow_dispatch`.
 3. Review jobs check out trusted `main` only. They never checkout or execute the pull-request head.
 4. PR metadata and the unified diff are fetched through the GitHub API, size-bounded, redacted and marked as untrusted data. A stale CI completion is skipped when the PR has already moved to another head SHA.
-5. GitHub Models is always attempted with the job-scoped `GITHUB_TOKEN` and `models: read`. OpenAI Codex and Claude are optional additional independent providers when `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` are configured. Ollama Cloud is optional when `OLLAMA_API_KEY` is configured.
-6. The Ollama GitHub Actions job stays on GitHub-hosted `ubuntu-latest`. Workslip does not attach a persistent self-hosted runner to this public repository.
-7. The aggregator updates one sticky PR comment. If `WORKSLIP_REVIEW_PAT` is configured, the configured `rasm105k` identity is verified and used; otherwise the trusted aggregate job posts as `github-actions[bot]`.
-8. The aggregator publishes an `AI PR Review` commit status on the exact reviewed PR head SHA.
+5. OpenAI, Claude and Ollama run as independent providers only when their provider credential/configuration is available.
+6. OpenAI model selection is explicit: the trusted job reads the OpenAI project's `/v1/models` catalog, then selects the first configured candidate that the project can actually access. The Codex action never chooses an implicit default model for Workslip review.
+7. The Ollama GitHub Actions job stays on GitHub-hosted `ubuntu-latest`. Workslip does not attach a persistent self-hosted runner to this public repository.
+8. The aggregator updates one sticky **bot-owned** PR comment using the aggregate job's scoped `GITHUB_TOKEN`, then publishes an `AI PR Review` commit status on the exact reviewed head SHA.
 9. A blocking AI status requires at least two independent available providers to report a matching `high` or `critical` finding with confidence >= 0.80. A single-provider review remains advisory.
 10. No AI path approves or merges a pull request.
 
-## Optional repository secrets
+## Provider configuration
 
-The baseline path requires no repository secret beyond GitHub's automatically issued `GITHUB_TOKEN`.
+### OpenAI
 
-Optional integrations:
+Repository secret:
 
-- `OPENAI_API_KEY` — enables OpenAI Codex as an additional independent reviewer.
-- `ANTHROPIC_API_KEY` — enables Claude as an additional independent reviewer.
-- `OLLAMA_API_KEY` — enables Ollama Cloud as an additional independent reviewer after the applicable vendor/data/AI-governance approval has been completed.
-- `WORKSLIP_REVIEW_PAT` — optional fine-grained personal token for posting the sticky review comment as `rasm105k` instead of `github-actions[bot]`. Keep it restricted to this repository and the minimum PR/comment permission required by GitHub.
+- `OPENAI_API_KEY` — server/workflow only.
 
-Missing optional credentials must never make an otherwise valid review fail. A red/error review status is reserved for a real review failure: no provider available, review publishing failure, or a consensus blocker.
+Repository variables:
 
-## Ollama GitHub Actions setup
+- `OPENAI_REVIEW_MODEL` — optional preferred model ID.
+- `OPENAI_REVIEW_FALLBACKS` — optional comma-separated preference list. If omitted, the maintained workflow uses its current reviewed fallback list.
 
-The hosted Ollama provider is disabled automatically while `OLLAMA_API_KEY` is absent.
+The job requests `GET /v1/models` with the configured API key and compares returned model IDs to the preferred/fallback candidates. It does not print the raw model catalog or API key. If none of the configured candidates are available, OpenAI is normalized as unavailable with a specific reason rather than letting the Codex action silently choose a changing default.
 
-1. Complete the applicable AI/vendor/data-processing approval under `Docs/compliance/GDPR_AI_ACT_BASELINE.md` before enabling the external provider.
-2. Create an Ollama API key and store it as repository secret `OLLAMA_API_KEY`.
-3. The workflow defaults `OLLAMA_BASE_URL` to `https://ollama.com` and `OLLAMA_REVIEW_MODEL` to `qwen3-coder:480b`. Both can be overridden with repository variables.
-4. Run `AI PR Review` manually against a known PR first and confirm that the sticky comment lists `Ollama` under available providers before relying on it for consensus.
+### Claude
 
-Ollama Cloud does not currently provide Ollama's JSON-schema structured-output mode. The provider therefore includes the existing Workslip schema in the trusted prompt, requests one JSON object, parses it, and then passes it through the same Workslip normalizer used by the other providers. Invalid output degrades that provider instead of weakening the review gate.
+- `ANTHROPIC_API_KEY` enables Claude as an independent reviewer.
 
-## Manual local Ollama mode
+Claude receives trusted policy plus the sanitized review context and only the read/search tools declared by the pinned action configuration.
 
-The provider client still supports local Ollama without an API key. This mode is intentionally **not** wired to a GitHub self-hosted runner because Workslip is a public repository.
+### Ollama
 
-To use the provider locally, generate the normal `.ai-review/review-context.md` through the maintained review-context flow, then run:
+- `OLLAMA_API_KEY` enables Ollama Cloud after the applicable external-provider/compliance approval.
+- `OLLAMA_BASE_URL` defaults to `https://ollama.com` and may be overridden through a repository variable.
+- `OLLAMA_REVIEW_MODEL` controls the hosted model selection.
 
-```bash
-OLLAMA_BASE_URL=http://127.0.0.1:11434 \
-OLLAMA_MODEL=qwen3-coder:30b \
-node .github/ai-review/ollama-review.mjs
-```
+The same provider client can still be run manually against a local Ollama instance. Automated public-repository review does not use a persistent self-hosted runner.
 
-Local Ollama uses the JSON schema directly through `format` and does not require authentication on localhost. Keep the local service bound to the developer machine unless a separately secured internal architecture is approved.
+## No personal review token
 
-## Why there is no public-repo self-hosted Ollama runner
+The active review workflow does **not** use `WORKSLIP_REVIEW_PAT` or another personal token for publishing.
 
-GitHub recommends self-hosted runners only with private repositories because pull requests against a public repository can execute dangerous workflow code and may persistently compromise the runner machine. Workslip therefore keeps its automated Ollama provider on an ephemeral GitHub-hosted runner and uses the authenticated Ollama Cloud API. If the repository later becomes private, or a separately isolated private review-broker architecture is introduced, a local automatic Ollama runner can be reconsidered as a separate security decision.
+Only the trusted aggregate job gets `pull-requests: write` and `statuses: write`. It publishes with its job-scoped `GITHUB_TOKEN`. `post-review.mjs` only updates a marker comment owned by the authenticated workflow identity; a historical comment created by another identity is never patched with the bot token.
+
+## Failure semantics
+
+Missing optional credentials disable that provider without failing unrelated CI.
+
+A review status becomes error/failure when, for example:
+
+- no provider is configured;
+- configured providers exist but none is available;
+- review publishing fails;
+- two independent available providers produce a matching high-confidence high/critical blocker.
+
+A configured OpenAI key with no accessible candidate model is an explicit unavailable-provider state, not an opaque Codex action failure.
 
 ## Security boundary
 
-`workflow_run` is used deliberately. Review jobs run from the trusted default-branch workflow definition after normal PR CI has completed. Contributor-controlled PR code is never checked out or executed in those jobs.
+`workflow_run` is deliberate. Review jobs run from the trusted default-branch workflow definition after normal PR CI has completed. Contributor-controlled PR code is never checked out or executed by provider jobs.
 
-The untrusted PR title/body/diff can contain prompt-injection text. The review prompt explicitly treats all PR content as data. Provider jobs have read-only repository/PR access; the GitHub Models job additionally has only `models: read`. Model actions are pinned to reviewed commit SHAs. Codex uses a read-only permission profile with sudo dropped; Claude receives only read/search tools plus the workflow's explicit read-only `GITHUB_TOKEN`. Ollama receives the same sanitized review context and has no GitHub write token.
+The untrusted PR title/body/diff can contain prompt-injection text. The review prompt treats all PR content as data. Provider jobs have read-only repository/PR access. Model actions are pinned to reviewed commit SHAs. Codex uses a read-only permission profile with sudo dropped; Claude receives only read/search tools plus the workflow's read-only GitHub token; Ollama receives the sanitized review context and no GitHub write token.
 
-Only the trusted aggregate job receives `pull-requests: write` and `statuses: write`. It never receives `contents: write` or `id-token: write`.
+Only the aggregate job receives write permission for the PR/status surface. It never receives `contents: write` or `id-token: write`.
 
 Diffs larger than 420 KB are truncated. A truncated review can report advisory findings but can never create a consensus blocker.
 
 ## Compliance boundary
 
-Ollama here is developer/delivery tooling, not a Workslip product AI feature. Its intended input is source-code diff and repository metadata only. It must not receive production customer data, credentials, incident material, support exports or other personal/confidential operational data.
+Automated review is developer/delivery tooling, not a Workslip product AI feature. Intended input is source-code diff and repository metadata only. It must not receive production customer data, credentials, incident material, support exports or other personal/confidential operational data.
 
-Enabling `OLLAMA_API_KEY` causes the sanitized review context to be sent to Ollama Cloud and therefore introduces an external AI service into the delivery process. Engineering must not treat the existence of this integration as approval to enable it. Vendor role, processing purpose, data categories, terms, retention, training/secondary use, support location and transfers must be reviewed as required by the compliance baseline before the secret is configured.
+Enabling an external provider remains subject to the applicable vendor/data/AI-governance baseline. Provider availability does not expand the data boundary.
 
-Human review remains mandatory. Ollama output is advisory unless it independently matches another provider's high-confidence high/critical finding under the existing consensus rule.
+## Validation
 
-## Cost and throughput
+Static/self-test coverage lives in `.github/workflows/ai-pr-review-selftest.yml` and verifies:
 
-AI review starts only after CI is green. Automatic review is restricted to invited/trusted contributor associations, and concurrency is per PR so a newer review cancels an older in-progress review.
+- trusted-main checkout and no PR-head execution;
+- model actions remain pinned;
+- OpenAI model selection is explicit and tested;
+- retired GitHub Models is absent from the active workflow;
+- no personal publishing token is used;
+- only the aggregate job has PR write permission;
+- supported-provider consensus behavior remains deterministic.
 
-The sticky comment is updated on each reviewed SHA rather than adding a new conversation comment for every push.
-
-Ollama Cloud usage and limits depend on the account/model configured there. Local manual inference consumes only the capacity of the developer machine.
-
-## Rollout
-
-Keep `AI PR Review` advisory until one real GitHub Models run has completed end to end from the trusted default-branch workflow. Do not add `OLLAMA_API_KEY` until the compliance/vendor enablement gate is satisfied. After enablement, run one manual end-to-end Ollama review before relying on Ollama for consensus. Ruleset enforcement is a separate decision and must not be combined with provider rollout.
+A workflow change is not considered fully proven until it is merged to trusted `main` and a subsequent real PR successfully completes the `workflow_run` review path, because the privileged review workflow intentionally executes the default-branch definition rather than the PR's modified workflow.

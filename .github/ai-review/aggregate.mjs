@@ -8,7 +8,7 @@ function decode(value, provider) {
   try {
     return JSON.parse(Buffer.from(value, 'base64').toString('utf8'));
   } catch {
-    return { provider, available: false, reason: 'job result was unreadable', findings: [], summary: '', risk: 'low' };
+    return { provider, available: false, configured: false, reason: 'job result was unreadable', findings: [], summary: '', risk: 'low' };
   }
 }
 
@@ -34,11 +34,11 @@ function sameFinding(a, b) {
   return categoryMatch && jaccard(a.title, b.title) >= 0.6;
 }
 
-const githubModels = decode(process.env.GITHUB_MODELS_REVIEW_B64, 'GitHub Models');
 const openai = decode(process.env.OPENAI_REVIEW_B64, 'OpenAI');
 const claude = decode(process.env.CLAUDE_REVIEW_B64, 'Claude');
 const ollama = decode(process.env.OLLAMA_REVIEW_B64, 'Ollama');
-const reviews = [githubModels, openai, claude, ollama];
+const reviews = [openai, claude, ollama];
+
 // A provider without a configured credential/feature flag or wired-in job is
 // intentionally disabled, not a failed reviewer. Single-provider operation is
 // supported, while consensus requires two independent available providers.
@@ -106,7 +106,7 @@ if (providerNames) {
 }
 
 if (contextTruncated) {
-  body += `> The diff exceeded the automated review context limit and was truncated. AI output is advisory only for this revision and cannot produce a consensus blocker.\n\n`;
+  body += '> The diff exceeded the automated review context limit and was truncated. AI output is advisory only for this revision and cannot produce a consensus blocker.\n\n';
 }
 
 for (const review of enabled) {
@@ -132,7 +132,7 @@ if (selected.length) {
 }
 
 if (!enabled.length) {
-  body += 'Configure at least one model credential or local provider before relying on this workflow.\n\n';
+  body += 'Configure at least one supported review provider before relying on this workflow.\n\n';
 } else if (!available.length) {
   body += 'Every configured review provider failed for this revision; see the workflow run for details.\n\n';
 }

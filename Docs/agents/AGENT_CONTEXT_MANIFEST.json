@@ -1,0 +1,18 @@
+{
+  "handbookVersion": 2,
+  "architectureContractVersion": 1,
+  "checkpointContractVersion": 1,
+  "requiredDocuments": [
+    "Docs/agents/AGENT_HANDBOOK.md",
+    "Docs/agents/CONTROL_CENTER_OPERATING_MODEL.md"
+  ],
+  "tracking": [
+    "WOR-552",
+    "WOR-585",
+    "WOR-586",
+    "WOR-588",
+    "WOR-591",
+    "WOR-592"
+  ],
+  "notes": "Version 2 adds the executive leadership hierarchy, company-OS information model, Product Delivery Drift responsibilities and Action Queue correlation requirements. Provider runtime metadata such as agentRole, providerRuntime, capabilities, loadedAt and sourceRevision is reported per run and is not persisted in this static manifest."
+}

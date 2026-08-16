@@ -20,7 +20,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  REVIEW_ACCOUNT: rasm105k
   TRUSTED_BRANCH: main
 
 jobs:
@@ -110,69 +109,6 @@ jobs:
           echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
           echo "ci_conclusion=$conclusion" >> "$GITHUB_OUTPUT"
 
-  github_models_review:
-    name: GitHub Models review
-    needs: prepare
-    if: needs.prepare.outputs.eligible == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      pull-requests: read
-      models: read
-    env:
-      PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
-      EXPECTED_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
-      CI_CONCLUSION: ${{ needs.prepare.outputs.ci_conclusion }}
-    outputs:
-      review_b64: ${{ steps.package.outputs.review_b64 }}
-      context_truncated: ${{ steps.context.outputs.truncated }}
-    steps:
-      - name: Checkout trusted review policy only
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ env.TRUSTED_BRANCH }}
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Build sanitized review context
-        id: context
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          metadata="$(python3 .github/ai-review/build-context.py)"
-          echo "truncated=$(printf '%s' "$metadata" | jq -r '.diff_truncated')" >> "$GITHUB_OUTPUT"
-
-      - name: Run GitHub Models review
-        id: models
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: node .github/ai-review/github-models-review.mjs
-
-      - name: Normalize GitHub Models result
-        if: always()
-        env:
-          ACTION_OUTCOME: ${{ steps.models.outcome }}
-          PROVIDER_CONFIGURED: 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          RAW_REVIEW=''
-          if [ -f github-models-raw.json ]; then
-            RAW_REVIEW="$(cat github-models-raw.json)"
-          fi
-          export RAW_REVIEW
-          node .github/ai-review/normalize-review.mjs "GitHub Models"
-
-      - name: Package GitHub Models result
-        id: package
-        if: always()
-        shell: bash
-        run: echo "review_b64=$(base64 -w0 provider-review.json)" >> "$GITHUB_OUTPUT"
-
   openai_review:
     name: OpenAI review
     needs: prepare
@@ -184,6 +120,8 @@ jobs:
       pull-requests: read
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_REVIEW_MODEL: ${{ vars.OPENAI_REVIEW_MODEL || '' }}
+      OPENAI_REVIEW_FALLBACKS: ${{ vars.OPENAI_REVIEW_FALLBACKS || 'gpt-5.6,gpt-5.6-terra,gpt-5.6-luna,gpt-5.6-sol' }}
       PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
       EXPECTED_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
       CI_CONCLUSION: ${{ needs.prepare.outputs.ci_conclusion }}
@@ -208,13 +146,18 @@ jobs:
           metadata="$(python3 .github/ai-review/build-context.py)"
           echo "truncated=$(printf '%s' "$metadata" | jq -r '.diff_truncated')" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve accessible OpenAI review model
+        id: model
+        run: node .github/ai-review/resolve-openai-model.mjs
+
       - name: Run OpenAI Codex review
         id: codex
-        if: env.OPENAI_API_KEY != ''
+        if: steps.model.outputs.available == 'true'
         continue-on-error: true
         uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1
         with:
           openai-api-key: ${{ env.OPENAI_API_KEY }}
+          model: ${{ steps.model.outputs.model }}
           prompt-file: .github/ai-review/review-prompt.md
           output-schema-file: .github/ai-review/schema.json
           permission-profile: ':read-only'
@@ -225,7 +168,8 @@ jobs:
         env:
           RAW_REVIEW: ${{ steps.codex.outputs.final-message }}
           ACTION_OUTCOME: ${{ steps.codex.outcome }}
-          PROVIDER_CONFIGURED: ${{ env.OPENAI_API_KEY != '' }}
+          PROVIDER_CONFIGURED: ${{ steps.model.outputs.configured }}
+          PROVIDER_UNAVAILABLE_REASON: ${{ steps.model.outputs.reason }}
         run: node .github/ai-review/normalize-review.mjs OpenAI
 
       - name: Package OpenAI result
@@ -372,7 +316,7 @@ jobs:
 
   aggregate:
     name: Aggregate AI review
-    needs: [prepare, github_models_review, openai_review, claude_review, ollama_review]
+    needs: [prepare, openai_review, claude_review, ollama_review]
     if: always() && needs.prepare.outputs.eligible == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -383,12 +327,10 @@ jobs:
     env:
       PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
       HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
-      GITHUB_MODELS_REVIEW_B64: ${{ needs.github_models_review.outputs.review_b64 }}
       OPENAI_REVIEW_B64: ${{ needs.openai_review.outputs.review_b64 }}
       CLAUDE_REVIEW_B64: ${{ needs.claude_review.outputs.review_b64 }}
       OLLAMA_REVIEW_B64: ${{ needs.ollama_review.outputs.review_b64 }}
-      CONTEXT_TRUNCATED: ${{ needs.github_models_review.outputs.context_truncated == 'true' || needs.openai_review.outputs.context_truncated == 'true' || needs.claude_review.outputs.context_truncated == 'true' || needs.ollama_review.outputs.context_truncated == 'true' }}
-      PERSONAL_REVIEW_TOKEN: ${{ secrets.WORKSLIP_REVIEW_PAT }}
+      CONTEXT_TRUNCATED: ${{ needs.openai_review.outputs.context_truncated == 'true' || needs.claude_review.outputs.context_truncated == 'true' || needs.ollama_review.outputs.context_truncated == 'true' }}
     steps:
       - name: Checkout trusted aggregator only
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -405,11 +347,10 @@ jobs:
         shell: bash
         run: cat ai-review-body.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Post or update review
+      - name: Post or update bot-owned review
         id: post
         env:
-          REVIEW_TOKEN: ${{ env.PERSONAL_REVIEW_TOKEN != '' && env.PERSONAL_REVIEW_TOKEN || github.token }}
-          EXPECTED_REVIEW_USER: ${{ env.PERSONAL_REVIEW_TOKEN != '' && env.REVIEW_ACCOUNT || '' }}
+          REVIEW_TOKEN: ${{ github.token }}
         run: node .github/ai-review/post-review.mjs
 
       - name: Surface consensus blockers
