@@ -1,0 +1,72 @@
+name: MR SAASy Control Plane Gate 0
+
+on:
+  pull_request:
+    paths:
+      - 'platform/mr-saasy-control-plane/**'
+      - 'Docs/architecture/adr/0010-mr-saasy-control-plane-bootstrap-boundary.md'
+      - '.github/workflows/mr-saasy-control-plane-gate.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'platform/mr-saasy-control-plane/**'
+      - 'Docs/architecture/adr/0010-mr-saasy-control-plane-bootstrap-boundary.md'
+      - '.github/workflows/mr-saasy-control-plane-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  gate-zero:
+    name: Laravel trust-boundary gate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/mr-saasy-control-plane
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+
+      - name: Validate Composer manifest
+        run: composer validate --strict --no-check-lock
+
+      - name: Resolve bootstrap dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f composer.lock ]]; then
+            composer install --no-interaction --prefer-dist --no-progress
+          else
+            echo '::warning::composer.lock is not committed yet; generating bootstrap lock for this Gate 0 branch.'
+            composer update --no-interaction --prefer-dist --no-progress
+          fi
+
+      - name: Boot and feature tests
+        run: php artisan test
+
+      - name: Architecture self-tests and guards
+        run: composer architecture
+
+      - name: Upload architecture evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mr-saasy-gate0-architecture
+          path: platform/mr-saasy-control-plane/build/architecture.mmd
+          if-no-files-found: error
+
+      - name: Upload generated Composer lock during bootstrap
+        if: ${{ hashFiles('platform/mr-saasy-control-plane/composer.lock') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mr-saasy-gate0-composer-lock
+          path: platform/mr-saasy-control-plane/composer.lock
+          if-no-files-found: error
