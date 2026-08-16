@@ -355,6 +355,7 @@
     margin-inline: 0.85rem;
   }
 
+  /* Keyboard affordances are desktop-only; the mobile palette is touch-first. */
   .quick-nav-search-wrap > kbd,
   .quick-nav-footer {
     display: none;
