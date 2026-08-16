@@ -52,6 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           workflow=.github/workflows/ai-pr-review.yml
+          publisher=.github/ai-review/post-review.mjs
 
           grep -Fq 'TRUSTED_BRANCH: main' "$workflow"
           grep -Fq 'persist-credentials: false' "$workflow"
@@ -109,3 +110,14 @@ jobs:
             echo 'Review jobs must not checkout the PR head.' >&2
             exit 1
           fi
+
+          # github.token is an installation token. GET /user is a user-token endpoint
+          # and caused the live WOR-595 publisher regression with HTTP 403.
+          if grep -Fq "api('/user')" "$publisher" || grep -Fq 'api("/user")' "$publisher"; then
+            echo 'AI review publisher must not resolve identity through GET /user with GITHUB_TOKEN.' >&2
+            exit 1
+          fi
+
+          grep -Fq "github-actions[bot]" "$publisher"
+          grep -Fq "comment.user?.login" "$publisher"
+          grep -Fq "comment.body.includes(marker)" "$publisher"
