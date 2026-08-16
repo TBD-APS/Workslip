@@ -32,12 +32,15 @@ $forbiddenSymbols = [
     'App\\ProductAdapters\\Workslip',
 ];
 
+$dbCredentialNames = '(?:DB_(?:CONNECTION|HOST|PORT|DATABASE|USERNAME|PASSWORD)|DATABASE_URL)';
+
 $forbiddenPatterns = [
-    'raw PDO client' => '/\\b(?:use\\s+PDO\\s*;|new\\s+\\\\?PDO\\s*\\()/i',
-    'raw mysqli client' => '/\\b(?:use\\s+mysqli\\s*;|new\\s+\\\\?mysqli\\s*\\()/i',
+    'raw PDO import/client' => '/(?:\\buse\\s+\\\\?PDO(?:\\s+as\\s+[A-Za-z_][A-Za-z0-9_]*)?\\s*;|\\bnew\\s+\\\\?PDO\\s*\\()/i',
+    'raw mysqli import/client' => '/(?:\\buse\\s+\\\\?mysqli(?:\\s+as\\s+[A-Za-z_][A-Za-z0-9_]*)?\\s*;|\\bnew\\s+\\\\?mysqli\\s*\\()/i',
     'Laravel database config access' => '/\\bconfig\\s*\\(\\s*[\'\"]database(?:\\.|[\'\"])/i',
-    'database environment credential access' => '/\\benv\\s*\\(\\s*[\'\"](?:DB_(?:CONNECTION|HOST|PORT|DATABASE|USERNAME|PASSWORD)|DATABASE_URL)[\'\"]/i',
-    'direct database environment lookup' => '/[\'\"](?:DB_(?:CONNECTION|HOST|PORT|DATABASE|USERNAME|PASSWORD)|DATABASE_URL)[\'\"]\\s*\\]/i',
+    'database environment credential access' => '/\\benv\\s*\\(\\s*[\'\"]'.$dbCredentialNames.'[\'\"]/i',
+    'getenv database credential access' => '/\\bgetenv\\s*\\(\\s*[\'\"]'.$dbCredentialNames.'[\'\"]/i',
+    'direct database environment lookup' => '/[\'\"]'.$dbCredentialNames.'[\'\"]\\s*\\]/i',
 ];
 
 $violations = [];
