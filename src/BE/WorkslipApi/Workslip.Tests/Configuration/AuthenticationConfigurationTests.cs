@@ -1,9 +1,12 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using System.IdentityModel.Tokens.Jwt;
 using Workslip.Api.Configuration;
 using Xunit;
 
@@ -62,5 +65,73 @@ public sealed class AuthenticationConfigurationTests
         Assert.True(validation.ValidateIssuerSigningKey);
         Assert.NotNull(validation.IssuerSigningKey);
         Assert.Equal("entra-jwt-not-configured", validation.ValidIssuer);
+    }
+
+    [Theory]
+    [InlineData("Bearer not-a-jwt")]
+    [InlineData("Bearer eyJub3QiOiJ2YWxpZCJ9.invalid-base64.signature")]
+    public void ConfigureAuthentication_MalformedBearer_RoutesToLocalJwtWithoutThrowing(string authorizationHeader)
+    {
+        using var services = BuildAuthenticationServices();
+        var selector = GetCombinedSchemeSelector(services);
+        var context = new DefaultHttpContext();
+        context.Request.Headers.Authorization = authorizationHeader;
+
+        var scheme = selector(context);
+
+        Assert.Equal("LocalJwt", scheme);
+    }
+
+    [Fact]
+    public void ConfigureAuthentication_LocalIssuer_RoutesToLocalJwt()
+    {
+        using var services = BuildAuthenticationServices();
+        var selector = GetCombinedSchemeSelector(services);
+        var context = new DefaultHttpContext();
+        context.Request.Headers.Authorization = $"Bearer {CreateUnsignedJwt("https://workslip.local")}";
+
+        var scheme = selector(context);
+
+        Assert.Equal("LocalJwt", scheme);
+    }
+
+    [Theory]
+    [InlineData("https://login.microsoftonline.com/11111111-1111-1111-1111-111111111111/v2.0")]
+    [InlineData("https://sts.windows.net/11111111-1111-1111-1111-111111111111/")]
+    public void ConfigureAuthentication_EntraIssuer_RoutesToEntraJwt(string issuer)
+    {
+        using var services = BuildAuthenticationServices();
+        var selector = GetCombinedSchemeSelector(services);
+        var context = new DefaultHttpContext();
+        context.Request.Headers.Authorization = $"Bearer {CreateUnsignedJwt(issuer)}";
+
+        var scheme = selector(context);
+
+        Assert.Equal("EntraJwt", scheme);
+    }
+
+    private static ServiceProvider BuildAuthenticationServices()
+    {
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            EnvironmentName = Environments.Development
+        });
+        builder.ConfigureAuthentication();
+        return builder.Services.BuildServiceProvider();
+    }
+
+    private static Func<HttpContext, string?> GetCombinedSchemeSelector(IServiceProvider services)
+    {
+        var options = services
+            .GetRequiredService<IOptionsMonitor<PolicySchemeOptions>>()
+            .Get("Combined");
+
+        return Assert.IsType<Func<HttpContext, string?>>(options.ForwardDefaultSelector);
+    }
+
+    private static string CreateUnsignedJwt(string issuer)
+    {
+        var token = new JwtSecurityToken(issuer: issuer);
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }

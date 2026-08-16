@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+      - rbj--622-playwright-coverage
       - 'release-*'
       - 'release/**'
   push:
