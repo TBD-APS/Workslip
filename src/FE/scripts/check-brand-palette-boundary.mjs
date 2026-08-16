@@ -3,12 +3,14 @@ import process from 'node:process';
 
 const refinementPath = new URL('../src/farvelab-refinement.css', import.meta.url);
 const brandPath = new URL('../src/workslip-brand.css', import.meta.url);
+const appPath = new URL('../src/App.tsx', import.meta.url);
 const themeProviderPath = new URL('../src/providers/ThemeProvider.tsx', import.meta.url);
 const indexPath = new URL('../index.html', import.meta.url);
 
-const [refinement, brand, themeProvider, index] = await Promise.all([
+const [refinement, brand, app, themeProvider, index] = await Promise.all([
   readFile(refinementPath, 'utf8'),
   readFile(brandPath, 'utf8'),
+  readFile(appPath, 'utf8'),
   readFile(themeProviderPath, 'utf8'),
   readFile(indexPath, 'utf8'),
 ]);
@@ -60,6 +62,18 @@ if (violations.length > 0) {
 for (const expected of ['#123b4a', '#147a7e', '#f47a24', '#fff7e8']) {
   if (!brand.toLowerCase().includes(expected)) {
     console.error(`workslip-brand.css is missing canonical brand color ${expected}.`);
+    process.exit(1);
+  }
+}
+
+if (!app.includes("import './workslip-brand.css';")) {
+  console.error('App.tsx must load workslip-brand.css so the canonical palette reaches every supported shell.');
+  process.exit(1);
+}
+
+for (const requiredScope of ['body:has(.app-shell)', 'body:has(.auth-shell)', 'body:has(.system-state)']) {
+  if (!brand.includes(requiredScope)) {
+    console.error(`workslip-brand.css is missing required semantic scope ${requiredScope}.`);
     process.exit(1);
   }
 }
