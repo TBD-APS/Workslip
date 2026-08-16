@@ -152,6 +152,13 @@ export WORKSLIP_PLAYWRIGHT_APP_URL="${APP_URL}"
 export WORKSLIP_PLAYWRIGHT_API_URL="${API_URL}"
 export WORKSLIP_PLAYWRIGHT_ADMIN_EMAIL='admin@17v3ygzs.mailosaur.net'
 
-node scripts/playwright-ephemeral-smoke.mjs
+echo "Running authenticated session resilience."
+WORKSLIP_PLAYWRIGHT_SCENARIO=auth-session node scripts/playwright-ephemeral-smoke.mjs
+
+echo "Running quick navigator coverage."
+WORKSLIP_PLAYWRIGHT_SCENARIO=quick-navigator node scripts/playwright-ephemeral-smoke.mjs
+
+echo "Running focused 75 MB document upload coverage."
+node scripts/playwright-document-upload.mjs
 
 echo "Authenticated ephemeral Playwright suite completed successfully."
