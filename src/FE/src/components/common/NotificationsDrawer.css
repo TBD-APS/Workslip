@@ -179,11 +179,31 @@
   animation: notification-details-in 0.16s ease both;
 }
 
+.notification-action-primary {
+  min-height: 40px;
+  border: 1px solid color-mix(in srgb, var(--primary) 34%, var(--border));
+  background: var(--surface-selected-strong);
+  color: var(--primary);
+}
+
+.notification-subrow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.2rem;
+}
+
 .notification-delete-inline {
   color: var(--text-dim);
 }
 
 @media (hover: hover) and (pointer: fine) {
+  .notification-action-primary:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--primary) 52%, var(--border));
+    background: var(--surface-selected);
+    color: var(--primary);
+  }
+
   .notification-delete-inline:hover:not(:disabled) {
     background: var(--status-red-bg);
     color: var(--status-red-text);
@@ -287,12 +307,23 @@
     align-items: flex-start;
   }
 
-  .notifications-overview button {
+  .notifications-overview button,
+  .notification-action-primary {
     min-height: 44px;
   }
 
   .notifications-toolbar {
     gap: 0.4rem;
+  }
+
+  .notification-subrow-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .notification-subrow-actions .notification-action-primary {
+    flex: 1 1 auto;
   }
 }
 
