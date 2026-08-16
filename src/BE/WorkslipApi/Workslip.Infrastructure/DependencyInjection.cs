@@ -41,6 +41,7 @@ public static class DependencyInjection
 
         services.AddScoped<TenantIntegrityInterceptor>();
         services.AddScoped<JobStatusTransitionInterceptor>();
+        services.AddScoped<ApprovedJobImmutabilityGuard>();
         services.AddScoped<AuditInterceptor>();
         services.AddScoped<WorksheetDailyHoursInterceptor>();
         services.AddScoped<WorksheetFinalizationGuard>();
@@ -53,12 +54,14 @@ public static class DependencyInjection
 
             var tenantIntegrityInterceptor = sp.GetRequiredService<TenantIntegrityInterceptor>();
             var transitionInterceptor = sp.GetRequiredService<JobStatusTransitionInterceptor>();
+            var approvedJobImmutabilityGuard = sp.GetRequiredService<ApprovedJobImmutabilityGuard>();
             var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
             var worksheetDailyHoursInterceptor = sp.GetRequiredService<WorksheetDailyHoursInterceptor>();
             var worksheetFinalizationGuard = sp.GetRequiredService<WorksheetFinalizationGuard>();
             options.AddInterceptors(
                 tenantIntegrityInterceptor,
                 transitionInterceptor,
+                approvedJobImmutabilityGuard,
                 auditInterceptor,
                 worksheetDailyHoursInterceptor,
                 worksheetFinalizationGuard);
