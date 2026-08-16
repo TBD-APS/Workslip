@@ -1,9 +1,19 @@
 ﻿import { useCallback, useEffect, useRef, useState } from 'react';
 
 const LAST_ACTIVE_KEY = 'statusFilter:lastActive';
+const JOB_STATUS_QUERY_VALUES = new Set(['Draft', 'InReview', 'Approved', 'Rejected']);
 
 export function getSavedStatusFilter<T extends string>(sectionKey: string, defaults: T[]): T[] {
   try {
+    if (sectionKey === 'mine-jobs') {
+      const requestedStatus = new URLSearchParams(window.location.search).get('status');
+      if (requestedStatus && JOB_STATUS_QUERY_VALUES.has(requestedStatus)) {
+        sessionStorage.setItem(LAST_ACTIVE_KEY, sectionKey);
+        sessionStorage.setItem(`statusFilter:${sectionKey}`, JSON.stringify([requestedStatus]));
+        return [requestedStatus as T];
+      }
+    }
+
     const lastActive = sessionStorage.getItem(LAST_ACTIVE_KEY);
     sessionStorage.setItem(LAST_ACTIVE_KEY, sectionKey);
 
