@@ -45,6 +45,44 @@ public sealed class ControlCenterSummaryProjectionTests
     }
 
     [Fact]
+    public void FromSnapshot_does_not_treat_distinct_same_provider_sources_as_observed()
+    {
+        var now = new DateTimeOffset(2026, 8, 16, 5, 0, 0, TimeSpan.Zero);
+        var registration = new ApplicationEnvironmentRegistration(
+            new ApplicationEnvironmentKey("workslip", "production"),
+            "Workslip",
+            [
+                new ControlCenterSourceRegistration(
+                    ControlCenterSignalKind.Health,
+                    new EvidenceReference("workslip-api", "/health/primary", "registration-primary")),
+                new ControlCenterSourceRegistration(
+                    ControlCenterSignalKind.Health,
+                    new EvidenceReference("workslip-api", "/health/secondary", "registration-secondary"))
+            ]);
+        var snapshot = new ControlCenterSnapshot(
+            now,
+            [
+                new ControlCenterApplicationSnapshot(
+                    registration,
+                    [
+                        new ObservedSignal<PlatformHealthState>(
+                            ControlCenterSignalKind.Health,
+                            PlatformHealthState.Healthy,
+                            now.AddMinutes(-1),
+                            now.AddMinutes(4),
+                            new EvidenceReference("WORKSLIP-API", "/health/primary", "observation-123"))
+                    ],
+                    Array.Empty<AutomationRunSummary>())
+            ]);
+
+        var summary = ControlCenterSummaryProjection.FromSnapshot(snapshot);
+
+        Assert.Equal(ControlCenterOverallState.Unknown, summary.OverallState);
+        Assert.Equal(1, summary.HealthySignals);
+        Assert.Equal(1, summary.UnknownSignals);
+    }
+
+    [Fact]
     public void FromSnapshot_counts_problem_states_and_prioritizes_blocked_company_state()
     {
         var now = new DateTimeOffset(2026, 8, 16, 5, 0, 0, TimeSpan.Zero);

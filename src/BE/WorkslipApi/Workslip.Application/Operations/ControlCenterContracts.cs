@@ -35,7 +35,16 @@ public enum ControlCenterSignalKind
 public sealed record EvidenceReference(
     string Provider,
     string Reference,
-    string? ExternalId = null);
+    string? ExternalId = null)
+{
+    /// <summary>
+    /// Provider + Reference identify the observed source. ExternalId is correlation metadata
+    /// and does not participate in source registration matching.
+    /// </summary>
+    public bool HasSameSourceIdentity(EvidenceReference other) =>
+        string.Equals(Provider, other.Provider, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(Reference, other.Reference, StringComparison.Ordinal);
+}
 
 public sealed record ApplicationEnvironmentKey(
     string ApplicationId,
