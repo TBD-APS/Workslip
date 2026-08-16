@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { selectOpenAiReviewModel } from './openai-model-selection.mjs';
 
 const apiKey = process.env.OPENAI_API_KEY || '';
 const preferred = process.env.OPENAI_REVIEW_MODEL || '';
@@ -19,8 +20,6 @@ if (!apiKey) {
   process.exit(0);
 }
 
-const candidates = [...new Set([preferred, ...fallbacks].filter(Boolean))];
-
 try {
   const response = await fetch('https://api.openai.com/v1/models', {
     headers: { Authorization: `Bearer ${apiKey}` },
@@ -32,8 +31,8 @@ try {
   }
 
   const payload = await response.json();
-  const available = new Set(Array.isArray(payload.data) ? payload.data.map((item) => item?.id).filter(Boolean) : []);
-  const model = candidates.find((candidate) => available.has(candidate));
+  const availableIds = Array.isArray(payload.data) ? payload.data.map((item) => item?.id).filter(Boolean) : [];
+  const model = selectOpenAiReviewModel(availableIds, preferred, fallbacks);
 
   if (!model) {
     write({ configured: true, available: false, model: '', reason: 'none of the configured review model candidates are available to this OpenAI project' });
