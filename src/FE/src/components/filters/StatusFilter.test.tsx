@@ -12,6 +12,7 @@ class ResizeObserverMock {
 
 beforeEach(() => {
   sessionStorage.clear();
+  window.history.replaceState({}, '', '/');
   vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 });
 
@@ -73,5 +74,22 @@ describe('getSavedStatusFilter', () => {
     sessionStorage.setItem('statusFilter:mine-jobs', JSON.stringify(['Aktiv', 'Gennemsyn']));
 
     expect(getSavedStatusFilter('mine-jobs', ['Aktiv'])).toEqual(['Aktiv']);
+  });
+
+  it('uses an explicit job status from the URL instead of stale session storage', () => {
+    sessionStorage.setItem('statusFilter:lastActive', 'mine-jobs');
+    sessionStorage.setItem('statusFilter:mine-jobs', JSON.stringify(['Rejected']));
+    window.history.replaceState({}, '', '/app?status=Approved');
+
+    expect(getSavedStatusFilter('mine-jobs', ['Draft'])).toEqual(['Approved']);
+    expect(sessionStorage.getItem('statusFilter:mine-jobs')).toBe(JSON.stringify(['Approved']));
+  });
+
+  it('ignores an invalid URL status and preserves the valid saved filter', () => {
+    sessionStorage.setItem('statusFilter:lastActive', 'mine-jobs');
+    sessionStorage.setItem('statusFilter:mine-jobs', JSON.stringify(['InReview']));
+    window.history.replaceState({}, '', '/app?status=NotARealStatus');
+
+    expect(getSavedStatusFilter('mine-jobs', ['Draft'])).toEqual(['InReview']);
   });
 });
