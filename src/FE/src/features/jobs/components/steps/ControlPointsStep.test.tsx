@@ -57,4 +57,38 @@ describe('ControlPointsStep', () => {
     fireEvent.change(reason, { target: { value: 'Ny begrundelse' } });
     expect(onReasonChange).toHaveBeenCalledWith('Ny begrundelse');
   });
+
+  it('announces the action that the irrelevant toggle will perform', () => {
+    const callbacks = {
+      onToggleControlPoint: vi.fn(),
+      onToggleCategoryIrrelevant: vi.fn(),
+      onAllIrrelevantReasonChange: vi.fn(),
+    };
+    const { rerender } = render(
+      <ControlPointsStep
+        form={{ ...emptyForm, work: { ...emptyForm.work, categoryIds: [typeId] } }}
+        referenceData={referenceData}
+        {...callbacks}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Marker installation som ikke relevant' })).toBeInTheDocument();
+
+    rerender(
+      <ControlPointsStep
+        form={{
+          ...emptyForm,
+          work: {
+            ...emptyForm.work,
+            categoryIds: [typeId],
+            irrelevantCategoryIds: [`${typeId}-${categoryId}`],
+          },
+        }}
+        referenceData={referenceData}
+        {...callbacks}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Marker installation som relevant' })).toBeInTheDocument();
+  });
 });
