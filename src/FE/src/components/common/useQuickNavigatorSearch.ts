@@ -24,8 +24,8 @@ async function fetchJobs(search: string, signal: AbortSignal): Promise<JobListIt
   const response = await apiClient.get('/api/jobs', {
     params: { search, limit: 5, offset: 0 },
     signal,
-  });
-  return (response.data as JobSearchResponse).items ?? [];
+  }) as JobSearchResponse;
+  return response.items ?? [];
 }
 
 export function useQuickNavigatorSearch(scope: QuickNavigatorSearchScope): QuickNavigatorSearchResult {
