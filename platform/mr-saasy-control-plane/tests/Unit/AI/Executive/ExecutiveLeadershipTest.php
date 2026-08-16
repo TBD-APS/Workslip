@@ -2,11 +2,13 @@
 
 namespace Tests\Unit\AI\Executive;
 
+use App\AI\Application\Executive\ExecutiveControlSurface;
 use App\AI\Application\Executive\ExecutiveDecisionAuthority;
 use App\AI\Application\Executive\ExecutiveDecisionClass;
 use App\AI\Application\Executive\ExecutiveDecisionDisposition;
 use App\AI\Application\Executive\ExecutiveHierarchy;
 use App\AI\Application\Executive\ExecutiveRecommendation;
+use App\AI\Application\Executive\ExecutiveSelfAuthorityPolicy;
 use App\AI\Application\Routing\AgentRole;
 use App\AI\Application\Routing\RunProvenance;
 use DateTimeImmutable;
@@ -66,6 +68,12 @@ final class ExecutiveLeadershipTest extends TestCase
     public function test_high_impact_decisions_require_founder_approval(ExecutiveDecisionClass $decision): void
     {
         self::assertTrue(ExecutiveDecisionAuthority::requiresFounderApproval($decision));
+    }
+
+    #[DataProvider('selfControlledSurfaces')]
+    public function test_executive_cannot_modify_own_permission_budget_or_governance_policy(ExecutiveControlSurface $surface): void
+    {
+        self::assertFalse(ExecutiveSelfAuthorityPolicy::canModifyOwnControlSurface($surface));
     }
 
     public function test_material_executive_recommendation_retains_run_and_evidence_provenance(): void
@@ -153,6 +161,14 @@ final class ExecutiveLeadershipTest extends TestCase
             ExecutiveDecisionClass::GovernancePolicyChange,
         ] as $decision) {
             yield $decision->value => [$decision];
+        }
+    }
+
+    /** @return iterable<string, array{ExecutiveControlSurface}> */
+    public static function selfControlledSurfaces(): iterable
+    {
+        foreach (ExecutiveControlSurface::cases() as $surface) {
+            yield $surface->value => [$surface];
         }
     }
 }
