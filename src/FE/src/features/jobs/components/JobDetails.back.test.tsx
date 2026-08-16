@@ -58,6 +58,10 @@ vi.mock('./JobHistoryDrawer', () => ({
   JobHistoryDrawer: () => null,
 }));
 
+vi.mock('./JobConversationLauncher', () => ({
+  JobConversationLauncher: () => null,
+}));
+
 vi.mock('../../../components/common/ConfirmDeleteDialog', () => ({
   ConfirmDeleteDialog: () => null,
 }));
