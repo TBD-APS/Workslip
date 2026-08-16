@@ -10,6 +10,7 @@ import { prefetchInitialJobList } from '../features/jobs/queries/jobListQuery';
 import { usePushNotifications } from '../features/users/hooks/usePushNotifications';
 import { queryClient } from '../lib/react-query';
 import {
+  AUTH_TRANSITION_ATTRIBUTE,
   AuthContext,
   type AuthContextType,
 } from './authContextValue';
@@ -18,6 +19,7 @@ import { canUseSessionNotifications } from './sessionFeaturePolicy';
 interface AuthenticatedAppProviderProps {
   children: ReactNode;
   login: AuthContextType['login'];
+  establishSession: AuthContextType['establishSession'];
   clearSession: () => void;
 }
 
@@ -31,6 +33,7 @@ function shouldPrefetchJobs(): boolean {
 function AuthenticatedSessionProvider({
   children,
   login,
+  establishSession,
   clearSession,
 }: AuthenticatedAppProviderProps) {
   const { register: registerPush } = usePushNotifications();
@@ -49,6 +52,25 @@ function AuthenticatedSessionProvider({
   const isAuthenticated = Boolean(user);
   const canUseNotifications = canUseSessionNotifications(user?.role);
   const usesPrimaryJobList = getAuthenticatedHomePath(user?.role) === DEFAULT_AUTHENTICATED_PATH;
+
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+
+    let frameId = 0;
+    const releaseTransitionWhenShellIsReady = () => {
+      if (!document.querySelector('.app-shell')) {
+        frameId = window.requestAnimationFrame(releaseTransitionWhenShellIsReady);
+        return;
+      }
+
+      frameId = window.requestAnimationFrame(() => {
+        document.documentElement.removeAttribute(AUTH_TRANSITION_ATTRIBUTE);
+      });
+    };
+
+    frameId = window.requestAnimationFrame(releaseTransitionWhenShellIsReady);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated || !canUseNotifications || !user?.id) return;
@@ -134,12 +156,13 @@ function AuthenticatedSessionProvider({
       user,
       isLoading: meQuery.isPending,
       login,
+      establishSession,
       logout,
       clearLocalSession,
       updateUser,
       meQuery: publicMeQuery,
     }),
-    [clearLocalSession, isAuthenticated, login, logout, meQuery.isPending, publicMeQuery, updateUser, user],
+    [clearLocalSession, establishSession, isAuthenticated, login, logout, meQuery.isPending, publicMeQuery, updateUser, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
