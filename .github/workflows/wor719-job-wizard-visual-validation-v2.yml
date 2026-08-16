@@ -1,0 +1,75 @@
+name: Release Job Wizard Visual Gate
+
+on:
+  push:
+    branches:
+      - agent/wor-719-visual-validation-v2
+
+permissions:
+  contents: read
+
+jobs:
+  visual-and-frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout validation branch
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Verify immutable release target
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          TARGET=c64d3257bd339fa40cfdaedfdc6449651e7297b5
+          git cat-file -e "${TARGET}^{commit}"
+          test "$(git merge-base "${TARGET}" HEAD)" = "${TARGET}"
+          git fetch origin release-4.9.0
+          test "$(git rev-parse origin/release-4.9.0)" = "${TARGET}"
+          echo 'Exact merged release palette target verified.'
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Frontend install test and build
+        working-directory: src/FE
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm ci --prefer-offline --no-audit --no-fund
+          npm run test -- --run
+          npm run build
+
+      - name: Run Job Wizard palette audit in disposable authenticated runtime
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/FE/scripts/run-playwright-ephemeral.sh')
+          text=p.read_text()
+          needle='node scripts/playwright-ephemeral-smoke.mjs\n'
+          if needle not in text:
+              raise SystemExit('ephemeral runner anchor not found')
+          p.write_text(text.replace(needle,'node scripts/playwright-job-wizard-palette-audit.mjs\n',1))
+          PY
+          bash src/FE/scripts/run-playwright-ephemeral.sh
+
+      - name: Upload visual evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-job-wizard-visual-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/wor719-job-wizard-visual/
+          if-no-files-found: warn
+          retention-days: 14
