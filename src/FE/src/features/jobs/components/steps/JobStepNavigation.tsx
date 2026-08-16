@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { JOB_STEPS } from './jobSteps';
 import { useDropdownContext } from '../../../../providers/DropdownContext';
+import { JobWizardTutorial } from '../JobWizardTutorial';
 
 type StepIndicatorsProps = {
   currentStep: number;
@@ -23,27 +24,30 @@ export function StepIndicators({ currentStep, onStepChange, completedSteps }: St
   }, [currentStep]);
 
   return (
-    <div className="step-indicators" ref={containerRef}>
-      {JOB_STEPS.map((step, index) => {
-        const StepIcon = step.icon;
-        const isActive = index === currentStep;
-        const isCompleted = index < currentStep;
-        const isDisabled = index > 0 && !completedSteps[index - 1];
-        return (
-          <button
-            key={step.label}
-            className={`step-dot ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
-            onClick={() => onStepChange(index)}
-            aria-disabled={isDisabled || undefined}
-            aria-label={isActive ? `${step.label} - aktuelt trin` : step.label}
-            aria-current={isActive ? 'step' : undefined}
-          >
-            <StepIcon size={14} />
-            <span className="step-label">{step.label}</span>
-          </button>
-        );
-      })}
-    </div>
+    <>
+      <div className="step-indicators" ref={containerRef}>
+        {JOB_STEPS.map((step, index) => {
+          const StepIcon = step.icon;
+          const isActive = index === currentStep;
+          const isCompleted = index < currentStep;
+          const isDisabled = index > 0 && !completedSteps[index - 1];
+          return (
+            <button
+              key={step.label}
+              className={`step-dot ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
+              onClick={() => onStepChange(index)}
+              aria-disabled={isDisabled || undefined}
+              aria-label={isActive ? `${step.label} - aktuelt trin` : step.label}
+              aria-current={isActive ? 'step' : undefined}
+            >
+              <StepIcon size={14} />
+              <span className="step-label">{step.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <JobWizardTutorial currentStep={currentStep} />
+    </>
   );
 }
 
