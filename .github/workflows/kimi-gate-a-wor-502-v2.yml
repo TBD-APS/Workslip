@@ -34,6 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${KIMI_API_KEY:-}" || { echo 'KIMI_API_KEY missing'; exit 10; }
+          cp tools/ai/kimi-gate-a-wor502.py /tmp/kimi-gate-a-wor502.py
           response="$(curl --fail --silent --show-error -H "Authorization: Bearer ${KIMI_API_KEY}" "${MOONSHOT_BASE_URL}/models")"
           model="$(printf '%s' "$response" | jq -r '([.data[].id | select(. == "kimi-k2.6")] + [.data[].id | select(test("^kimi-"; "i"))] + [.data[].id]) | unique | .[0] // empty')"
           test -n "$model" || { echo 'No Kimi model discovered'; exit 11; }
@@ -49,7 +50,7 @@ jobs:
       - name: Run bounded two-stage Kimi implementation
         env:
           KIMI_MODEL: ${{ steps.runtime.outputs.model }}
-        run: python3 tools/ai/kimi-gate-a-wor502.py
+        run: python3 /tmp/kimi-gate-a-wor502.py
 
       - name: Enforce feature path boundary
         shell: bash
