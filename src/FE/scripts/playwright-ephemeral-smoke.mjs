@@ -58,20 +58,27 @@ async function openAuthenticatedApp(context) {
   const me = await meResponse;
   assert.equal(me.status(), 200, `/api/auth/me returned HTTP ${me.status()}.`);
   await page.locator('.app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  assert.deepEqual(pageErrors, [], `Browser page errors: ${pageErrors.join(' | ')}`);
-  return page;
+
+  return {
+    page,
+    assertNoPageErrors() {
+      assert.deepEqual(pageErrors, [], `Browser page errors: ${pageErrors.join(' | ')}`);
+    },
+  };
 }
 
 async function verifyMobileQuickNavigator() {
   const context = await authenticatedContext(devices['iPhone 13']);
   try {
-    const page = await openAuthenticatedApp(context);
+    const session = await openAuthenticatedApp(context);
+    const { page } = session;
     await page.locator('.quick-nav-mobile-trigger').click();
     const dialog = page.getByRole('dialog', { name: 'Hvor vil du hen?' });
     await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
     assert.equal(await dialog.locator('.quick-nav-search-wrap kbd').isVisible(), false, 'Esc key hint must be hidden on mobile.');
     assert.equal(await dialog.locator('.quick-nav-footer').isVisible(), false, 'Keyboard shortcut footer must be hidden on mobile.');
+    session.assertNoPageErrors();
   } finally {
     await context.close();
   }
@@ -80,13 +87,15 @@ async function verifyMobileQuickNavigator() {
 async function verifyDesktopQuickNavigator() {
   const context = await authenticatedContext({ viewport: { width: 1280, height: 800 } });
   try {
-    const page = await openAuthenticatedApp(context);
-    await page.locator('.quick-nav-header-trigger').click();
+    const session = await openAuthenticatedApp(context);
+    const { page } = session;
+    await page.keyboard.press('Control+K');
     const dialog = page.getByRole('dialog', { name: 'Hvor vil du hen?' });
     await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
     assert.equal(await dialog.locator('.quick-nav-search-wrap kbd').isVisible(), true, 'Esc key hint must remain visible on desktop.');
     assert.equal(await dialog.locator('.quick-nav-footer').isVisible(), true, 'Keyboard shortcut footer must remain visible on desktop.');
+    session.assertNoPageErrors();
   } finally {
     await context.close();
   }
