@@ -35,6 +35,8 @@ For every non-documentation CI run, the `Postman integration (ephemeral)` job cr
 8. fail `CI Gate` on request/assertion/runtime failure;
 9. stop the API and force-remove the SQL container through an `EXIT` trap, including failure/cancellation paths that allow shell cleanup to run.
 
+Before Newman executes the main collection, `run-integration-tests.sh` creates a temporary execution copy through `prepare-integration-collection.mjs`. The preparation only completes the canonical job smoke fixture with the minimum synthetic worksheet now required by the server-side submit-ready invariant. It fails closed if the expected `POST /api/jobs` fixture cannot be found, never edits the checked-in collection, and does not relax the status assertion. This keeps the existing end-to-end `Draft → InReview` success smoke valid while the backend remains authoritative about worksheet presence.
+
 No persistent integration API, database or GitHub bearer-token secret is required. The random database/JWT credentials and bearer tokens exist only inside the runner and are masked in GitHub Actions output.
 
 The focused Auditor-scope collection is intentionally hosted-runner-only because it depends on the deterministic Development seed identities. It is not a substitute for the normal contract collection and must never require production identities or production data.
