@@ -424,12 +424,6 @@ function ConversationMessage({
   const isOwn = message.authorUserId === currentUserId;
   const isTarget = message.action?.targetUserId === currentUserId;
   const isPendingAction = message.action?.status === ConversationActionStatus.Pending;
-  const reminderDueUtc = message.action?.type === ConversationActionType.RemindMe
-    ? message.action.dueUtc
-    : null;
-  const reminderIsDue = reminderDueUtc
-    ? new Date(reminderDueUtc).getTime() <= Date.now()
-    : true;
   const mentionedNames = message.mentionedUserIds
     .map((id) => participantById.get(id)?.displayName)
     .filter((name): name is string => Boolean(name));
@@ -478,7 +472,7 @@ function ConversationMessage({
                 </small>
               )}
             </div>
-            {isTarget && isPendingAction && reminderIsDue ? (
+            {isTarget && isPendingAction && message.action.canResolve ? (
               <button
                 type="button"
                 className="btn btn-primary conversation-action-card__button"
@@ -488,7 +482,7 @@ function ConversationMessage({
                 {isResolving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                 {getActionButtonLabel(message.action.type)}
               </button>
-            ) : isTarget && isPendingAction && !reminderIsDue ? (
+            ) : isTarget && isPendingAction && !message.action.canResolve ? (
               <span className="conversation-action-pending"><Clock3 size={15} /> Planlagt</span>
             ) : message.action.status === ConversationActionStatus.Completed ? (
               <span className="conversation-action-completed"><CheckCheck size={15} /> Udført</span>

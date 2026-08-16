@@ -391,7 +391,10 @@ public sealed class SqlJobConversationRepository(
                 row.ActionDueUtc,
                 row.ActionResolvedByUserId,
                 row.ActionResolvedByDisplayName,
-                row.ActionResolvedUtc);
+                row.ActionResolvedUtc,
+                actionStatus == ConversationActionStatus.Pending
+                    && (actionType != ConversationActionType.RemindMe
+                        || (row.ActionDueUtc is DateTimeOffset dueUtc && dueUtc <= DateTimeOffset.UtcNow)));
         }
 
         return new ConversationMessageResponse(

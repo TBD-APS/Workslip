@@ -221,6 +221,7 @@ describe('JobConversationDrawer', () => {
             targetDisplayName: 'Rasmus',
             status: ConversationActionStatus.Pending,
             dueUtc: null,
+            canResolve: true,
             resolvedByUserId: null,
             resolvedByDisplayName: null,
             resolvedUtc: null,
