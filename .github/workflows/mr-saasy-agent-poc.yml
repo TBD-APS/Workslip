@@ -1,4 +1,4 @@
-name: MR SAAS'y Durable Agent POC
+name: MR SAAS'y Durable Agent + Sandbox POC
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  destructive-container-recovery:
+  destructive-worker-recovery:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -23,12 +23,38 @@ jobs:
           docker version
           docker compose version
 
-      - name: Build and compile-check worker image
+      - name: Compile-check worker and sandbox broker
         working-directory: platform/mr-saasy-agent-poc
         run: |
           docker build -t mr-saasy-agent-poc:check .
           docker run --rm mr-saasy-agent-poc:check python -m compileall -q app
+          docker build -t mr-saasy-sandbox-broker:check -f sandbox_broker/Dockerfile .
+          docker run --rm mr-saasy-sandbox-broker:check python -m py_compile /broker/server.py
 
       - name: Run destructive durable-loop POC
         working-directory: platform/mr-saasy-agent-poc
         run: ./scripts/destructive-test.sh
+
+  disposable-sandbox-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Docker versions
+        run: |
+          docker version
+          docker compose version
+
+      - name: Compile-check worker and sandbox broker
+        working-directory: platform/mr-saasy-agent-poc
+        run: |
+          docker build -t mr-saasy-agent-poc:check .
+          docker run --rm mr-saasy-agent-poc:check python -m compileall -q app
+          docker build -t mr-saasy-sandbox-broker:check -f sandbox_broker/Dockerfile .
+          docker run --rm mr-saasy-sandbox-broker:check python -m py_compile /broker/server.py
+
+      - name: Run disposable sandbox isolation POC
+        working-directory: platform/mr-saasy-agent-poc
+        run: ./scripts/sandbox-test.sh
