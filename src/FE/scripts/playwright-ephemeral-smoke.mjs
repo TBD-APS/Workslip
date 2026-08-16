@@ -14,6 +14,7 @@ const ADMIN_EMAIL = String(process.env.WORKSLIP_PLAYWRIGHT_ADMIN_EMAIL || 'admin
 const REQUESTED_SCENARIO = String(process.env.WORKSLIP_PLAYWRIGHT_SCENARIO || 'all').trim().toLowerCase();
 const UI_TIMEOUT = 25_000;
 const APP_SHELL_OBSERVED_KEY = '__workslip_playwright_app_shell_observed';
+const INVALID_TOKEN_SEEDED_KEY = '__workslip_playwright_invalid_token_seeded';
 
 const { chromium, devices } = await import('playwright');
 const browser = await chromium.launch({ headless: true });
@@ -191,6 +192,20 @@ async function readOriginLocalStorage(context, origin) {
   return Object.fromEntries(entries.map(({ name, value }) => [name, value]));
 }
 
+async function waitForOriginLocalStorage(context, origin, predicate) {
+  const deadline = Date.now() + UI_TIMEOUT;
+  while (true) {
+    const storage = await readOriginLocalStorage(context, origin);
+    if (predicate(storage)) {
+      return storage;
+    }
+    if (Date.now() >= deadline) {
+      return storage;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
 async function verifyMissingTokenFailsClosed() {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   await observeAuthenticatedShell(context);
@@ -219,10 +234,18 @@ async function verifyMissingTokenFailsClosed() {
 async function verifyRejectedTokenFailsClosed() {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   await observeAuthenticatedShell(context);
-  await context.addInitScript(({ email }) => {
+  await context.addInitScript(({ email, appOrigin, seedKey }) => {
+    if (window.location.origin !== appOrigin || sessionStorage.getItem(seedKey) === '1') {
+      return;
+    }
     localStorage.setItem('authToken', 'invalid.playwright.session-token');
     localStorage.setItem('userEmail', email);
-  }, { email: ADMIN_EMAIL });
+    sessionStorage.setItem(seedKey, '1');
+  }, {
+    email: ADMIN_EMAIL,
+    appOrigin: new URL(APP_URL).origin,
+    seedKey: INVALID_TOKEN_SEEDED_KEY,
+  });
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (['http:', 'https:'].includes(url.protocol) && !['127.0.0.1', 'localhost', '::1'].includes(url.hostname)) {
@@ -254,13 +277,13 @@ async function verifyRejectedTokenFailsClosed() {
       waitUntil: 'domcontentloaded',
       timeout: UI_TIMEOUT,
     });
-    await page.waitForFunction(({ expectedEmail }) => {
-      const storedEmail = localStorage.getItem('userEmail');
-      return localStorage.getItem('authToken') === null
-        && storedEmail?.toLowerCase() === expectedEmail.toLowerCase();
-    }, { expectedEmail: ADMIN_EMAIL }, { timeout: UI_TIMEOUT });
 
-    const rejectedStorage = await readOriginLocalStorage(context, new URL(APP_URL).origin);
+    const rejectedStorage = await waitForOriginLocalStorage(
+      context,
+      new URL(APP_URL).origin,
+      (storage) => storage.authToken === undefined
+        && storage.userEmail?.toLowerCase() === ADMIN_EMAIL.toLowerCase(),
+    );
     assert.equal(rejectedStorage.authToken ?? null, null, 'Rejected session must clear the invalid bearer token.');
     assert.equal(rejectedStorage.userEmail?.toLowerCase(), ADMIN_EMAIL.toLowerCase(), 'Rejected session may retain only the verified email reauth hint.');
     await assertProtectedShellNeverRendered(page, 'Protected app shell must never render for a token rejected by /api/auth/me.');
