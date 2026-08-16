@@ -1,0 +1,65 @@
+name: WOR-719 Job Wizard Visual Validation
+
+on:
+  push:
+    branches:
+      - agent/wor-719-visual-validation
+
+permissions:
+  contents: read
+
+jobs:
+  visual-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout validation branch
+        uses: actions/checkout@v7
+
+      - name: Verify immutable target ancestry
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git cat-file -e dab2eef7217e70399e467c78aa761e90dee72333^{commit}
+          test "$(git merge-base dab2eef7217e70399e467c78aa761e90dee72333 HEAD)" = "dab2eef7217e70399e467c78aa761e90dee72333"
+          echo 'Target PR head ancestry verified.'
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Inject visual audit into disposable ephemeral runner
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/FE/scripts/run-playwright-ephemeral.sh')
+          text=p.read_text()
+          needle='node scripts/playwright-ephemeral-smoke.mjs\n'
+          replacement=needle+'node scripts/playwright-job-wizard-palette-audit.mjs\n'
+          if needle not in text:
+              raise SystemExit('ephemeral runner anchor not found')
+          p.write_text(text.replace(needle,replacement,1))
+          PY
+
+      - name: Run authenticated day-night and narrow viewport audit
+        shell: bash
+        run: bash src/FE/scripts/run-playwright-ephemeral.sh
+
+      - name: Upload visual evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: wor719-job-wizard-visual-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/wor719-job-wizard-visual/
+          if-no-files-found: warn
+          retention-days: 14
