@@ -37,6 +37,17 @@ const readCurrentPosition = () => new Promise<GeolocationPosition>((resolve, rej
   });
 });
 
+const getGeolocationErrorMessage = (error: unknown): string => {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const geoError = error as GeolocationPositionError;
+    return geoError.code === geoError.PERMISSION_DENIED
+      ? 'GPS-tilladelse blev afvist. Tillad lokation i browseren og prøv igen.'
+      : `GPS kunne ikke læses: ${geoError.message}`;
+  }
+
+  return 'GPS kunne ikke startes. Prøv igen.';
+};
+
 export function LocationTracking() {
   const isAdmin = useIsAdmin();
   const watchId = useRef<number | null>(null);
@@ -45,6 +56,7 @@ export function LocationTracking() {
   const [employees, setEmployees] = useState<CurrentEmployeeLocation[]>([]);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [watching, setWatching] = useState(false);
 
   const loadStatus = useCallback(async () => {
     const data = await apiClient.get<MyTrackingStatus>('/api/location/me') as unknown as MyTrackingStatus;
@@ -91,7 +103,7 @@ export function LocationTracking() {
     setPermissionError(null);
     try {
       const initialPosition = await readCurrentPosition();
-      const started = await apiClient.post<never, { sessionId: string; active: boolean }>('/api/location/sessions/start') as unknown as { sessionId: string; active: boolean };
+      const started = await apiClient.post('/api/location/sessions/start') as unknown as { sessionId: string; active: boolean };
       sessionId.current = started.sessionId;
       setStatus((current) => ({
         sessionId: started.sessionId,
@@ -103,22 +115,20 @@ export function LocationTracking() {
       }));
 
       await sendPosition(initialPosition);
+      if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
       watchId.current = navigator.geolocation.watchPosition(
         (position) => { void sendPosition(position); },
         (error) => {
+          setWatching(false);
           setPermissionError(error.code === error.PERMISSION_DENIED
-            ? 'GPS-tilladelsen blev fjernet. Stop tracking eller tillad lokation igen.'
+            ? 'GPS-tilladelsen blev fjernet. Genoptag tracking efter du har tilladt lokation igen.'
             : `GPS kunne ikke læses: ${error.message}`);
         },
         { enableHighAccuracy: true, maximumAge: 15_000, timeout: 20_000 },
       );
+      setWatching(true);
     } catch (error) {
-      if (error instanceof GeolocationPositionError || (typeof error === 'object' && error !== null && 'code' in error)) {
-        const geoError = error as GeolocationPositionError;
-        setPermissionError(geoError.code === geoError.PERMISSION_DENIED
-          ? 'GPS-tilladelse blev afvist. Tillad lokation i browseren og prøv igen.'
-          : `GPS kunne ikke læses: ${geoError.message}`);
-      }
+      setPermissionError(getGeolocationErrorMessage(error));
     } finally {
       setBusy(false);
     }
@@ -133,6 +143,7 @@ export function LocationTracking() {
         navigator.geolocation.clearWatch(watchId.current);
         watchId.current = null;
       }
+      setWatching(false);
       sessionId.current = null;
       await loadStatus();
       await loadEmployees();
@@ -152,13 +163,13 @@ export function LocationTracking() {
 
       <section className="card" style={{ padding: 20, marginBottom: 20 }}>
         <h2>Min tracking</h2>
-        <p><strong>Status:</strong> {status?.active ? 'Tracking aktiv' : 'Tracking stoppet'}</p>
+        <p><strong>Status:</strong> {status?.active ? (watching ? 'Tracking aktiv' : 'Session aktiv – GPS skal genoptages') : 'Tracking stoppet'}</p>
         {status?.capturedAt && <p><strong>Sidste position:</strong> {new Date(status.capturedAt).toLocaleString('da-DK')}</p>}
         {status?.accuracyMeters != null && <p><strong>Accuracy:</strong> ±{Math.round(status.accuracyMeters)} m</p>}
         {permissionError && <div role="alert" className="alert alert-danger">{permissionError}</div>}
         <div style={{ display: 'flex', gap: 12 }}>
-          <button className="btn btn-primary" type="button" onClick={() => { void startTracking(); }} disabled={busy || status?.active === true}>
-            Start tracking
+          <button className="btn btn-primary" type="button" onClick={() => { void startTracking(); }} disabled={busy || watching}>
+            {status?.active ? 'Genoptag tracking' : 'Start tracking'}
           </button>
           <button className="btn btn-secondary" type="button" onClick={() => { void stopTracking(); }} disabled={busy || status?.active !== true}>
             Stop tracking
