@@ -15,11 +15,13 @@ public static class LocationEndpoints
         var user = app.MapUserGroup("/api/location", "location");
         var admin = app.MapAdminGroup("/api/location", "location");
 
-        user.MapPost("/sessions/start", StartSessionAsync);
-        user.MapPost("/pings", PingAsync);
-        user.MapPost("/sessions/{id:guid}/stop", StopSessionAsync);
-        user.MapGet("/me", GetMeAsync);
-        admin.MapGet("/current", GetCurrentAsync);
+        // WOR-658 is an explicitly local prototype. Keep these endpoints out of the
+        // generated public API contract until the production/compliance gate in WOR-543.
+        user.MapPost("/sessions/start", StartSessionAsync).ExcludeFromDescription();
+        user.MapPost("/pings", PingAsync).ExcludeFromDescription();
+        user.MapPost("/sessions/{id:guid}/stop", StopSessionAsync).ExcludeFromDescription();
+        user.MapGet("/me", GetMeAsync).ExcludeFromDescription();
+        admin.MapGet("/current", GetCurrentAsync).ExcludeFromDescription();
 
         return app;
     }
