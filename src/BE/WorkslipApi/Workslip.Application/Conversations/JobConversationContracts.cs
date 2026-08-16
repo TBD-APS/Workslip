@@ -24,10 +24,31 @@ public sealed record ConversationActionResponse(
     Guid TargetUserId,
     string TargetDisplayName,
     ConversationActionStatus Status,
+    DateTimeOffset? DueUtc,
     Guid? ResolvedByUserId,
     string? ResolvedByDisplayName,
-    DateTimeOffset? ResolvedUtc,
-    DateTimeOffset? DueUtc = null);
+    DateTimeOffset? ResolvedUtc)
+{
+    public ConversationActionResponse(
+        ConversationActionType type,
+        Guid targetUserId,
+        string targetDisplayName,
+        ConversationActionStatus status,
+        Guid? resolvedByUserId,
+        string? resolvedByDisplayName,
+        DateTimeOffset? resolvedUtc)
+        : this(
+            type,
+            targetUserId,
+            targetDisplayName,
+            status,
+            null,
+            resolvedByUserId,
+            resolvedByDisplayName,
+            resolvedUtc)
+    {
+    }
+}
 
 public sealed record ConversationMessageResponse(
     Guid Id,
