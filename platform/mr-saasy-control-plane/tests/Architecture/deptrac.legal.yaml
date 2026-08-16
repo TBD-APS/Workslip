@@ -1,0 +1,22 @@
+deptrac:
+  paths:
+    - ./tests/Architecture/Fixtures/Legal
+  layers:
+    - name: ProviderContracts
+      collectors:
+        - type: directory
+          value: tests/Architecture/Fixtures/Legal/ProviderContracts/.*
+    - name: ProviderAdapters
+      collectors:
+        - type: directory
+          value: tests/Architecture/Fixtures/Legal/Providers/.*
+    - name: InfrastructureHttp
+      collectors:
+        - type: directory
+          value: tests/Architecture/Fixtures/Legal/Http/.*
+  ruleset:
+    ProviderContracts: ~
+    ProviderAdapters:
+      - ProviderContracts
+      - InfrastructureHttp
+    InfrastructureHttp: ~
