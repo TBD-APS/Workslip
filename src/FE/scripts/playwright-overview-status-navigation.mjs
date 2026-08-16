@@ -53,7 +53,8 @@ try {
   await page.getByRole('heading', { name: 'Overblik' }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
   for (const destination of destinations) {
-    await page.getByRole('button', { name: new RegExp(destination.card, 'i') }).click();
+    const statusRegion = page.getByRole('region', { name: 'Sagsstatus' });
+    await statusRegion.getByRole('button', { name: new RegExp(destination.card, 'i') }).click();
     await page.waitForURL((url) =>
       url.pathname === '/app' && url.searchParams.get('status') === destination.status,
     { timeout: UI_TIMEOUT });
