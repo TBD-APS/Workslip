@@ -1,13 +1,14 @@
 # MR SAAS'y durable agent + disposable sandbox POC
 
-Tracking: WOR-617, WOR-619
+Tracking: WOR-617, WOR-619, WOR-638
 
 This directory is deliberately a **throwaway-capable proof of concept**. It exists to prove or falsify architecture before the full Change Intelligence Engine is built.
 
-The two stacked questions are:
+The three questions under test are:
 
-1. can a project-agnostic agent run survive worker loss and resume safely; and
-2. can code execution happen in a fresh, tightly constrained container whose destruction does not destroy the run evidence?
+1. can a project-agnostic agent run survive worker loss and resume safely;
+2. can code execution happen in a fresh, tightly constrained container whose destruction does not destroy the run evidence; and
+3. can the sandbox execution runtime be replaced without changing the Temporal workflow/activity contract?
 
 It is not a production service and it does not depend on Workslip domain code, Laravel, GitHub, a real LLM provider, OPA or customer data.
 
@@ -22,6 +23,12 @@ containerized Python worker
         |
         +--> fake provider activity (first call transiently fails)
         +--> idempotent tool activity
+        |
+        v
+SandboxRunner contract + neutral execution policy
+        |
+        v
+DockerPocSandboxRunner adapter
         |
         v
 restricted sandbox broker
@@ -46,7 +53,7 @@ structured gate feedback -> corrected second attempt
 WAITING_APPROVAL -> signal -> COMPLETED
 ```
 
-The **worker never receives `/var/run/docker.sock`**. The separate broker is intentionally the narrow privileged boundary. It does not accept arbitrary images, Docker flags, mounts or commands; it accepts only a small source/test payload and runs the fixed POC harness in the configured sandbox image.
+The **worker never receives `/var/run/docker.sock`**. The separate broker is intentionally the narrow privileged boundary. It does not accept arbitrary images, Docker flags, mounts or commands; it accepts only a small source/test payload plus a bounded neutral execution policy and runs the fixed POC harness in the configured sandbox image.
 
 That broker is still highly privileged because a Docker socket is effectively host-level container control. It is acceptable only as a POC boundary. A production design must replace or harden this with a purpose-built sandbox runtime/broker and tenant isolation.
 
@@ -107,9 +114,30 @@ Every sandbox is removed immediately after execution. The Temporal run retains:
 
 The harness also verifies that the test hash remains constant while the source hash changes. The agent is not allowed to “fix” the failure by weakening the test.
 
+## WOR-638: runtime-agnostic sandbox boundary
+
+The third slice deliberately stops the Temporal activity from knowing how code execution is hosted.
+
+`app/contracts.py` owns the neutral `SandboxExecutionPolicy` and request/result/evidence data. The workflow chooses requirements such as timeout, memory, process count, CPU, workspace size and network access.
+
+`app/sandbox.py` owns the `SandboxRunner` protocol. The current `DockerPocSandboxRunner` is only an adapter that maps the neutral request to the POC broker HTTP protocol.
+
+`app/activities.py` depends on `SandboxRunner` only. It contains no broker URL, HTTP client, Docker import or Docker socket knowledge. A future gVisor, Firecracker, managed sandbox or other runtime can replace the adapter without changing `ChangeRunWorkflow` or the `execute_sandbox` activity contract.
+
+The POC Docker adapter is fail-closed: it currently supports only `network_access="none"` and bounded policy values. Unsupported policy requirements are rejected instead of silently weakening isolation.
+
+`scripts/boundary-check.sh` statically protects this separation in CI, while the two existing runtime tests continue proving the destructive worker-recovery and disposable-sandbox behavior.
+
 ## Run locally
 
 Prerequisite: Docker with Compose v2.
+
+Run the boundary check:
+
+```bash
+cd platform/mr-saasy-agent-poc
+./scripts/boundary-check.sh
+```
 
 Run the combined destructive proof:
 
@@ -131,9 +159,11 @@ Temporal UI is exposed at `http://localhost:8233` while a test is running.
 
 The neutral models are in `app/contracts.py`. Temporal-specific orchestration stays in `app/workflow.py`, `app/worker.py` and `app/connection.py`.
 
-`sandbox_broker/server.py` is explicitly infrastructure-specific and privileged. It must not leak into the neutral ChangeRun/Attempt/GateFeedback contracts.
+The runtime-neutral execution port and current POC adapter are in `app/sandbox.py`. The Temporal activity may depend on that port but must not depend on Docker or broker details.
 
-The sandbox receives no Workslip database, customer storage, product credentials or Docker socket. Its network mode is `none`, and its only writable paths are temporary in-memory filesystems.
+`sandbox_broker/server.py` is explicitly infrastructure-specific and privileged. It must not leak into the neutral ChangeRun/Attempt/GateFeedback/SandboxExecutionPolicy contracts.
+
+The sandbox receives no Workslip database, customer storage, product credentials or Docker socket. Its current policy requires no network, and its only writable paths are temporary in-memory filesystems.
 
 Laravel remains outside the execution kernel and can later expose project integrations/tools without owning durable workflow state.
 

@@ -58,6 +58,20 @@ def _json_bytes(payload: dict[str, Any]) -> bytes:
     return json.dumps(payload, sort_keys=True).encode("utf-8")
 
 
+def _bounded_int(
+    policy: dict[str, object],
+    key: str,
+    *,
+    default: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    value = int(policy.get(key, default))
+    if value < minimum or value > maximum:
+        raise ValueError(f"policy.{key} must be between {minimum} and {maximum}")
+    return value
+
+
 class SandboxBroker:
     def __init__(self) -> None:
         self.client = docker.from_env()
@@ -71,6 +85,10 @@ class SandboxBroker:
         attempt = int(payload.get("attempt", 0))
         source_code = str(payload.get("source_code", ""))
         test_code = str(payload.get("test_code", ""))
+        policy_raw = payload.get("policy") or {}
+        if not isinstance(policy_raw, dict):
+            raise ValueError("policy must be an object")
+        policy: dict[str, object] = policy_raw
 
         if not run_id or attempt < 1:
             raise ValueError("run_id and positive attempt are required")
@@ -81,6 +99,45 @@ class SandboxBroker:
         test_bytes = test_code.encode("utf-8")
         if len(source_bytes) > MAX_SOURCE_BYTES or len(test_bytes) > MAX_SOURCE_BYTES:
             raise ValueError("source_code/test_code exceed the POC payload limit")
+
+        timeout_seconds = _bounded_int(
+            policy,
+            "timeout_seconds",
+            default=20,
+            minimum=1,
+            maximum=60,
+        )
+        memory_limit_bytes = _bounded_int(
+            policy,
+            "memory_limit_bytes",
+            default=128 * 1024 * 1024,
+            minimum=32 * 1024 * 1024,
+            maximum=512 * 1024 * 1024,
+        )
+        pids_limit = _bounded_int(
+            policy,
+            "pids_limit",
+            default=64,
+            minimum=16,
+            maximum=256,
+        )
+        cpu_millicores = _bounded_int(
+            policy,
+            "cpu_millicores",
+            default=500,
+            minimum=100,
+            maximum=2000,
+        )
+        workspace_limit_bytes = _bounded_int(
+            policy,
+            "workspace_limit_bytes",
+            default=16 * 1024 * 1024,
+            minimum=1024 * 1024,
+            maximum=64 * 1024 * 1024,
+        )
+        network_access = str(policy.get("network_access", "none")).strip().lower()
+        if network_access != "none":
+            raise ValueError("POC Docker adapter only supports policy.network_access=none")
 
         sandbox_name = f"mr-saasy-sbx-{_slug(run_id)}-{attempt}-{uuid4().hex[:8]}"
         environment = {
@@ -114,16 +171,22 @@ class SandboxBroker:
                 user="65534:65534",
                 cap_drop=["ALL"],
                 security_opt=["no-new-privileges:true"],
-                mem_limit="128m",
-                nano_cpus=500_000_000,
-                pids_limit=64,
+                mem_limit=memory_limit_bytes,
+                nano_cpus=cpu_millicores * 1_000_000,
+                pids_limit=pids_limit,
                 tmpfs={
-                    "/workspace": "rw,nosuid,nodev,size=16m,uid=65534,gid=65534,mode=0700",
-                    "/tmp": "rw,nosuid,nodev,size=16m,uid=65534,gid=65534,mode=0700",
+                    "/workspace": (
+                        "rw,nosuid,nodev,"
+                        f"size={workspace_limit_bytes},uid=65534,gid=65534,mode=0700"
+                    ),
+                    "/tmp": (
+                        "rw,nosuid,nodev,"
+                        f"size={workspace_limit_bytes},uid=65534,gid=65534,mode=0700"
+                    ),
                 },
             )
             sandbox_id = container.id
-            wait_result = container.wait(timeout=20)
+            wait_result = container.wait(timeout=timeout_seconds)
             exit_code = int(wait_result.get("StatusCode", -1))
             output = container.logs(stdout=True, stderr=True).decode("utf-8", errors="replace")
             if len(output.encode("utf-8")) > MAX_OUTPUT_BYTES:
@@ -174,7 +237,7 @@ BROKER = SandboxBroker()
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "MRSAASySandboxBrokerPOC/0.1"
+    server_version = "MRSAASySandboxBrokerPOC/0.2"
 
     def log_message(self, format: str, *args: object) -> None:
         print(json.dumps({"client": self.client_address[0], "message": format % args}), flush=True)
