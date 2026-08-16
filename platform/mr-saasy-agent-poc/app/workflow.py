@@ -15,6 +15,7 @@ with workflow.unsafe.imports_passed_through():
         GateFeedback,
         GateInput,
         RunSnapshot,
+        SandboxExecutionPolicy,
         SandboxInput,
         ToolInput,
     )
@@ -25,6 +26,15 @@ _ACTIVITY_RETRY = RetryPolicy(
     backoff_coefficient=1.0,
     maximum_interval=timedelta(seconds=1),
     maximum_attempts=3,
+)
+
+_SANDBOX_POLICY = SandboxExecutionPolicy(
+    timeout_seconds=20,
+    memory_limit_bytes=128 * 1024 * 1024,
+    pids_limit=64,
+    network_access="none",
+    cpu_millicores=500,
+    workspace_limit_bytes=16 * 1024 * 1024,
 )
 
 _SANDBOX_TEST = """import unittest
@@ -101,6 +111,7 @@ class ChangeRunWorkflow:
                     attempt=attempt,
                     source_code=decision.candidate_source,
                     test_code=_SANDBOX_TEST,
+                    policy=_SANDBOX_POLICY,
                 ),
                 start_to_close_timeout=timedelta(seconds=30),
                 retry_policy=_ACTIVITY_RETRY,

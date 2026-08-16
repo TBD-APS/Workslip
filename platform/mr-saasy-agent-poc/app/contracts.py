@@ -54,12 +54,23 @@ class ToolResult:
     invocation_count: int
 
 
+@dataclass(frozen=True)
+class SandboxExecutionPolicy:
+    timeout_seconds: int = 20
+    memory_limit_bytes: int = 128 * 1024 * 1024
+    pids_limit: int = 64
+    network_access: str = "none"
+    cpu_millicores: int = 500
+    workspace_limit_bytes: int = 16 * 1024 * 1024
+
+
 @dataclass
 class SandboxInput:
     run_id: str
     attempt: int
     source_code: str
     test_code: str
+    policy: SandboxExecutionPolicy = field(default_factory=SandboxExecutionPolicy)
 
 
 @dataclass

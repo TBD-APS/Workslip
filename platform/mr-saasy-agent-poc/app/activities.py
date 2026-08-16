@@ -5,8 +5,6 @@ import fcntl
 import json
 import os
 from pathlib import Path
-from urllib import error as urllib_error
-from urllib import request as urllib_request
 
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
@@ -17,12 +15,12 @@ from .contracts import (
     GateFeedback,
     GateInput,
     GateResult,
-    SandboxEvidence,
     SandboxInput,
     SandboxResult,
     ToolInput,
     ToolResult,
 )
+from .sandbox import SandboxRunner, SandboxRunnerError, create_sandbox_runner
 
 
 _BROKEN_SOURCE = """def add(left: int, right: int) -> int:
@@ -33,13 +31,18 @@ _FIXED_SOURCE = """def add(left: int, right: int) -> int:
     return left + right
 """
 
+_SANDBOX_RUNNER: SandboxRunner | None = None
+
 
 def _state_path() -> Path:
     return Path(os.getenv("POC_STATE_FILE", "/state/tool-effects.json"))
 
 
-def _sandbox_broker_url() -> str:
-    return os.getenv("SANDBOX_BROKER_URL", "http://sandbox-broker:8080").rstrip("/")
+def _sandbox_runner() -> SandboxRunner:
+    global _SANDBOX_RUNNER
+    if _SANDBOX_RUNNER is None:
+        _SANDBOX_RUNNER = create_sandbox_runner()
+    return _SANDBOX_RUNNER
 
 
 def _read_state(path: Path) -> dict[str, dict[str, object]]:
@@ -53,31 +56,6 @@ def _write_state(path: Path, state: dict[str, dict[str, object]]) -> None:
     temporary = path.with_suffix(".tmp")
     temporary.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
     os.replace(temporary, path)
-
-
-def _post_json(url: str, payload: dict[str, object]) -> dict[str, object]:
-    body = json.dumps(payload).encode("utf-8")
-    request = urllib_request.Request(
-        url,
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib_request.urlopen(request, timeout=25) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib_error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise ApplicationError(
-            f"sandbox broker rejected request: HTTP {exc.code}: {detail}",
-            type="SandboxBrokerRejected",
-            non_retryable=400 <= exc.code < 500,
-        ) from exc
-    except Exception as exc:
-        raise ApplicationError(
-            f"sandbox broker unavailable: {exc}",
-            type="SandboxBrokerUnavailable",
-        ) from exc
 
 
 @activity.defn
@@ -155,41 +133,20 @@ async def perform_tool(request: ToolInput) -> ToolResult:
 
 @activity.defn
 async def execute_sandbox(request: SandboxInput) -> SandboxResult:
-    payload = {
-        "run_id": request.run_id,
-        "attempt": request.attempt,
-        "source_code": request.source_code,
-        "test_code": request.test_code,
-    }
-    raw = await asyncio.to_thread(_post_json, f"{_sandbox_broker_url()}/v1/run", payload)
-
-    evidence_raw = raw.get("evidence")
-    if not isinstance(evidence_raw, dict):
+    try:
+        return await _sandbox_runner().run(request)
+    except SandboxRunnerError as exc:
         raise ApplicationError(
-            "sandbox broker returned no structured evidence",
-            type="SandboxEvidenceMissing",
+            str(exc),
+            type=exc.error_type,
+            non_retryable=not exc.retryable,
+        ) from exc
+    except RuntimeError as exc:
+        raise ApplicationError(
+            str(exc),
+            type="SandboxRunnerConfigurationError",
             non_retryable=True,
-        )
-
-    evidence = SandboxEvidence(
-        sandbox_id=str(evidence_raw["sandbox_id"]),
-        sandbox_name=str(evidence_raw["sandbox_name"]),
-        image=str(evidence_raw["image"]),
-        exit_code=int(evidence_raw["exit_code"]),
-        output=str(evidence_raw.get("output", "")),
-        source_sha256=str(evidence_raw["source_sha256"]),
-        test_sha256=str(evidence_raw["test_sha256"]),
-        network_disabled=bool(evidence_raw["network_disabled"]),
-        read_only_root=bool(evidence_raw["read_only_root"]),
-        capabilities_dropped=bool(evidence_raw["capabilities_dropped"]),
-        no_new_privileges=bool(evidence_raw["no_new_privileges"]),
-        memory_limit_bytes=int(evidence_raw["memory_limit_bytes"]),
-        pids_limit=int(evidence_raw["pids_limit"]),
-        tmpfs_workspace=bool(evidence_raw["tmpfs_workspace"]),
-        bind_mount_count=int(evidence_raw["bind_mount_count"]),
-        destroyed=bool(evidence_raw["destroyed"]),
-    )
-    return SandboxResult(passed=bool(raw.get("passed", False)), evidence=evidence)
+        ) from exc
 
 
 @activity.defn
