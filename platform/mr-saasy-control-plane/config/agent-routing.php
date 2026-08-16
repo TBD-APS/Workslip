@@ -64,6 +64,55 @@ return [
     ],
 
     'roles' => [
+        'chief_executive' => [
+            'primary' => 'anthropic_frontier',
+            'fallback' => 'openai_frontier',
+            'required_capabilities' => ['reasoning', 'structured_output', 'tool_calling'],
+            'required_tools' => ['repository_read', 'web_search'],
+            'permissions' => ['execute_write' => false, 'review' => true, 'approve' => false],
+            'preference' => 'quality',
+        ],
+        'chief_operating_officer' => [
+            'primary' => 'openai_frontier',
+            'fallback' => 'reasoning_economy',
+            'required_capabilities' => ['reasoning', 'structured_output', 'tool_calling'],
+            'required_tools' => ['repository_read'],
+            'permissions' => ['execute_write' => false, 'review' => true, 'approve' => false],
+            'preference' => 'balanced',
+        ],
+        'chief_technology_officer' => [
+            'primary' => 'openai_frontier',
+            'fallback' => 'anthropic_frontier',
+            'required_capabilities' => ['reasoning', 'coding', 'large_context'],
+            'required_tools' => ['repository_read', 'pull_request_read'],
+            'permissions' => ['execute_write' => false, 'review' => true, 'approve' => false],
+            'preference' => 'quality',
+        ],
+        'chief_product_officer' => [
+            'primary' => 'anthropic_frontier',
+            'fallback' => 'openai_frontier',
+            'required_capabilities' => ['reasoning', 'structured_output'],
+            'required_tools' => ['repository_read', 'web_search'],
+            'permissions' => ['execute_write' => false, 'review' => true, 'approve' => false],
+            'preference' => 'quality',
+        ],
+        'chief_marketing_growth' => [
+            'primary' => 'xai_growth',
+            'fallback' => 'openai_frontier',
+            'required_capabilities' => ['reasoning', 'structured_output'],
+            'required_tools' => ['web_search'],
+            'permissions' => ['execute_write' => false, 'review' => true, 'approve' => false],
+            'preference' => 'quality',
+        ],
+        'chief_finance_commercial' => [
+            'primary' => 'openai_frontier',
+            'fallback' => 'anthropic_frontier',
+            'required_capabilities' => ['reasoning', 'structured_output'],
+            'required_tools' => ['web_search'],
+            'permissions' => ['execute_write' => false, 'review' => true, 'approve' => false],
+            'preference' => 'quality',
+        ],
+
         'engineering_orchestrator' => [
             'primary' => 'openai_frontier',
             'fallback' => 'anthropic_frontier',
