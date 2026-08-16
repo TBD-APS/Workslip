@@ -4,15 +4,15 @@ import { Loader2 } from 'lucide-react';
 import { useModalAccessibility } from '../../../components/common/useModalAccessibility';
 
 type ConfirmActionDialogProps = {
-  action: 'approve' | 'reject' | 'undo-reject';
+  action: 'approve' | 'reject' | 'undo-reject' | 'reopen';
   reportNumber: string;
   isPending: boolean;
-  onConfirm: (rejectionNote?: string) => void;
+  onConfirm: (reason?: string) => void;
   onClose: () => void;
 };
 
 export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm, onClose }: ConfirmActionDialogProps) {
-  const [rejectionNote, setRejectionNote] = useState('');
+  const [reason, setReason] = useState('');
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   const dialogRef = useModalAccessibility<HTMLDivElement>({
@@ -23,16 +23,20 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
 
   const isApprove = action === 'approve';
   const isUndoReject = action === 'undo-reject';
-  const title = isApprove ? 'Godkend sag' : isUndoReject ? 'Fortryd afvisning' : 'Afvis sag';
+  const isReopen = action === 'reopen';
+  const requiresReason = action === 'reject' || isReopen;
+  const title = isApprove ? 'Godkend sag' : isUndoReject ? 'Fortryd afvisning' : isReopen ? 'Genåbn godkendt sag' : 'Afvis sag';
+  const pendingLabel = isApprove ? 'Godkender...' : isReopen ? 'Genåbner...' : 'Afviser...';
+  const actionLabel = isApprove ? 'Godkend' : isUndoReject ? 'Fortryd afvisning' : isReopen ? 'Genåbn sag' : 'Afvis';
   const confirmButton = (
     <button
       type="button"
-      className={isApprove ? 'btn btn-primary' : 'btn btn-danger'}
-      onClick={() => onConfirm(rejectionNote)}
-      disabled={isPending || (action === 'reject' && !rejectionNote.trim())}
+      className={isApprove ? 'btn btn-primary' : isReopen ? 'btn btn-secondary' : 'btn btn-danger'}
+      onClick={() => onConfirm(reason)}
+      disabled={isPending || (requiresReason && !reason.trim())}
     >
       {isPending && <Loader2 className="animate-spin" size={16} aria-hidden="true" />}
-      <span>{isPending ? (isApprove ? 'Godkender...' : 'Afviser...') : (isApprove ? 'Godkend' : isUndoReject ? 'Fortryd afvisning' : 'Afvis')}</span>
+      <span>{isPending ? pendingLabel : actionLabel}</span>
     </button>
   );
   const cancelButton = (
@@ -59,19 +63,27 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
         tabIndex={-1}
       >
         <h3 id={titleId}>{title}</h3>
-        <p>
-          Er du sikker på, du vil {isUndoReject ? 'fortryde afvisningen af' : isApprove ? 'godkende' : 'afvise'} sagen <strong>{reportNumber}</strong>?
-        </p>
+        {isReopen ? (
+          <p>
+            Sagen <strong>{reportNumber}</strong> er godkendt og låst. Genåbning gør den redigerbar igen, og årsagen gemmes permanent i sagshistorikken.
+          </p>
+        ) : (
+          <p>
+            Er du sikker på, du vil {isUndoReject ? 'fortryde afvisningen af' : isApprove ? 'godkende' : 'afvise'} sagen <strong>{reportNumber}</strong>?
+          </p>
+        )}
 
-        {action === 'reject' && (
+        {requiresReason && (
           <div className="form-group" style={{ marginTop: '1rem' }}>
-            <label className="form-label" htmlFor="rejection-note">Begrundelse for afvisning</label>
+            <label className="form-label" htmlFor="status-reason">
+              {isReopen ? 'Hvorfor skal sagen genåbnes?' : 'Begrundelse for afvisning'}
+            </label>
             <textarea
-              id="rejection-note"
+              id="status-reason"
               className="form-input form-textarea"
-              value={rejectionNote}
-              onChange={(event) => setRejectionNote(event.target.value)}
-              placeholder="Angiv årsagen til afvisningen..."
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder={isReopen ? 'Beskriv hvad der skal ændres og hvorfor...' : 'Angiv årsagen til afvisningen...'}
               rows={3}
             />
           </div>
