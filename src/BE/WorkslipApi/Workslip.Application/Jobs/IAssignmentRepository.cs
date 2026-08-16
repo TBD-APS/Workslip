@@ -15,7 +15,20 @@ public interface IAssignmentRepository
     Task<IReadOnlyDictionary<Guid, IReadOnlyList<AssignedUserResponse>>> GetAssignedUsersByReportAsync(Guid organizationId, IEnumerable<Guid> reportIds, CancellationToken cancellationToken);
     Task<IReadOnlyList<AssignedUserResponse>> GetAssignedUsersByIdsAsync(Guid organizationId, IReadOnlyList<Guid> userIds, CancellationToken cancellationToken);
     Task<IReadOnlyList<AssignedUserResponse>> GetOrganizationAdminsAsync(Guid organizationId, CancellationToken cancellationToken);
-    Task<IReadOnlyList<AssignedUserResponse>> GetAssignableUsersForJobAsync(Guid organizationId, Guid jobId, CancellationToken cancellationToken);
-    Task<AddAssignedUserResult> AddAssignedUserAsync(Guid organizationId, Guid jobId, Guid userId, Guid? actorId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<AssignedUserResponse>> GetAssignableUsersForJobAsync(
+        Guid organizationId,
+        Guid jobId,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<AssignedUserResponse>>([]);
+
+    Task<AddAssignedUserResult> AddAssignedUserAsync(
+        Guid organizationId,
+        Guid jobId,
+        Guid userId,
+        Guid? actorId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Scoped self-assignment is not implemented by this assignment repository.");
+
     Task AddAssignedUsersAsync(Guid organizationId, Guid reportId, IReadOnlyList<Guid> userIds, Guid? actorId, DateTimeOffset now, CancellationToken cancellationToken);
 }
