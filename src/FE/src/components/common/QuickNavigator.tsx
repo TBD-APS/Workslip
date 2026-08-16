@@ -1,20 +1,19 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, FileText, LoaderCircle, Search, X } from 'lucide-react';
-import { JobStatus, type JobListItemViewModel } from '../../api/generated/models';
-import { apiClient } from '../../lib/axios';
+import { Search, X } from 'lucide-react';
 import { buildQuickNavigatorCommands, type QuickNavigatorCommand } from './quickNavigatorCommands';
-import { filterQuickNavigationJobs, getQuickJobSearchTerm } from './quickNavigatorSearch';
+import { useQuickNavigatorSearch } from './useQuickNavigatorSearch';
+import { QuickNavigatorResults } from './QuickNavigatorResults';
+import type { QuickNavigatorSearchScope } from './quickNavigatorTypes';
+import type { JobListItemViewModel } from '../../api/generated/models';
+import type { CustomerSearchViewModel } from '../../api/generated/models';
+import { JobStatus } from '../../api/generated/models';
 import './QuickNavigator.css';
 
-type QuickNavigatorResult =
+export type QuickNavigatorResult =
   | { type: 'command'; command: QuickNavigatorCommand }
-  | { type: 'job'; job: JobListItemViewModel };
-
-type JobSearchResponse = {
-  items: JobListItemViewModel[];
-  totalCount: number;
-};
+  | { type: 'job'; job: JobListItemViewModel }
+  | { type: 'customer'; customer: CustomerSearchViewModel };
 
 interface QuickNavigatorProps {
   isOpen: boolean;
@@ -37,8 +36,6 @@ interface QuickNavigatorProps {
 }
 
 const normalize = (value: string) => value.trim().toLocaleLowerCase('da-DK');
-const isReadonlyState = (status: JobStatus) =>
-  status === JobStatus.InReview || status === JobStatus.Approved;
 
 export function QuickNavigator({
   isOpen,
@@ -65,10 +62,6 @@ export function QuickNavigator({
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const [query, setQuery] = useState('');
-  const [jobs, setJobs] = useState<JobListItemViewModel[]>([]);
-  const [jobResultTerm, setJobResultTerm] = useState('');
-  const [isSearchingJobs, setIsSearchingJobs] = useState(false);
-  const [jobSearchFailed, setJobSearchFailed] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
   const commands = useMemo(() => buildQuickNavigatorCommands({
@@ -106,24 +99,27 @@ export function QuickNavigator({
     );
   }, [commands, query]);
 
-  const jobSearchTerm = getQuickJobSearchTerm(query);
-  const hasCurrentJobResults = Boolean(jobSearchTerm) && jobResultTerm === jobSearchTerm;
-  const visibleJobs = hasCurrentJobResults ? jobs : [];
-  const results: QuickNavigatorResult[] = [
+  const searchScope: QuickNavigatorSearchScope = useMemo(() => ({
+    canSearchJobs,
+    canViewAllJobs,
+    currentUserId,
+    canViewCustomers,
+    query,
+    isOpen,
+  }), [canSearchJobs, canViewAllJobs, currentUserId, canViewCustomers, query, isOpen]);
+
+  const searchResult = useQuickNavigatorSearch(searchScope);
+
+  const results: QuickNavigatorResult[] = useMemo(() => [
     ...filteredCommands.map((command) => ({ type: 'command' as const, command })),
-    ...visibleJobs.map((job) => ({ type: 'job' as const, job })),
-  ];
+    ...searchResult.jobs.map((job) => ({ type: 'job' as const, job })),
+    ...searchResult.customers.map((customer) => ({ type: 'customer' as const, customer })),
+  ], [filteredCommands, searchResult.jobs, searchResult.customers]);
+
   const safeActiveIndex = Math.min(activeIndex, Math.max(results.length - 1, 0));
-  const isPendingJobSearch = Boolean(jobSearchTerm) && jobResultTerm !== jobSearchTerm;
-  const showSearchingJobs = Boolean(jobSearchTerm) && (isPendingJobSearch || isSearchingJobs);
-  const showJobSearchError = hasCurrentJobResults && jobSearchFailed;
 
   const resetAndClose = () => {
     setQuery('');
-    setJobs([]);
-    setJobResultTerm('');
-    setJobSearchFailed(false);
-    setIsSearchingJobs(false);
     setActiveIndex(0);
     onClose();
   };
@@ -154,35 +150,6 @@ export function QuickNavigator({
     };
   }, [isOpen]);
 
-  useEffect(() => {
-    if (!isOpen || !canSearchJobs || !jobSearchTerm) return undefined;
-    const controller = new AbortController();
-    const timer = window.setTimeout(async () => {
-      setJobResultTerm(jobSearchTerm);
-      setJobs([]);
-      setIsSearchingJobs(true);
-      setJobSearchFailed(false);
-      try {
-        const response = await apiClient.get('/api/jobs', {
-          params: { search: jobSearchTerm, limit: 5, offset: 0 },
-          signal: controller.signal,
-        }) as JobSearchResponse;
-        setJobs(filterQuickNavigationJobs(response.items ?? [], canViewAllJobs, currentUserId));
-      } catch {
-        if (!controller.signal.aborted) {
-          setJobs([]);
-          setJobSearchFailed(true);
-        }
-      } finally {
-        if (!controller.signal.aborted) setIsSearchingJobs(false);
-      }
-    }, 180);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [canSearchJobs, canViewAllJobs, currentUserId, isOpen, jobSearchTerm]);
-
   if (!isOpen) return null;
 
   const selectResult = (result: QuickNavigatorResult) => {
@@ -191,7 +158,13 @@ export function QuickNavigator({
       navigate(result.command.path);
       return;
     }
-    const path = isReadonlyState(result.job.status)
+    if (result.type === 'customer') {
+      const from = `${location.pathname}${location.search}${location.hash}`;
+      resetAndClose();
+      navigate(`/app/customers/${result.customer.id}`, { state: { from } });
+      return;
+    }
+    const path = result.job.status === JobStatus.InReview || result.job.status === JobStatus.Approved
       ? `/app/completed/${result.job.id}`
       : `/app/job/${result.job.id}`;
     const from = `${location.pathname}${location.search}${location.hash}`;
@@ -279,7 +252,7 @@ export function QuickNavigator({
               setActiveIndex(0);
             }}
             onKeyDown={handleInputKeyDown}
-            placeholder="Søg efter side eller sag…"
+            placeholder="Søg efter side, sag eller kunde…"
             aria-label="Søg i Workslip"
             autoComplete="off"
             spellCheck={false}
@@ -289,75 +262,19 @@ export function QuickNavigator({
 
         <div className="quick-nav-meta" aria-live="polite">
           <span>{hasSearchQuery ? resultCountText : 'Genveje'}</span>
-          {showSearchingJobs && <span className="quick-nav-searching"><LoaderCircle size={14} /> Søger sager…</span>}
-        </div>
-
-        <div className="quick-nav-results">
-          {results.map((result, index) => {
-            if (result.type === 'command') {
-              const Icon = result.command.icon;
-              return (
-                <button
-                  key={result.command.id}
-                  type="button"
-                  className={`quick-nav-result${index === safeActiveIndex ? ' active' : ''}`}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  onClick={() => selectResult(result)}
-                >
-                  <span className="quick-nav-result-icon"><Icon size={19} /></span>
-                  <span className="quick-nav-result-copy">
-                    <strong>{result.command.label}</strong>
-                    <span>{result.command.description}</span>
-                  </span>
-                  <ArrowRight size={17} className="quick-nav-result-arrow" aria-hidden="true" />
-                </button>
-              );
-            }
-
-            const job = result.job;
-            const title = `SAG-${(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}`;
-            const customer = job.customer?.name || job.taskDescription || 'Sag';
-            const address = job.destinationAddress || job.customer?.address;
-            return (
-              <button
-                key={`job-${job.id}`}
-                type="button"
-                className={`quick-nav-result quick-nav-job-result${index === safeActiveIndex ? ' active' : ''}`}
-                onMouseEnter={() => setActiveIndex(index)}
-                onClick={() => selectResult(result)}
-              >
-                <span className="quick-nav-result-icon"><FileText size={19} /></span>
-                <span className="quick-nav-result-copy">
-                  <strong>{title} · {customer}</strong>
-                  <span>{address || 'Åbn sag'}</span>
-                </span>
-                <ArrowRight size={17} className="quick-nav-result-arrow" aria-hidden="true" />
-              </button>
-            );
-          })}
-
-          {!jobSearchTerm && results.length === 0 && (
-            <div className="quick-nav-empty">
-              <Search size={22} aria-hidden="true" />
-              <strong>Ingen resultater</strong>
-              <span>Prøv fx “timer”, “docs”, “kunde” eller “sag 1234”.</span>
-            </div>
-          )}
-
-          {hasCurrentJobResults && !isSearchingJobs && results.length === 0 && !jobSearchFailed && (
-            <div className="quick-nav-empty">
-              <Search size={22} aria-hidden="true" />
-              <strong>Ingen sager fundet</strong>
-              <span>Prøv et andet sagsnummer.</span>
-            </div>
-          )}
-
-          {showJobSearchError && (
-            <div className="quick-nav-search-error" role="status">
-              Sager kunne ikke søges lige nu. Navigationen ovenfor virker stadig.
-            </div>
+          {searchResult.isLoading && (
+            <span className="quick-nav-searching">Søger…</span>
           )}
         </div>
+
+        <QuickNavigatorResults
+          results={results}
+          safeActiveIndex={safeActiveIndex}
+          hasSearchQuery={hasSearchQuery}
+          searchResult={searchResult}
+          onSelect={selectResult}
+          onHoverIndex={setActiveIndex}
+        />
 
         <div className="quick-nav-footer">
           <span><kbd>↑</kbd><kbd>↓</kbd> vælg</span>
