@@ -17,7 +17,8 @@ public interface INotificationService
         string recipientName,
         DateOnly workDate,
         decimal hours,
-        CancellationToken cancellationToken) => Task.CompletedTask;
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Daily hours limit notifications are not implemented by this notification service.");
 
     Task QueueConversationMentionAsync(
         Guid userId,
