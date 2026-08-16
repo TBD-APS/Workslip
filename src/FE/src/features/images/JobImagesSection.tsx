@@ -27,6 +27,7 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [uploadFeedback, setUploadFeedback] = useState('');
   const [imageToDelete, setImageToDelete] = useState<string | null>(null);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
@@ -51,16 +52,22 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
     if (libraryInputRef.current) libraryInputRef.current.value = '';
     if (files.length === 0) return;
 
-    const rejected = files
-      .map((file) => ({ file, error: validateImageUpload(file) }))
+    const validationResults = files.map((file) => ({ file, error: validateImageUpload(file) }));
+    const rejected = validationResults
       .filter((item): item is { file: File; error: string } => Boolean(item.error));
-    const validFiles = files.filter((file) => validateImageUpload(file) === null);
+    const validFiles = validationResults
+      .filter((item) => item.error === null)
+      .map((item) => item.file);
 
     if (rejected.length > 0) {
       const reasons = [...new Set(rejected.map((item) => item.error))].join(' ');
-      notify.error(rejected.length === 1
+      const message = rejected.length === 1
         ? reasons
-        : `${rejected.length} billeder blev afvist. ${reasons}`);
+        : `${rejected.length} billeder blev afvist. ${reasons}`;
+      setUploadFeedback(message);
+      notify.error(message);
+    } else {
+      setUploadFeedback('');
     }
     if (validFiles.length === 0) return;
 
@@ -73,17 +80,21 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
         await uploadJobImage(jobId, validFiles[index]);
         uploadedCount += 1;
       } catch (error) {
-        notify.error(getUploadErrorMessage(error, {
+        const message = getUploadErrorMessage(error, {
           fallback: `Kunne ikke uploade billede ${index + 1} af ${validFiles.length}. Prøv igen.`,
           tooLarge: `Billedet må højst være ${MAX_IMAGE_UPLOAD_MB} MB.`,
-        }));
+        });
+        setUploadFeedback(message);
+        notify.error(message);
       }
     }
 
     setUploadProgress(null);
     if (uploadedCount > 0) {
       await queryClient.invalidateQueries({ queryKey: jobImagesQueryKey(jobId) });
-      notify.success(`${uploadedCount} billede${uploadedCount === 1 ? '' : 'r'} uploadet`);
+      const message = `${uploadedCount} billede${uploadedCount === 1 ? '' : 'r'} uploadet`;
+      setUploadFeedback(message);
+      notify.success(message);
     }
   };
 
@@ -95,6 +106,7 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
   };
 
   const images = imagesQuery.data ?? [];
+  const uploadFeedbackId = `job-image-upload-feedback-${jobId}`;
 
   return (
     <section className="job-images-section" aria-labelledby={`job-images-${jobId}`}>
@@ -111,6 +123,7 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
               type="file"
               accept={IMAGE_UPLOAD_ACCEPT}
               capture="environment"
+              aria-describedby={uploadFeedbackId}
               onChange={(event) => void handleFiles(event.target.files)}
               disabled={Boolean(uploadProgress)}
             />
@@ -120,9 +133,13 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
               type="file"
               accept={IMAGE_UPLOAD_ACCEPT}
               multiple
+              aria-describedby={uploadFeedbackId}
               onChange={(event) => void handleFiles(event.target.files)}
               disabled={Boolean(uploadProgress)}
             />
+            <span id={uploadFeedbackId} className="sr-only" role="status" aria-live="polite">
+              {uploadFeedback}
+            </span>
             <button
               className="btn btn-secondary job-images-upload job-images-camera-action"
               type="button"
