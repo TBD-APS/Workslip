@@ -29,6 +29,14 @@ const formatAge = (seconds: number) => {
   return `${Math.floor(seconds / 60)} min.`;
 };
 
+const readCurrentPosition = () => new Promise<GeolocationPosition>((resolve, reject) => {
+  navigator.geolocation.getCurrentPosition(resolve, reject, {
+    enableHighAccuracy: true,
+    maximumAge: 15_000,
+    timeout: 20_000,
+  });
+});
+
 export function LocationTracking() {
   const isAdmin = useIsAdmin();
   const watchId = useRef<number | null>(null);
@@ -82,6 +90,7 @@ export function LocationTracking() {
     setBusy(true);
     setPermissionError(null);
     try {
+      const initialPosition = await readCurrentPosition();
       const started = await apiClient.post<never, { sessionId: string; active: boolean }>('/api/location/sessions/start') as unknown as { sessionId: string; active: boolean };
       sessionId.current = started.sessionId;
       setStatus((current) => ({
@@ -93,15 +102,23 @@ export function LocationTracking() {
         accuracyMeters: current?.accuracyMeters ?? null,
       }));
 
+      await sendPosition(initialPosition);
       watchId.current = navigator.geolocation.watchPosition(
         (position) => { void sendPosition(position); },
         (error) => {
           setPermissionError(error.code === error.PERMISSION_DENIED
-            ? 'GPS-tilladelse blev afvist. Tillad lokation i browseren og prøv igen.'
+            ? 'GPS-tilladelsen blev fjernet. Stop tracking eller tillad lokation igen.'
             : `GPS kunne ikke læses: ${error.message}`);
         },
         { enableHighAccuracy: true, maximumAge: 15_000, timeout: 20_000 },
       );
+    } catch (error) {
+      if (error instanceof GeolocationPositionError || (typeof error === 'object' && error !== null && 'code' in error)) {
+        const geoError = error as GeolocationPositionError;
+        setPermissionError(geoError.code === geoError.PERMISSION_DENIED
+          ? 'GPS-tilladelse blev afvist. Tillad lokation i browseren og prøv igen.'
+          : `GPS kunne ikke læses: ${geoError.message}`);
+      }
     } finally {
       setBusy(false);
     }
