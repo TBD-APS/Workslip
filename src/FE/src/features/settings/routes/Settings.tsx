@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
+  CreditCard,
   FileText,
   Loader2,
   Mail,
@@ -174,7 +175,7 @@ export const Settings = () => {
       <div className="page-container">
         <div className="page-header">
           <h2>Administrativt</h2>
-          <p className="subtitle">Administrer invitationer</p>
+          <p className="subtitle">Administrer brugere og virksomhedsindstillinger</p>
         </div>
 
         <div className="section-card">
@@ -338,6 +339,20 @@ export const Settings = () => {
               })}
             </div>
           )}
+        </div>
+
+        <div className="section-card" style={{ marginTop: '1rem' }}>
+          <h3 className="section-card-title">
+            <CreditCard size={18} aria-hidden="true" />
+            Betaling & abonnement
+          </h3>
+
+          <div className="section-card-link">
+            <Link to="/app/settings/billing-guide">
+              <span>Sådan fungerer betaling og abonnement</span>
+              <ChevronRight size={16} aria-hidden="true" />
+            </Link>
+          </div>
         </div>
 
         <div className="section-card" style={{ marginTop: '1rem' }}>
