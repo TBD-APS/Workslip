@@ -36,19 +36,14 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - name: Validate Composer manifest
-        run: composer validate --strict --no-check-lock
+      - name: Validate locked Composer manifest
+        run: composer validate --strict
 
-      - name: Resolve bootstrap dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -f composer.lock ]]; then
-            composer install --no-interaction --prefer-dist --no-progress
-          else
-            echo '::warning::composer.lock is not committed yet; generating bootstrap lock for this Gate 0 branch.'
-            composer update --no-interaction --prefer-dist --no-progress
-          fi
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Audit locked dependencies
+        run: composer audit --locked --no-interaction
 
       - name: Boot and feature tests
         run: php artisan test
@@ -62,11 +57,3 @@ jobs:
           name: mr-saasy-gate0-architecture
           path: platform/mr-saasy-control-plane/build/architecture.mmd
           if-no-files-found: error
-
-      - name: Upload generated Composer lock during bootstrap
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: mr-saasy-gate0-composer-lock
-          path: platform/mr-saasy-control-plane/composer.lock
-          if-no-files-found: ignore
