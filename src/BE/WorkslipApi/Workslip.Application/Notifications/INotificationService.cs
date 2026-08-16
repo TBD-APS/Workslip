@@ -12,6 +12,14 @@ public interface INotificationService
     Task QueueJobUnassignedAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, CancellationToken cancellationToken);
     Task QueueJobDeletedAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, CancellationToken cancellationToken);
 
+    Task QueueDailyHoursLimitReachedAsync(
+        Guid userId,
+        string recipientName,
+        DateOnly workDate,
+        decimal hours,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Daily hours limit notifications are not implemented by this notification service.");
+
     Task QueueConversationMentionAsync(
         Guid userId,
         string recipientName,
