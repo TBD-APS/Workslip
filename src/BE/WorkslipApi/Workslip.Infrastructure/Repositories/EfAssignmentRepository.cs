@@ -250,6 +250,135 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
             .ToArrayAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<AssignedUserResponse>> GetAssignableUsersForJobAsync(
+        Guid organizationId,
+        Guid jobId,
+        CancellationToken cancellationToken)
+    {
+        if (organizationId != _currentUser.OrganizationId)
+            return [];
+
+        var filialId = await _dbContext.JobReports
+            .AsNoTracking()
+            .Where(job => job.OrganizationId == organizationId && job.Id == jobId && !job.IsSoftDeleted)
+            .Select(job => (Guid?)job.FilialId)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (filialId is null)
+            return [];
+
+        string? actorUserKind = null;
+        if (!string.Equals(_currentUser.Role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase))
+        {
+            if (_currentUser.UserId is not Guid actorId)
+                return [];
+
+            actorUserKind = UserKinds.Normalize(await _dbContext.Users
+                .AsNoTracking()
+                .Where(user => user.OrganizationId == organizationId && user.Id == actorId)
+                .Select(user => user.UserKind)
+                .SingleOrDefaultAsync(cancellationToken));
+            if (actorUserKind is null)
+                return [];
+        }
+
+        var candidates = await _dbContext.Users
+            .AsNoTracking()
+            .Where(user => user.OrganizationId == organizationId
+                && user.FilialId == filialId.Value
+                && (user.Role == Roles.User || user.Role == Roles.Admin))
+            .OrderBy(user => user.DisplayName)
+            .Take(1000)
+            .Select(user => new { user.Id, user.DisplayName, user.Role, user.UserKind, user.FilialId })
+            .ToArrayAsync(cancellationToken);
+
+        return candidates
+            .Where(user => UserVisibilityPolicy.CanAccess(
+                    _currentUser.Role,
+                    actorUserKind,
+                    user.Role,
+                    user.UserKind)
+                && JobAssignmentPolicy.CanReceiveAssignmentInFilial(
+                    user.Role,
+                    user.FilialId,
+                    filialId.Value))
+            .Select(user => new AssignedUserResponse(user.Id, user.DisplayName))
+            .ToArray();
+    }
+
+    public Task<AddAssignedUserResult> AddAssignedUserAsync(
+        Guid organizationId,
+        Guid jobId,
+        Guid userId,
+        Guid? actorId,
+        CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync(
+            "jobs.assign-self",
+            token => AddAssignedUserCoreAsync(organizationId, jobId, userId, actorId, token),
+            cancellationToken);
+
+    private async Task<AddAssignedUserResult> AddAssignedUserCoreAsync(
+        Guid organizationId,
+        Guid jobId,
+        Guid userId,
+        Guid? actorId,
+        CancellationToken cancellationToken)
+    {
+        if (organizationId != _currentUser.OrganizationId)
+            return AddAssignedUserResult.NotFound;
+
+        var job = await _dbContext.JobReports
+            .FirstOrDefaultAsync(
+                report => report.OrganizationId == organizationId && report.Id == jobId,
+                cancellationToken);
+        if (job is null || job.IsSoftDeleted)
+            return AddAssignedUserResult.NotFound;
+
+        if (string.Equals(job.Status, JobStatus.Approved.ToString(), StringComparison.OrdinalIgnoreCase))
+            return AddAssignedUserResult.Locked;
+
+        if (await _dbContext.JobAssignments.AsNoTracking().AnyAsync(
+                assignment => assignment.OrganizationId == organizationId
+                    && assignment.ReportId == jobId
+                    && assignment.UserId == userId,
+                cancellationToken))
+        {
+            return AddAssignedUserResult.AlreadyAssigned;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var row = new JobAssignmentRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            ReportId = jobId,
+            UserId = userId,
+            AssignedByUserId = TenantActorPolicy.ResolveTenantUserReference(actorId, _currentUser.Role),
+            AssignedAt = now
+        };
+        _dbContext.JobAssignments.Add(row);
+        _dbContext.Entry(job).Property(report => report.UpdatedAt).CurrentValue = now;
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return AddAssignedUserResult.Added;
+        }
+        catch (DbUpdateException)
+        {
+            _dbContext.Entry(row).State = EntityState.Detached;
+            if (await _dbContext.JobAssignments.AsNoTracking().AnyAsync(
+                    assignment => assignment.OrganizationId == organizationId
+                        && assignment.ReportId == jobId
+                        && assignment.UserId == userId,
+                    cancellationToken))
+            {
+                return AddAssignedUserResult.AlreadyAssigned;
+            }
+
+            throw;
+        }
+    }
+
     public Task AddAssignedUsersAsync(
         Guid organizationId, Guid reportId,
         IReadOnlyList<Guid> userIds, Guid? actorId,

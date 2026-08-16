@@ -23,7 +23,33 @@ public interface IJobConversationRepository
         IReadOnlyList<Guid> mentionedUserIds,
         ConversationActionType? actionType,
         Guid? actionTargetUserId,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Conversation writes are not implemented by this repository.");
+
+    Task<ConversationMessageResponse> CreateAsync(
+        Guid organizationId,
+        Guid jobId,
+        Guid authorUserId,
+        string body,
+        IReadOnlyList<Guid> mentionedUserIds,
+        ConversationActionType? actionType,
+        Guid? actionTargetUserId,
+        DateTimeOffset? actionDueUtc,
+        CancellationToken cancellationToken)
+    {
+        if (actionDueUtc is not null)
+            throw new NotSupportedException("Scheduled conversation actions are not implemented by this repository.");
+
+        return CreateAsync(
+            organizationId,
+            jobId,
+            authorUserId,
+            body,
+            mentionedUserIds,
+            actionType,
+            actionTargetUserId,
+            cancellationToken);
+    }
 
     Task<ConversationMessageResponse?> GetByIdAsync(
         Guid organizationId,

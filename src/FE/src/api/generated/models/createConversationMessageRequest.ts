@@ -14,4 +14,6 @@ export interface CreateConversationMessageRequest {
   actionType?: null | ConversationActionType;
   /** @nullable */
   actionTargetUserId?: string | null;
+  /** @nullable */
+  actionDueUtc?: string | null;
 }
