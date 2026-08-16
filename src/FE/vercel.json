@@ -1,9 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "if [ \"$VERCEL_ENV\" = \"preview\" ] || [ \"$VERCEL_ENV\" = \"development\" ]; then echo \"[release] Skipping production eligibility gate for VERCEL_ENV=$VERCEL_ENV.\" && npm run build; else node scripts/vercel-production-eligibility.mjs && npm run build; fi",
+  "buildCommand": "node scripts/vercel-production-eligibility.mjs && npm run build",
   "git": {
     "deploymentEnabled": {
-      "**": false,
+      "*": false,
       "main": true
     }
   },
