@@ -3,9 +3,11 @@ import { User, Mail, Shield, PartyPopper, Pencil, Save, X, Loader2, Camera, Tras
 import { useLocation } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { notify } from '../../../lib/toast';
+import { getUploadErrorMessage } from '../../../lib/uploadError';
 import { useAuth } from '../../../providers/useAuth';
 import { usePatchApiAuthMe, getGetApiAuthMeQueryKey } from '../../../api/generated/auth/auth';
 import { deleteProfileImage, uploadProfileImage } from '../../images/imageApi';
+import { IMAGE_UPLOAD_ACCEPT, MAX_IMAGE_UPLOAD_MB, validateImageUpload } from '../../images/imageUploadPolicy';
 import { profileImageQueryKey } from '../../images/imageQueryKeys';
 import { ProfileAvatar } from '../../images/ProfileAvatar';
 import { useProfileImage } from '../../images/profileImageQuery';
@@ -15,9 +17,6 @@ const roleLabels: Record<string, string> = {
   Admin: 'Administrator',
   User: 'Bruger',
 };
-
-const MAX_PROFILE_IMAGE_SIZE = 10 * 1024 * 1024;
-const PROFILE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 export const Profile = () => {
   const { user, updateUser } = useAuth();
@@ -40,7 +39,10 @@ export const Profile = () => {
       }
       notify.success('Profilbillede opdateret');
     },
-    onError: () => notify.error('Kunne ikke uploade profilbilledet. Brug JPEG, PNG eller WebP på maks. 10 MB.'),
+    onError: (error) => notify.error(getUploadErrorMessage(error, {
+      fallback: 'Kunne ikke uploade profilbilledet. Prøv igen.',
+      tooLarge: `Profilbilledet må højst være ${MAX_IMAGE_UPLOAD_MB} MB.`,
+    })),
   });
 
   const profileDeleteMutation = useMutation({
@@ -93,8 +95,9 @@ export const Profile = () => {
     if (profileInputRef.current) profileInputRef.current.value = '';
     if (!file) return;
 
-    if (!PROFILE_IMAGE_TYPES.has(file.type) || file.size <= 0 || file.size > MAX_PROFILE_IMAGE_SIZE) {
-      notify.error('Brug et JPEG-, PNG- eller WebP-billede på maks. 10 MB.');
+    const validationError = validateImageUpload(file);
+    if (validationError) {
+      notify.error(validationError);
       return;
     }
 
@@ -140,7 +143,7 @@ export const Profile = () => {
                     ref={profileInputRef}
                     className="sr-only"
                     type="file"
-                    accept="image/jpeg,image/png,image/webp"
+                    accept={IMAGE_UPLOAD_ACCEPT}
                     onChange={(event) => handleProfileImage(event.target.files)}
                     disabled={profileImageBusy}
                   />

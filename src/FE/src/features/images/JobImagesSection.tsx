@@ -4,6 +4,7 @@ import { Camera, ChevronLeft, ChevronRight, ImagePlus, Loader2, Trash2, X } from
 import { ConfirmDeleteDialog } from '../../components/common/ConfirmDeleteDialog';
 import { useModalAccessibility } from '../../components/common/useModalAccessibility';
 import { notify } from '../../lib/toast';
+import { getUploadErrorMessage } from '../../lib/uploadError';
 import {
   deleteJobImage,
   fetchJobImageBlob,
@@ -11,12 +12,10 @@ import {
   uploadJobImage,
   type ImageInfo,
 } from './imageApi';
+import { IMAGE_UPLOAD_ACCEPT, MAX_IMAGE_UPLOAD_MB, validateImageUpload } from './imageUploadPolicy';
 import { jobImageBlobQueryKey, jobImagesQueryKey } from './imageQueryKeys';
 import { useObjectUrl } from './useObjectUrl';
 import './images.css';
-
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 type JobImagesSectionProps = {
   jobId: string;
@@ -52,10 +51,16 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
     if (libraryInputRef.current) libraryInputRef.current.value = '';
     if (files.length === 0) return;
 
-    const validFiles = files.filter((file) => ALLOWED_TYPES.has(file.type) && file.size > 0 && file.size <= MAX_IMAGE_SIZE);
-    const rejectedCount = files.length - validFiles.length;
-    if (rejectedCount > 0) {
-      notify.error(`${rejectedCount} billede${rejectedCount === 1 ? '' : 'r'} blev afvist. Brug JPEG, PNG eller WebP på maks. 10 MB.`);
+    const rejected = files
+      .map((file) => ({ file, error: validateImageUpload(file) }))
+      .filter((item): item is { file: File; error: string } => Boolean(item.error));
+    const validFiles = files.filter((file) => validateImageUpload(file) === null);
+
+    if (rejected.length > 0) {
+      const reasons = [...new Set(rejected.map((item) => item.error))].join(' ');
+      notify.error(rejected.length === 1
+        ? reasons
+        : `${rejected.length} billeder blev afvist. ${reasons}`);
     }
     if (validFiles.length === 0) return;
 
@@ -67,8 +72,11 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
       try {
         await uploadJobImage(jobId, validFiles[index]);
         uploadedCount += 1;
-      } catch {
-        notify.error(`Kunne ikke uploade billede ${index + 1} af ${validFiles.length}.`);
+      } catch (error) {
+        notify.error(getUploadErrorMessage(error, {
+          fallback: `Kunne ikke uploade billede ${index + 1} af ${validFiles.length}. Prøv igen.`,
+          tooLarge: `Billedet må højst være ${MAX_IMAGE_UPLOAD_MB} MB.`,
+        }));
       }
     }
 
@@ -101,7 +109,7 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
               ref={cameraInputRef}
               className="sr-only"
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept={IMAGE_UPLOAD_ACCEPT}
               capture="environment"
               onChange={(event) => void handleFiles(event.target.files)}
               disabled={Boolean(uploadProgress)}
@@ -110,7 +118,7 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
               ref={libraryInputRef}
               className="sr-only"
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept={IMAGE_UPLOAD_ACCEPT}
               multiple
               onChange={(event) => void handleFiles(event.target.files)}
               disabled={Boolean(uploadProgress)}

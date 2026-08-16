@@ -84,6 +84,53 @@ async function authSessionFlow(session) {
     }, { screenshot: requestedRole === 'Superadmin' });
   }
 
+  await session.step('profile image accepts more than 10 MB and surfaces validation details', async () => {
+    await session.login('Admin');
+    await session.page.goto(`${APP_URL}/app/profil`, { waitUntil: 'domcontentloaded' });
+    await session.page.waitForURL((url) => url.pathname === '/app/profil', { timeout: UI_TIMEOUT });
+
+    for (const entry of session.scenarioReport.failedApiResponses) {
+      if (entry.status === 404 && entry.url?.includes('/profile-image')) entry.expected = true;
+    }
+
+    const input = session.page.locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]').first();
+    await input.waitFor({ state: 'attached', timeout: UI_TIMEOUT });
+
+    const jpeg = Buffer.alloc(11 * 1024 * 1024);
+    jpeg[0] = 0xFF;
+    jpeg[1] = 0xD8;
+    jpeg[2] = 0xFF;
+    const successfulUpload = session.page.waitForResponse(
+      (response) => response.request().method() === 'PUT' && response.url().includes('/api/auth/me/profile-image'),
+      { timeout: API_TIMEOUT },
+    );
+    await input.setInputFiles({ name: 'large-profile.jpg', mimeType: 'image/jpeg', buffer: jpeg });
+    const successfulUploadResponse = await successfulUpload;
+    if (!successfulUploadResponse.ok()) {
+      throw new Error(`11 MB profile upload returned HTTP ${successfulUploadResponse.status()}.`);
+    }
+    await session.page.getByText('Profilbillede opdateret', { exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+    await session.apiExpect('DELETE', '/api/auth/me/profile-image', undefined, [200, 204]);
+
+    const mismatchedImage = Buffer.alloc(1024);
+    mismatchedImage.set([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+    const rejectedUpload = session.page.waitForResponse(
+      (response) => response.request().method() === 'PUT' && response.url().includes('/api/auth/me/profile-image'),
+      { timeout: API_TIMEOUT },
+    );
+    await input.setInputFiles({ name: 'mismatch.jpg', mimeType: 'image/jpeg', buffer: mismatchedImage });
+    const rejectedUploadResponse = await rejectedUpload;
+    if (rejectedUploadResponse.status() !== 400) {
+      throw new Error(`Mismatched profile image returned HTTP ${rejectedUploadResponse.status()}; expected 400.`);
+    }
+    for (const entry of session.scenarioReport.failedApiResponses) {
+      if (entry.status === 400 && entry.url?.includes('/api/auth/me/profile-image')) entry.expected = true;
+    }
+    await session.page.getByText('Billedets filtype matcher ikke indholdet.', { exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await session.logout();
+  }, { screenshot: true });
+
   await session.step('invalid stored token cannot expose protected app', async () => {
     await session.login('User');
     await session.page.evaluate(() => localStorage.setItem('authToken', 'invalid.token.value'));

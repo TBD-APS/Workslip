@@ -13,7 +13,8 @@ public sealed class ImageService(
     IUserRepository users,
     ICurrentUserContext currentUser) : IImageService
 {
-    public const long MaxImageSizeBytes = 10 * 1024 * 1024;
+    public const int MaxImageSizeMegabytes = 25;
+    public const long MaxImageSizeBytes = MaxImageSizeMegabytes * 1024L * 1024L;
 
     public async Task<Result<IReadOnlyList<ImageInfoResponse>>> ListJobImagesAsync(
         Guid jobId,
@@ -230,7 +231,7 @@ public sealed class ImageService(
 
         if (upload.Length > MaxImageSizeBytes)
         {
-            return InvalidImage("Billedfilen må højst fylde 10 MB.");
+            return InvalidImage($"Billedfilen må højst fylde {MaxImageSizeMegabytes} MB.");
         }
 
         var declaredContentType = NormalizeContentType(upload.ContentType);
@@ -255,7 +256,7 @@ public sealed class ImageService(
             if (totalBytes > MaxImageSizeBytes)
             {
                 await buffer.DisposeAsync();
-                return InvalidImage("Billedfilen må højst fylde 10 MB.");
+                return InvalidImage($"Billedfilen må højst fylde {MaxImageSizeMegabytes} MB.");
             }
 
             await buffer.WriteAsync(copyBuffer.AsMemory(0, bytesRead), cancellationToken);
