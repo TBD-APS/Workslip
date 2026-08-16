@@ -1,0 +1,98 @@
+name: Kimi Gate A - WOR-502 Pre-PR Correction
+
+on:
+  push:
+    branches:
+      - rbj--637-kimi-gate-a-runner
+    paths:
+      - .github/workflows/kimi-gate-a-wor-502-review-correction.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kimi-gate-a-wor-502-pre-pr
+  cancel-in-progress: false
+
+jobs:
+  correct:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
+      MOONSHOT_BASE_URL: https://api.moonshot.ai/v1
+      FEATURE_BRANCH: rbj--502-kimi-global-search
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare trusted correction broker and checkout Kimi feature
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${KIMI_API_KEY:-}" || { echo 'KIMI_API_KEY missing'; exit 10; }
+          cp tools/ai/kimi-gate-a-fix-wor502.py /tmp/kimi-gate-a-fix-wor502.py
+          response="$(curl --fail --silent --show-error -H "Authorization: Bearer ${KIMI_API_KEY}" "${MOONSHOT_BASE_URL}/models")"
+          model="$(printf '%s' "$response" | jq -r '([.data[].id | select(. == "kimi-k2.6")] + [.data[].id | select(test("^kimi-"; "i"))] + [.data[].id]) | unique | .[0] // empty')"
+          test -n "$model" || exit 11
+          echo "model=$model" >> "$GITHUB_OUTPUT"
+          git fetch origin main "$FEATURE_BRANCH"
+          git switch --force-create "$FEATURE_BRANCH" "origin/$FEATURE_BRANCH"
+          git config user.name 'Kimi Worker'
+          git config user.email 'kimi-worker@users.noreply.github.com'
+
+      - name: Give pre-PR review findings back to Kimi
+        env:
+          KIMI_MODEL: ${{ steps.runtime.outputs.model }}
+        shell: bash
+        run: |
+          cat >/tmp/wor502-review.txt <<'EOF'
+          Pre-PR reviewer feedback. These are product/architecture correctness issues, not style requests:
+
+          1. Customer search currently calls the generated customer search API without `limit: 5`. This quick navigator must stay bounded; use the exact generated params `{ query, limit: 5 }` consistently in both query key and query function.
+          2. The jobs React Query key does not include the presentation/user scope inputs that affect the hook's visible job result (`canViewAllJobs`, `currentUserId`). Include the relevant scope identity in the quick-navigator jobs key so cached search state cannot be ambiguously reused across a scope/user change. Do not claim this replaces backend authorization.
+          3. QuickNavigator compares job status to raw strings. Restore the generated `JobStatus` contract/constants (`JobStatus.InReview`, `JobStatus.Approved`) rather than duplicating enum literals.
+          4. The input placeholder says only “side eller sag”; customers are now a first-class result. Make the placeholder accurately say side/sag/kunde.
+          5. The UI requirement says mixed results must be visibly distinguishable as Navigation / Sag / Kunde. Keep existing layout/CSS, but make the result type clear in visible copy (for example in the secondary line) without adding a CSS rewrite.
+          6. `jobSearchDegraded/customerSearchDegraded` says “Viser tidligere resultater”, but the current React Query configuration does not deliberately keep previous data across query keys and we explicitly do not want stale cross-query matches. Remove the misleading degraded/previous-results contract and messaging. Keep source-specific error state so one failed source does not discard healthy-source results or local commands.
+
+          Keep the existing modular split. Do not add folders, Users/Docs remote search, new dependencies, CSS rewrite, or unrelated cleanup. This remains browser-unvalidated and draft-only.
+          EOF
+          python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/wor502-review.txt
+
+      - name: Enforce correction scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$(git merge-base origin/main HEAD)"
+          { git diff --name-only "$base"; git ls-files --others --exclude-standard; } | sort -u | tee /tmp/feature-files.txt
+          while IFS= read -r p; do
+            case "$p" in
+              src/FE/src/components/common/QuickNavigator.tsx|src/FE/src/components/common/QuickNavigatorResults.tsx|src/FE/src/components/common/quickNavigatorSearch.ts|src/FE/src/components/common/quickNavigatorSearch.test.ts|src/FE/src/components/common/quickNavigatorTypes.ts|src/FE/src/components/common/useQuickNavigatorSearch.ts) ;;
+              *) echo "Out-of-scope feature path: $p"; exit 20 ;;
+            esac
+          done < /tmp/feature-files.txt
+
+      - name: Validate corrected feature
+        working-directory: src/FE
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          mapfile -t tests < <(find src/components/common -maxdepth 1 -type f -iname '*navigator*.test.ts*' -print)
+          npx vitest run "${tests[@]}"
+          mapfile -t files < <({ git diff --name-only "$(git merge-base origin/main HEAD)" -- '*.ts' '*.tsx'; git ls-files --others --exclude-standard -- 'src/components/common/*.ts' 'src/components/common/*.tsx'; } | sort -u | sed 's#^src/FE/##')
+          npx eslint "${files[@]}"
+          npm run build
+
+      - name: Commit Kimi review correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add src/FE/src/components/common
+          git diff --cached --quiet && { echo 'Kimi made no review correction'; exit 30; }
+          git commit -m 'RBJ-502: address pre-PR search review findings'
+          git push origin "$FEATURE_BRANCH"
+          echo "Corrected Kimi head: $(git rev-parse HEAD)"
