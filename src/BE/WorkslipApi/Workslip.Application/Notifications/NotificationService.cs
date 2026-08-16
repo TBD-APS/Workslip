@@ -31,6 +31,26 @@ public sealed class NotificationService : INotificationService
     public Task QueueJobDeletedAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, CancellationToken cancellationToken) =>
         QueueNotificationInternalAsync(userId, recipientName, jobId, jobNumber, customerAddress, NotificationType.JobDeleted, cancellationToken);
 
+    public Task QueueDailyHoursLimitReachedAsync(
+        Guid userId,
+        string recipientName,
+        DateOnly workDate,
+        decimal hours,
+        CancellationToken cancellationToken)
+    {
+        var payload = new NotificationPayload(
+            Guid.Empty,
+            string.Empty,
+            string.Empty,
+            NotificationType.DailyHoursLimitReached.ToString(),
+            recipientName,
+            "/app/timer",
+            WorkDate: workDate,
+            Hours: hours);
+
+        return QueueNotificationPayloadAsync(userId, NotificationType.DailyHoursLimitReached, payload, cancellationToken);
+    }
+
     public Task QueueConversationMentionAsync(
         Guid userId,
         string recipientName,
@@ -79,7 +99,7 @@ public sealed class NotificationService : INotificationService
         return deleted ? Result.NoContent() : Result.NotFound();
     }
 
-    private async Task QueueNotificationInternalAsync(
+    private Task QueueNotificationInternalAsync(
         Guid userId,
         string recipientName,
         Guid jobId,
@@ -111,6 +131,16 @@ public sealed class NotificationService : INotificationService
             actorName,
             actionLabel,
             messageId);
+
+        return QueueNotificationPayloadAsync(userId, type, payload, cancellationToken);
+    }
+
+    private async Task QueueNotificationPayloadAsync(
+        Guid userId,
+        NotificationType type,
+        NotificationPayload payload,
+        CancellationToken cancellationToken)
+    {
         var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
         var row = new NotificationQueueRow
@@ -184,6 +214,12 @@ public sealed class NotificationService : INotificationService
                 string.IsNullOrWhiteSpace(payload.ActionLabel)
                     ? "Der ligger en handling til dig i sagens samtale."
                     : $"{payload.ActionLabel}. Tryk for at åbne handlingen."
+            ),
+            NotificationType.DailyHoursLimitReached => (
+                "Dagens maksimale timer er registreret",
+                payload.WorkDate is DateOnly workDate
+                    ? $"{payload.RecipientName}, du har registreret {payload.Hours ?? 24m:0.##} timer den {workDate:dd-MM-yyyy}."
+                    : $"{payload.RecipientName}, du har registreret dagens maksimale antal timer."
             ),
             _ => throw new ArgumentOutOfRangeException(nameof(notificationType), notificationType, null)
         };
