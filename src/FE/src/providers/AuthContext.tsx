@@ -48,6 +48,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthToken(null);
   }, []);
 
+  const rejectStoredSession = useCallback(() => {
+    AuthStorage.removeItem(AUTH_TOKEN_KEY);
+    clearReauthInFlight();
+    document.documentElement.removeAttribute(AUTH_TRANSITION_ATTRIBUTE);
+    setAuthToken(null);
+  }, []);
+
   const login = useCallback(
     async (email: string, code: string): Promise<string | null> => {
       try {
@@ -95,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login={login}
         establishSession={establishSession}
         clearSession={clearStoredSession}
+        rejectSession={rejectStoredSession}
       >
         {children}
       </AuthenticatedAppProvider>
