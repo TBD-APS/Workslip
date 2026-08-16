@@ -16,6 +16,10 @@ BEGIN
         CONSTRAINT FK_LocationTrackingSessions_Users FOREIGN KEY (OrganizationId, UserId) REFERENCES dbo.Users(OrganizationId, Id)
     );
 
+    CREATE UNIQUE INDEX UX_LocationTrackingSessions_Active
+        ON dbo.LocationTrackingSessions(OrganizationId, UserId)
+        WHERE Status = N'Active';
+
     CREATE INDEX IX_LocationTrackingSessions_Organization_User_Status
         ON dbo.LocationTrackingSessions(OrganizationId, UserId, Status);
 END;
