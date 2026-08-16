@@ -4,7 +4,7 @@
  * Workslip.Api | v1
  * OpenAPI spec version: 1.0.0
  */
-import type { JobListItemViewModel } from './jobListItemViewModel';
+import type { JobOverviewRecentJobViewModel } from './jobOverviewRecentJobViewModel';
 
 export interface JobOverviewViewModel {
   /** @pattern ^-?(?:0|[1-9]\d*)$ */
@@ -15,5 +15,5 @@ export interface JobOverviewViewModel {
   approvedCount: number | string;
   /** @pattern ^-?(?:0|[1-9]\d*)$ */
   rejectedCount: number | string;
-  recentJobs: JobListItemViewModel[];
+  recentJobs: JobOverviewRecentJobViewModel[];
 }
