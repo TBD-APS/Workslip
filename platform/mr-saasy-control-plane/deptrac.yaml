@@ -1,8 +1,6 @@
 deptrac:
   paths:
     - ./app
-  exclude_files:
-    - '#^./app/AI/Providers/Contracts/.*#'
   layers:
     - name: PlatformContracts
       collectors:
