@@ -18,7 +18,53 @@ async function publicSmoke(session) {
 async function authSessionFlow(session) {
   for (const requestedRole of ['User', 'Auditor', 'Admin', 'Superadmin']) {
     await session.step(`${requestedRole} login and session persistence`, async () => {
+      if (requestedRole === 'Superadmin') {
+        await session.page.evaluate(() => localStorage.setItem('theme', 'day'));
+        await session.page.addInitScript(() => {
+          const trace = [window.location.pathname];
+          window.__WORKSLIP_AUTH_PATH_TRACE__ = trace;
+          window.__WORKSLIP_FIRST_FRAME_THEME__ = null;
+
+          const recordPath = () => trace.push(window.location.pathname);
+          const originalPushState = window.history.pushState.bind(window.history);
+          const originalReplaceState = window.history.replaceState.bind(window.history);
+          window.history.pushState = (...args) => {
+            const result = originalPushState(...args);
+            recordPath();
+            return result;
+          };
+          window.history.replaceState = (...args) => {
+            const result = originalReplaceState(...args);
+            recordPath();
+            return result;
+          };
+          window.addEventListener('popstate', recordPath);
+          window.requestAnimationFrame(() => {
+            window.__WORKSLIP_FIRST_FRAME_THEME__ = document.documentElement.getAttribute('data-theme');
+          });
+        });
+      }
+
       await session.login(requestedRole);
+
+      if (requestedRole === 'Superadmin') {
+        const transition = await session.page.evaluate(() => ({
+          paths: window.__WORKSLIP_AUTH_PATH_TRACE__ ?? [],
+          firstFrameTheme: window.__WORKSLIP_FIRST_FRAME_THEME__ ?? null,
+          finalPath: window.location.pathname,
+        }));
+        const transientTenantPath = transition.paths.find((path) => path === '/app' || path.startsWith('/app/'));
+        if (transientTenantPath) {
+          throw new Error(`Superadmin login transiently entered tenant route ${transientTenantPath}.`);
+        }
+        if (transition.finalPath !== '/superadmin') {
+          throw new Error(`Superadmin login ended at ${transition.finalPath}; expected /superadmin.`);
+        }
+        if (transition.firstFrameTheme !== 'day') {
+          throw new Error(`Stored day theme was not present on first login frame (got ${transition.firstFrameTheme ?? 'null'}).`);
+        }
+      }
+
       const roleFromApi = String(session.auth.user.role);
       await session.page.reload({ waitUntil: 'domcontentloaded' });
       await session.page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: UI_TIMEOUT });
