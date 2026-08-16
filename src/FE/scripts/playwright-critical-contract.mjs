@@ -178,14 +178,31 @@ async function waitForWizardStep(page, label) { await page.getByRole('button', {
 async function currentWizardStep(page) { for (const label of ['Sagsdetaljer', 'Anlægstyper', 'Kontrolpunkter', 'Timesedler', 'Afslutning', 'Attestering']) if (await page.getByRole('button', { name: `${label} - aktuelt trin`, exact: true }).isVisible().catch(() => false)) return label; return null; }
 async function revealStepNavigation(page) {
   const button = page.getByRole('button', { name: 'Næste', exact: true });
-  if (await button.isVisible().catch(() => false)) return button;
   const shell = page.locator('.app-shell').first();
   if (await shell.count()) {
-    await shell.evaluate((element) => { element.scrollTo({ top: element.scrollHeight, behavior: 'instant' }); });
+    await shell.evaluate((element) => {
+      const bottom = Math.max(0, element.scrollHeight - element.clientHeight);
+      element.scrollTop = bottom;
+      element.dispatchEvent(new Event('scroll'));
+    });
+    await page.waitForTimeout(40);
+    await shell.evaluate((element) => {
+      element.scrollTop = Math.max(0, element.scrollTop - 4);
+      element.dispatchEvent(new Event('scroll'));
+    });
   } else {
-    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+    await page.evaluate(() => {
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' });
+      window.dispatchEvent(new Event('scroll'));
+      window.scrollBy({ top: -4, behavior: 'instant' });
+      window.dispatchEvent(new Event('scroll'));
+    });
   }
   await button.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.waitForTimeout(40);
+  if (!await button.isVisible()) {
+    throw new Error('Wizard navigation became hidden again before interaction.');
+  }
   return button;
 }
 async function waitForTransientToastsToClear(page, timeout = 10_000) {
