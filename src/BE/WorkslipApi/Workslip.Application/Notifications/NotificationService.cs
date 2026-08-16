@@ -1,4 +1,6 @@
 using Ardalis.Result;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Workslip.Domain.Models;
 
@@ -30,6 +32,31 @@ public sealed class NotificationService : INotificationService
 
     public Task QueueJobDeletedAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, CancellationToken cancellationToken) =>
         QueueNotificationInternalAsync(userId, recipientName, jobId, jobNumber, customerAddress, NotificationType.JobDeleted, cancellationToken);
+
+    public Task QueueDailyHoursLimitReachedAsync(
+        Guid userId,
+        string recipientName,
+        DateOnly workDate,
+        decimal hours,
+        CancellationToken cancellationToken)
+    {
+        var payload = new NotificationPayload(
+            Guid.Empty,
+            string.Empty,
+            string.Empty,
+            NotificationType.DailyHoursLimitReached.ToString(),
+            recipientName,
+            "/app/timer",
+            WorkDate: workDate,
+            Hours: hours);
+
+        return QueueNotificationPayloadAsync(
+            userId,
+            NotificationType.DailyHoursLimitReached,
+            payload,
+            cancellationToken,
+            notificationId: CreateDailyHoursNotificationId(userId, workDate));
+    }
 
     public Task QueueConversationMentionAsync(
         Guid userId,
@@ -127,7 +154,7 @@ public sealed class NotificationService : INotificationService
         return deleted ? Result.NoContent() : Result.NotFound();
     }
 
-    private async Task QueueNotificationInternalAsync(
+    private Task QueueNotificationInternalAsync(
         Guid userId,
         string recipientName,
         Guid jobId,
@@ -166,12 +193,29 @@ public sealed class NotificationService : INotificationService
             messageId,
             actionType,
             dueUtc);
+
+        return QueueNotificationPayloadAsync(
+            userId,
+            type,
+            payload,
+            cancellationToken,
+            nextAttemptUtc: nextAttemptUtc);
+    }
+
+    private async Task QueueNotificationPayloadAsync(
+        Guid userId,
+        NotificationType type,
+        NotificationPayload payload,
+        CancellationToken cancellationToken,
+        Guid? notificationId = null,
+        DateTimeOffset? nextAttemptUtc = null)
+    {
         var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
         var now = DateTimeOffset.UtcNow;
 
         var row = new NotificationQueueRow
         {
-            Id = Guid.NewGuid(),
+            Id = notificationId ?? Guid.NewGuid(),
             UserId = userId,
             NotificationType = type.ToString(),
             PayloadJson = json,
@@ -182,6 +226,13 @@ public sealed class NotificationService : INotificationService
         };
 
         await _notificationRepository.QueueNotificationAsync(row, cancellationToken);
+    }
+
+    private static Guid CreateDailyHoursNotificationId(Guid userId, DateOnly workDate)
+    {
+        var key = Encoding.UTF8.GetBytes($"daily-hours-limit:{userId:N}:{workDate:yyyyMMdd}");
+        var hash = SHA256.HashData(key);
+        return new Guid(hash.AsSpan(0, 16));
     }
 
     public (string Title, string Body) GetLocalizedText(
@@ -246,6 +297,12 @@ public sealed class NotificationService : INotificationService
                 string.IsNullOrWhiteSpace(payload.ActionLabel)
                     ? "Du bad Workslip om at minde dig om denne sag."
                     : payload.ActionLabel
+            ),
+            NotificationType.DailyHoursLimitReached => (
+                "Dagens maksimale timer er registreret",
+                payload.WorkDate is DateOnly workDate
+                    ? $"{payload.RecipientName}, du har registreret {(payload.Hours ?? 24m):0.##} timer den {workDate:dd-MM-yyyy}."
+                    : $"{payload.RecipientName}, du har registreret dagens maksimale antal timer."
             ),
             _ => throw new ArgumentOutOfRangeException(nameof(notificationType), notificationType, null)
         };
