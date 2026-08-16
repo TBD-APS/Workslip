@@ -1,0 +1,81 @@
+name: WOR-551 temporary server action availability bootstrap
+
+on:
+  push:
+    branches:
+      - rbj--551-action-completion
+
+permissions:
+  contents: write
+
+jobs:
+  patch-generate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: rbj--551-action-completion
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+      - name: Move action availability to server contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def patch(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}')
+              p.write_text(text.replace(old, new, 1))
+
+          patch(
+              'src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/SqlJobConversationRepository.cs',
+              '''                row.ActionResolvedByDisplayName,\n                row.ActionResolvedUtc);''',
+              '''                row.ActionResolvedByDisplayName,\n                row.ActionResolvedUtc,\n                actionStatus == ConversationActionStatus.Pending\n                    && (actionType != ConversationActionType.RemindMe\n                        || (row.ActionDueUtc is DateTimeOffset dueUtc && dueUtc <= DateTimeOffset.UtcNow)));''')
+
+          patch(
+              'src/FE/src/features/jobs/components/JobConversationDrawer.tsx',
+              '''  const reminderDueUtc = message.action?.type === ConversationActionType.RemindMe\n    ? message.action.dueUtc\n    : null;\n  const reminderIsDue = reminderDueUtc\n    ? new Date(reminderDueUtc).getTime() <= Date.now()\n    : true;\n''',
+              '')
+
+          patch(
+              'src/FE/src/features/jobs/components/JobConversationDrawer.tsx',
+              '''            {isTarget && isPendingAction && reminderIsDue ? (''',
+              '''            {isTarget && isPendingAction && message.action.canResolve ? (''')
+
+          patch(
+              'src/FE/src/features/jobs/components/JobConversationDrawer.tsx',
+              '''            ) : isTarget && isPendingAction && !reminderIsDue ? (''',
+              '''            ) : isTarget && isPendingAction && !message.action.canResolve ? (''')
+
+          patch(
+              'src/FE/src/features/jobs/components/JobConversationDrawer.test.tsx',
+              '''            dueUtc: null,\n            resolvedByUserId: null,''',
+              '''            dueUtc: null,\n            canResolve: true,\n            resolvedByUserId: null,''')
+          PY
+      - name: Install frontend dependencies
+        working-directory: src/FE
+        run: npm ci
+      - name: Generate exact contract
+        working-directory: src/FE
+        run: npm run generate:api:local
+      - name: Remove bootstrap and commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/wor551-server-action-availability-bootstrap.yml
+          git add src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/SqlJobConversationRepository.cs \
+                  src/FE/src/features/jobs/components/JobConversationDrawer.tsx \
+                  src/FE/src/features/jobs/components/JobConversationDrawer.test.tsx \
+                  src/FE/src/api/generated
+          git commit -m "RBJ-551: make action availability server-authoritative"
+          git push origin HEAD:rbj--551-action-completion
