@@ -31,11 +31,11 @@ For every non-documentation CI run, the `Postman integration (ephemeral)` job cr
 4. apply local migrations and seed synthetic development data;
 5. obtain bearer tokens for the seeded synthetic Superadmin, Admin, User and Auditor identities through `/api/dev/token`;
 6. execute `auditor_scope.postman_collection.json` with the Admin/User/Auditor tokens to prove the job audit-scope authorization boundary, including role denial, validation, list count, direct job/history/PDF/image denial and restoration;
-7. run the main `postman_collection.json` with the synthetic Superadmin token;
+7. initialize the main collection with the synthetic Superadmin bootstrap token, then allow its Development-only `/api/dev/token` flow to switch to the tenant identity used by the remaining workflow;
 8. fail `CI Gate` on request/assertion/runtime failure;
 9. stop the API and force-remove the SQL container through an `EXIT` trap, including failure/cancellation paths that allow shell cleanup to run.
 
-Before Newman executes the main collection, `run-integration-tests.sh` creates a temporary execution copy through `prepare-integration-collection.mjs`. The preparation only completes the canonical job smoke fixture with the minimum synthetic worksheet now required by the server-side submit-ready invariant. It fails closed if the expected `POST /api/jobs` fixture cannot be found, never edits the checked-in collection, and does not relax the status assertion. This keeps the existing end-to-end `Draft → InReview` success smoke valid while the backend remains authoritative about worksheet presence.
+Before Newman executes the main collection, `run-integration-tests.sh` creates a temporary execution copy through `prepare-integration-collection.mjs`. The preparation seeds the bootstrap bearer token into **collection scope** rather than Newman environment scope, so the collection's Development-only token request can intentionally replace it later. When that identity changes, the preparation also keeps `actorUserId` and `actorRole` synchronized with the new token. It then completes the canonical job smoke fixture with the minimum synthetic worksheet required by the server-side submit-ready invariant. The preparation fails closed if the expected auth variable, token script or `POST /api/jobs` fixture cannot be found, never edits the checked-in collection, and does not relax the status assertion. This keeps the end-to-end `Draft → InReview` success smoke valid while the backend remains authoritative about worksheet presence.
 
 No persistent integration API, database or GitHub bearer-token secret is required. The random database/JWT credentials and bearer tokens exist only inside the runner and are masked in GitHub Actions output.
 
