@@ -103,24 +103,24 @@ final class RoleRegistryTest extends TestCase
 
     public function test_same_agent_cannot_be_sole_approving_reviewer(): void
     {
-        $implementation = $this->run('implementation', 'agent-1', 'provider-a', 'model-a');
-        $review = $this->run('review', 'agent-1', 'provider-b', 'model-b', AgentRole::IndependentPrReviewer);
+        $implementation = $this->provenance('implementation', 'agent-1', 'provider-a', 'model-a');
+        $review = $this->provenance('review', 'agent-1', 'provider-b', 'model-b', AgentRole::IndependentPrReviewer);
 
         self::assertFalse(SeparationOfDutiesPolicy::canBeSoleApprovingReview($implementation, $review));
     }
 
     public function test_same_provider_and_model_cannot_be_sole_approving_reviewer_even_with_different_agent_id(): void
     {
-        $implementation = $this->run('implementation', 'agent-1', 'provider-a', 'model-a');
-        $review = $this->run('review', 'agent-2', 'provider-a', 'model-a', AgentRole::IndependentPrReviewer);
+        $implementation = $this->provenance('implementation', 'agent-1', 'provider-a', 'model-a');
+        $review = $this->provenance('review', 'agent-2', 'provider-a', 'model-a', AgentRole::IndependentPrReviewer);
 
         self::assertFalse(SeparationOfDutiesPolicy::canBeSoleApprovingReview($implementation, $review));
     }
 
     public function test_different_agent_and_model_can_supply_independent_review_signal(): void
     {
-        $implementation = $this->run('implementation', 'agent-1', 'provider-a', 'model-a');
-        $review = $this->run('review', 'agent-2', 'provider-b', 'model-b', AgentRole::IndependentPrReviewer);
+        $implementation = $this->provenance('implementation', 'agent-1', 'provider-a', 'model-a');
+        $review = $this->provenance('review', 'agent-2', 'provider-b', 'model-b', AgentRole::IndependentPrReviewer);
 
         self::assertTrue(SeparationOfDutiesPolicy::canBeSoleApprovingReview($implementation, $review));
     }
@@ -184,7 +184,7 @@ final class RoleRegistryTest extends TestCase
         ];
     }
 
-    private function run(
+    private function provenance(
         string $runId,
         string $agentId,
         string $provider,
