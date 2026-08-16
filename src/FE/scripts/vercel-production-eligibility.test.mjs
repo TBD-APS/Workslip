@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   boundedRateLimitWaitMs,
@@ -34,6 +35,15 @@ function gate(overrides = {}) {
     ...overrides,
   };
 }
+
+test('Vercel Git policy uses a globstar catch-all and enables only main', () => {
+  const config = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
+
+  assert.deepEqual(config.git?.deploymentEnabled, {
+    '**': false,
+    main: true,
+  });
+});
 
 test('Vercel ignored build step continues eligible deploys and ignores blocked deploys', () => {
   assert.equal(ignoredBuildStepExitCode({ shouldDeploy: true }), 1);

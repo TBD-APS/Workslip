@@ -3,7 +3,7 @@
   "buildCommand": "node scripts/vercel-production-eligibility.mjs && npm run build",
   "git": {
     "deploymentEnabled": {
-      "*": false,
+      "**": false,
       "main": true
     }
   },

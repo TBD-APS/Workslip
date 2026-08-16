@@ -130,29 +130,6 @@ export const AppLayout = () => {
           Workslip
         </button>
         <div className="app-header-actions">
-          <button
-            type="button"
-            onClick={() => setQuickNavigatorOpen(true)}
-            className="user-avatar quick-nav-header-trigger"
-            aria-label="Hurtig navigation"
-            aria-haspopup="dialog"
-            aria-expanded={quickNavigatorOpen}
-            title="Hurtig navigation (Ctrl+K)"
-          >
-            <Search size={18} />
-          </button>
-          {canViewDocs && canUseAppCommands && (
-            <button
-              type="button"
-              onClick={() => navigate('/app/docs')}
-              className="user-avatar"
-              aria-label="Docs"
-              title="Docs"
-              aria-current={location.pathname.startsWith('/app/docs') ? 'page' : undefined}
-            >
-              <BookOpen size={18} />
-            </button>
-          )}
           {canUseNotifications && (
             <button
               type="button"
@@ -190,7 +167,7 @@ export const AppLayout = () => {
               aria-haspopup="menu"
               aria-expanded={settingsMenuOpen}
               title="Indstillinger"
-              aria-current={location.pathname.startsWith('/app/settings') ? 'page' : undefined}
+              aria-current={location.pathname.startsWith('/app/settings') || location.pathname.startsWith('/app/docs') ? 'page' : undefined}
             >
               <Settings size={18} />
             </button>
@@ -208,6 +185,20 @@ export const AppLayout = () => {
                   >
                     <User size={16} aria-hidden="true" />
                     <span>Profil</span>
+                  </button>
+                )}
+                {canViewDocs && canUseAppCommands && (
+                  <button
+                    type="button"
+                    className="app-header-settings-item"
+                    role="menuitem"
+                    onClick={() => {
+                      setSettingsMenuOpen(false);
+                      navigate('/app/docs');
+                    }}
+                  >
+                    <BookOpen size={16} aria-hidden="true" />
+                    <span>Docs</span>
                   </button>
                 )}
                 <button
@@ -310,12 +301,6 @@ export const AppLayout = () => {
           <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/customers')}>
             <Building2 size={24} />
             <span>Kunder</span>
-          </NavLink>
-        </Can>
-        <Can permission="docs:view">
-          <NavLink to="/app/docs" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/docs')}>
-            <BookOpen size={24} />
-            <span>Docs</span>
           </NavLink>
         </Can>
         <button
