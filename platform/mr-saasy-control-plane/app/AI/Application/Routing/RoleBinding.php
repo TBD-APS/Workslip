@@ -1,0 +1,48 @@
+<?php
+
+namespace App\AI\Application\Routing;
+
+use InvalidArgumentException;
+
+enum RoutingPreference: string
+{
+    case Quality = 'quality';
+    case Balanced = 'balanced';
+    case Cost = 'cost';
+    case Latency = 'latency';
+}
+
+final readonly class RolePermissions
+{
+    public function __construct(
+        public bool $canExecuteWrite,
+        public bool $canReview,
+        public bool $canApprove,
+    ) {
+    }
+}
+
+final readonly class RoleBinding
+{
+    /**
+     * @param list<Capability> $requiredCapabilities
+     * @param list<ToolCapability> $requiredTools
+     */
+    public function __construct(
+        public AgentRole $role,
+        public string $primaryTarget,
+        public ?string $fallbackTarget,
+        public array $requiredCapabilities,
+        public array $requiredTools,
+        public RolePermissions $permissions,
+        public RoutingPreference $preference = RoutingPreference::Balanced,
+    ) {
+        if (trim($primaryTarget) === '') {
+            throw new InvalidArgumentException('Primary execution target is required.');
+        }
+
+        if ($fallbackTarget !== null && trim($fallbackTarget) === '') {
+            throw new InvalidArgumentException('Fallback execution target must be null or non-empty.');
+        }
+    }
+}
