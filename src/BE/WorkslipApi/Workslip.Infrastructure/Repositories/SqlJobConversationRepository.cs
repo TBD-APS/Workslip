@@ -44,6 +44,7 @@ public sealed class SqlJobConversationRepository(
         IReadOnlyList<Guid> mentionedUserIds,
         ConversationActionType? actionType,
         Guid? actionTargetUserId,
+        DateTimeOffset? actionDueUtc,
         CancellationToken cancellationToken) =>
         retryPolicy.ExecuteAsync(
             "conversation.create-message",
@@ -55,6 +56,7 @@ public sealed class SqlJobConversationRepository(
                 mentionedUserIds,
                 actionType,
                 actionTargetUserId,
+                actionDueUtc,
                 token),
             cancellationToken);
 
@@ -121,6 +123,7 @@ public sealed class SqlJobConversationRepository(
                 m.ActionTargetUserId,
                 target.DisplayName AS ActionTargetDisplayName,
                 m.ActionStatus,
+                m.ActionDueUtc,
                 m.ActionResolvedByUserId,
                 resolver.DisplayName AS ActionResolvedByDisplayName,
                 m.ActionResolvedUtc,
@@ -193,6 +196,7 @@ public sealed class SqlJobConversationRepository(
         IReadOnlyList<Guid> mentionedUserIds,
         ConversationActionType? actionType,
         Guid? actionTargetUserId,
+        DateTimeOffset? actionDueUtc,
         CancellationToken cancellationToken)
     {
         var id = Guid.NewGuid();
@@ -201,11 +205,11 @@ public sealed class SqlJobConversationRepository(
         var sql = $"""
             INSERT INTO {messages}
                 (Id, OrganizationId, JobId, AuthorUserId, Body, MentionedUserIdsJson,
-                 ActionType, ActionTargetUserId, ActionStatus, ActionResolvedByUserId,
+                 ActionType, ActionTargetUserId, ActionStatus, ActionDueUtc, ActionResolvedByUserId,
                  ActionResolvedUtc, CreatedUtc)
             VALUES
                 (@Id, @OrganizationId, @JobId, @AuthorUserId, @Body, @MentionedUserIdsJson,
-                 @ActionType, @ActionTargetUserId, @ActionStatus, NULL, NULL, @CreatedUtc);
+                 @ActionType, @ActionTargetUserId, @ActionStatus, @ActionDueUtc, NULL, NULL, @CreatedUtc);
             """;
 
         await WithConnectionAsync(async (connection, transaction) =>
@@ -223,6 +227,7 @@ public sealed class SqlJobConversationRepository(
                     ActionType = actionType?.ToString(),
                     ActionTargetUserId = actionTargetUserId,
                     ActionStatus = actionType is null ? null : ConversationActionStatus.Pending.ToString(),
+                    ActionDueUtc = actionDueUtc,
                     CreatedUtc = now
                 },
                 transaction,
@@ -255,6 +260,7 @@ public sealed class SqlJobConversationRepository(
                 m.ActionTargetUserId,
                 target.DisplayName AS ActionTargetDisplayName,
                 m.ActionStatus,
+                m.ActionDueUtc,
                 m.ActionResolvedByUserId,
                 resolver.DisplayName AS ActionResolvedByDisplayName,
                 m.ActionResolvedUtc,
@@ -382,6 +388,7 @@ public sealed class SqlJobConversationRepository(
                 targetUserId,
                 row.ActionTargetDisplayName ?? "Medarbejder",
                 actionStatus,
+                row.ActionDueUtc,
                 row.ActionResolvedByUserId,
                 row.ActionResolvedByDisplayName,
                 row.ActionResolvedUtc);
@@ -453,6 +460,7 @@ public sealed class SqlJobConversationRepository(
         public Guid? ActionTargetUserId { get; init; }
         public string? ActionTargetDisplayName { get; init; }
         public string? ActionStatus { get; init; }
+        public DateTimeOffset? ActionDueUtc { get; init; }
         public Guid? ActionResolvedByUserId { get; init; }
         public string? ActionResolvedByDisplayName { get; init; }
         public DateTimeOffset? ActionResolvedUtc { get; init; }
