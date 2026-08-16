@@ -59,7 +59,7 @@
   width: 0.34rem;
   height: 0.34rem;
   border-radius: 50%;
-  background: var(--primary);
+  background: var(--color-info);
   transform: translateY(-50%);
 }
 
@@ -81,9 +81,9 @@
 }
 
 .activity-avatar-primary {
-  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
-  background: color-mix(in srgb, var(--surface-selected) 82%, var(--surface-floating, var(--surface)));
-  color: var(--primary);
+  border-color: color-mix(in srgb, var(--color-info) 28%, var(--border));
+  background: color-mix(in srgb, var(--color-info) 10%, var(--surface-floating, var(--surface)));
+  color: var(--color-info);
 }
 
 .activity-avatar-success {
