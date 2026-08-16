@@ -45,8 +45,8 @@
   justify-content: center;
   flex: 0 0 auto;
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--primary) 14%, transparent);
-  color: var(--primary);
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  color: var(--color-primary);
 }
 
 .superadmin-page-icon {
@@ -83,7 +83,8 @@
   padding: 0.9rem 1rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--surface-floating);
+  box-shadow: var(--shadow-sm);
 }
 
 .superadmin-overview strong {
@@ -111,7 +112,7 @@
 .superadmin-organization-list {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: var(--surface);
+  background: var(--surface-floating);
   box-shadow: var(--shadow-sm);
 }
 
@@ -229,18 +230,19 @@
 }
 
 .superadmin-organization-card:hover {
-  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  border-color: color-mix(in srgb, var(--color-primary) 55%, var(--border));
+  background: var(--surface-raised);
 }
 
 .superadmin-organization-card:focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
 .superadmin-organization-card.selected {
-  border-color: var(--primary);
+  border-color: var(--color-primary);
   background: var(--surface-selected);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 25%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 24%, transparent);
 }
 
 .superadmin-organization-name {
