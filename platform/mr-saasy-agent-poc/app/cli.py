@@ -119,10 +119,78 @@ async def command_assert_effect(args: argparse.Namespace) -> None:
         )
     if actual_invocations < args.min_invocations:
         raise SystemExit(
-            f"Expected at least {args.min_invocations} invocations for {key}; "
-            f"got {actual_invocations}"
+            f"Expected at least {args.min_invocations} invocations for {key}; got {actual_invocations}"
         )
     _print(record)
+
+
+def _attempt(snapshot: RunSnapshot, attempt: int):
+    for record in snapshot.attempts:
+        if record.attempt == attempt:
+            return record
+    raise SystemExit(f"Run {snapshot.run_id} has no recorded attempt {attempt}")
+
+
+async def command_assert_sandbox(args: argparse.Namespace) -> None:
+    snapshot = await _snapshot(args.run_id)
+    record = _attempt(snapshot, args.attempt)
+    sandbox = record.sandbox
+    if sandbox is None:
+        raise SystemExit(f"Attempt {args.attempt} has no sandbox evidence")
+
+    expected_pass = args.expected == "pass"
+    actual_pass = sandbox.exit_code == 0 and record.gate_passed
+    if actual_pass != expected_pass:
+        raise SystemExit(
+            f"Attempt {args.attempt} expected sandbox {args.expected}; exit_code={sandbox.exit_code}, gate_passed={record.gate_passed}"
+        )
+
+    checks = {
+        "network_disabled": sandbox.network_disabled,
+        "read_only_root": sandbox.read_only_root,
+        "capabilities_dropped": sandbox.capabilities_dropped,
+        "no_new_privileges": sandbox.no_new_privileges,
+        "tmpfs_workspace": sandbox.tmpfs_workspace,
+        "destroyed": sandbox.destroyed,
+        "memory_limit": sandbox.memory_limit_bytes > 0,
+        "pids_limit": sandbox.pids_limit > 0,
+        "no_bind_mounts": sandbox.bind_mount_count == 0,
+    }
+    failed = [name for name, passed in checks.items() if not passed]
+    if failed:
+        raise SystemExit(
+            f"Sandbox isolation assertions failed for attempt {args.attempt}: " + ", ".join(failed)
+        )
+
+    if expected_pass and "OK" not in sandbox.output:
+        raise SystemExit("Passing sandbox output did not contain unittest OK evidence")
+    if not expected_pass and "FAILED" not in sandbox.output:
+        raise SystemExit("Failing sandbox output did not contain unittest FAILED evidence")
+
+    _print(record)
+
+
+async def command_assert_sandbox_separation(args: argparse.Namespace) -> None:
+    snapshot = await _snapshot(args.run_id)
+    first = _attempt(snapshot, args.first_attempt)
+    second = _attempt(snapshot, args.second_attempt)
+    if first.sandbox is None or second.sandbox is None:
+        raise SystemExit("Both attempts must contain sandbox evidence")
+    if first.sandbox.sandbox_id == second.sandbox.sandbox_id:
+        raise SystemExit("Sandbox container IDs were reused across logical attempts")
+    if first.sandbox.source_sha256 == second.sandbox.source_sha256:
+        raise SystemExit("Corrective attempt did not produce different source content")
+    if first.sandbox.test_sha256 != second.sandbox.test_sha256:
+        raise SystemExit("The POC weakened or changed the test between attempts")
+
+    _print(
+        {
+            "first_sandbox_id": first.sandbox.sandbox_id,
+            "second_sandbox_id": second.sandbox.sandbox_id,
+            "source_changed": True,
+            "test_held_constant": True,
+        }
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -173,6 +241,18 @@ def build_parser() -> argparse.ArgumentParser:
     assert_effect.add_argument("--applied-count", type=int, default=1)
     assert_effect.add_argument("--min-invocations", type=int, default=1)
     assert_effect.set_defaults(handler=command_assert_effect)
+
+    assert_sandbox = sub.add_parser("assert-sandbox")
+    assert_sandbox.add_argument("--run-id", required=True)
+    assert_sandbox.add_argument("--attempt", type=int, required=True)
+    assert_sandbox.add_argument("--expected", choices=["pass", "fail"], required=True)
+    assert_sandbox.set_defaults(handler=command_assert_sandbox)
+
+    assert_separation = sub.add_parser("assert-sandbox-separation")
+    assert_separation.add_argument("--run-id", required=True)
+    assert_separation.add_argument("--first-attempt", type=int, default=1)
+    assert_separation.add_argument("--second-attempt", type=int, default=2)
+    assert_separation.set_defaults(handler=command_assert_sandbox_separation)
 
     return parser
 
