@@ -69,9 +69,11 @@ describe('AppLayout Auditor session', () => {
     expect(screen.getByRole('link', { name: 'Rapporter' })).toHaveAttribute('href', '/app/auditor');
   });
 
-  it('does not render notification controls that Auditor cannot use', () => {
+  it('keeps the header limited to the profile control when notifications are unavailable', () => {
     renderAuditor('/app/auditor');
 
     expect(screen.queryByRole('button', { name: /Notifikationer/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Profil og konto' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Indstillinger og konto' })).not.toBeInTheDocument();
   });
 });
