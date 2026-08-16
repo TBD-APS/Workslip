@@ -1,0 +1,112 @@
+/*
+ * Workslip 5.0 diagnostics convergence.
+ * Diagnostics may retain status/data tones where they communicate operational meaning,
+ * but shell surfaces, selection, focus and elevation follow the shared Workslip contract.
+ */
+
+.error-diagnostics-controls,
+.error-diagnostics-summary > article,
+.error-diagnostics-list,
+.error-diagnostics-telemetry-health,
+.error-diagnostics-state {
+  background: var(--surface-floating);
+  box-shadow: var(--shadow-sm);
+}
+
+.error-diagnostics-segmented {
+  background: var(--surface-input);
+}
+
+.error-diagnostics-segmented button.selected {
+  background: var(--surface-selected);
+  color: var(--color-primary);
+  box-shadow: none;
+}
+
+.error-diagnostics-segmented button:focus-visible {
+  outline-color: var(--focus-ring);
+}
+
+.error-source-badge.source-frontend {
+  background: color-mix(in srgb, var(--color-primary) 13%, transparent);
+  color: var(--color-primary);
+}
+
+.error-diagnostics-health-card,
+.error-diagnostics-item {
+  background: var(--surface-input);
+}
+
+/* Cache diagnostics keeps status tones because they encode health/data state.
+   The diagnostic shell itself intentionally does not own a separate neon/grid theme. */
+.cache-diagnostics-page {
+  --cache-accent: var(--color-primary);
+  --cache-accent-soft: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  --cache-accent-border: color-mix(in srgb, var(--color-primary) 32%, var(--border));
+  --cache-violet: var(--color-primary);
+  --cache-blue: var(--accent-cyan);
+  --cache-panel: var(--surface-floating);
+  --cache-panel-raised: var(--surface-input);
+  --cache-shadow: var(--shadow-sm);
+  --cache-shadow-soft: var(--shadow-sm);
+}
+
+.cache-diagnostics-page::before,
+.cache-diagnostics-page::after,
+.cache-diagnostics-hero::before,
+.cache-diagnostics-hero-glow {
+  display: none;
+}
+
+.cache-diagnostics-hero {
+  border-color: var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-floating);
+  box-shadow: var(--shadow-sm);
+}
+
+.cache-diagnostics-back-button,
+.cache-diagnostics-health,
+.cache-diagnostics-button--secondary,
+.cache-diagnostics-layer-strip > div,
+.cache-diagnostics-alert,
+.cache-diagnostics-stat {
+  background: var(--surface-floating);
+  backdrop-filter: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.cache-diagnostics-back-button:hover,
+.cache-diagnostics-button--secondary:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  background: var(--surface-selected);
+  box-shadow: var(--shadow-sm);
+}
+
+.cache-diagnostics-stat {
+  border-color: var(--border);
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.cache-diagnostics-stat:hover {
+  transform: none;
+  border-color: var(--border-strong);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.cache-diagnostics-health-pulse {
+  animation: none;
+  box-shadow: none;
+}
+
+.cache-diagnostics-layer-connector {
+  background: var(--border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cache-diagnostics-page *,
+  .error-diagnostics-page * {
+    scroll-behavior: auto;
+  }
+}
