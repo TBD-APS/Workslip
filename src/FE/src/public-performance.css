@@ -10,6 +10,12 @@ body,
   transition-property: none;
 }
 
+html[data-auth-transition] *,
+html[data-auth-transition] *::before,
+html[data-auth-transition] *::after {
+  transition-property: none !important;
+}
+
 .bg-glow {
   animation: none;
   filter: blur(80px);
