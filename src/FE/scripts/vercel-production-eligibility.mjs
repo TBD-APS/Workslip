@@ -145,6 +145,17 @@ export function githubRateLimitRetryMs({
   );
 }
 
+export function boundedRateLimitWaitMs({ retryMs, deadlineMs, nowMs = Date.now() }) {
+  const requestedMs = Number(retryMs);
+  const remainingMs = Number(deadlineMs) - Number(nowMs);
+  if (!Number.isFinite(requestedMs) || requestedMs <= 0 || !Number.isFinite(remainingMs) || remainingMs <= 0) {
+    return null;
+  }
+
+  const waitMs = Math.max(MIN_RATE_LIMIT_RETRY_MS, Math.ceil(requestedMs));
+  return waitMs < remainingMs ? waitMs : null;
+}
+
 class GitHubRateLimitError extends Error {
   constructor(message, retryMs) {
     super(message);
@@ -246,12 +257,11 @@ async function main() {
     } catch (error) {
       if (!(error instanceof GitHubRateLimitError)) throw error;
 
-      const remainingMs = deadline - Date.now();
-      if (remainingMs <= 0 || error.retryMs >= remainingMs) {
+      const waitMs = boundedRateLimitWaitMs({ retryMs: error.retryMs, deadlineMs: deadline });
+      if (waitMs === null) {
         throw new Error(`Timed out waiting for GitHub API rate-limit recovery while validating main @ ${sha}.`);
       }
 
-      const waitMs = Math.max(MIN_RATE_LIMIT_RETRY_MS, error.retryMs);
       console.log(`[release] GitHub API rate limited; waiting ${Math.ceil(waitMs / 1000)}s before re-checking exact main/CI evidence.`);
       await sleep(waitMs);
     }
