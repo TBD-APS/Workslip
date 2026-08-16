@@ -40,10 +40,16 @@ public static class AuthenticationConfiguration
                     }
 
                     var token = authHeader["Bearer ".Length..].Trim();
+                    var tokenHandler = new JwtSecurityTokenHandler();
+
+                    if (!tokenHandler.CanReadToken(token))
+                    {
+                        return LocalJwtScheme;
+                    }
 
                     try
                     {
-                        var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
+                        var jwt = tokenHandler.ReadJwtToken(token);
 
                         var issuer = jwt.Issuer;
 
@@ -54,8 +60,11 @@ public static class AuthenticationConfiguration
 
                         return scheme;
                     }
-                    catch (SecurityTokenException)
+                    catch (Exception exception) when (exception is SecurityTokenException or ArgumentException)
                     {
+                        // Scheme selection must never turn an invalid Authorization header into
+                        // an application 500. Forward malformed JWT-shaped input to LocalJwt so
+                        // the normal bearer handler rejects it with 401.
                         return LocalJwtScheme;
                     }
                 };
