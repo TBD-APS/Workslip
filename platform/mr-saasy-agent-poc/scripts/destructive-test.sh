@@ -5,9 +5,17 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE=(docker compose -f "$ROOT/docker-compose.yml")
 RUN_ID="mr-saasy-poc-$(date +%s)-${RANDOM}"
 
+show_diagnostics() {
+  echo "[poc] FAILURE diagnostics"
+  "${COMPOSE[@]}" ps -a || true
+  "${COMPOSE[@]}" logs --no-color temporal worker || true
+}
+
 cleanup() {
   "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
 }
+
+trap show_diagnostics ERR
 trap cleanup EXIT
 
 run_cli() {
@@ -17,7 +25,7 @@ run_cli() {
 echo "[poc] Build worker image"
 "${COMPOSE[@]}" build worker
 
-echo "[poc] Start local durable Temporal service"
+echo "[poc] Start local Temporal dev service"
 "${COMPOSE[@]}" up -d temporal
 run_cli ping
 

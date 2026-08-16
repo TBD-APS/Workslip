@@ -11,7 +11,7 @@ It is not a production service and it does not depend on Workslip domain code, L
 ## POC shape
 
 ```text
-Temporal dev service (durable state)
+Temporal dev service
         |
         v
 containerized Python worker
@@ -27,7 +27,9 @@ structured feedback -> corrected second attempt
 WAITING_APPROVAL -> signal -> COMPLETED
 ```
 
-The local Temporal service uses the official `temporalio/temporal` development image with SQLite persistence mounted in a Docker volume. The worker runs in a separate container so the destructive test can kill it independently.
+For this first POC the Temporal dev container remains alive while only the worker container is destroyed and recreated. That isolates the question we actually need to answer first: does durable workflow history let a **replaceable worker** recover correctly? Temporal-service failover/persistence is deliberately a later proof and should be tested against Temporal Cloud rather than inferred from a local SQLite mount.
+
+The synthetic external tool state is stored in a Docker volume so it survives worker replacement and can prove idempotency across retries.
 
 ## What the destructive test proves
 

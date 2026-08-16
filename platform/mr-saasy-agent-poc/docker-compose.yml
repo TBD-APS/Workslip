@@ -8,13 +8,9 @@ services:
       - start-dev
       - --ip
       - 0.0.0.0
-      - --db-filename
-      - /var/lib/temporal/temporal.db
     ports:
       - "7233:7233"
       - "8233:8233"
-    volumes:
-      - temporal-data:/var/lib/temporal
 
   worker:
     build:
@@ -30,5 +26,4 @@ services:
       - temporal
 
 volumes:
-  temporal-data:
   poc-state:
