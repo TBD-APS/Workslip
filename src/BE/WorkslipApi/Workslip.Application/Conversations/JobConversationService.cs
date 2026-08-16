@@ -19,15 +19,18 @@ public sealed class JobConversationService(
     IJobConversationRepository repository,
     IJobService jobs,
     IAssignmentRepository assignmentRepository,
-    IJobAssignmentService jobAssignmentService,
     ICurrentUserContext currentUser,
     INotificationService notifications,
-    IApplicationTransactionFactory transactionFactory) : IJobConversationService
+    IApplicationTransactionFactory transactionFactory,
+    IJobAssignmentService? jobAssignmentService = null) : IJobConversationService
 {
     private const int MaxBodyLength = 4000;
     private const int DefaultPageSize = 50;
     private const int MaxPageSize = 100;
     private static readonly TimeSpan MaxReminderHorizon = TimeSpan.FromDays(365);
+
+    private IJobAssignmentService JobAssignmentService => jobAssignmentService
+        ?? throw new InvalidOperationException("Conversation assignment actions require IJobAssignmentService.");
 
     public async Task<Result<JobConversationResponse>> GetAsync(
         Guid jobId,
@@ -322,7 +325,7 @@ public sealed class JobConversationService(
         await using var transaction = await transactionFactory.BeginTransactionAsync(cancellationToken);
         try
         {
-            var assignment = await jobAssignmentService.AssignSelfAsync(jobId, cancellationToken);
+            var assignment = await JobAssignmentService.AssignSelfAsync(jobId, cancellationToken);
             if (!assignment.IsSuccess)
             {
                 await TryRollbackAsync(transaction, cancellationToken);
@@ -400,7 +403,7 @@ public sealed class JobConversationService(
             if (!access.AssignableUsers.ContainsKey(targetUserId))
                 return InvalidAction(nameof(CreateConversationMessageRequest.ActionTargetUserId), "Brugeren kan ikke overtage denne sag.");
 
-            return await jobAssignmentService.ValidateSelfAssignmentTargetAsync(
+            return await JobAssignmentService.ValidateSelfAssignmentTargetAsync(
                 access.Job.Id,
                 targetUserId,
                 cancellationToken);
