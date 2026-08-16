@@ -10,5 +10,6 @@ public enum NotificationType
     JobDeleted,
     ConversationMention,
     ConversationActionRequested,
-    ConversationReminder
+    ConversationReminder,
+    DailyHoursLimitReached
 }
