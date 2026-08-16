@@ -7,7 +7,7 @@ export function ThemedToaster() {
   return (
     <Toaster
       theme={theme === 'night' ? 'dark' : 'light'}
-      position="top-center"
+      position="bottom-center"
       toastOptions={{
         style: {
           background: 'var(--surface-color)',
