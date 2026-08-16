@@ -71,7 +71,7 @@ async function verifyAuthBrandCase({ name, theme, viewport }) {
       const logoElement = document.querySelector('.auth-shell .logo-icon');
       if (!(cardElement instanceof HTMLElement)
         || !(buttonElement instanceof HTMLElement)
-        || !(logoElement instanceof HTMLElement)) {
+        || !(logoElement instanceof SVGElement)) {
         throw new Error('Expected branded login elements were not rendered.');
       }
 
