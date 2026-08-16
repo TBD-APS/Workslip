@@ -80,6 +80,9 @@ describe('JobConversationDrawer', () => {
           { id: 'user-current', displayName: 'Rasmus' },
           { id: 'user-mikkel', displayName: 'Mikkel' },
         ],
+        assignableUsers: [
+          { id: 'user-soeren', displayName: 'Søren' },
+        ],
         messages: [],
       },
       isPending: false,
@@ -110,9 +113,88 @@ describe('JobConversationDrawer', () => {
           mentionedUserIds: ['user-mikkel'],
           actionType: ConversationActionType.Acknowledge,
           actionTargetUserId: 'user-mikkel',
+          actionDueUtc: null,
         },
       },
       expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+    );
+  });
+
+  it('creates a durable task action from the composer', () => {
+    renderDrawer();
+
+    fireEvent.click(screen.getByRole('button', { name: /Handling/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Opret opgave' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mikkel' }));
+    fireEvent.change(screen.getByLabelText('Skriv en besked'), {
+      target: { value: 'Skift ventilen hos kunden' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(sendMutation.mutate).toHaveBeenCalledWith(
+      {
+        jobId: 'job-1',
+        data: {
+          body: 'Skift ventilen hos kunden',
+          mentionedUserIds: ['user-mikkel'],
+          actionType: ConversationActionType.CreateTask,
+          actionTargetUserId: 'user-mikkel',
+          actionDueUtc: null,
+        },
+      },
+      expect.any(Object),
+    );
+  });
+
+  it('creates a scheduled self reminder with a real due timestamp', () => {
+    renderDrawer();
+
+    fireEvent.click(screen.getByRole('button', { name: /Handling/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Påmind mig' }));
+    fireEvent.click(screen.getByRole('button', { name: /Om 1 time/ }));
+    fireEvent.change(screen.getByLabelText('Skriv en besked'), {
+      target: { value: 'Ring kunden tilbage' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(sendMutation.mutate).toHaveBeenCalledWith(
+      {
+        jobId: 'job-1',
+        data: expect.objectContaining({
+          body: 'Ring kunden tilbage',
+          mentionedUserIds: [],
+          actionType: ConversationActionType.RemindMe,
+          actionTargetUserId: 'user-current',
+          actionDueUtc: expect.any(String),
+        }),
+      },
+      expect.any(Object),
+    );
+  });
+
+  it('requests self-assignment without granting or simulating an @mention', () => {
+    renderDrawer();
+
+    fireEvent.click(screen.getByRole('button', { name: /Handling/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Bed om at tage sagen' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Søren' }));
+    fireEvent.change(screen.getByLabelText('Skriv en besked'), {
+      target: { value: 'Kan du tage sagen i morgen?' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(sendMutation.mutate).toHaveBeenCalledWith(
+      {
+        jobId: 'job-1',
+        data: {
+          body: 'Kan du tage sagen i morgen?',
+          mentionedUserIds: [],
+          actionType: ConversationActionType.AssignSelf,
+          actionTargetUserId: 'user-soeren',
+          actionDueUtc: null,
+        },
+      },
+      expect.any(Object),
     );
   });
 
@@ -125,6 +207,7 @@ describe('JobConversationDrawer', () => {
           { id: 'user-current', displayName: 'Rasmus' },
           { id: 'user-admin', displayName: 'Admin' },
         ],
+        assignableUsers: [],
         messages: [{
           id: 'message-1',
           jobId: 'job-1',
@@ -137,6 +220,7 @@ describe('JobConversationDrawer', () => {
             targetUserId: 'user-current',
             targetDisplayName: 'Rasmus',
             status: ConversationActionStatus.Pending,
+            dueUtc: null,
             resolvedByUserId: null,
             resolvedByDisplayName: null,
             resolvedUtc: null,
