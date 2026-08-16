@@ -1,0 +1,29 @@
+# Example company override — used only for preview/tests.
+# Copy this file, rename to the company id, fill assets/colors.
+# Do not commit customer-specific secrets or production personal data.
+
+company_id: example-acme
+display_name: Acme Installation ApS
+logo:
+  primary: ""
+  on_dark: ""
+favicon: ""
+colors:
+  primary: "#1a4d2e"
+  accent: "#2d6a4f"
+  text: "#1b4332"
+  background: "#f0f7f4"
+  muted: "#52796f"
+  border: "#cce3d8"
+  white: "#ffffff"
+contact:
+  email: "kontakt@example.invalid"
+  phone: ""
+links:
+  app: "https://app.mrsoftware.dk/app"
+  support: ""
+sections:
+  show_features: true
+  show_demo: true
+  show_status: true
+  show_security: true
