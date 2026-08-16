@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - rbj--622-playwright-coverage
+      - rbj--622-playwright-coverage-wave2
       - 'release-*'
       - 'release/**'
   push:
