@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/kimi-gate-a-wor-502-v2.yml
       - tools/ai/kimi-gate-a-wor502.py
+      - tools/ai/kimi-gate-a-fix-wor502.py
 
 permissions:
   contents: write
@@ -18,7 +19,7 @@ concurrency:
 jobs:
   implement:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     env:
       KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
       MOONSHOT_BASE_URL: https://api.moonshot.ai/v1
@@ -35,6 +36,7 @@ jobs:
           set -euo pipefail
           test -n "${KIMI_API_KEY:-}" || { echo 'KIMI_API_KEY missing'; exit 10; }
           cp tools/ai/kimi-gate-a-wor502.py /tmp/kimi-gate-a-wor502.py
+          cp tools/ai/kimi-gate-a-fix-wor502.py /tmp/kimi-gate-a-fix-wor502.py
           response="$(curl --fail --silent --show-error -H "Authorization: Bearer ${KIMI_API_KEY}" "${MOONSHOT_BASE_URL}/models")"
           model="$(printf '%s' "$response" | jq -r '([.data[].id | select(. == "kimi-k2.6")] + [.data[].id | select(test("^kimi-"; "i"))] + [.data[].id]) | unique | .[0] // empty')"
           test -n "$model" || { echo 'No Kimi model discovered'; exit 11; }
@@ -52,11 +54,11 @@ jobs:
           KIMI_MODEL: ${{ steps.runtime.outputs.model }}
         run: python3 /tmp/kimi-gate-a-wor502.py
 
-      - name: Enforce feature path boundary
+      - name: Enforce feature path boundary including new files
         shell: bash
         run: |
           set -euo pipefail
-          git diff --name-only origin/main | tee /tmp/changed-files.txt
+          { git diff --name-only origin/main; git ls-files --others --exclude-standard; } | sort -u | tee /tmp/changed-files.txt
           test -s /tmp/changed-files.txt || { echo 'No feature changes'; exit 20; }
           while IFS= read -r p; do
             case "$p" in
@@ -78,18 +80,58 @@ jobs:
           test "${#tests[@]}" -gt 0 || { echo 'No focused QuickNavigator tests found'; exit 30; }
           npx vitest run "${tests[@]}"
 
-      - name: Lint Kimi TypeScript changes
+      - name: Initial lint validation
+        id: lint_initial
+        continue-on-error: true
         working-directory: src/FE
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t files < <(git diff --name-only origin/main -- '*.ts' '*.tsx' | sed 's#^src/FE/##')
+          mapfile -t files < <({ git diff --name-only origin/main -- '*.ts' '*.tsx'; git ls-files --others --exclude-standard -- 'src/components/common/*.ts' 'src/components/common/*.tsx'; } | sort -u | sed 's#^src/FE/##')
           test "${#files[@]}" -gt 0 || { echo 'No TypeScript feature changes'; exit 31; }
+          npx eslint "${files[@]}" 2>&1 | tee /tmp/wor502-lint.log
+
+      - name: Ask Kimi to repair lint rejection
+        if: steps.lint_initial.outcome == 'failure'
+        env:
+          KIMI_MODEL: ${{ steps.runtime.outputs.model }}
+        run: python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/wor502-lint.log
+
+      - name: Revalidate tests and lint after lint feedback
+        shell: bash
+        working-directory: src/FE
+        run: |
+          set -euo pipefail
+          mapfile -t tests < <(find src/components/common -maxdepth 1 -type f -iname '*navigator*.test.ts*' -print)
+          npx vitest run "${tests[@]}"
+          mapfile -t files < <({ git diff --name-only origin/main -- '*.ts' '*.tsx'; git ls-files --others --exclude-standard -- 'src/components/common/*.ts' 'src/components/common/*.tsx'; } | sort -u | sed 's#^src/FE/##')
           npx eslint "${files[@]}"
 
-      - name: Build frontend
+      - name: Initial frontend build
+        id: build_initial
+        continue-on-error: true
         working-directory: src/FE
-        run: npm run build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build 2>&1 | tee /tmp/wor502-build.log
+
+      - name: Ask Kimi to repair build rejection
+        if: steps.build_initial.outcome == 'failure'
+        env:
+          KIMI_MODEL: ${{ steps.runtime.outputs.model }}
+        run: python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/wor502-build.log
+
+      - name: Final deterministic validation
+        shell: bash
+        working-directory: src/FE
+        run: |
+          set -euo pipefail
+          mapfile -t tests < <(find src/components/common -maxdepth 1 -type f -iname '*navigator*.test.ts*' -print)
+          npx vitest run "${tests[@]}"
+          mapfile -t files < <({ git diff --name-only origin/main -- '*.ts' '*.tsx'; git ls-files --others --exclude-standard -- 'src/components/common/*.ts' 'src/components/common/*.tsx'; } | sort -u | sed 's#^src/FE/##')
+          npx eslint "${files[@]}"
+          npm run build
 
       - name: Commit and push Kimi feature
         id: commit
