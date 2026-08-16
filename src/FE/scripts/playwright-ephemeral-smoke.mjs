@@ -123,7 +123,10 @@ async function verifyAuthenticatedBootstrapReloadAndLogout() {
     assert.equal(new URL(page.url()).pathname, '/app/settings', 'Reload must preserve the protected deep-link.');
 
     await page.getByRole('button', { name: 'Log ud' }).click();
-    await page.waitForURL((url) => url.pathname === '/login', { timeout: UI_TIMEOUT });
+    await page.waitForURL((url) => url.pathname === '/login', {
+      waitUntil: 'domcontentloaded',
+      timeout: UI_TIMEOUT,
+    });
     assert.equal(await page.locator('.app-shell').count(), 0, 'Explicit logout must remove the authenticated app shell.');
     const loggedOutStorage = await page.evaluate(() => ({
       authToken: localStorage.getItem('authToken'),
@@ -181,7 +184,10 @@ async function verifyMissingTokenFailsClosed() {
       timeout: UI_TIMEOUT,
     });
     assert.ok(navigation?.ok(), `Unauthenticated protected-route navigation returned HTTP ${navigation?.status() ?? 'unknown'}.`);
-    await page.waitForURL((url) => url.pathname === '/login', { timeout: UI_TIMEOUT });
+    await page.waitForURL((url) => url.pathname === '/login', {
+      waitUntil: 'domcontentloaded',
+      timeout: UI_TIMEOUT,
+    });
     assert.equal(new URL(page.url()).searchParams.get('returnTo'), '/app/settings', 'Missing-session redirect must preserve the requested protected route.');
     await assertProtectedShellNeverRendered(page, 'Protected app shell must never render when no session token exists.');
     assert.deepEqual(pageErrors, [], `Browser page errors during missing-token flow: ${pageErrors.join(' | ')}`);
@@ -224,8 +230,15 @@ async function verifyRejectedTokenFailsClosed() {
 
     const rejectedMe = await rejectedMeResponse;
     assert.equal(rejectedMe.status(), 401, `Invalid session must be rejected by /api/auth/me; got HTTP ${rejectedMe.status()}.`);
-    await page.waitForFunction(() => localStorage.getItem('authToken') === null, undefined, { timeout: UI_TIMEOUT });
-    await page.waitForURL((url) => url.pathname === '/login', { timeout: UI_TIMEOUT });
+    await page.waitForURL((url) => url.pathname === '/login', {
+      waitUntil: 'domcontentloaded',
+      timeout: UI_TIMEOUT,
+    });
+    await page.waitForFunction(({ expectedEmail }) => {
+      const storedEmail = localStorage.getItem('userEmail');
+      return localStorage.getItem('authToken') === null
+        && storedEmail?.toLowerCase() === expectedEmail.toLowerCase();
+    }, { expectedEmail: ADMIN_EMAIL }, { timeout: UI_TIMEOUT });
 
     const rejectedStorage = await page.evaluate(() => ({
       authToken: localStorage.getItem('authToken'),
