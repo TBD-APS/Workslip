@@ -11,7 +11,7 @@ Agents are workers inside one delivery system, not independent sources of truth.
 Separate these concepts:
 
 - **Role** — what the agent is responsible for, for example Implementation, Review, QA, Security, SRE, Architecture or Research.
-- **Provider/runtime** — the execution technology, for example Codex/ChatGPT, Claude, Linear Agent or a future provider.
+- **Provider/runtime** — the execution technology, for example Codex/ChatGPT, Claude, Gemini, Kimi, Grok, Ollama-hosted local models, Linear Agent or a future provider.
 - **Capability** — what evidence/checkpoints the runtime can publish or consume.
 - **Task context** — the current Linear issue, repository state, branch/PR/SHA and relevant source material.
 
@@ -71,7 +71,57 @@ All agents preserve these boundaries unless an accepted architecture decision ch
 - do not weaken tests/guards to make a change pass;
 - provider-specific Control Center payloads remain adapter-owned; core stores normalized projections and evidence references.
 
-## 6. Role boundaries
+## 6. Agent routing policy
+
+Do not activate every agent for every task. Routing is role- and risk-based.
+
+The orchestrator selects only the roles/providers that materially improve delivery confidence, cost, speed or independence. Control Center should retain the routing decision and resulting evidence when supported.
+
+### Mandatory frontend rule
+
+**Every frontend (`src/FE/`) implementation or material frontend behaviour/design change must involve Kimi in at least one active frontend role before completion.**
+
+Kimi may act as:
+
+- primary frontend implementer;
+- frontend pair/reviewer;
+- UI/UX consistency reviewer;
+- frontend technical-debt/refactor worker.
+
+Kimi involvement must be meaningful and evidenced by a checkpoint/review/commit/PR reference when the provider integration supports it. A purely ceremonial assignment does not satisfy the rule.
+
+This requirement does not mean every frontend task must use every other provider. Claude, Gemini, GPT, Grok, Security, QA or other agents are added according to the changed risk and required independence.
+
+If Kimi is unavailable, frontend work is `BLOCKED` unless the repository owner explicitly records a temporary exception with reason/evidence.
+
+### Initial provider defaults
+
+These are routing defaults, not hard architecture dependencies:
+
+- **GPT / Codex / ChatGPT:** technical lead, architecture/orchestration, complex implementation and cross-layer debugging.
+- **Claude:** independent code/security/architecture review, especially for high-risk PRs.
+- **Gemini:** QA, large-context consistency review, browser/mobile/accessibility evidence where supported.
+- **Kimi:** mandatory frontend participation; strong default implementation/refactor worker.
+- **Grok:** product, market, content and adversarial commercial critique; not a default security/code approval authority.
+- **Ollama/local models:** private/local, repetitive and cost-sensitive workloads where the selected local model has sufficient capability; examples include classification, summarization, metadata extraction, lint-like repository scans, checkpoint summarization and offline/internal processing. Local execution does not waive validation, security or evidence requirements.
+- **Linear Agent:** planning/triage/checkpoint coordination where available.
+
+### Ollama as a runtime, not a single agent
+
+Treat Ollama as a **provider/runtime host** capable of serving multiple local models, not as one fixed persona or role.
+
+Each Ollama-backed agent registration must declare:
+
+- concrete model identifier/version;
+- agent role;
+- capabilities;
+- hardware/runtime context where materially relevant;
+- privacy/data classification allowed for that local execution path;
+- benchmark/evidence level before being eligible for high-risk routing.
+
+A local model may be preferred for sensitive or high-volume tasks because data can stay local, but "local" is not equivalent to "trusted for all decisions". Authorization/security/release approvals still require a provider/model proven for that role or independent human/agent evidence.
+
+## 7. Role boundaries
 
 ### Implementation
 Own the smallest complete implementation, regression protection, validation and delivery evidence. Do not self-approve risk merely because the code was authored successfully.
@@ -94,7 +144,7 @@ Use measurable dependency/ownership evidence. A refactor that only moves code wh
 ### Research / Product
 Distinguish evidence, assumptions and recommendations. Research does not override repository technical truth or Linear delivery state.
 
-## 7. Control Center checkpoint contract
+## 8. Control Center checkpoint contract
 
 When the provider supports checkpoint publishing, emit normalized state rather than provider-specific prose.
 
@@ -114,7 +164,7 @@ Required concepts:
 
 Do not create fake successful runs merely to represent a provider error. Provider errors are explicit blocked/unknown observations.
 
-## 8. Security, privacy and retention
+## 9. Security, privacy and retention
 
 - Never publish credentials, tokens, private keys or production secrets.
 - Minimize personal/customer data in prompts, checkpoints and central read models.
@@ -124,7 +174,7 @@ Do not create fake successful runs merely to represent a provider error. Provide
 - Do not escalate permissions autonomously.
 - Stop before destructive production operations, irreversible data semantics or unapproved processor/data-transfer decisions.
 
-## 9. Documentation responsibility
+## 10. Documentation responsibility
 
 An agent is not finished when an important decision exists only in its conversation.
 
@@ -137,7 +187,7 @@ Use:
 
 Update stale maintained documentation in the same cohesive change when implementation makes it inaccurate. Surface duplicate or conflicting documentation rather than creating another source.
 
-## 10. Machine-readable onboarding reference
+## 11. Machine-readable onboarding reference
 
 Providers should eventually publish this logical manifest through the shared agent/provider contract:
 
@@ -156,7 +206,7 @@ Initial handbook version: `1`.
 
 The canonical `sourceRevision` is the repository revision from which this handbook and applicable agent rules were loaded. Control Center may warn or block according to policy when an active agent is materially stale relative to the current required handbook/contract revision.
 
-## 11. New-agent onboarding checklist
+## 12. New-agent onboarding checklist
 
 A new provider/agent is plug-and-play only when:
 
