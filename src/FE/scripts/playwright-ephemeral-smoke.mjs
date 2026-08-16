@@ -334,8 +334,34 @@ async function verifyDesktopQuickNavigator() {
   }
 }
 
+async function createExact75MbMp3Fixture() {
+  const [{ mkdtemp, open, rm, stat }, { tmpdir }, { join }] = await Promise.all([
+    import('node:fs/promises'),
+    import('node:os'),
+    import('node:path'),
+  ]);
+  const directory = await mkdtemp(join(tmpdir(), 'workslip-playwright-upload-'));
+  const filePath = join(directory, 'boundary-75mb.mp3');
+  const expectedBytes = 75 * 1024 * 1024;
+  const file = await open(filePath, 'w');
+  try {
+    await file.write(Buffer.from([0x49, 0x44, 0x33, 0x04]), 0, 4, 0);
+    await file.truncate(expectedBytes);
+  } finally {
+    await file.close();
+  }
+
+  const metadata = await stat(filePath);
+  assert.equal(metadata.size, expectedBytes, 'Large upload fixture must be exactly 75 MB.');
+  return {
+    filePath,
+    cleanup: () => rm(directory, { recursive: true, force: true }),
+  };
+}
+
 async function verifyMobileDocumentAttachmentUpload() {
   const { context } = await authenticatedContext(devices['iPhone 13']);
+  let fixture;
   try {
     const session = await openAuthenticatedApp(context);
     const { page } = session;
@@ -357,19 +383,15 @@ async function verifyMobileDocumentAttachmentUpload() {
 
     const input = page.locator('input.docs-file-input[type="file"]');
     await input.waitFor({ state: 'attached', timeout: UI_TIMEOUT });
-    const largeMp3 = Buffer.alloc(75 * 1024 * 1024);
-    largeMp3.set([0x49, 0x44, 0x33, 0x04]);
+    fixture = await createExact75MbMp3Fixture();
 
-    const uploadResponsePromise = page.waitForResponse((response) =>
-      response.request().method() === 'POST'
-        && new URL(response.url()).pathname === `/api/docs/${document.id}/attachments`,
-    { timeout: LARGE_UPLOAD_TIMEOUT });
-    await input.setInputFiles({
-      name: 'boundary-75mb.mp3',
-      mimeType: 'audio/mpeg',
-      buffer: largeMp3,
-    });
-    const uploadResponse = await uploadResponsePromise;
+    const [uploadResponse] = await Promise.all([
+      page.waitForResponse((response) =>
+        response.request().method() === 'POST'
+          && new URL(response.url()).pathname === `/api/docs/${document.id}/attachments`,
+      { timeout: LARGE_UPLOAD_TIMEOUT }),
+      input.setInputFiles(fixture.filePath, { timeout: LARGE_UPLOAD_TIMEOUT }),
+    ]);
     assert.ok(uploadResponse.ok(), `75 MB document attachment returned HTTP ${uploadResponse.status()}.`);
 
     await page.getByText('Filen er tilføjet.', { exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
@@ -377,6 +399,7 @@ async function verifyMobileDocumentAttachmentUpload() {
     assert.match(await page.locator('.docs-attachments-help').innerText(), /maks\. 75 MB pr\. fil/);
     session.assertNoPageErrors();
   } finally {
+    await fixture?.cleanup();
     await context.close();
   }
 }
