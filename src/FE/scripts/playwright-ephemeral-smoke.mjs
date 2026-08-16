@@ -167,8 +167,28 @@ async function observeAuthenticatedShell(context) {
 }
 
 async function assertProtectedShellNeverRendered(page, message) {
-  const observed = await page.evaluate((observationKey) => sessionStorage.getItem(observationKey), APP_SHELL_OBSERVED_KEY);
-  assert.equal(observed, '0', message);
+  const deadline = Date.now() + UI_TIMEOUT;
+  while (true) {
+    try {
+      const observed = await page.evaluate((observationKey) => sessionStorage.getItem(observationKey), APP_SHELL_OBSERVED_KEY);
+      assert.equal(observed, '0', message);
+      return;
+    } catch (error) {
+      const navigationRace = String(error?.message || error).includes('Execution context was destroyed');
+      if (!navigationRace || Date.now() >= deadline) {
+        throw error;
+      }
+      await page.waitForLoadState('domcontentloaded', {
+        timeout: Math.max(1, deadline - Date.now()),
+      }).catch(() => {});
+    }
+  }
+}
+
+async function readOriginLocalStorage(context, origin) {
+  const state = await context.storageState();
+  const entries = state.origins.find((item) => item.origin === origin)?.localStorage ?? [];
+  return Object.fromEntries(entries.map(({ name, value }) => [name, value]));
 }
 
 async function verifyMissingTokenFailsClosed() {
@@ -240,11 +260,8 @@ async function verifyRejectedTokenFailsClosed() {
         && storedEmail?.toLowerCase() === expectedEmail.toLowerCase();
     }, { expectedEmail: ADMIN_EMAIL }, { timeout: UI_TIMEOUT });
 
-    const rejectedStorage = await page.evaluate(() => ({
-      authToken: localStorage.getItem('authToken'),
-      userEmail: localStorage.getItem('userEmail'),
-    }));
-    assert.equal(rejectedStorage.authToken, null, 'Rejected session must clear the invalid bearer token.');
+    const rejectedStorage = await readOriginLocalStorage(context, new URL(APP_URL).origin);
+    assert.equal(rejectedStorage.authToken ?? null, null, 'Rejected session must clear the invalid bearer token.');
     assert.equal(rejectedStorage.userEmail?.toLowerCase(), ADMIN_EMAIL.toLowerCase(), 'Rejected session may retain only the verified email reauth hint.');
     await assertProtectedShellNeverRendered(page, 'Protected app shell must never render for a token rejected by /api/auth/me.');
     assert.deepEqual(pageErrors, [], `Browser page errors during rejected-token flow: ${pageErrors.join(' | ')}`);
