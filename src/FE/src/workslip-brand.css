@@ -1,11 +1,15 @@
 @charset "UTF-8";
 
 /*
- * WOR-452 — trade-neutral Workslip brand palette.
+ * WOR-452 / WOR-665 — trade-neutral Workslip brand palette.
  *
  * Farvelab owns component structure, states and accessibility. This file owns
  * brand colour semantics only, so the product can evolve visually without
  * reintroducing feature-specific hardcoded colours.
+ *
+ * The semantic palette is active for the authenticated app plus the public
+ * auth/system-state surfaces that bridge users into that app. Component styling
+ * remains owned by the relevant feature/shared stylesheet below this token layer.
  *
  * Core palette:
  * Marine       #123B4A
@@ -14,7 +18,9 @@
  * Warm cream   #FFF7E8
  */
 
-html body:has(.app-shell) {
+html body:has(.app-shell),
+html body:has(.auth-shell),
+html body:has(.system-state) {
   --brand-marine: #123b4a;
   --brand-petrol: #147a7e;
   --brand-orange: #f47a24;
@@ -90,7 +96,9 @@ html body:has(.app-shell) {
   --overlay-light-050: rgba(255, 247, 232, 0.72);
 }
 
-html[data-theme="day"] body:has(.app-shell) {
+html[data-theme="day"] body:has(.app-shell),
+html[data-theme="day"] body:has(.auth-shell),
+html[data-theme="day"] body:has(.system-state) {
   --bg: var(--brand-cream);
   --text: var(--brand-marine);
   --text-primary: var(--text);
