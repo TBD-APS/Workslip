@@ -12,7 +12,7 @@ namespace Workslip.Tests.Notifications;
 public sealed class EfNotificationRepositoryTests
 {
     [Fact]
-    public async Task QueueNotificationAsync_DetachesRowAfterPersistenceFailure()
+    public async Task QueueNotificationAsync_TreatsAlreadyCompletedSameIdAsIdempotent()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
@@ -29,19 +29,33 @@ public sealed class EfNotificationRepositoryTests
             AddUser(setupContext, userId);
             var existing = CreateNotification(notificationId);
             existing.UserId = userId;
+            existing.PayloadJson = "{\"source\":\"first\"}";
+            existing.Status = "Completed";
+            existing.CompletedUtc = DateTimeOffset.UtcNow;
             setupContext.NotificationQueue.Add(existing);
             await setupContext.SaveChangesAsync();
         }
 
-        await using var context = new SqlDbContext(options);
-        var duplicate = CreateNotification(notificationId);
-        duplicate.UserId = userId;
-        var repository = new EfNotificationRepository(context, new NoRetryPolicy());
+        await using (var context = new SqlDbContext(options))
+        {
+            var duplicate = CreateNotification(notificationId);
+            duplicate.UserId = userId;
+            duplicate.PayloadJson = "{\"source\":\"duplicate\"}";
+            var repository = new EfNotificationRepository(context, new NoRetryPolicy());
 
-        await Assert.ThrowsAsync<DbUpdateException>(() =>
-            repository.QueueNotificationAsync(duplicate, CancellationToken.None));
+            await repository.QueueNotificationAsync(duplicate, CancellationToken.None);
 
-        Assert.Equal(EntityState.Detached, context.Entry(duplicate).State);
+            Assert.Equal(EntityState.Detached, context.Entry(duplicate).State);
+        }
+
+        await using var assertionContext = new SqlDbContext(options);
+        var rows = await assertionContext.NotificationQueue.AsNoTracking()
+            .Where(row => row.Id == notificationId)
+            .ToListAsync();
+        var queued = Assert.Single(rows);
+        Assert.Equal("Completed", queued.Status);
+        Assert.NotNull(queued.CompletedUtc);
+        Assert.Equal("{\"source\":\"first\"}", queued.PayloadJson);
     }
 
     [Fact]
