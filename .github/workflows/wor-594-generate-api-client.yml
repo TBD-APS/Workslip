@@ -1,0 +1,47 @@
+name: WOR-594 Refresh Generated API Client
+
+on:
+  push:
+    branches:
+      - rbj--594-control-center-read-api
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v7
+        with:
+          ref: rbj--594-control-center-read-api
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: src/FE
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Generate branch-matched API client
+        uses: ./.github/actions/generate-frontend-api
+
+      - name: Commit generated contract if changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- src/FE/src/api/generated && [[ -z "$(git status --porcelain --untracked-files=all -- src/FE/src/api/generated)" ]]; then
+            echo 'Generated API client is already current.'
+            exit 0
+          fi
+
+          git config user.name 'workslip-ci'
+          git config user.email 'workslip-ci@users.noreply.github.com'
+          git add src/FE/src/api/generated
+          git commit -m 'RBJ-594 regenerate frontend API contract'
+          git push origin HEAD:rbj--594-control-center-read-api
