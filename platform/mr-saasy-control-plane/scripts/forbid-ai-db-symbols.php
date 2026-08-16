@@ -21,11 +21,23 @@ $scanRoots = $requestedRoot !== null
 
 $forbiddenSymbols = [
     'Illuminate\\Support\\Facades\\DB',
+    'Illuminate\\Support\\Facades\\Schema',
     'Illuminate\\Database\\Eloquent\\Model',
     'Illuminate\\Database\\Query\\Builder',
     'Illuminate\\Database\\Eloquent\\Builder',
+    'Illuminate\\Database\\Connection',
+    'Illuminate\\Database\\DatabaseManager',
+    'Illuminate\\Database\\Capsule\\Manager',
     'App\\Infrastructure\\Persistence',
     'App\\ProductAdapters\\Workslip',
+];
+
+$forbiddenPatterns = [
+    'raw PDO client' => '/\\b(?:use\\s+PDO\\s*;|new\\s+\\\\?PDO\\s*\\()/i',
+    'raw mysqli client' => '/\\b(?:use\\s+mysqli\\s*;|new\\s+\\\\?mysqli\\s*\\()/i',
+    'Laravel database config access' => '/\\bconfig\\s*\\(\\s*[\'\"]database(?:\\.|[\'\"])/i',
+    'database environment credential access' => '/\\benv\\s*\\(\\s*[\'\"](?:DB_(?:CONNECTION|HOST|PORT|DATABASE|USERNAME|PASSWORD)|DATABASE_URL)[\'\"]/i',
+    'direct database environment lookup' => '/[\'\"](?:DB_(?:CONNECTION|HOST|PORT|DATABASE|USERNAME|PASSWORD)|DATABASE_URL)[\'\"]\\s*\\]/i',
 ];
 
 $violations = [];
@@ -51,10 +63,17 @@ foreach ($scanRoots as $relativeRoot) {
             exit(1);
         }
 
+        $relativeFile = ltrim(str_replace($projectRoot, '', $file->getPathname()), DIRECTORY_SEPARATOR);
+
         foreach ($forbiddenSymbols as $symbol) {
             if (str_contains($contents, $symbol)) {
-                $relativeFile = ltrim(str_replace($projectRoot, '', $file->getPathname()), DIRECTORY_SEPARATOR);
                 $violations[] = "{$relativeFile}: forbidden AI/provider dependency {$symbol}";
+            }
+        }
+
+        foreach ($forbiddenPatterns as $label => $pattern) {
+            if (preg_match($pattern, $contents) === 1) {
+                $violations[] = "{$relativeFile}: forbidden AI/provider database path {$label}";
             }
         }
     }
@@ -65,4 +84,4 @@ if ($violations !== []) {
     exit(1);
 }
 
-fwrite(STDOUT, "AI/provider direct DB/Eloquent/persistence symbols: none.\n");
+fwrite(STDOUT, "AI/provider direct DB/Eloquent/persistence/credential paths: none.\n");
