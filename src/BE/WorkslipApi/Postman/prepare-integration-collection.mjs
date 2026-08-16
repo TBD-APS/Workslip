@@ -67,7 +67,7 @@ if (tokenCaptureIndex < 0) {
 devTokenTest.splice(
   tokenCaptureIndex + 1,
   0,
-  "  pm.collectionVariables.set('actorUserId', json.user.id);",
+  "  pm.collectionVariables.set('actorUserId', json.user.userId);",
   "  pm.collectionVariables.set('actorRole', json.user.role);",
 );
 
