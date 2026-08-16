@@ -42,6 +42,7 @@ internal static class AuditDisplayNames
         { "CustomerObservations", "Oplysninger til kunden" },
         { "TechnicalObservations", "Kommentar til sagen" },
         { "Remarks", "Begrundelse for irrelevante kontrolpunkter" },
+        { "RejectionNote", "Statusbegrundelse" },
         { "CustomWorkKind", "Service/Andet" },
         { "WorkDate", "Arbejdsdato" },
         { "HoursWorked", "Timer" },
