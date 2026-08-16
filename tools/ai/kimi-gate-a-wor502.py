@@ -2,6 +2,8 @@
 import json
 import os
 import pathlib
+import time
+import urllib.error
 import urllib.request
 
 BASE = os.environ.get('MOONSHOT_BASE_URL', 'https://api.moonshot.ai/v1').rstrip('/')
@@ -24,7 +26,7 @@ def read_context(paths, limit):
     return '\n\n'.join(blocks)
 
 
-def call_kimi(system, task, context, max_tokens):
+def call_kimi(stage, system, task, context, max_tokens):
     payload = {
         'model': MODEL,
         'messages': [
@@ -36,38 +38,66 @@ def call_kimi(system, task, context, max_tokens):
         'max_completion_tokens': max_tokens,
         'stream': True,
     }
-    request = urllib.request.Request(
-        BASE + '/chat/completions',
-        data=json.dumps(payload).encode('utf-8'),
-        headers={
-            'Authorization': 'Bearer ' + KEY,
-            'Content-Type': 'application/json',
-        },
-        method='POST',
-    )
-    chunks = []
-    usage = {}
-    resolved_model = MODEL
-    with urllib.request.urlopen(request, timeout=180) as response:
-        for raw in response:
-            line = raw.decode('utf-8').strip()
-            if not line.startswith('data:'):
-                continue
-            data = line[5:].strip()
-            if data == '[DONE]':
-                break
-            event = json.loads(data)
-            resolved_model = event.get('model') or resolved_model
-            if event.get('usage'):
-                usage = event['usage']
-            choices = event.get('choices') or []
-            if choices:
-                content = (choices[0].get('delta') or {}).get('content')
-                if content:
-                    chunks.append(content)
-    raw = ''.join(chunks)
-    result = json.loads(raw)
-    return result, resolved_model, usage
+    body = json.dumps(payload).encode('utf-8')
+    last_error = None
+    for attempt, delay in enumerate((0, 8, 20), start=1):
+        if delay:
+            print(f'{stage}: provider retry backoff {delay}s (attempt {attempt}/3)')
+            time.sleep(delay)
+        request = urllib.request.Request(
+            BASE + '/chat/completions',
+            data=body,
+            headers={
+                'Authorization': 'Bearer ' + KEY,
+                'Content-Type': 'application/json',
+            },
+            method='POST',
+        )
+        chunks = []
+        usage = {}
+        resolved_model = MODEL
+        try:
+            with urllib.request.urlopen(request, timeout=180) as response:
+                for raw in response:
+                    line = raw.decode('utf-8').strip()
+                    if not line.startswith('data:'):
+                        continue
+                    data = line[5:].strip()
+                    if data == '[DONE]':
+                        break
+                    event = json.loads(data)
+                    if event.get('error'):
+                        last_error = f"provider stream error: {event['error']}"
+                        break
+                    resolved_model = event.get('model') or resolved_model
+                    if event.get('usage'):
+                        usage = event['usage']
+                    choices = event.get('choices') or []
+                    if choices:
+                        content = (choices[0].get('delta') or {}).get('content')
+                        if content:
+                            chunks.append(content)
+        except urllib.error.HTTPError as exc:
+            last_error = f'HTTP {exc.code}'
+            if exc.code not in (408, 409, 429, 500, 502, 503, 504):
+                raise
+            continue
+        except (TimeoutError, urllib.error.URLError) as exc:
+            last_error = type(exc).__name__
+            continue
+
+        raw = ''.join(chunks)
+        if not raw.strip():
+            last_error = last_error or 'empty provider stream'
+            continue
+        try:
+            result = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            last_error = f'incomplete JSON: {exc}'
+            continue
+        print(f'{stage}: Kimi response accepted on attempt {attempt}')
+        return result, resolved_model, usage
+    raise SystemExit(f'{stage}: provider response failed after bounded retries ({last_error})')
 
 
 def write_files(stage, result, allowed, required):
@@ -129,8 +159,11 @@ stage1_task = '\n'.join([
     "Add focused deterministic tests for pure intent/filter/result helper behavior. Do not add folders, Users search or Docs search.",
     "Prefer leaving a good existing helper unchanged over unnecessary churn. Keep the stage compact.",
 ])
-result1, model1, usage1 = call_kimi(stage1_system, stage1_task, stage1_context, 10000)
+result1, model1, usage1 = call_kimi('stage1', stage1_system, stage1_task, stage1_context, 10000)
 files1 = write_files('stage1', result1, stage1_allowed, stage1_required)
+
+# Avoid immediately consuming the provider again after a large coding response.
+time.sleep(10)
 
 stage2_allowed = {
     COMMON + 'QuickNavigator.tsx',
@@ -164,7 +197,7 @@ stage2_task = '\n'.join([
     "No folder mode. No remote Users or Docs search. No unrelated cleanup. Keep exported QuickNavigator props exactly compatible with AppLayout.",
     "This remains a draft candidate until localhost browser acceptance; do not claim browser validation.",
 ])
-result2, model2, usage2 = call_kimi(stage2_system, stage2_task, stage2_context, 15000)
+result2, model2, usage2 = call_kimi('stage2', stage2_system, stage2_task, stage2_context, 15000)
 files2 = write_files('stage2', result2, stage2_allowed, stage2_required)
 
 pathlib.Path('/tmp/kimi-wor502-evidence.json').write_text(json.dumps({
