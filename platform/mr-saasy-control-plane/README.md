@@ -1,11 +1,16 @@
 # MR SAAS'y Control Plane
 
-This directory is the isolated Gate 0 bootstrap for the MR SAAS'y AI control plane.
+This directory is the isolated MR SAAS'y AI control plane foundation.
 
-It currently proves only two things:
+Gate 0 proves two security properties before any real provider adapter is allowed to exist:
 
 1. the Laravel service can boot without Workslip/product database credentials or AI-provider credentials;
-2. AI/provider dependency directions are machine-enforced before any real provider adapter is allowed to exist.
+2. AI/provider dependency directions are machine-enforced.
+
+Provider-neutral operating layers build on that boundary:
+
+- [`docs/agent-routing.md`](docs/agent-routing.md) — role/model routing, capabilities, fallback and review separation;
+- [`docs/executive-leadership.md`](docs/executive-leadership.md) — Founder/CEO hierarchy, functional delegation and human approval boundaries.
 
 It is **not** a Workslip domain module and must remain extractable to a dedicated platform repository without changing its core contracts.
 
@@ -32,6 +37,7 @@ composer architecture
 
 `composer architecture` runs:
 
+- direct Workslip source-coupling guard;
 - direct DB/Eloquent/persistence symbol guard against AI/provider namespaces;
 - a fixture proving the symbol guard actually rejects direct DB access;
 - the real Deptrac graph;
@@ -43,13 +49,24 @@ No Deptrac baseline or skip list is accepted as part of Gate 0.
 
 ## Current scope
 
-Gate 0 contains platform/provider contracts only. It deliberately does not implement:
+The control plane currently contains:
+
+- platform/provider contracts;
+- role registry and configuration-driven primary/fallback model routing;
+- capability/tool requirement validation;
+- run provenance + separation-of-duties policy;
+- Founder/CEO/functional-executive hierarchy and delegation rules;
+- explicit human approval gates for public/high-impact/irreversible actions;
+- explicit prohibition on executive self-escalation of permissions, budgets or governance.
+
+It deliberately does not implement:
 
 - Kimi/OpenAI/Ollama adapters;
 - Context/Policy Gateway behavior;
 - product adapters;
 - persistence;
 - customer-facing AI endpoints;
+- autonomous executive writes/approvals;
 - direct Workslip data access.
 
-Those capabilities remain blocked until this gate is green and independently reviewed.
+Real provider integrations remain blocked by Gate 0 review and their owning issues.
