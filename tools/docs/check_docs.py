@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MAINTAINED_DOC_PATTERNS = (
     "README.md",
     "AGENTS.md",
+    "CLAUDE.md",
     ".github/pull_request_template.md",
     "Docs/*.md",
     "Docs/agents/*.md",
@@ -43,6 +44,7 @@ MAINTAINED_DOC_PATTERNS = (
 
 ACTIVE_AGENT_FILES = (
     "AGENTS.md",
+    "CLAUDE.md",
     "Docs/AGENTS.md",
     "src/FE/AGENTS.md",
     "src/BE/WorkslipApi/AGENTS.md",
@@ -66,6 +68,7 @@ RETIRED_DOCUMENTATION_PATTERNS = (
 RETIRED_DOCUMENTATION_PATHS = (
     "Docs/agents/OPERATING_CONTRACT.md",
     "Docs/api/endpoint-catalog.md",
+    "Docs/architecture/domain-split-plan.md",
     "Docs/testing/full-stack-validation.md",
     "Docs/release/documentation-gate.md",
     "Docs/release/documentation-waiver.md",
@@ -108,7 +111,7 @@ def maintained_documents() -> list[Path]:
 def target_from_markdown(raw: str) -> str:
     value = raw.strip()
     if value.startswith("<") and ">" in value:
-        return value[1:value.index(">")].strip()
+        return value[1:value.index(">")] .strip()
 
     match = re.match(r'''(?:"([^"]+)"|'([^']+)'|(\S+))''', value)
     if not match:
