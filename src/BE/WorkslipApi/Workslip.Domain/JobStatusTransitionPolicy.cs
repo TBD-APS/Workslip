@@ -23,7 +23,7 @@ public static class JobStatusTransitionPolicy
             return JobStatusTransitionDecision.Forbidden;
         }
 
-        if (targetStatus is JobStatus.Approved or JobStatus.Rejected && !isReviewer)
+        if (targetStatus is JobStatus.Approved or JobStatus.Rejected or JobStatus.Reopened && !isReviewer)
         {
             return JobStatusTransitionDecision.Forbidden;
         }
@@ -51,8 +51,10 @@ public static class JobStatusTransitionPolicy
         {
             (JobStatus.Draft, JobStatus.InReview) => true,
             (JobStatus.Rejected, JobStatus.InReview) => true,
+            (JobStatus.Reopened, JobStatus.InReview) => true,
             (JobStatus.InReview, JobStatus.Approved) => true,
             (JobStatus.InReview, JobStatus.Rejected) => true,
+            (JobStatus.Approved, JobStatus.Reopened) => true,
             _ => false
         };
     }
