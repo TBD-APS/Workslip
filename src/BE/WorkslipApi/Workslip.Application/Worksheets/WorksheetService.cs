@@ -4,6 +4,7 @@ using FluentValidation.Results;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
+using Workslip.Application.Notifications;
 using Workslip.Domain;
 
 namespace Workslip.Application.Worksheets;
@@ -16,6 +17,7 @@ public class WorksheetService : IWorksheetService
     private readonly ICurrentUserContext _currentUserContext;
     private readonly IMonthlyHoursPdfGenerator _monthlyHoursPdfGenerator;
     private readonly ILogger<WorksheetService> _logger;
+    private readonly INotificationService? _notificationService;
 
     public WorksheetService(
         IWorksheetRepository repository,
@@ -23,7 +25,8 @@ public class WorksheetService : IWorksheetService
         IValidator<UpsertWorksheetRequest> validator,
         ICurrentUserContext currentUserContext,
         IMonthlyHoursPdfGenerator monthlyHoursPdfGenerator,
-        ILogger<WorksheetService> logger)
+        ILogger<WorksheetService> logger,
+        INotificationService? notificationService = null)
     {
         _repository = repository;
         _jobService = jobService;
@@ -31,6 +34,7 @@ public class WorksheetService : IWorksheetService
         _currentUserContext = currentUserContext;
         _monthlyHoursPdfGenerator = monthlyHoursPdfGenerator;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<Result<MyWorksheetsMonthResponse>> GetWorksheetsForUserAsync(int? year, int? month, CancellationToken cancellationToken)
@@ -219,6 +223,24 @@ public class WorksheetService : IWorksheetService
             }]);
         }
 
+        decimal hoursBefore;
+        try
+        {
+            hoursBefore = await _repository.GetHoursForUserDayAsync(
+                organizationId.Value,
+                request.UserId,
+                request.WorkDate,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Unable to read daily hours before worksheet upsert. UserId: {UserId}, WorkDate: {WorkDate}",
+                request.UserId,
+                request.WorkDate);
+            return Result<JobReportSummaryResponse>.Error("worksheet_daily_hours_lookup_failed");
+        }
+
         try
         {
             await _repository.UpsertAsync(request, cancellationToken);
@@ -235,6 +257,39 @@ public class WorksheetService : IWorksheetService
         }
 
         await _jobService.InvalidateJobDetailCacheAsync(request.JobId, organizationId.Value, cancellationToken);
+
+        if (_notificationService is not null && hoursBefore < WorksheetHourRules.MaxDailyHours)
+        {
+            try
+            {
+                var hoursAfter = await _repository.GetHoursForUserDayAsync(
+                    organizationId.Value,
+                    request.UserId,
+                    request.WorkDate,
+                    cancellationToken);
+
+                if (hoursAfter == WorksheetHourRules.MaxDailyHours)
+                {
+                    var recipientName = jobResult.Value.AssignedUsers
+                        .First(user => user.Id == request.UserId)
+                        .DisplayName;
+
+                    await _notificationService.QueueDailyHoursLimitReachedAsync(
+                        request.UserId,
+                        recipientName,
+                        request.WorkDate,
+                        hoursAfter,
+                        cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Daily hours limit notification failed after worksheet upsert. UserId: {UserId}, WorkDate: {WorkDate}",
+                    request.UserId,
+                    request.WorkDate);
+            }
+        }
 
         return await _jobService.GetSingleJobAsync(request.JobId, cancellationToken);
     }
