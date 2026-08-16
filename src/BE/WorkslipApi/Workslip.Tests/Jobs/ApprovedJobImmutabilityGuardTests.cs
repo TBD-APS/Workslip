@@ -11,7 +11,8 @@ public sealed class ApprovedJobImmutabilityGuardTests
     [Fact]
     public async Task Approved_job_rejects_direct_mutation()
     {
-        await using var context = CreateContext();
+        var reasonContext = new JobReopenReasonContext();
+        await using var context = CreateContext(reasonContext);
         var job = await AddApprovedJobAsync(context);
 
         context.Entry(job).Property(report => report.DestinationAddress).CurrentValue = "Ny adresse";
@@ -26,7 +27,8 @@ public sealed class ApprovedJobImmutabilityGuardTests
     [Fact]
     public async Task Approved_job_rejects_related_entity_mutation()
     {
-        await using var context = CreateContext();
+        var reasonContext = new JobReopenReasonContext();
+        await using var context = CreateContext(reasonContext);
         var job = await AddApprovedJobAsync(context);
 
         context.JobAssignments.Add(new JobAssignmentRow
@@ -45,27 +47,46 @@ public sealed class ApprovedJobImmutabilityGuardTests
     }
 
     [Fact]
-    public async Task Approved_job_allows_only_controlled_reopen_transition()
+    public async Task Approved_job_rejects_reopen_without_reason_context()
     {
-        await using var context = CreateContext();
+        var reasonContext = new JobReopenReasonContext();
+        await using var context = CreateContext(reasonContext);
+        var job = await AddApprovedJobAsync(context);
+
+        context.Entry(job).Property(report => report.Status).CurrentValue = JobStatus.Reopened.ToString();
+        context.Entry(job).Property(report => report.UpdatedAt).CurrentValue = DateTimeOffset.UtcNow.AddMinutes(1);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => context.SaveChangesAsync());
+
+        Assert.Equal(ApprovedJobImmutabilityGuard.MissingReopenReasonMessage, exception.Message);
+    }
+
+    [Fact]
+    public async Task Approved_job_allows_controlled_reopen_and_persists_reason_in_same_save()
+    {
+        var reasonContext = new JobReopenReasonContext();
+        await using var context = CreateContext(reasonContext);
         var job = await AddApprovedJobAsync(context);
         var entry = context.Entry(job);
 
         entry.Property(report => report.Status).CurrentValue = JobStatus.Reopened.ToString();
         entry.Property(report => report.UpdatedAt).CurrentValue = DateTimeOffset.UtcNow.AddMinutes(1);
-        entry.Property(report => report.RejectionNote).CurrentValue = "Dokumentationen skal rettes";
 
-        await context.SaveChangesAsync();
+        using (reasonContext.Begin(job.Id, job.OrganizationId, "Dokumentationen skal rettes"))
+        {
+            await context.SaveChangesAsync();
+        }
 
         Assert.Equal(JobStatus.Reopened.ToString(), job.Status);
         Assert.Equal("Dokumentationen skal rettes", job.RejectionNote);
     }
 
-    private static SqlDbContext CreateContext()
+    private static SqlDbContext CreateContext(JobReopenReasonContext reasonContext)
     {
         var options = new DbContextOptionsBuilder<SqlDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .AddInterceptors(new ApprovedJobImmutabilityGuard())
+            .AddInterceptors(new ApprovedJobImmutabilityGuard(reasonContext))
             .Options;
 
         return new SqlDbContext(options);
