@@ -95,21 +95,14 @@ export function LocationTracking() {
     });
 
     setPermissionError(null);
-    setStatus((current) => ({
+    setStatus({
       sessionId: sessionId.current,
       active: true,
       capturedAt,
       latitude: position.coords.latitude,
       longitude: position.coords.longitude,
       accuracyMeters: position.coords.accuracy,
-      ...current,
-      sessionId: sessionId.current,
-      active: true,
-      capturedAt,
-      latitude: position.coords.latitude,
-      longitude: position.coords.longitude,
-      accuracyMeters: position.coords.accuracy,
-    }));
+    });
   }, []);
 
   const startTracking = async () => {
