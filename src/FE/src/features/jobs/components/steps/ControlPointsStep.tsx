@@ -91,7 +91,7 @@ export function ControlPointsStep({
 
                 <div className="control-points-list">
                   <button
-                    className={`btn btn-sm ${isIrrelevant ? 'btn-primary' : 'btn-outline'}`}
+                    className={`btn btn-sm btn-outline control-point-irrelevant-toggle${isIrrelevant ? ' selected' : ''}`}
                     type="button"
                     onClick={() => onToggleCategoryIrrelevant(instType.id, cat.id)}
                     aria-label={`Marker ${cat.name} som ${isIrrelevant ? 'relevant' : 'ikke relevant'}`}
