@@ -37,7 +37,7 @@ const UserList = lazy(() =>
   import('../features/users/routes/UserList').then((module) => ({ default: module.UserList })),
 );
 const UserDetail = lazy(() =>
-  import('../features/users/routes/UserDetailWithRate').then((module) => ({ default: module.UserDetailWithRate })),
+  import('../features/users/routes/UserDetailWithRate').then((module) => ({ default: module.UserDetail })),
 );
 const CustomerList = lazy(() =>
   import('../features/customers/routes/CustomerList').then((module) => ({ default: module.CustomerList })),
@@ -54,6 +54,8 @@ const MyWorksheets = lazy(() =>
 const CustomerDetail = lazy(() =>
   import('../features/customers/routes/CustomerDetail').then((module) => ({ default: module.CustomerDetail })),
 );
+// This route module intentionally owns lazy route components alongside the exported router.
+// eslint-disable-next-line react-refresh/only-export-components
 const LocationTracking = lazy(() =>
   import('../features/location/routes/LocationTracking').then((module) => ({ default: module.LocationTracking })),
 );
