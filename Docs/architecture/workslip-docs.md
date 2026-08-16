@@ -34,7 +34,7 @@ It does **not** replace repository documentation. Current code/configuration/tes
 
 `dbo.KnowledgeDocumentAttachments` stores tenant-scoped metadata only: document ownership, file name, canonical content type, byte size, uploader context and creation time. File bytes are stored behind the existing private `Azure:DocumentFileStorage` boundary in production and the established local file root during development. Blob/local paths include organization, document and attachment IDs; no public blob URL is exposed to clients.
 
-The v1 attachment allow-list is intentionally narrow: MP3/WAV/OGG audio, MP4, PDF, PNG/JPEG/WebP, TXT/Markdown and CSV, with a 20 MB per-file limit. HTML, SVG and executable/arbitrary file types are not accepted. Audio is downloaded through the authenticated API and played from a browser object URL rather than exposing storage directly.
+The v1 attachment allow-list is intentionally narrow: MP3/WAV/OGG audio, MP4, PDF, PNG/JPEG/WebP, TXT/Markdown and CSV, with a 75 MB per-file limit. HTML, SVG and executable/arbitrary file types are not accepted. Audio is downloaded through the authenticated API and played from a browser object URL rather than exposing storage directly.
 
 The actor IDs intentionally are not foreign keys to `Users`: deleting or moving a user must not prevent document lifecycle operations, and display names are not snapshotted into document rows. If an actor no longer exists in the tenant, the UI simply has no display name to show.
 
