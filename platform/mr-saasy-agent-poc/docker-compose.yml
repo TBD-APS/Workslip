@@ -1,0 +1,29 @@
+name: mr-saasy-agent-poc
+
+services:
+  temporal:
+    image: temporalio/temporal:1.8.1
+    command:
+      - server
+      - start-dev
+      - --ip
+      - 0.0.0.0
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+
+  worker:
+    build:
+      context: .
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      TEMPORAL_TASK_QUEUE: mr-saasy-agent-poc
+      POC_STATE_FILE: /state/tool-effects.json
+    volumes:
+      - poc-state:/state
+    depends_on:
+      - temporal
+
+volumes:
+  poc-state:
