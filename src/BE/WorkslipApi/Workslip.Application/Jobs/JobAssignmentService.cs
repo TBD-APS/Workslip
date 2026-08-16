@@ -12,6 +12,15 @@ public interface IJobAssignmentService
         Guid jobId,
         IReadOnlyList<Guid> userIds,
         CancellationToken cancellationToken);
+
+    Task<Result> ValidateSelfAssignmentTargetAsync(
+        Guid jobId,
+        Guid targetUserId,
+        CancellationToken cancellationToken);
+
+    Task<Result> AssignSelfAsync(
+        Guid jobId,
+        CancellationToken cancellationToken);
 }
 
 public sealed class JobAssignmentService(
@@ -131,6 +140,91 @@ public sealed class JobAssignmentService(
         return jobResult;
     }
 
+    public async Task<Result> ValidateSelfAssignmentTargetAsync(
+        Guid jobId,
+        Guid targetUserId,
+        CancellationToken cancellationToken)
+    {
+        if (!JobAssignmentPolicy.CanManageAssignments(currentUser.Role))
+            return Result.Forbidden();
+
+        if (targetUserId == Guid.Empty)
+            return Result.Invalid(new ValidationError
+            {
+                Identifier = nameof(targetUserId),
+                ErrorMessage = "Vælg en gyldig medarbejder."
+            });
+
+        var validation = await validator.ValidateForExistingJobAsync(
+            jobId,
+            [targetUserId],
+            cancellationToken);
+        if (validation.Status != JobAssignmentValidationStatus.Valid)
+            return MapValidationFailureResult(validation);
+
+        var job = await jobs.GetSingleJobAsync(jobId, cancellationToken);
+        if (!job.IsSuccess)
+            return MapJobFailure(job);
+
+        if (job.Value.Status == JobStatus.Approved)
+            return Result.Conflict("approved_job_locked");
+
+        if (job.Value.AssignedUsers.Any(user => user.Id == targetUserId))
+            return Result.Conflict("user_already_assigned");
+
+        return Result.Success();
+    }
+
+    public async Task<Result> AssignSelfAsync(
+        Guid jobId,
+        CancellationToken cancellationToken)
+    {
+        if (currentUser.OrganizationId is not Guid organizationId
+            || currentUser.UserId is not Guid userId)
+        {
+            return Result.Unauthorized();
+        }
+
+        if (!JobAssignmentPolicy.CanReceiveAssignment(currentUser.Role))
+            return Result.Forbidden();
+
+        var validation = await validator.ValidateForExistingJobAsync(
+            jobId,
+            [userId],
+            cancellationToken);
+        if (validation.Status != JobAssignmentValidationStatus.Valid)
+            return MapValidationFailureResult(validation);
+
+        var addResult = await assignmentRepository.AddAssignedUserAsync(
+            organizationId,
+            jobId,
+            userId,
+            userId,
+            cancellationToken);
+
+        switch (addResult)
+        {
+            case AddAssignedUserResult.NotFound:
+                return Result.NotFound();
+            case AddAssignedUserResult.Locked:
+                return Result.Conflict("approved_job_locked");
+            case AddAssignedUserResult.Added:
+            case AddAssignedUserResult.AlreadyAssigned:
+                break;
+            default:
+                return Result.Error("job_self_assignment_failed");
+        }
+
+        await jobs.InvalidateJobDetailCacheAsync(jobId, organizationId, cancellationToken);
+        logger.LogInformation(
+            "Job self-assignment completed. JobId: {JobId}. OrganizationId: {OrganizationId}. UserId: {UserId}. Result: {AssignmentResult}.",
+            jobId,
+            organizationId,
+            userId,
+            addResult);
+        return Result.NoContent();
+    }
+
     private static Result<JobReportSummaryResponse> MapValidationFailure(JobAssignmentValidationResult validation) =>
         validation.Status switch
         {
@@ -145,4 +239,27 @@ public sealed class JobAssignmentService(
             ]),
             _ => Result<JobReportSummaryResponse>.Error("job_assignment_validation_failed")
         };
+
+    private static Result MapValidationFailureResult(JobAssignmentValidationResult validation) =>
+        validation.Status switch
+        {
+            JobAssignmentValidationStatus.Unauthorized => Result.Unauthorized(),
+            JobAssignmentValidationStatus.JobNotFound => Result.NotFound(),
+            JobAssignmentValidationStatus.InvalidAssignee => Result.Invalid(new ValidationError
+            {
+                Identifier = nameof(AssignJobRequest.UserIds),
+                ErrorMessage = validation.ErrorMessage ?? "Ugyldig tildeling."
+            }),
+            _ => Result.Error("job_assignment_validation_failed")
+        };
+
+    private static Result MapJobFailure(Result<JobReportSummaryResponse> result) => result.Status switch
+    {
+        ResultStatus.Unauthorized => Result.Unauthorized(),
+        ResultStatus.Forbidden => Result.Forbidden(),
+        ResultStatus.NotFound => Result.NotFound(),
+        ResultStatus.Invalid => Result.Invalid(result.ValidationErrors),
+        ResultStatus.Conflict => Result.Conflict(result.Errors.FirstOrDefault() ?? "job_conflict"),
+        _ => Result.Error(result.Errors.FirstOrDefault() ?? "job_access_failed")
+    };
 }
