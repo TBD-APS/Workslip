@@ -27,7 +27,8 @@ public sealed record ConversationActionResponse(
     DateTimeOffset? DueUtc,
     Guid? ResolvedByUserId,
     string? ResolvedByDisplayName,
-    DateTimeOffset? ResolvedUtc)
+    DateTimeOffset? ResolvedUtc,
+    bool CanResolve = true)
 {
     public ConversationActionResponse(
         ConversationActionType type,
@@ -45,7 +46,8 @@ public sealed record ConversationActionResponse(
             null,
             resolvedByUserId,
             resolvedByDisplayName,
-            resolvedUtc)
+            resolvedUtc,
+            true)
     {
     }
 }
