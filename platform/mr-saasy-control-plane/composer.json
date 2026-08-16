@@ -32,9 +32,10 @@
       "@php scripts/forbid-workslip-coupling.php",
       "@php scripts/forbid-ai-db-symbols.php",
       "@php scripts/assert-forbidden-symbol-fixture.php",
-      "vendor/bin/deptrac analyse --config-file=deptrac.yaml --no-cache",
-      "vendor/bin/deptrac analyse --config-file=tests/Architecture/deptrac.legal.yaml --no-cache",
+      "vendor/bin/deptrac analyse --config-file=deptrac.yaml --no-cache --fail-on-uncovered",
+      "vendor/bin/deptrac analyse --config-file=tests/Architecture/deptrac.legal.yaml --no-cache --fail-on-uncovered",
       "@php scripts/assert-forbidden-deptrac-fixtures.php",
+      "@php scripts/assert-uncovered-deptrac-fixture.php",
       "@php scripts/render-architecture.php"
     ],
     "post-autoload-dump": [

@@ -12,6 +12,7 @@ This service is an MR SAAS'y platform component, not a Workslip domain module.
 - Provider adapters may depend on provider contracts and narrow HTTP transport only.
 - Provider/model selection must never expand the caller's data permissions.
 - Unknown tenant/agent/capability state fails closed.
+- New application classes/dependencies must be assigned to an explicit Deptrac layer; uncovered dependencies fail the architecture gate rather than silently bypassing the ruleset.
 
 ## Gate 0
 
@@ -20,9 +21,10 @@ Before provider implementations are added, all of these must remain green:
 ```bash
 composer validate --strict
 php artisan test
-vendor/bin/deptrac analyse --config-file=deptrac.yaml
+vendor/bin/deptrac analyse --config-file=deptrac.yaml --fail-on-uncovered
 php scripts/forbid-ai-db-symbols.php
 php scripts/assert-forbidden-deptrac-fixtures.php
+php scripts/assert-uncovered-deptrac-fixture.php
 ```
 
 Do not add a Deptrac baseline or suppression to hide a new AI/provider dependency violation.
