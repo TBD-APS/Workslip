@@ -17,7 +17,7 @@ concurrency:
 jobs:
   integrate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     env:
       KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
       MOONSHOT_BASE_URL: https://api.moonshot.ai/v1
@@ -27,7 +27,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Prepare trusted Kimi broker and checkout feature branch
+      - name: Prepare trusted broker and clean feature workspace
         id: runtime
         shell: bash
         run: |
@@ -44,61 +44,59 @@ jobs:
           git config user.name 'Kimi Worker'
           git config user.email 'kimi-worker@users.noreply.github.com'
 
-      - name: Give product-owner design wiring feedback to Kimi
+      - name: Kimi - wire intended design into active QuickNavigator
         env:
           KIMI_MODEL: ${{ steps.runtime.outputs.model }}
         shell: bash
         run: |
           cat >/tmp/wor502-design-review.txt <<'EOF'
-          Product-owner review: the feature still LOOKS like the old QuickNavigator. Search logic works, but the intended design from the earlier UnifiedSearch proposal was never wired into the active component.
+          Product-owner review: the active site still showed the old QuickNavigator because the previous Gate A brief implemented search logic but incorrectly forbade folder mode and CSS changes. AppLayout already imports and mounts QuickNavigator correctly. Fix the ACTIVE QuickNavigator implementation, not AppLayout and not an unused parallel UnifiedSearch component.
 
-          Root cause already established by reviewer: AppLayout correctly imports/renders QuickNavigator, but the previous Gate A brief explicitly forbade folder mode and CSS changes. Therefore the active QuickNavigator kept the old visual shell. Correct that now.
+          This branch has intentionally been cleaned back to current main. Rebuild the bounded WOR-502 search/design slice from that source of truth.
 
           Required outcome:
-          1. Keep AppLayout untouched. QuickNavigator is already mounted there.
-          2. Wire the NEW UI into the existing QuickNavigator.tsx render path. Do not create an unused parallel UnifiedSearch component.
-          3. Reintroduce the visual/interaction concepts from the supplied proposal, using the existing `quick-nav-*` namespace and design tokens:
-             - home / folder / search view modes;
-             - header kicker + title with back button in folder mode;
-             - search field with correct mode-specific placeholder and Esc/back hint;
-             - meta row with counts and LoaderCircle searching state;
-             - home folder-card grid;
-             - mixed result rows with visible type badge, icon, title/subtitle and ArrowRight;
-             - empty states and source-specific error states;
-             - footer with keyboard hints;
-             - smooth active-row keyboard scrolling;
-             - Escape closes search or goes back from folder view; Backspace on empty folder query may go home.
-          4. The earlier proposal relied on Lucide imports such as ArrowLeft, ArrowRight, Building2, ClipboardList, ChevronRight, FileText, Folder, FolderOpen, LoaderCircle, Search and X. Import only the icons actually used, but do not omit required imports and leave dead/unwired markup.
-          5. Keep this modular. `QuickNavigator.tsx` should orchestrate state/navigation only. Use/import subcomponents from the allowed set such as `QuickNavigatorHeader.tsx`, `QuickNavigatorSearchField.tsx`, `QuickNavigatorFolderGrid.tsx`, and `QuickNavigatorResults.tsx`. Do NOT paste the whole former UnifiedSearch into one file.
-          6. Update `QuickNavigator.css` so the new folder/grid/header/result-badge UI is actually visible. Reuse Workslip CSS variables and responsive behavior; no hard-coded brand palette and no unrelated App.css work.
-          7. Preserve already validated search behavior exactly:
-             - local Navigation command filtering is immediate;
-             - remote Sager/Kunder stay bounded to 5;
-             - remote search is debounced ~200 ms;
-             - previous remote results are hidden while debounce is pending;
-             - generated JobStatus constants determine completed/editable route;
-             - customer/job permission scope remains unchanged;
-             - one remote source failing does not delete healthy results/local commands.
-          8. Folder design must not invent unsupported data APIs. For this pass, make folders for the actually supported result families: Sager (when allowed), Kunder (when allowed), and Navigation. Do not fake Users/Docs remote results merely to match the old mockup. Existing Docs/User navigation commands can still appear under Navigation.
-          9. Folder mode must be meaningful even before a remote query. Do not repeat the old proposal bug where opening a folder clears query and therefore shows a permanently empty remote-data folder. A folder can provide a scoped search experience and clear guidance; only show result counts when they are real.
-          10. Keep aria dialog/focus trap/mobile/keyboard behavior compatible with existing tests. Dialog accessible name must remain `Hvor vil du hen?`.
+          - modular home / folder / search modes;
+          - Header, SearchField, FolderGrid and Results are separate imported/rendered components;
+          - home folder cards for only supported families: Sager, Kunder, Navigation;
+          - mixed search rows visibly distinguish Navigation / Sag / Kunde with icon, title, subtitle, badge and ArrowRight;
+          - header kicker/title, folder back button, LoaderCircle meta row, empty/error states and keyboard footer;
+          - Escape closes search or backs out of folder; Backspace with empty folder query may return home;
+          - active keyboard row scrolls into view;
+          - CSS actually implements the folder grid/cards and result badges using Workslip design variables;
+          - import every Lucide/component/API symbol actually used; leave no dead imports or dead parallel components.
 
-          This is still a Draft PR and browser-unaccepted until focused browser validation passes. Do not merge or deploy.
+          Search correctness is mandatory:
+          - local Navigation filtering remains immediate;
+          - remote Sager and Kunder are each bounded to 5;
+          - use the supplied generated customer search contract (`getApiCustomersSearch` / its query key) rather than editing generated files;
+          - remote requests are debounced ~180-200 ms;
+          - stale remote results are hidden while debounce is pending, so Enter/click cannot select a previous query;
+          - job visibility remains scoped by canViewAllJobs/currentUserId and backend auth remains authoritative;
+          - generated JobStatus constants choose editable vs completed job route;
+          - source-specific failure does not remove healthy results/local commands;
+          - customer and job navigation preserve return context.
+
+          React quality rules from prior failed attempts:
+          - all hooks unconditionally before any early return;
+          - never read/write refs or mutate DOM during render;
+          - effects are for external synchronization/listeners/focus/body scroll with cleanup, not synchronous derived-state reset;
+          - state resets happen in explicit event paths or are derived cleanly.
+
+          Preserve dialog accessible name `Hvor vil du hen?`, focus trap and current mobile/desktop trigger compatibility. No backend/config/generated/dependency/unrelated edits. Draft only; no merge/deploy.
           EOF
           python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/wor502-design-review.txt
 
-      - name: Enforce Kimi design scope
+      - name: Enforce Kimi path boundary
         env:
           KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
         shell: bash
         run: |
           set -euo pipefail
+          allowed='^(src/FE/src/components/common/(QuickNavigator\.tsx|QuickNavigator\.css|QuickNavigatorHeader\.tsx|QuickNavigatorSearchField\.tsx|QuickNavigatorFolderGrid\.tsx|QuickNavigatorResults\.tsx|QuickNavigator\.test\.tsx|quickNavigatorSearch\.ts|quickNavigatorSearch\.test\.ts|quickNavigatorTypes\.ts|useQuickNavigatorSearch\.ts))$'
           { git diff --name-only "$KIMI_START_HEAD"; git ls-files --others --exclude-standard; } | sort -u | tee /tmp/kimi-files.txt
+          test -s /tmp/kimi-files.txt
           while IFS= read -r p; do
-            case "$p" in
-              src/FE/src/components/common/QuickNavigator.tsx|src/FE/src/components/common/QuickNavigator.css|src/FE/src/components/common/QuickNavigatorHeader.tsx|src/FE/src/components/common/QuickNavigatorSearchField.tsx|src/FE/src/components/common/QuickNavigatorFolderGrid.tsx|src/FE/src/components/common/QuickNavigatorResults.tsx|src/FE/src/components/common/QuickNavigator.test.tsx|src/FE/src/components/common/quickNavigatorSearch.ts|src/FE/src/components/common/quickNavigatorSearch.test.ts|src/FE/src/components/common/quickNavigatorTypes.ts|src/FE/src/components/common/useQuickNavigatorSearch.ts) ;;
-              *) echo "Out-of-scope Kimi delta: $p"; exit 20 ;;
-            esac
+            [[ "$p" =~ $allowed ]] || { echo "Out-of-scope Kimi delta: $p"; exit 20; }
           done < /tmp/kimi-files.txt
 
       - name: Install frontend dependencies
@@ -106,118 +104,88 @@ jobs:
         shell: bash
         run: npm ci
 
-      - name: Initial tests and lint
-        id: prevalidate
-        working-directory: src/FE
-        env:
-          KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
-        shell: bash
-        run: |
-          set +e
-          set -uo pipefail
-          : > /tmp/kimi-prevalidate.log
-          mapfile -t tests < <(find src/components/common -maxdepth 1 -type f -iname '*navigator*.test.ts*' -print)
-          test_status=0
-          if ((${#tests[@]})); then
-            npx vitest run "${tests[@]}" 2>&1 | tee -a /tmp/kimi-prevalidate.log
-            test_status=${PIPESTATUS[0]}
-          fi
-          mapfile -t files < <({ git diff --name-only "$KIMI_START_HEAD" -- '*.ts' '*.tsx'; git ls-files --others --exclude-standard -- 'src/components/common/*.ts' 'src/components/common/*.tsx'; } | sort -u | sed 's#^src/FE/##')
-          lint_status=0
-          if ((${#files[@]})); then
-            npx eslint "${files[@]}" 2>&1 | tee -a /tmp/kimi-prevalidate.log
-            lint_status=${PIPESTATUS[0]}
-          fi
-          if (( test_status != 0 || lint_status != 0 )); then
-            echo "failed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "failed=false" >> "$GITHUB_OUTPUT"
-          fi
-          exit 0
-
-      - name: Ask Kimi to repair tests or lint
-        if: steps.prevalidate.outputs.failed == 'true'
+      - name: Validator -> Kimi repair loop
         env:
           KIMI_MODEL: ${{ steps.runtime.outputs.model }}
+          KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
         shell: bash
         run: |
-          cat >/tmp/kimi-repair-1.txt <<'EOF'
-          Deterministic validator rejected your newly wired QuickNavigator design. Fix the exact errors in the appended validator output. Preserve the new modular folder/search UI and all previously validated search behavior. Do not remove the design to make lint pass. In particular, avoid synchronous setState inside effects; reset state from explicit open/close/query/folder event paths or derive state cleanly. Remove unused imports/values instead of suppressing lint rules.
-          EOF
-          cat /tmp/kimi-prevalidate.log >> /tmp/kimi-repair-1.txt
-          python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/kimi-repair-1.txt
+          set -u
+          allowed='^(src/FE/src/components/common/(QuickNavigator\.tsx|QuickNavigator\.css|QuickNavigatorHeader\.tsx|QuickNavigatorSearchField\.tsx|QuickNavigatorFolderGrid\.tsx|QuickNavigatorResults\.tsx|QuickNavigator\.test\.tsx|quickNavigatorSearch\.ts|quickNavigatorSearch\.test\.ts|quickNavigatorTypes\.ts|useQuickNavigatorSearch\.ts))$'
 
-      - name: Re-enforce scope after first repair
-        env:
-          KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
+          enforce_scope() {
+            { git diff --name-only "$KIMI_START_HEAD"; git ls-files --others --exclude-standard; } | sort -u > /tmp/kimi-loop-files.txt
+            while IFS= read -r p; do
+              [[ "$p" =~ $allowed ]] || { echo "Out-of-scope Kimi repair delta: $p"; return 20; }
+            done < /tmp/kimi-loop-files.txt
+          }
+
+          for attempt in 1 2 3; do
+            enforce_scope || exit $?
+            : > /tmp/kimi-validator.log
+            set +e
+
+            cd src/FE
+            mapfile -t tests < <(find src/components/common -maxdepth 1 -type f -iname '*navigator*.test.ts*' -print)
+            test_status=0
+            if ((${#tests[@]})); then
+              npx vitest run "${tests[@]}" 2>&1 | tee -a /tmp/kimi-validator.log
+              test_status=${PIPESTATUS[0]}
+            fi
+
+            mapfile -t files < <({ git diff --name-only "$KIMI_START_HEAD" -- '*.ts' '*.tsx'; git ls-files --others --exclude-standard -- 'src/components/common/*.ts' 'src/components/common/*.tsx'; } | sort -u | sed 's#^src/FE/##')
+            lint_status=0
+            if ((${#files[@]})); then
+              npx eslint "${files[@]}" 2>&1 | tee -a /tmp/kimi-validator.log
+              lint_status=${PIPESTATUS[0]}
+            fi
+
+            npm run build 2>&1 | tee -a /tmp/kimi-validator.log
+            build_status=${PIPESTATUS[0]}
+            cd ../..
+            set -e
+
+            if (( test_status == 0 && lint_status == 0 && build_status == 0 )); then
+              echo "Validator green on attempt ${attempt}."
+              exit 0
+            fi
+
+            if (( attempt == 3 )); then
+              echo "Validator still red after 3 Kimi repair opportunities."
+              cat /tmp/kimi-validator.log
+              exit 30
+            fi
+
+            cat >/tmp/kimi-repair.txt <<EOF
+          Deterministic validator rejected the current WOR-502 QuickNavigator candidate on repair attempt ${attempt}. Fix the exact validator failures appended below. Preserve the modular new design and all search correctness. Do not edit unrelated files, generated code, backend, config or dependencies. Do not suppress lint or weaken tests. Hooks must be unconditional before early returns; no refs/DOM mutations during render; no synchronous derived-state resets in effects. If validator output contains unrelated files, do not edit them; this branch is based on clean main so report them only if genuinely external.
+          EOF
+            cat /tmp/kimi-validator.log >> /tmp/kimi-repair.txt
+            python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/kimi-repair.txt
+          done
+
+      - name: Static wiring proof
         shell: bash
         run: |
           set -euo pipefail
-          { git diff --name-only "$KIMI_START_HEAD"; git ls-files --others --exclude-standard; } | sort -u | tee /tmp/kimi-files-repair1.txt
-          while IFS= read -r p; do
-            case "$p" in
-              src/FE/src/components/common/QuickNavigator.tsx|src/FE/src/components/common/QuickNavigator.css|src/FE/src/components/common/QuickNavigatorHeader.tsx|src/FE/src/components/common/QuickNavigatorSearchField.tsx|src/FE/src/components/common/QuickNavigatorFolderGrid.tsx|src/FE/src/components/common/QuickNavigatorResults.tsx|src/FE/src/components/common/QuickNavigator.test.tsx|src/FE/src/components/common/quickNavigatorSearch.ts|src/FE/src/components/common/quickNavigatorSearch.test.ts|src/FE/src/components/common/quickNavigatorTypes.ts|src/FE/src/components/common/useQuickNavigatorSearch.ts) ;;
-              *) echo "Out-of-scope Kimi repair delta: $p"; exit 21 ;;
-            esac
-          done < /tmp/kimi-files-repair1.txt
+          q=src/FE/src/components/common/QuickNavigator.tsx
+          css=src/FE/src/components/common/QuickNavigator.css
+          hook=src/FE/src/components/common/useQuickNavigatorSearch.ts
 
-      - name: Tests lint and build after first repair
-        id: buildvalidate
-        working-directory: src/FE
-        env:
-          KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
-        shell: bash
-        run: |
-          set +e
-          set -uo pipefail
-          : > /tmp/kimi-buildvalidate.log
-          mapfile -t tests < <(find src/components/common -maxdepth 1 -type f -iname '*navigator*.test.ts*' -print)
-          test_status=0
-          if ((${#tests[@]})); then
-            npx vitest run "${tests[@]}" 2>&1 | tee -a /tmp/kimi-buildvalidate.log
-            test_status=${PIPESTATUS[0]}
-          fi
-          mapfile -t files < <({ git diff --name-only "$KIMI_START_HEAD" -- '*.ts' '*.tsx'; git ls-files --others --exclude-standard -- 'src/components/common/*.ts' 'src/components/common/*.tsx'; } | sort -u | sed 's#^src/FE/##')
-          lint_status=0
-          if ((${#files[@]})); then
-            npx eslint "${files[@]}" 2>&1 | tee -a /tmp/kimi-buildvalidate.log
-            lint_status=${PIPESTATUS[0]}
-          fi
-          npm run build 2>&1 | tee -a /tmp/kimi-buildvalidate.log
-          build_status=${PIPESTATUS[0]}
-          if (( test_status != 0 || lint_status != 0 || build_status != 0 )); then
-            echo "failed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "failed=false" >> "$GITHUB_OUTPUT"
-          fi
-          exit 0
+          for component in QuickNavigatorHeader QuickNavigatorSearchField QuickNavigatorFolderGrid QuickNavigatorResults; do
+            test -f "src/FE/src/components/common/${component}.tsx" || { echo "Missing ${component}.tsx"; exit 40; }
+            grep -q "import.*${component}" "$q" || { echo "${component} not imported by active QuickNavigator"; exit 41; }
+            grep -q "<${component}" "$q" || { echo "${component} imported but not rendered"; exit 42; }
+          done
 
-      - name: Ask Kimi to repair build validation
-        if: steps.buildvalidate.outputs.failed == 'true'
-        env:
-          KIMI_MODEL: ${{ steps.runtime.outputs.model }}
-        shell: bash
-        run: |
-          cat >/tmp/kimi-repair-2.txt <<'EOF'
-          The deterministic tests/lint/build validator still rejects your modular QuickNavigator design. Fix only the concrete failures in the appended output while preserving the wired folder/search design, imports, permissions, debounce/stale-result protection, keyboard/focus behavior and component split. Do not weaken validators.
-          EOF
-          cat /tmp/kimi-buildvalidate.log >> /tmp/kimi-repair-2.txt
-          python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/kimi-repair-2.txt
+          grep -q 'quick-nav-folder-grid' "$css" || { echo 'Folder grid CSS missing'; exit 43; }
+          grep -q 'quick-nav-folder-card' "$css" || { echo 'Folder card CSS missing'; exit 44; }
+          grep -q 'quick-nav-result-badge' "$css" || { echo 'Result badge CSS missing'; exit 45; }
+          test -f "$hook" || { echo 'Search orchestration hook missing'; exit 46; }
+          grep -q 'getApiCustomersSearch' "$hook" || { echo 'Generated customer search API is not hooked up'; exit 47; }
+          grep -q 'useDebounce' "$hook" || { echo 'Remote debounce is not hooked up'; exit 48; }
+          echo 'Static wiring proof passed.'
 
-      - name: Final strict validation
-        working-directory: src/FE
-        env:
-          KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          mapfile -t tests < <(find src/components/common -maxdepth 1 -type f -iname '*navigator*.test.ts*' -print)
-          if ((${#tests[@]})); then npx vitest run "${tests[@]}"; fi
-          mapfile -t files < <({ git diff --name-only "$KIMI_START_HEAD" -- '*.ts' '*.tsx'; git ls-files --others --exclude-standard -- 'src/components/common/*.ts' 'src/components/common/*.tsx'; } | sort -u | sed 's#^src/FE/##')
-          if ((${#files[@]})); then npx eslint "${files[@]}"; fi
-          npm run build
-
-      - name: Run focused authenticated QuickNavigator browser smoke
+      - name: Focused authenticated QuickNavigator browser smoke
         env:
           WORKSLIP_PLAYWRIGHT_SCENARIO: quick-navigator
         shell: bash
@@ -225,12 +193,12 @@ jobs:
           set -euo pipefail
           bash src/FE/scripts/run-playwright-ephemeral.sh
 
-      - name: Commit Kimi design integration
+      - name: Commit and push Kimi design
         shell: bash
         run: |
           set -euo pipefail
           git add src/FE/src/components/common
-          git diff --cached --quiet && { echo 'Kimi made no design integration change'; exit 30; }
+          git diff --cached --quiet && { echo 'Kimi produced no feature delta'; exit 50; }
           git commit -m 'RBJ-502: wire modular global search design'
           git push origin "$FEATURE_BRANCH"
           echo "Kimi design head: $(git rev-parse HEAD)"
