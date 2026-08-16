@@ -1,10 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import { FullscreenSystemState } from '../../../components/common/FullscreenSystemState';
 import { useAuth } from '../../../providers/useAuth';
 import {
-  AUTH_TOKEN_KEY,
   USER_EMAIL_KEY,
   AuthStorage,
   clearReauthInFlight,
@@ -34,7 +33,8 @@ const isBackForwardNavigation = () =>
   (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type === 'back_forward';
 
 export const Login = () => {
-  const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
+  const { isAuthenticated, user, establishSession } = useAuth();
   const [historyInterruptedLogin] = useState(() =>
     !hasEntraLoginCallback() && hasEntraLoginSession() && isBackForwardNavigation(),
   );
@@ -96,15 +96,13 @@ export const Login = () => {
     if (isCallback) {
       completeEntraLogin()
         .then((result) => {
-          AuthStorage.setItem(AUTH_TOKEN_KEY, result.auth.token);
-          AuthStorage.setItem(USER_EMAIL_KEY, result.auth.user.email);
+          establishSession(result.auth.token, result.auth.user.email, result.auth.user.role);
           clearReauthInFlight();
           clearEntraLoginSession();
-          window.history.replaceState(null, '', '/login');
           const authenticatedReturnTo = result.returnTo === '/app'
             ? getAuthenticatedHomePath(result.auth.user.role)
             : result.returnTo;
-          window.location.replace(authenticatedReturnTo);
+          navigate(authenticatedReturnTo, { replace: true });
         })
         .catch((err: unknown) => {
           if (err instanceof InteractiveLoginRequiredError) {
@@ -147,7 +145,7 @@ export const Login = () => {
       }
       recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
     });
-  }, [historyInterruptedLogin, recoverToLogin]);
+  }, [establishSession, historyInterruptedLogin, navigate, recoverToLogin]);
 
   const handleMicrosoftLogin = async () => {
     setErrorMsg(null);
@@ -172,10 +170,8 @@ export const Login = () => {
     try {
       const { getDevToken } = await import('../api/devLogin');
       const response = await getDevToken(email);
-      AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
-      AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
-      clearReauthInFlight();
-      window.location.replace(getAuthenticatedHomePath(response.user.role));
+      establishSession(response.token, response.user.email, response.user.role);
+      navigate(getAuthenticatedHomePath(response.user.role), { replace: true });
     } catch {
       setErrorMsg(`Dev login failed - ${email} not found`);
       setIsSubmitting(false);
