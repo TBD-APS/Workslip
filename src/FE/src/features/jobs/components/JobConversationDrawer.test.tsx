@@ -92,10 +92,10 @@ describe('JobConversationDrawer', () => {
     renderDrawer();
 
     fireEvent.click(screen.getByRole('button', { name: /Nævn/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Mikkel/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mikkel' }));
 
     fireEvent.click(screen.getByRole('button', { name: /Handling/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Mikkel/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mikkel' }));
 
     fireEvent.change(screen.getByLabelText('Skriv en besked'), {
       target: { value: 'Kan du lige bekræfte den her?' },
