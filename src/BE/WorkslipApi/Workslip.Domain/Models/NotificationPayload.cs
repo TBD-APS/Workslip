@@ -12,5 +12,7 @@ public sealed record NotificationPayload(
     string? ActionLabel = null,
     Guid? MessageId = null,
     string? ActionType = null,
-    DateTimeOffset? DueUtc = null
+    DateTimeOffset? DueUtc = null,
+    DateOnly? WorkDate = null,
+    decimal? Hours = null
 );
