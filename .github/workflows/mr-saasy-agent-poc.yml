@@ -1,0 +1,34 @@
+name: MR SAAS'y Durable Agent POC
+
+on:
+  pull_request:
+    paths:
+      - 'platform/mr-saasy-agent-poc/**'
+      - '.github/workflows/mr-saasy-agent-poc.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  destructive-container-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Docker versions
+        run: |
+          docker version
+          docker compose version
+
+      - name: Build and compile-check worker image
+        working-directory: platform/mr-saasy-agent-poc
+        run: |
+          docker build -t mr-saasy-agent-poc:check .
+          docker run --rm mr-saasy-agent-poc:check python -m compileall -q app
+
+      - name: Run destructive durable-loop POC
+        working-directory: platform/mr-saasy-agent-poc
+        run: ./scripts/destructive-test.sh
