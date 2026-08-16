@@ -1,0 +1,26 @@
+name: Linear Release Sync
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  linear-release:
+    name: Sync deployment with Linear release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync Linear release
+        uses: linear/linear-release-action@v0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          links: |
+            GitHub=https://github.com/${{ github.repository }}/commit/${{ github.sha }}
