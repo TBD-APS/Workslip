@@ -32,11 +32,16 @@ BEGIN
         DROP CONSTRAINT CK_JobConversationMessages_ActionDueUtc;
 END;
 
+-- ActionDueUtc may have been added earlier in this same SQL batch. Compile the
+-- dependent constraint only after the ALTER TABLE above has executed so fresh
+-- databases do not fail SQL Server name binding with "Invalid column name".
+EXEC(N'
 ALTER TABLE dbo.JobConversationMessages
     ADD CONSTRAINT CK_JobConversationMessages_ActionDueUtc CHECK
     (
-        (ActionType = N'RemindMe' AND ActionDueUtc IS NOT NULL)
-        OR (ISNULL(ActionType, N'') <> N'RemindMe' AND ActionDueUtc IS NULL)
+        (ActionType = N''RemindMe'' AND ActionDueUtc IS NOT NULL)
+        OR (ISNULL(ActionType, N'''') <> N''RemindMe'' AND ActionDueUtc IS NULL)
     );
+');
 
 COMMIT TRANSACTION;
