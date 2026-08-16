@@ -1,4 +1,6 @@
 using Ardalis.Result;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Workslip.Domain.Models;
 
@@ -48,7 +50,12 @@ public sealed class NotificationService : INotificationService
             WorkDate: workDate,
             Hours: hours);
 
-        return QueueNotificationPayloadAsync(userId, NotificationType.DailyHoursLimitReached, payload, cancellationToken);
+        return QueueNotificationPayloadAsync(
+            userId,
+            NotificationType.DailyHoursLimitReached,
+            payload,
+            cancellationToken,
+            CreateDailyHoursNotificationId(userId, workDate));
     }
 
     public Task QueueConversationMentionAsync(
@@ -139,23 +146,32 @@ public sealed class NotificationService : INotificationService
         Guid userId,
         NotificationType type,
         NotificationPayload payload,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? notificationId = null)
     {
         var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        var now = DateTimeOffset.UtcNow;
 
         var row = new NotificationQueueRow
         {
-            Id = Guid.NewGuid(),
+            Id = notificationId ?? Guid.NewGuid(),
             UserId = userId,
             NotificationType = type.ToString(),
             PayloadJson = json,
             Status = "Pending",
             RetryCount = 0,
-            CreatedUtc = DateTimeOffset.UtcNow,
-            NextAttemptUtc = DateTimeOffset.UtcNow
+            CreatedUtc = now,
+            NextAttemptUtc = now
         };
 
         await _notificationRepository.QueueNotificationAsync(row, cancellationToken);
+    }
+
+    private static Guid CreateDailyHoursNotificationId(Guid userId, DateOnly workDate)
+    {
+        var key = Encoding.UTF8.GetBytes($"daily-hours-limit:{userId:N}:{workDate:yyyyMMdd}");
+        var hash = SHA256.HashData(key);
+        return new Guid(hash.AsSpan(0, 16));
     }
 
     public (string Title, string Body) GetLocalizedText(
