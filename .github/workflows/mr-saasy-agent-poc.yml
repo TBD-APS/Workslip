@@ -33,7 +33,7 @@ jobs:
 
       - name: Run destructive durable-loop POC
         working-directory: platform/mr-saasy-agent-poc
-        run: ./scripts/destructive-test.sh
+        run: bash ./scripts/destructive-test.sh
 
   disposable-sandbox-isolation:
     runs-on: ubuntu-latest
@@ -57,4 +57,4 @@ jobs:
 
       - name: Run disposable sandbox isolation POC
         working-directory: platform/mr-saasy-agent-poc
-        run: ./scripts/sandbox-test.sh
+        run: bash ./scripts/sandbox-test.sh
