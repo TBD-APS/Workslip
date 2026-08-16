@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  boundedRateLimitWaitMs,
   chooseRun,
   githubRateLimitRetryMs,
   parseGitHubRepository,
@@ -125,5 +126,26 @@ test('does not retry ordinary GitHub authorization failures', () => {
     headers: {},
     body: '{"message":"Bad credentials"}',
     nowMs: 1_700_000_000_000,
+  }), null);
+});
+
+test('keeps rate-limit waits inside the existing eligibility deadline', () => {
+  const nowMs = 1_700_000_000_000;
+  assert.equal(boundedRateLimitWaitMs({
+    retryMs: 5_000,
+    deadlineMs: nowMs + 60_000,
+    nowMs,
+  }), 5_000);
+
+  assert.equal(boundedRateLimitWaitMs({
+    retryMs: 60_000,
+    deadlineMs: nowMs + 60_000,
+    nowMs,
+  }), null);
+
+  assert.equal(boundedRateLimitWaitMs({
+    retryMs: 5_000,
+    deadlineMs: nowMs,
+    nowMs,
   }), null);
 });
