@@ -35,7 +35,7 @@
   height: 2.25rem;
   border-radius: var(--radius-sm);
   background: var(--surface-selected);
-  color: var(--text);
+  color: var(--color-primary);
   flex-shrink: 0;
 }
 
@@ -112,8 +112,9 @@
   opacity: 0.55;
 }
 
+/* Tutorial progress is navigation state, not a primary action. */
 .job-wizard-tutorial-progress-step.is-active .job-wizard-tutorial-progress-dot {
-  background: var(--primary);
+  background: var(--color-primary);
   opacity: 1;
 }
 

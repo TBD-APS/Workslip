@@ -1,7 +1,9 @@
 /* Job wizard visual contract -------------------------------------------------
    Keep workflow controls on the same semantic system as the rest of Workslip.
-   Primary fill is reserved for the forward/commit action; selection controls use
-   a quieter selected surface so the flow does not become a patchwork of colors. */
+   Signal orange (--primary) is reserved for forward/commit actions.
+   Petrol (--color-primary) carries selection, progress and navigation state.
+   Feature CSS must consume the central tokens from workslip-brand.css rather
+   than defining or hardcoding palette values locally. */
 
 html body:has(.app-shell) :is(
   .category-choice-grid .choice-card,
@@ -25,12 +27,10 @@ html body:has(.app-shell) :is(
   .work-kind-list .work-kind-option.selected,
   .control-points-list .multi-select-option.selected
 ) {
-  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
-  background: var(--surface-selected);
-  color: var(--text);
-  box-shadow:
-    inset 3px 0 0 var(--primary),
-    var(--shadow-sm-raw);
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--brand-cream);
+  box-shadow: var(--shadow-sm-raw);
 }
 
 html body:has(.app-shell) :is(
@@ -38,7 +38,7 @@ html body:has(.app-shell) :is(
   .work-kind-list .work-kind-option.selected,
   .control-points-list .multi-select-option.selected
 ) :is(svg, .selection-pill) {
-  color: var(--primary);
+  color: currentColor;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -56,8 +56,9 @@ html body:has(.app-shell) :is(
     .work-kind-list .work-kind-option.selected,
     .control-points-list .multi-select-option.selected
   ):hover {
-    background: var(--surface-selected-strong);
-    border-color: color-mix(in srgb, var(--primary) 65%, var(--border));
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--brand-cream);
   }
 }
 
@@ -74,14 +75,37 @@ html body:has(.app-shell) .step-dot {
 }
 
 html body:has(.app-shell) .step-dot.active {
-  color: var(--primary);
-  background: var(--surface-selected);
-  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  color: var(--brand-cream);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
   box-shadow: none;
 }
 
-html body:has(.app-shell) .step-dot.active svg {
+html body:has(.app-shell) .step-dot.completed {
+  color: var(--color-primary);
+  background: var(--surface-selected);
+  border-color: color-mix(in srgb, var(--color-primary) 40%, var(--border));
+}
+
+html body:has(.app-shell) .step-dot.active svg,
+html body:has(.app-shell) .step-dot.completed svg {
   color: currentColor;
+}
+
+/* "Irrelevant" is a selection toggle, not a primary action. */
+html body:has(.app-shell) .control-points-list .control-point-irrelevant-toggle.selected {
+  color: var(--brand-cream);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm-raw);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html body:has(.app-shell) .control-points-list .control-point-irrelevant-toggle.selected:hover {
+    color: var(--brand-cream);
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+  }
 }
 
 /* Bottom wizard navigation: one shared geometry, clear action hierarchy. */
@@ -156,7 +180,7 @@ html body:has(.app-shell) .worksheet-list-section .section-header-row {
 }
 
 html body:has(.app-shell) .worksheet-list-section .section-header-row svg {
-  color: var(--primary);
+  color: var(--color-primary);
 }
 
 html body:has(.app-shell) .worksheet-add-trigger,
@@ -195,11 +219,11 @@ html body:has(.app-shell) .worksheet-list-item {
 
 html body:has(.app-shell) .worksheet-list-item.is-selected {
   background: var(--surface-selected);
-  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  border-color: color-mix(in srgb, var(--color-primary) 40%, var(--border));
 }
 
 html body:has(.app-shell) .worksheet-list-item.is-selected::before {
-  background: var(--primary);
+  background: var(--color-primary);
 }
 
 html body:has(.app-shell) .worksheet-list-item-badge {
@@ -209,9 +233,9 @@ html body:has(.app-shell) .worksheet-list-item-badge {
 }
 
 html body:has(.app-shell) .worksheet-list-item-tag {
-  color: var(--primary);
+  color: var(--color-primary);
   background: var(--surface-selected);
-  border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+  border-color: color-mix(in srgb, var(--color-primary) 30%, var(--border));
 }
 
 html body:has(.app-shell) .worksheet-form {
@@ -263,12 +287,12 @@ html body:has(.app-shell) .calendar-picker-day {
 }
 
 html body:has(.app-shell) .calendar-picker-day.selected {
-  color: var(--on-primary);
-  background: var(--primary);
+  color: var(--brand-cream);
+  background: var(--color-primary);
 }
 
-/* Legacy App.css used an undefined --color-primary token for this job type. */
+/* Job type badges are classification/selection UI, not actions. */
 .job-type-v4v05 {
-  background: color-mix(in srgb, var(--primary) 15%, transparent);
-  color: var(--primary);
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  color: var(--color-primary);
 }
