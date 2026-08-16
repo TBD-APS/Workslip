@@ -13,6 +13,8 @@ export interface ConversationActionResponse {
   targetDisplayName: string;
   status: ConversationActionStatus;
   /** @nullable */
+  dueUtc: string | null;
+  /** @nullable */
   resolvedByUserId: string | null;
   /** @nullable */
   resolvedByDisplayName: string | null;

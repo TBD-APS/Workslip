@@ -389,6 +389,9 @@ public sealed class JobConversationService(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        if (actionType != ConversationActionType.RemindMe && dueUtc is not null)
+            return InvalidAction(nameof(CreateConversationMessageRequest.ActionDueUtc), "Kun påmindelser kan have et tidspunkt.");
+
         if (actionType == ConversationActionType.AssignSelf)
         {
             if (!JobAssignmentPolicy.CanManageAssignments(currentUser.Role))
@@ -419,10 +422,6 @@ public sealed class JobConversationService(
 
             if (dueUtc > now.Add(MaxReminderHorizon))
                 return InvalidAction(nameof(CreateConversationMessageRequest.ActionDueUtc), "Påmindelsen kan højst sættes et år frem.");
-        }
-        else if (dueUtc is not null)
-        {
-            return InvalidAction(nameof(CreateConversationMessageRequest.ActionDueUtc), "Kun påmindelser kan have et tidspunkt.");
         }
 
         if (actionType == ConversationActionType.CreateTask && body.Length == 0)

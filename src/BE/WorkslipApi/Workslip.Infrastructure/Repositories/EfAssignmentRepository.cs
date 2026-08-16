@@ -356,7 +356,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
             AssignedAt = now
         };
         _dbContext.JobAssignments.Add(row);
-        job.UpdatedAt = now;
+        _dbContext.Entry(job).Property(report => report.UpdatedAt).CurrentValue = now;
 
         try
         {

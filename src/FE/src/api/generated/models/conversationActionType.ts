@@ -11,4 +11,7 @@ export type ConversationActionType = typeof ConversationActionType[keyof typeof 
 export const ConversationActionType = {
   Acknowledge: 'Acknowledge',
   SubmitForReview: 'SubmitForReview',
+  CreateTask: 'CreateTask',
+  RemindMe: 'RemindMe',
+  AssignSelf: 'AssignSelf',
 } as const;
