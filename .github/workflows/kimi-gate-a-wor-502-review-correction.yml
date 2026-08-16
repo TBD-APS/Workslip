@@ -52,29 +52,25 @@ jobs:
           cat >/tmp/wor502-design-review.txt <<'EOF'
           Product-owner rejection: the site still showed the old QuickNavigator. AppLayout already mounts QuickNavigator correctly; the previous worker brief accidentally kept the old visual shell. Implement the intended design in the ACTIVE QuickNavigator, not an unused parallel component.
 
-          Preserve every pre-existing WOR-502 feature-head change, including separate palette work. You may mutate only the broker's QuickNavigator allowlist.
+          Preserve every pre-existing WOR-502 feature-head change, including separate palette work. Mutate only QuickNavigator allowlisted files.
 
           Required structure:
-          - QuickNavigator.tsx = view/navigation/focus orchestration only.
-          - It MUST import and render QuickNavigatorHeader, QuickNavigatorSearchField, QuickNavigatorFolderGrid, QuickNavigatorResults and QuickNavigatorFooter.
-          - It MUST import and call useQuickNavigatorSearch. Remote fetch/debounce/loading/errors/stale-result suppression belong in that hook, not inline in QuickNavigator.tsx.
-          - Home/folder/search modes; folder cards for Sager/Kunder/Navigation only; visible Navigation/Sag/Kunde result badges; back button; LoaderCircle; empty/error states; keyboard footer; active-row scroll.
-          - QuickNavigator.css must visibly implement the new folder grid/cards/result badges with Workslip variables.
+          - QuickNavigator.tsx handles view/navigation/focus orchestration only.
+          - It imports and renders QuickNavigatorHeader, QuickNavigatorSearchField, QuickNavigatorFolderGrid, QuickNavigatorResults and QuickNavigatorFooter.
+          - It imports and calls useQuickNavigatorSearch.
+          - Home/folder/search modes; folder cards for Sager/Kunder/Navigation only; visible Navigation/Sag/Kunde badges; back button; LoaderCircle; empty/error states; keyboard footer; active-row scroll.
+          - QuickNavigator.css visibly implements folder grid/cards/result badges with Workslip variables.
 
-          Exact customer contract — do not guess it again:
-          `GetApiCustomersSearchParams = { query?: string; limit?: number | string }`.
-          There is NO customer parameter named `search`.
-          Customer API/query-key calls must use `{ query: trimmedTerm, limit: 5 }`.
-          useQuickNavigatorSearch.ts must use the generated `getApiCustomersSearch` and `getGetApiCustomersSearchQueryKey` contracts supplied in context.
-
-          Search behavior:
-          - Navigation local filtering is immediate.
-          - Sager/Kunder remote results bounded to 5.
-          - remote debounce ~200 ms with old remote results hidden while pending.
+          Required search architecture — use this, do not invent another state machine:
+          - useQuickNavigatorSearch.ts uses TanStack useQuery for BOTH jobs and customers.
+          - jobs queryFn uses apiClient GET /api/jobs with params search=term, limit=5, offset=0 and the queryFn AbortSignal.
+          - customer params are exactly query optional string and limit optional number|string. There is NO customer `search` property. Use getApiCustomersSearch({ query: term, limit: 5 }, undefined, signal) and getGetApiCustomersSearchQueryKey({ query: term, limit: 5 }).
+          - use existing useDebounce(query, 200).
+          - stale suppression is derived only: if raw query differs from debounced query, expose no old remote jobs/customers. Do not create lastHandled state, request-id refs, fetch-state effects or abort-controller refs.
+          - Navigation local filtering remains immediate. One remote source failure does not erase healthy/local results.
           - preserve canViewAllJobs/currentUserId scoping, generated JobStatus routing and return-context navigation.
-          - one remote source failure must not erase healthy/local results.
 
-          React rules: hooks unconditional before early returns; no ref/DOM reads or mutations during render; no synchronous derived-state resets inside effects; no dead imports. Keep accessible dialog name `Hvor vil du hen?`. No backend/generated/config/dependency edits. Draft only.
+          React rules: all hooks unconditional before early returns; no ref/DOM reads or mutations during render; no synchronous state setters inside effects for search/derived state; no dead imports. Keep accessible dialog name `Hvor vil du hen?`. No backend/generated/config/dependency edits. Draft only.
           EOF
           python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/wor502-design-review.txt
 
@@ -146,8 +142,12 @@ jobs:
               exit 30
             fi
 
-            cat >/tmp/kimi-repair.txt <<EOF
-          Validator rejected your WOR-502 QuickNavigator candidate on attempt ${attempt}. Correct the exact errors below without removing the modular design or changing files outside the QuickNavigator allowlist. Customer search params are EXACTLY `{ query?: string; limit?: number | string }`; never use `search` for customer search. Keep remote orchestration in useQuickNavigatorSearch.ts, with QuickNavigator.tsx importing/calling that hook. Do not suppress validators.
+            printf 'Validator rejected WOR-502 QuickNavigator on repair attempt %s.\n' "$attempt" > /tmp/kimi-repair.txt
+            cat >>/tmp/kimi-repair.txt <<'EOF'
+          Correct the exact validator failures appended below without removing the modular design or changing files outside the QuickNavigator allowlist.
+          Remote search architecture is fixed: use TanStack useQuery for both jobs and customers. Do not hand-roll fetch state with effects or refs. Stale suppression is derived from raw query versus debounced query.
+          Customer search params are exactly: query optional string; limit optional number|string. Never use a property named search for customer search. Use generated customer API/query-key with query and limit 5.
+          QuickNavigator.tsx must import/call useQuickNavigatorSearch; the hook owns remote search. Do not suppress validators.
           EOF
             cat /tmp/kimi-validator.log >> /tmp/kimi-repair.txt
             python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/kimi-repair.txt
@@ -170,14 +170,18 @@ jobs:
           test -f "$hook" || { echo 'useQuickNavigatorSearch.ts missing'; exit 43; }
           grep -q 'import.*useQuickNavigatorSearch' "$q" || { echo 'Search hook not imported by active QuickNavigator'; exit 44; }
           grep -q 'useQuickNavigatorSearch(' "$q" || { echo 'Search hook imported but not called'; exit 45; }
-          grep -q 'getApiCustomersSearch' "$hook" || { echo 'Generated customer API not used in search hook'; exit 46; }
-          grep -q 'getGetApiCustomersSearchQueryKey' "$hook" || { echo 'Generated customer query key not used'; exit 47; }
-          grep -q 'useDebounce' "$hook" || { echo 'Remote debounce not wired in search hook'; exit 48; }
-          grep -q 'query:' "$hook" || { echo 'Customer query parameter missing'; exit 49; }
-          grep -q 'limit: 5' "$hook" || { echo 'Bounded customer search limit missing'; exit 50; }
-          grep -q 'quick-nav-folder-grid' "$css" || { echo 'Folder grid CSS missing'; exit 51; }
-          grep -q 'quick-nav-folder-card' "$css" || { echo 'Folder card CSS missing'; exit 52; }
-          grep -q 'quick-nav-result-badge' "$css" || { echo 'Result badge CSS missing'; exit 53; }
+          grep -q 'useQuery' "$hook" || { echo 'React Query missing from search hook'; exit 46; }
+          grep -q 'getApiCustomersSearch' "$hook" || { echo 'Generated customer API not used'; exit 47; }
+          grep -q 'getGetApiCustomersSearchQueryKey' "$hook" || { echo 'Generated customer query key not used'; exit 48; }
+          grep -q 'useDebounce' "$hook" || { echo 'Remote debounce not wired'; exit 49; }
+          grep -q 'query:' "$hook" || { echo 'Customer query parameter missing'; exit 50; }
+          grep -q 'limit: 5' "$hook" || { echo 'Bounded search limit missing'; exit 51; }
+          if grep -Eq 'lastHandled|jobFetchState|requestIdRef|AbortControllerRef' "$hook"; then
+            echo 'Forbidden manual remote-state machine detected'; exit 52
+          fi
+          grep -q 'quick-nav-folder-grid' "$css" || { echo 'Folder grid CSS missing'; exit 53; }
+          grep -q 'quick-nav-folder-card' "$css" || { echo 'Folder card CSS missing'; exit 54; }
+          grep -q 'quick-nav-result-badge' "$css" || { echo 'Result badge CSS missing'; exit 55; }
           echo 'Static import/render/search wiring proof passed.'
 
       - name: Focused authenticated QuickNavigator browser smoke
