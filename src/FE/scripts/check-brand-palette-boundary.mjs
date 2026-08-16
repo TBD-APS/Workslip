@@ -6,13 +6,17 @@ const brandPath = new URL('../src/workslip-brand.css', import.meta.url);
 const appPath = new URL('../src/App.tsx', import.meta.url);
 const themeProviderPath = new URL('../src/providers/ThemeProvider.tsx', import.meta.url);
 const indexPath = new URL('../index.html', import.meta.url);
+const activityFeedPath = new URL('../src/components/common/ActivityFeed.css', import.meta.url);
+const quickNavigatorPath = new URL('../src/components/common/QuickNavigator.css', import.meta.url);
 
-const [refinement, brand, app, themeProvider, index] = await Promise.all([
+const [refinement, brand, app, themeProvider, index, activityFeed, quickNavigator] = await Promise.all([
   readFile(refinementPath, 'utf8'),
   readFile(brandPath, 'utf8'),
   readFile(appPath, 'utf8'),
   readFile(themeProviderPath, 'utf8'),
   readFile(indexPath, 'utf8'),
+  readFile(activityFeedPath, 'utf8'),
+  readFile(quickNavigatorPath, 'utf8'),
 ]);
 
 const paletteTokens = [
@@ -78,6 +82,21 @@ for (const requiredScope of ['body:has(.app-shell)', 'body:has(.auth-shell)', 'b
   }
 }
 
+const nonActionSharedSurfaces = [
+  ['ActivityFeed.css', activityFeed],
+  ['QuickNavigator.css', quickNavigator],
+];
+for (const [fileName, source] of nonActionSharedSurfaces) {
+  if (source.includes('var(--primary)')) {
+    console.error(`${fileName} uses --primary for non-action state. Use --color-primary/--color-info or --focus-ring instead.`);
+    process.exit(1);
+  }
+  if (/#(?:2563eb|1d4ed8|3b82f6|00c6ff)\b/i.test(source)) {
+    console.error(`${fileName} contains a legacy blue/cyan state literal. Consume the central semantic tokens instead.`);
+    process.exit(1);
+  }
+}
+
 for (const [fileName, source] of [
   ['ThemeProvider.tsx', themeProvider],
   ['index.html', index],
@@ -90,4 +109,4 @@ for (const [fileName, source] of [
   }
 }
 
-console.log('Workslip brand palette ownership guard passed.');
+console.log('Workslip brand palette ownership and shared state semantics guard passed.');
