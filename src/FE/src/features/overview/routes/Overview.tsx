@@ -3,7 +3,7 @@ import { ArrowRight, CheckCircle2, CircleDot, Clock3, XCircle } from 'lucide-rea
 import { useNavigate } from 'react-router-dom';
 import { JobStatus } from '../../../api/generated/models';
 import { ErrorState } from '../../../components/ErrorState';
-import { activateStatusFilter } from '../../../components/filters/StatusFilter';
+import { saveStatusFilter } from '../../../components/filters/StatusFilter';
 import { apiClient } from '../../../lib/axios';
 import { formatDateTimeShort } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
@@ -47,7 +47,7 @@ export const Overview = () => {
   });
 
   const navigateToStatus = (status: JobStatus) => {
-    activateStatusFilter('mine-jobs', [status]);
+    saveStatusFilter('mine-jobs', [status]);
     navigate(getStatusListPath(status));
   };
 
