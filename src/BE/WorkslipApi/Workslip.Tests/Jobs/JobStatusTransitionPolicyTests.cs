@@ -61,7 +61,7 @@ public sealed class JobStatusTransitionPolicyTests
             return JobStatusTransitionDecision.Forbidden;
         }
 
-        if (targetStatus is JobStatus.Approved or JobStatus.Rejected && !isReviewer)
+        if (targetStatus is JobStatus.Approved or JobStatus.Rejected or JobStatus.Reopened && !isReviewer)
         {
             return JobStatusTransitionDecision.Forbidden;
         }
@@ -75,6 +75,7 @@ public sealed class JobStatusTransitionPolicyTests
         {
             (JobStatus.Draft, JobStatus.InReview),
             (JobStatus.Rejected, JobStatus.InReview),
+            (JobStatus.Reopened, JobStatus.InReview),
             (JobStatus.InReview, JobStatus.InReview)
         };
 
@@ -82,8 +83,10 @@ public sealed class JobStatusTransitionPolicyTests
         {
             allowedTransitions.Add((JobStatus.InReview, JobStatus.Approved));
             allowedTransitions.Add((JobStatus.InReview, JobStatus.Rejected));
+            allowedTransitions.Add((JobStatus.Approved, JobStatus.Reopened));
             allowedTransitions.Add((JobStatus.Approved, JobStatus.Approved));
             allowedTransitions.Add((JobStatus.Rejected, JobStatus.Rejected));
+            allowedTransitions.Add((JobStatus.Reopened, JobStatus.Reopened));
         }
 
         return allowedTransitions.Contains((currentStatus, targetStatus))
