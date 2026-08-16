@@ -1,0 +1,27 @@
+name: Kimi Agent Heartbeat
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  kimi-agent-heartbeat:
+    name: Kimi Agent Heartbeat
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Kimi secret availability
+        env:
+          KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
+        run: |
+          if [ -z "$KIMI_API_KEY" ]; then
+            echo "KIMI_API_KEY is not configured"
+            exit 1
+          fi
+          echo "Kimi secret is available"
+
+      - name: Agent onboarding readiness placeholder
+        run: |
+          echo "Kimi provider bootstrap ready"
+          echo "Next step: connect provider-neutral agent contract and evidence output"
