@@ -23,7 +23,8 @@ public interface IJobConversationRepository
         IReadOnlyList<Guid> mentionedUserIds,
         ConversationActionType? actionType,
         Guid? actionTargetUserId,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Conversation writes are not implemented by this repository.");
 
     Task<ConversationMessageResponse> CreateAsync(
         Guid organizationId,
