@@ -17,8 +17,21 @@ case "$BASE_URL" in
 esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COLLECTION="$SCRIPT_DIR/postman_collection.json"
+SOURCE_COLLECTION="$SCRIPT_DIR/postman_collection.json"
+COLLECTION="$(mktemp "${TMPDIR:-/tmp}/workslip-postman-collection.XXXXXX.json")"
 ENVIRONMENT="$SCRIPT_DIR/workslip.integration.postman_environment.json"
+
+cleanup() {
+  rm -f "$COLLECTION"
+}
+trap cleanup EXIT
+
+# The canonical collection creates the job before the worksheet requests later in
+# the suite. Submit-ready is now authoritative on the server, so prepare only the
+# synthetic execution copy with the minimum worksheet required by that submit
+# smoke. The source collection remains unchanged and the preparation fails closed
+# if the expected fixture cannot be found.
+node "$SCRIPT_DIR/prepare-integration-collection.mjs" "$SOURCE_COLLECTION" "$COLLECTION"
 
 args=(
   run "$COLLECTION"
