@@ -3,6 +3,7 @@ import axios from 'axios';
 type UploadProblem = {
   detail?: string;
   message?: string;
+  title?: string;
   errors?: Record<string, string[]>;
 };
 
@@ -24,5 +25,6 @@ export function getUploadErrorMessage(error: unknown, options: UploadErrorOption
   return validationMessage
     ?? data?.message
     ?? data?.detail
+    ?? data?.title
     ?? options.fallback;
 }
