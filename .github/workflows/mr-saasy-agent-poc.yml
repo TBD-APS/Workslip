@@ -11,6 +11,17 @@ permissions:
   contents: read
 
 jobs:
+  sandbox-runtime-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enforce runtime-agnostic sandbox boundary
+        working-directory: platform/mr-saasy-agent-poc
+        run: bash ./scripts/boundary-check.sh
+
   destructive-worker-recovery:
     runs-on: ubuntu-latest
     timeout-minutes: 12
