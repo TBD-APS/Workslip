@@ -1,56 +1,9 @@
-/* WOR-502 — restrained Farvelab refinement for the primary Workslip surfaces.
- * `html` intentionally raises specificity above the older Farvelab layer so the
- * refinement remains authoritative even when AppLayout CSS is lazy-loaded later.
+/* WOR-502 — surface and interaction refinement for primary Workslip surfaces.
+ *
+ * Brand palette ownership belongs exclusively to workslip-brand.css. This layer
+ * may refine layout, elevation and component behavior, but must not redeclare
+ * global brand/theme tokens or replace the branded app-shell canvas.
  */
-
-html[data-theme="day"] body:has(.app-shell) {
-  --bg: #f4f7fb;
-  --text: #14213d;
-  --text-primary: #14213d;
-  --text-muted: #65748b;
-  --text-secondary: #65748b;
-  --text-dim: #7d8aa0;
-
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
-  --primary-pressed: #1e40af;
-  --on-primary: #ffffff;
-  --accent-cyan: #0891b2;
-  --accent-mint: #059669;
-  --accent-amber: #d97706;
-  --accent-coral: #dc5a55;
-
-  --surface-floating: #ffffff;
-  --surface-color: #ffffff;
-  --surface: #f8fafc;
-  --surface-raised: #f1f5f9;
-  --surface-input: #ffffff;
-  --surface-elevated: #eaf0f7;
-  --surface-selected: #e8f0ff;
-  --surface-selected-strong: #dbe8ff;
-  --surface-modal: #ffffff;
-  --surface-actions-menu: #ffffff;
-
-  --border: #dde5ef;
-  --border-strong: #c8d4e3;
-  --surface-border: var(--border);
-  --focus-ring: #2563eb;
-  --shadow-sm: 0 6px 18px rgba(20, 33, 61, 0.055);
-  --shadow-sm-raw: 0 2px 8px rgba(20, 33, 61, 0.055);
-  --shadow-lg: 0 20px 52px rgba(20, 33, 61, 0.11);
-  --shadow-accent: 0 7px 18px rgba(37, 99, 235, 0.16);
-
-  --nav-bg: rgba(255, 255, 255, 0.95);
-  --safe-area-top-bg: #f4f7fb;
-}
-
-html[data-theme="night"] body:has(.app-shell) {
-  --on-primary: #ffffff;
-  --shadow-sm: 0 7px 20px rgba(1, 5, 16, 0.14);
-  --shadow-sm-raw: 0 3px 10px rgba(1, 5, 16, 0.13);
-  --shadow-lg: 0 22px 58px rgba(1, 5, 16, 0.3);
-  --shadow-accent: 0 8px 22px rgba(76, 102, 255, 0.2);
-}
 
 /* The app viewport must never become a horizontal scroll container. Keep
  * feature-level intentional scrollers local (tables, chips, carousels) instead. */
@@ -72,12 +25,6 @@ body:has(.app-shell) .app-shell {
   overflow-x: clip;
 }
 
-html body:has(.app-shell) .app-shell {
-  background:
-    radial-gradient(circle at 4% -8%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 28rem),
-    var(--bg);
-}
-
 html body:has(.app-shell) :is(.overview-recent-card, .data-table, .job-card, .customer-card, .time-overview-card) {
   background: var(--surface-floating);
   border-color: var(--border);
@@ -97,14 +44,10 @@ html body:has(.app-shell) :is(.overview-recent-row, .data-table tbody tr):focus-
   outline-offset: -2px;
 }
 
-/* Filled actions always use high-contrast white foregrounds. Secondary and
- * ghost actions remain neutral so hierarchy is still visible. */
-html body:has(.app-shell) :is(
-  .btn-primary,
-  .btn-danger,
-  .fab-create,
-  .status-filter-btn.selected
-) {
+/* Primary/fab foreground is intentionally owned by workslip-brand.css: orange
+ * needs the marine foreground there. Destructive and selected controls keep a
+ * white foreground where their semantic background requires it. */
+html body:has(.app-shell) :is(.btn-danger, .status-filter-btn.selected) {
   color: #ffffff;
 }
 

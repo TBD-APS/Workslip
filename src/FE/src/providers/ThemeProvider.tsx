@@ -26,7 +26,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem('theme', theme);
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) {
-      meta.setAttribute('content', theme === 'night' ? '#0B1020' : '#F4F7FB');
+      meta.setAttribute('content', theme === 'night' ? '#123B4A' : '#FFF7E8');
     }
   }, [theme]);
 

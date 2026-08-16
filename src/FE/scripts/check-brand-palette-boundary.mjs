@@ -1,0 +1,79 @@
+import { readFile } from 'node:fs/promises';
+import process from 'node:process';
+
+const refinementPath = new URL('../src/farvelab-refinement.css', import.meta.url);
+const brandPath = new URL('../src/workslip-brand.css', import.meta.url);
+const themeProviderPath = new URL('../src/providers/ThemeProvider.tsx', import.meta.url);
+const indexPath = new URL('../index.html', import.meta.url);
+
+const [refinement, brand, themeProvider, index] = await Promise.all([
+  readFile(refinementPath, 'utf8'),
+  readFile(brandPath, 'utf8'),
+  readFile(themeProviderPath, 'utf8'),
+  readFile(indexPath, 'utf8'),
+]);
+
+const paletteTokens = [
+  'bg',
+  'text',
+  'text-primary',
+  'text-muted',
+  'text-secondary',
+  'text-dim',
+  'primary',
+  'primary-hover',
+  'primary-pressed',
+  'on-primary',
+  'accent-cyan',
+  'accent-mint',
+  'accent-amber',
+  'accent-coral',
+  'surface-floating',
+  'surface-color',
+  'surface',
+  'surface-raised',
+  'surface-input',
+  'surface-elevated',
+  'surface-selected',
+  'surface-selected-strong',
+  'surface-modal',
+  'surface-actions-menu',
+  'border',
+  'border-strong',
+  'focus-ring',
+  'nav-bg',
+  'safe-area-top-bg',
+];
+
+const violations = paletteTokens.filter((token) => {
+  const pattern = new RegExp(`(^|\\n)\\s*--${token}\\s*:`, 'm');
+  return pattern.test(refinement);
+});
+
+if (violations.length > 0) {
+  console.error(
+    `farvelab-refinement.css redeclares brand palette tokens owned by workslip-brand.css: ${violations.join(', ')}`,
+  );
+  process.exit(1);
+}
+
+for (const expected of ['#123b4a', '#147a7e', '#f47a24', '#fff7e8']) {
+  if (!brand.toLowerCase().includes(expected)) {
+    console.error(`workslip-brand.css is missing canonical brand color ${expected}.`);
+    process.exit(1);
+  }
+}
+
+for (const [fileName, source] of [
+  ['ThemeProvider.tsx', themeProvider],
+  ['index.html', index],
+]) {
+  for (const expected of ['#123B4A', '#FFF7E8']) {
+    if (!source.includes(expected)) {
+      console.error(`${fileName} is not aligned with canonical browser theme color ${expected}.`);
+      process.exit(1);
+    }
+  }
+}
+
+console.log('Workslip brand palette ownership guard passed.');
