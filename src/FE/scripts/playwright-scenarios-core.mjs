@@ -72,7 +72,12 @@ async function authSessionFlow(session) {
       if (String(meAfterReload.role) !== roleFromApi) throw new Error(`${requestedRole} role changed after reload.`);
       await session.page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => null);
       await session.page.goto(`${APP_URL}/app`, { waitUntil: 'domcontentloaded' });
-      await session.page.waitForURL((url) => url.pathname.startsWith('/app'), { timeout: UI_TIMEOUT });
+      const expectedHomePath = requestedRole === 'Superadmin'
+        ? '/superadmin'
+        : requestedRole === 'Auditor'
+          ? '/app/auditor'
+          : '/app/overblik';
+      await session.page.waitForURL((url) => url.pathname === expectedHomePath, { timeout: UI_TIMEOUT });
       await session.logout();
       await session.page.goto(`${APP_URL}/app`, { waitUntil: 'domcontentloaded' });
       await session.page.waitForURL((url) => url.pathname === '/login', { timeout: UI_TIMEOUT });
