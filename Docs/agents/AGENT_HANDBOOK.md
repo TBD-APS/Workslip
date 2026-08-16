@@ -189,7 +189,9 @@ Update stale maintained documentation in the same cohesive change when implement
 
 ## 11. Machine-readable onboarding reference
 
-Providers should eventually publish this logical manifest through the shared agent/provider contract:
+The current onboarding contract versions and required context documents are defined once in [`AGENT_CONTEXT_MANIFEST.json`](AGENT_CONTEXT_MANIFEST.json). Do not duplicate a hardcoded current handbook version in provider adapters or maintained prose; consumers should load the manifest and report the version/source revision they actually used.
+
+Providers should publish this logical onboarding state through the shared agent/provider contract when supported:
 
 ```text
 handbookVersion
@@ -202,16 +204,14 @@ loadedAt
 sourceRevision
 ```
 
-Initial handbook version: `1`.
-
-The canonical `sourceRevision` is the repository revision from which this handbook and applicable agent rules were loaded. Control Center may warn or block according to policy when an active agent is materially stale relative to the current required handbook/contract revision.
+The canonical `sourceRevision` is the repository revision from which the manifest, this handbook and applicable agent rules were loaded. Control Center may warn or block according to policy when an active agent is materially stale relative to the current required handbook/contract revision.
 
 ## 12. New-agent onboarding checklist
 
 A new provider/agent is plug-and-play only when:
 
 1. its role is declared independently from provider/runtime;
-2. it can load this handbook and applicable repository instructions;
+2. it loads the current `AGENT_CONTEXT_MANIFEST.json`, every required document named by that manifest, and the applicable repository instructions before becoming available for work;
 3. its capabilities are declared through the shared provider contract;
 4. it maps activity/checkpoints to normalized Control Center states;
 5. it preserves evidence provenance and links to source systems;
