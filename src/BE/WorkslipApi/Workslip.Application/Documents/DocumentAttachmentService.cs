@@ -11,7 +11,8 @@ public sealed class DocumentAttachmentService(
     ICurrentUserContext currentUser,
     ILogger<DocumentAttachmentService> logger) : IDocumentAttachmentService
 {
-    public const long MaxAttachmentSizeBytes = 20 * 1024 * 1024;
+    public const int MaxAttachmentSizeMegabytes = 75;
+    public const long MaxAttachmentSizeBytes = MaxAttachmentSizeMegabytes * 1024L * 1024L;
     private const int MaxFileNameLength = 180;
 
     private static readonly IReadOnlyDictionary<string, string[]> AllowedContentTypes =
@@ -219,7 +220,7 @@ public sealed class DocumentAttachmentService(
             return [Error("ContentLength", "Filen er tom.")];
 
         if (upload.ContentLength > MaxAttachmentSizeBytes)
-            return [Error("ContentLength", "Filen må højst være 20 MB.")];
+            return [Error("ContentLength", $"Filen må højst være {MaxAttachmentSizeMegabytes} MB.")];
 
         var fileName = Path.GetFileName(upload.FileName?.Trim() ?? string.Empty);
         if (string.IsNullOrWhiteSpace(fileName))
