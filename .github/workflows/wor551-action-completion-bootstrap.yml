@@ -1,0 +1,79 @@
+name: WOR-551 temporary action completion bootstrap
+
+on:
+  push:
+    branches:
+      - rbj--551-action-completion
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: rbj--551-action-completion
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+      - name: Apply exact source fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}')
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfAssignmentRepository.cs',
+              '        job.UpdatedAt = now;',
+              '        _dbContext.Entry(job).Property(report => report.UpdatedAt).CurrentValue = now;')
+
+          service = 'src/BE/WorkslipApi/Workslip.Application/Conversations/JobConversationService.cs'
+          replace_once(
+              service,
+              '''        if (actionType == ConversationActionType.AssignSelf)\n        {''',
+              '''        if (actionType != ConversationActionType.RemindMe && dueUtc is not null)\n            return InvalidAction(nameof(CreateConversationMessageRequest.ActionDueUtc), "Kun påmindelser kan have et tidspunkt.");\n\n        if (actionType == ConversationActionType.AssignSelf)\n        {''')
+          replace_once(
+              service,
+              '''        }\n        else if (dueUtc is not null)\n        {\n            return InvalidAction(nameof(CreateConversationMessageRequest.ActionDueUtc), "Kun påmindelser kan have et tidspunkt.");\n        }\n\n        if (actionType == ConversationActionType.CreateTask && body.Length == 0)''',
+              '''        }\n\n        if (actionType == ConversationActionType.CreateTask && body.Length == 0)''')
+
+          replace_once(
+              'src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfNotificationRepository.cs',
+              '''            var rows = await _dbContext.NotificationQueue.AsNoTracking()\n                .Where(x => x.UserId == userId)''',
+              '''            var now = DateTimeOffset.UtcNow;\n            var rows = await _dbContext.NotificationQueue.AsNoTracking()\n                .Where(x => x.UserId == userId && x.NextAttemptUtc <= now)''')
+      - name: Install frontend dependencies
+        working-directory: src/FE
+        run: npm ci
+      - name: Generate branch-matched API client
+        working-directory: src/FE
+        run: npm run generate:api:local
+      - name: Commit generated contract and fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfAssignmentRepository.cs \
+                  src/BE/WorkslipApi/Workslip.Application/Conversations/JobConversationService.cs \
+                  src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfNotificationRepository.cs \
+                  src/FE/src/api/generated
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit."
+            exit 0
+          fi
+          git commit -m "RBJ-551: generate action completion API contract"
+          git push origin HEAD:rbj--551-action-completion
