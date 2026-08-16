@@ -24,10 +24,10 @@ public sealed record ConversationActionResponse(
     Guid TargetUserId,
     string TargetDisplayName,
     ConversationActionStatus Status,
-    DateTimeOffset? DueUtc,
     Guid? ResolvedByUserId,
     string? ResolvedByDisplayName,
-    DateTimeOffset? ResolvedUtc);
+    DateTimeOffset? ResolvedUtc,
+    DateTimeOffset? DueUtc = null);
 
 public sealed record ConversationMessageResponse(
     Guid Id,
