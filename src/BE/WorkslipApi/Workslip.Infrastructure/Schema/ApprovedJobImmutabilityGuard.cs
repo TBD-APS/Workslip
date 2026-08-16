@@ -11,9 +11,10 @@ namespace Workslip.Infrastructure.Schema;
 /// EF-tracked IJobRelated entity are immutable until the explicit
 /// Approved -> Reopened transition has been committed.
 /// </summary>
-public sealed class ApprovedJobImmutabilityGuard : SaveChangesInterceptor
+public sealed class ApprovedJobImmutabilityGuard(JobReopenReasonContext reopenReasonContext) : SaveChangesInterceptor
 {
     public const string LockedMessage = "Den godkendte sag er låst. Genåbn sagen med en begrundelse før du ændrer den.";
+    public const string MissingReopenReasonMessage = "En godkendt sag kan kun genåbnes med en begrundelse.";
 
     public override InterceptionResult<int> SavingChanges(
         DbContextEventData eventData,
@@ -36,7 +37,7 @@ public sealed class ApprovedJobImmutabilityGuard : SaveChangesInterceptor
         return result;
     }
 
-    private static async Task ValidateAsync(
+    private async Task ValidateAsync(
         SqlDbContext context,
         CancellationToken cancellationToken)
     {
@@ -69,7 +70,7 @@ public sealed class ApprovedJobImmutabilityGuard : SaveChangesInterceptor
                 if (!string.Equals(originalStatus, JobStatus.Approved.ToString(), StringComparison.Ordinal))
                     continue;
 
-                if (IsControlledReopen(entry))
+                if (TryPrepareControlledReopen(entry, report))
                     continue;
 
                 throw new ApprovedJobImmutableException(report.Id);
@@ -94,7 +95,7 @@ public sealed class ApprovedJobImmutabilityGuard : SaveChangesInterceptor
             throw new ApprovedJobImmutableException(id);
     }
 
-    private static bool IsControlledReopen(EntityEntry entry)
+    private bool TryPrepareControlledReopen(EntityEntry entry, JobReportRow report)
     {
         if (entry.State != EntityState.Modified)
             return false;
@@ -106,6 +107,11 @@ public sealed class ApprovedJobImmutabilityGuard : SaveChangesInterceptor
         {
             return false;
         }
+
+        if (!reopenReasonContext.TryGet(report.Id, report.OrganizationId, out var reason))
+            throw new InvalidOperationException(MissingReopenReasonMessage);
+
+        entry.Property(nameof(JobReportRow.RejectionNote)).CurrentValue = reason;
 
         var allowedProperties = new HashSet<string>(StringComparer.Ordinal)
         {
