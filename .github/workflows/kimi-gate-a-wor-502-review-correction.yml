@@ -17,7 +17,7 @@ concurrency:
 jobs:
   integrate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
       MOONSHOT_BASE_URL: https://api.moonshot.ai/v1
@@ -87,7 +87,7 @@ jobs:
           EOF
           python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/wor502-design-review.txt
 
-      - name: Enforce design integration scope
+      - name: Enforce Kimi design scope
         env:
           KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
         shell: bash
@@ -101,14 +101,114 @@ jobs:
             esac
           done < /tmp/kimi-files.txt
 
-      - name: Validate design integration
+      - name: Install frontend dependencies
+        working-directory: src/FE
+        shell: bash
+        run: npm ci
+
+      - name: Initial tests and lint
+        id: prevalidate
+        working-directory: src/FE
+        env:
+          KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          : > /tmp/kimi-prevalidate.log
+          mapfile -t tests < <(find src/components/common -maxdepth 1 -type f -iname '*navigator*.test.ts*' -print)
+          test_status=0
+          if ((${#tests[@]})); then
+            npx vitest run "${tests[@]}" 2>&1 | tee -a /tmp/kimi-prevalidate.log
+            test_status=${PIPESTATUS[0]}
+          fi
+          mapfile -t files < <({ git diff --name-only "$KIMI_START_HEAD" -- '*.ts' '*.tsx'; git ls-files --others --exclude-standard -- 'src/components/common/*.ts' 'src/components/common/*.tsx'; } | sort -u | sed 's#^src/FE/##')
+          lint_status=0
+          if ((${#files[@]})); then
+            npx eslint "${files[@]}" 2>&1 | tee -a /tmp/kimi-prevalidate.log
+            lint_status=${PIPESTATUS[0]}
+          fi
+          if (( test_status != 0 || lint_status != 0 )); then
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+          fi
+          exit 0
+
+      - name: Ask Kimi to repair tests or lint
+        if: steps.prevalidate.outputs.failed == 'true'
+        env:
+          KIMI_MODEL: ${{ steps.runtime.outputs.model }}
+        shell: bash
+        run: |
+          cat >/tmp/kimi-repair-1.txt <<'EOF'
+          Deterministic validator rejected your newly wired QuickNavigator design. Fix the exact errors in the appended validator output. Preserve the new modular folder/search UI and all previously validated search behavior. Do not remove the design to make lint pass. In particular, avoid synchronous setState inside effects; reset state from explicit open/close/query/folder event paths or derive state cleanly. Remove unused imports/values instead of suppressing lint rules.
+          EOF
+          cat /tmp/kimi-prevalidate.log >> /tmp/kimi-repair-1.txt
+          python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/kimi-repair-1.txt
+
+      - name: Re-enforce scope after first repair
+        env:
+          KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          { git diff --name-only "$KIMI_START_HEAD"; git ls-files --others --exclude-standard; } | sort -u | tee /tmp/kimi-files-repair1.txt
+          while IFS= read -r p; do
+            case "$p" in
+              src/FE/src/components/common/QuickNavigator.tsx|src/FE/src/components/common/QuickNavigator.css|src/FE/src/components/common/QuickNavigatorHeader.tsx|src/FE/src/components/common/QuickNavigatorSearchField.tsx|src/FE/src/components/common/QuickNavigatorFolderGrid.tsx|src/FE/src/components/common/QuickNavigatorResults.tsx|src/FE/src/components/common/QuickNavigator.test.tsx|src/FE/src/components/common/quickNavigatorSearch.ts|src/FE/src/components/common/quickNavigatorSearch.test.ts|src/FE/src/components/common/quickNavigatorTypes.ts|src/FE/src/components/common/useQuickNavigatorSearch.ts) ;;
+              *) echo "Out-of-scope Kimi repair delta: $p"; exit 21 ;;
+            esac
+          done < /tmp/kimi-files-repair1.txt
+
+      - name: Tests lint and build after first repair
+        id: buildvalidate
+        working-directory: src/FE
+        env:
+          KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          : > /tmp/kimi-buildvalidate.log
+          mapfile -t tests < <(find src/components/common -maxdepth 1 -type f -iname '*navigator*.test.ts*' -print)
+          test_status=0
+          if ((${#tests[@]})); then
+            npx vitest run "${tests[@]}" 2>&1 | tee -a /tmp/kimi-buildvalidate.log
+            test_status=${PIPESTATUS[0]}
+          fi
+          mapfile -t files < <({ git diff --name-only "$KIMI_START_HEAD" -- '*.ts' '*.tsx'; git ls-files --others --exclude-standard -- 'src/components/common/*.ts' 'src/components/common/*.tsx'; } | sort -u | sed 's#^src/FE/##')
+          lint_status=0
+          if ((${#files[@]})); then
+            npx eslint "${files[@]}" 2>&1 | tee -a /tmp/kimi-buildvalidate.log
+            lint_status=${PIPESTATUS[0]}
+          fi
+          npm run build 2>&1 | tee -a /tmp/kimi-buildvalidate.log
+          build_status=${PIPESTATUS[0]}
+          if (( test_status != 0 || lint_status != 0 || build_status != 0 )); then
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+          fi
+          exit 0
+
+      - name: Ask Kimi to repair build validation
+        if: steps.buildvalidate.outputs.failed == 'true'
+        env:
+          KIMI_MODEL: ${{ steps.runtime.outputs.model }}
+        shell: bash
+        run: |
+          cat >/tmp/kimi-repair-2.txt <<'EOF'
+          The deterministic tests/lint/build validator still rejects your modular QuickNavigator design. Fix only the concrete failures in the appended output while preserving the wired folder/search design, imports, permissions, debounce/stale-result protection, keyboard/focus behavior and component split. Do not weaken validators.
+          EOF
+          cat /tmp/kimi-buildvalidate.log >> /tmp/kimi-repair-2.txt
+          python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/kimi-repair-2.txt
+
+      - name: Final strict validation
         working-directory: src/FE
         env:
           KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
         shell: bash
         run: |
           set -euo pipefail
-          npm ci
           mapfile -t tests < <(find src/components/common -maxdepth 1 -type f -iname '*navigator*.test.ts*' -print)
           if ((${#tests[@]})); then npx vitest run "${tests[@]}"; fi
           mapfile -t files < <({ git diff --name-only "$KIMI_START_HEAD" -- '*.ts' '*.tsx'; git ls-files --others --exclude-standard -- 'src/components/common/*.ts' 'src/components/common/*.tsx'; } | sort -u | sed 's#^src/FE/##')
