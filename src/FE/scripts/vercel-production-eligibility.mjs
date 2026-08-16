@@ -156,6 +156,12 @@ export function boundedRateLimitWaitMs({ retryMs, deadlineMs, nowMs = Date.now()
   return waitMs < remainingMs ? waitMs : null;
 }
 
+export function ignoredBuildStepExitCode({ shouldDeploy }) {
+  // Vercel's Ignored Build Step contract is intentionally inverted:
+  // exit 0 => ignore/cancel deployment, exit 1 => continue deployment.
+  return shouldDeploy ? 1 : 0;
+}
+
 class GitHubRateLimitError extends Error {
   constructor(message, retryMs) {
     super(message);
@@ -207,12 +213,34 @@ function sleep(ms) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
-async function main() {
-  if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production') {
-    throw new Error(`Production gate invoked for VERCEL_ENV=${process.env.VERCEL_ENV}.`);
+export function productionGateMode({ vercelEnv, commitRef } = {}) {
+  const environment = String(vercelEnv || '').trim();
+  const ref = String(commitRef || '').trim();
+
+  if (environment === 'preview' || environment === 'development') {
+    return { enforce: false, environment };
   }
-  if (process.env.VERCEL_GIT_COMMIT_REF && process.env.VERCEL_GIT_COMMIT_REF !== 'main') {
-    throw new Error(`Vercel production may only release main, got ${process.env.VERCEL_GIT_COMMIT_REF}.`);
+
+  if (environment && environment !== 'production') {
+    throw new Error(`Unsupported VERCEL_ENV=${environment}; refusing to guess deployment intent.`);
+  }
+
+  if (ref && ref !== 'main') {
+    throw new Error(`Vercel production may only release main, got ${ref}.`);
+  }
+
+  return { enforce: true, environment: environment || 'manual' };
+}
+
+async function main() {
+  const mode = productionGateMode({
+    vercelEnv: process.env.VERCEL_ENV,
+    commitRef: process.env.VERCEL_GIT_COMMIT_REF,
+  });
+
+  if (!mode.enforce) {
+    console.log(`[release] Vercel ${mode.environment} build: production eligibility gate skipped; continuing normal build.`);
+    return;
   }
 
   const sha = resolveSha();
@@ -271,8 +299,12 @@ async function main() {
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : '';
 const modulePath = resolve(fileURLToPath(import.meta.url));
 if (invokedPath && invokedPath === modulePath) {
-  main().catch((error) => {
-    console.error(`[release] Vercel production blocked: ${error.message}`);
-    process.exitCode = 1;
-  });
+  main()
+    .then(() => {
+      process.exitCode = ignoredBuildStepExitCode({ shouldDeploy: true });
+    })
+    .catch((error) => {
+      console.error(`[release] Vercel production blocked: ${error.message}`);
+      process.exitCode = ignoredBuildStepExitCode({ shouldDeploy: false });
+    });
 }

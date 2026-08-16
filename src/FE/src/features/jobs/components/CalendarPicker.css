@@ -3,9 +3,10 @@
   min-height: 44px;
 }
 
+/* A chosen date is selection state, so it uses the central petrol token. */
 .calendar-picker-day.selected {
-  background: var(--primary);
-  color: var(--on-primary);
+  background: var(--color-primary);
+  color: var(--brand-cream);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -15,8 +16,8 @@
   }
 
   .calendar-picker-day.selected:hover {
-    background: var(--primary-hover);
-    color: var(--on-primary);
+    background: var(--color-primary);
+    color: var(--brand-cream);
   }
 }
 

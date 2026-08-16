@@ -13,9 +13,12 @@ export interface ConversationActionResponse {
   targetDisplayName: string;
   status: ConversationActionStatus;
   /** @nullable */
-  resolvedByUserId: string | null;
+  dueUtc?: string | null;
   /** @nullable */
-  resolvedByDisplayName: string | null;
+  resolvedByUserId?: string | null;
   /** @nullable */
-  resolvedUtc: string | null;
+  resolvedByDisplayName?: string | null;
+  /** @nullable */
+  resolvedUtc?: string | null;
+  canResolve: boolean;
 }

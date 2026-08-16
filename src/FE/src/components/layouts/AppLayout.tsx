@@ -2,13 +2,12 @@ import { useNavigate, useLocation, NavLink, Navigate, Outlet } from 'react-route
 import { BookOpen, ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell, Search } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can, useCan, useIsSuperAdmin } from '../../providers/permissions';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DropdownProvider } from '../../providers/DropdownContext';
 import { useTheme } from '../../providers/ThemeProvider';
 import { CreateBottomSheet } from '../common/CreateBottomSheet';
 import { NotificationsDrawer } from '../common/NotificationsDrawer';
 import { QuickNavigator } from '../common/QuickNavigator';
-import { ProfileAvatar } from '../../features/images/ProfileAvatar';
 import {
   AUDITOR_AUTHENTICATED_PATH,
   getAuthenticatedHomePath,
@@ -53,10 +52,36 @@ export const AppLayout = () => {
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [quickNavigatorOpen, setQuickNavigatorOpen] = useState(false);
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const settingsMenuRef = useRef<HTMLDivElement>(null);
 
   const restoreScrollKey = useAppRouteScrollManager(scrollContainerRef);
+
+  useEffect(() => {
+    if (!settingsMenuOpen) return undefined;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!settingsMenuRef.current?.contains(event.target as Node)) {
+        setSettingsMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSettingsMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [settingsMenuOpen]);
 
   const scrollToTopIfActive = (path: string) => {
     if (location.pathname === path) {
@@ -105,10 +130,6 @@ export const AppLayout = () => {
           Workslip
         </button>
         <div className="app-header-actions">
-          <span className="app-header-user" title={user?.email ?? ''}>
-            <User size={16} />
-            <span>{user?.displayName ?? user?.email ?? ''}</span>
-          </span>
           <button
             type="button"
             onClick={() => setQuickNavigatorOpen(true)}
@@ -149,58 +170,86 @@ export const AppLayout = () => {
             </button>
           )}
           <Can permission="organization:manage">
-              <button
-                type="button"
-                onClick={() => navigate('/superadmin')}
-                className="user-avatar"
-                aria-label="Superadmin"
-                title="Superadmin"
-                aria-current={location.pathname === '/superadmin' ? 'page' : undefined}
-              >
-                <ShieldCheck size={18} />
-              </button>
-            </Can>
-          <Can permission="user:manage">
             <button
               type="button"
-              onClick={() => navigate('/app/settings')}
+              onClick={() => navigate('/superadmin')}
               className="user-avatar"
-              aria-label="Indstillinger"
+              aria-label="Superadmin"
+              title="Superadmin"
+              aria-current={location.pathname === '/superadmin' ? 'page' : undefined}
+            >
+              <ShieldCheck size={18} />
+            </button>
+          </Can>
+          <div ref={settingsMenuRef} className="app-header-settings">
+            <button
+              type="button"
+              onClick={() => setSettingsMenuOpen((open) => !open)}
+              className="user-avatar"
+              aria-label="Indstillinger og konto"
+              aria-haspopup="menu"
+              aria-expanded={settingsMenuOpen}
               title="Indstillinger"
+              aria-current={location.pathname.startsWith('/app/settings') ? 'page' : undefined}
             >
               <Settings size={18} />
             </button>
-          </Can>
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="user-avatar"
-            aria-label={theme === 'night' ? 'Skift til dagtilstand' : 'Skift til nattilstand'}
-            title={theme === 'night' ? 'Dagtilstand' : 'Nattilstand'}
-          >
-            {theme === 'night' ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-          {!isSuperadmin && (
-            <button
-              type="button"
-              onClick={() => navigate('/app/profil')}
-              className="user-avatar"
-              aria-label="Profil"
-              title="Profil"
-            >
-              <ProfileAvatar userId={user?.id} displayName={user?.displayName} />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="app-header-logout"
-            aria-label="Log ud"
-            title="Log ud"
-          >
-            <LogOut size={18} />
-            <span>Log ud</span>
-          </button>
+            {settingsMenuOpen && (
+              <div className="app-header-settings-menu" role="menu" aria-label="Indstillinger og konto">
+                {!isSuperadmin && (
+                  <button
+                    type="button"
+                    className="app-header-settings-item"
+                    role="menuitem"
+                    onClick={() => {
+                      setSettingsMenuOpen(false);
+                      navigate('/app/profil');
+                    }}
+                  >
+                    <User size={16} aria-hidden="true" />
+                    <span>Profil</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="app-header-settings-item"
+                  role="menuitem"
+                  onClick={toggleTheme}
+                >
+                  {theme === 'night'
+                    ? <Sun size={16} aria-hidden="true" />
+                    : <Moon size={16} aria-hidden="true" />}
+                  <span>{theme === 'night' ? 'Dagtilstand' : 'Nattilstand'}</span>
+                </button>
+                {canManageUsers && (
+                  <button
+                    type="button"
+                    className="app-header-settings-item"
+                    role="menuitem"
+                    onClick={() => {
+                      setSettingsMenuOpen(false);
+                      navigate('/app/settings');
+                    }}
+                  >
+                    <Settings size={16} aria-hidden="true" />
+                    <span>Indstillinger</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="app-header-settings-item app-header-settings-item--danger"
+                  role="menuitem"
+                  onClick={() => {
+                    setSettingsMenuOpen(false);
+                    handleLogout();
+                  }}
+                >
+                  <LogOut size={16} aria-hidden="true" />
+                  <span>Log ud</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

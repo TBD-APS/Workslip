@@ -26,7 +26,17 @@ public static class PushNotificationEndpoints
                     ? service.GetLocalizedText(type.Value, payload)
                     : ("Notifikation", "Du har modtaget en ny notifikation.");
 
-                return new NotificationHistoryViewModel(row.Id, text.Item1, text.Item2, payload?.Url, row.CreatedUtc, row.ReadUtc is not null, row.Status);
+                return new NotificationHistoryViewModel(
+                    row.Id,
+                    text.Item1,
+                    text.Item2,
+                    payload?.Url,
+                    row.CreatedUtc,
+                    row.ReadUtc is not null,
+                    row.Status,
+                    payload?.ActionType,
+                    payload?.JobId,
+                    payload?.MessageId);
             }).ToArray();
             return Results.Ok(result);
         });
@@ -70,9 +80,6 @@ public static class PushNotificationEndpoints
                 return Results.Unauthorized();
             }
 
-            // A delegated Superadmin session changes the effective organization
-            // while preserving the platform actor. Never bind that device to a
-            // tenant notification stream.
             if (string.Equals(currentUser.Role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase))
             {
                 return Results.Forbid();
@@ -94,7 +101,17 @@ public static class PushNotificationEndpoints
     }
 }
 
-public sealed record NotificationHistoryViewModel(Guid Id, string Title, string Body, string? Url, DateTimeOffset CreatedUtc, bool IsRead, string Status);
+public sealed record NotificationHistoryViewModel(
+    Guid Id,
+    string Title,
+    string Body,
+    string? Url,
+    DateTimeOffset CreatedUtc,
+    bool IsRead,
+    string Status,
+    string? ActionType,
+    Guid? JobId,
+    Guid? MessageId);
 
 public sealed record VapidPublicKeyViewModel(string PublicKey);
 

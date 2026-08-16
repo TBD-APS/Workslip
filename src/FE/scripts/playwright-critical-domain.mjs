@@ -254,16 +254,22 @@ async function addWorksheetViaUi(session, user, hours) {
   await add.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await add.click();
   const form = page.locator('.worksheet-form');
-  const trigger = form.locator('button.multi-select-trigger');
+  const assigneeField = form.locator('.multi-select-field').filter({ has: form.locator('.multi-select-label', { hasText: 'Montør' }) }).first();
+  const trigger = assigneeField.locator('button.multi-select-trigger');
   if (await trigger.isVisible().catch(() => false)) {
     await waitForEnabled(trigger, 'worksheet assignee selector');
-    await trigger.click();
-    const option = page.getByRole('option', { name: user.displayName, exact: true });
-    await option.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    if ((await option.getAttribute('aria-selected')) !== 'true') {
-      await option.click();
+    const triggerText = (await trigger.innerText()).trim();
+    if (!triggerText.includes(user.displayName)) {
+      await trigger.click();
+      const option = page.getByRole('option').filter({ hasText: user.displayName }).first();
+      await option.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+      if ((await option.getAttribute('aria-selected')) !== 'true') {
+        await option.click();
+      }
+      if ((await trigger.getAttribute('aria-expanded')) === 'true') {
+        await trigger.click();
+      }
     }
-    await trigger.click();
   }
   await page.getByLabel('Timer', { exact: true }).fill(hours);
   const responsePromise = page.waitForResponse((response) =>
