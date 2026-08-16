@@ -12,7 +12,7 @@ namespace Workslip.Tests.Notifications;
 public sealed class EfNotificationRepositoryTests
 {
     [Fact]
-    public async Task QueueNotificationAsync_TreatsExistingSameIdAsIdempotent()
+    public async Task QueueNotificationAsync_TreatsAlreadyCompletedSameIdAsIdempotent()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
@@ -30,6 +30,8 @@ public sealed class EfNotificationRepositoryTests
             var existing = CreateNotification(notificationId);
             existing.UserId = userId;
             existing.PayloadJson = "{\"source\":\"first\"}";
+            existing.Status = "Completed";
+            existing.CompletedUtc = DateTimeOffset.UtcNow;
             setupContext.NotificationQueue.Add(existing);
             await setupContext.SaveChangesAsync();
         }
@@ -51,6 +53,8 @@ public sealed class EfNotificationRepositoryTests
             .Where(row => row.Id == notificationId)
             .ToListAsync();
         var queued = Assert.Single(rows);
+        Assert.Equal("Completed", queued.Status);
+        Assert.NotNull(queued.CompletedUtc);
         Assert.Equal("{\"source\":\"first\"}", queued.PayloadJson);
     }
 
