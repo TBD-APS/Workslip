@@ -125,9 +125,9 @@ async function verifyAuthenticatedBootstrapReloadAndLogout() {
     await page.locator('.app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     assert.equal(new URL(page.url()).pathname, '/app/settings', 'Reload must preserve the protected deep-link.');
 
-    const accountMenuButton = page.getByRole('button', { name: 'Indstillinger og konto' });
+    const accountMenuButton = page.getByRole('button', { name: 'Profil og konto' });
     await accountMenuButton.click();
-    const accountMenu = page.getByRole('menu', { name: 'Indstillinger og konto' });
+    const accountMenu = page.getByRole('menu', { name: 'Profil og konto' });
     await accountMenu.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await accountMenu.getByRole('menuitem', { name: 'Log ud' }).click();
     await page.waitForURL((url) => url.pathname === '/login', {
