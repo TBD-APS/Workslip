@@ -1,11 +1,13 @@
 # MR SAAS'y Control Plane
 
-This directory is the isolated Gate 0 bootstrap for the MR SAAS'y AI control plane.
+This directory is the isolated MR SAAS'y AI control plane foundation.
 
-It currently proves only two things:
+Gate 0 proves two security properties before any real provider adapter is allowed to exist:
 
 1. the Laravel service can boot without Workslip/product database credentials or AI-provider credentials;
-2. AI/provider dependency directions are machine-enforced before any real provider adapter is allowed to exist.
+2. AI/provider dependency directions are machine-enforced.
+
+The next provider-neutral layer adds role/model routing policy without relaxing those properties. See [`docs/agent-routing.md`](docs/agent-routing.md).
 
 It is **not** a Workslip domain module and must remain extractable to a dedicated platform repository without changing its core contracts.
 
@@ -32,6 +34,7 @@ composer architecture
 
 `composer architecture` runs:
 
+- direct Workslip source-coupling guard;
 - direct DB/Eloquent/persistence symbol guard against AI/provider namespaces;
 - a fixture proving the symbol guard actually rejects direct DB access;
 - the real Deptrac graph;
@@ -43,7 +46,15 @@ No Deptrac baseline or skip list is accepted as part of Gate 0.
 
 ## Current scope
 
-Gate 0 contains platform/provider contracts only. It deliberately does not implement:
+The control plane currently contains:
+
+- platform/provider contracts;
+- role registry and configuration-driven primary/fallback model routing;
+- capability/tool requirement validation;
+- run provenance + separation-of-duties policy;
+- explicit human approval gates for public/irreversible actions.
+
+It deliberately does not implement:
 
 - Kimi/OpenAI/Ollama adapters;
 - Context/Policy Gateway behavior;
@@ -52,4 +63,4 @@ Gate 0 contains platform/provider contracts only. It deliberately does not imple
 - customer-facing AI endpoints;
 - direct Workslip data access.
 
-Those capabilities remain blocked until this gate is green and independently reviewed.
+Real provider integrations remain blocked by Gate 0 review and their owning issues.
