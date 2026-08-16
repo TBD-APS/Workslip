@@ -265,16 +265,21 @@ jobs:
           node --check scripts/playwright-scenarios-core.mjs
           node --check scripts/playwright-scenarios-admin.mjs
           node --check scripts/playwright-synthetic-auth.mjs
+          node --check scripts/playwright-ephemeral-auth.mjs
+          node --check scripts/playwright-ephemeral-smoke.mjs
           node --check scripts/playwright-release-runner.test.mjs
           node --check scripts/playwright-scenarios-admin.test.mjs
+          node --check scripts/playwright-ephemeral-auth.test.mjs
           node --test scripts/playwright-release-runner.test.mjs
           node --test scripts/playwright-scenarios-admin.test.mjs
           node --test scripts/playwright-synthetic-auth.test.mjs
+          node --test scripts/playwright-ephemeral-auth.test.mjs
 
-      - name: Validate hosted Postman runner syntax
+      - name: Validate hosted integration runner syntax
         run: |
           bash -n src/BE/WorkslipApi/Postman/run-hosted-integration.sh
           bash -n src/BE/WorkslipApi/Postman/run-integration-tests.sh
+          bash -n src/FE/scripts/run-playwright-ephemeral.sh
           node -e "JSON.parse(require('node:fs').readFileSync('src/BE/WorkslipApi/Postman/postman_collection.json', 'utf8')); console.log('Postman collection JSON OK');"
 
       - name: Validate documentation
@@ -313,6 +318,43 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  playwright:
+    name: Playwright integration (ephemeral)
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Run authenticated browser integration suite
+        shell: bash
+        run: bash src/FE/scripts/run-playwright-ephemeral.sh
+
+      - name: Upload diagnostics on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-integration-diagnostics-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/workslip-playwright-backend.log
+            ${{ runner.temp }}/workslip-playwright-frontend.log
+          if-no-files-found: warn
+          retention-days: 7
+
   ci-gate:
     name: CI Gate
     if: ${{ always() }}
@@ -324,6 +366,7 @@ jobs:
       - frontend
       - contracts
       - postman
+      - playwright
     steps:
       - name: Verify required checks
         shell: bash
@@ -333,6 +376,7 @@ jobs:
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
           POSTMAN_RESULT: ${{ needs.postman.result }}
+          PLAYWRIGHT_RESULT: ${{ needs.playwright.result }}
         run: |
           set -Eeuo pipefail
 
@@ -343,10 +387,11 @@ jobs:
           fi
 
           if [[ "${CODE_CHANGED}" == 'true' ]]; then
-            # Non-documentation changes require deterministic builds/tests plus real API runtime evidence.
+            # Code changes require deterministic checks plus API and authenticated browser runtime evidence.
             if [[ "${BACKEND_RESULT}" != 'success' ||
                   "${FRONTEND_RESULT}" != 'success' ||
-                  "${POSTMAN_RESULT}" != 'success' ]]; then
+                  "${POSTMAN_RESULT}" != 'success' ||
+                  "${PLAYWRIGHT_RESULT}" != 'success' ]]; then
               echo "::error::One or more required CI jobs failed."
               exit 1
             fi
@@ -365,5 +410,9 @@ jobs:
               echo "::error::Postman job unexpectedly '${POSTMAN_RESULT}' on a documentation-only change."
               exit 1
             fi
-            echo "Documentation-only change: backend/frontend/Postman skipped by design; documentation validated."
+            if [[ "${PLAYWRIGHT_RESULT}" != 'skipped' && "${PLAYWRIGHT_RESULT}" != 'success' ]]; then
+              echo "::error::Playwright job unexpectedly '${PLAYWRIGHT_RESULT}' on a documentation-only change."
+              exit 1
+            fi
+            echo "Documentation-only change: runtime jobs skipped by design; documentation validated."
           fi
