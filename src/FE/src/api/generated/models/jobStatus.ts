@@ -13,4 +13,5 @@ export const JobStatus = {
   InReview: 'InReview',
   Approved: 'Approved',
   Rejected: 'Rejected',
+  Reopened: 'Reopened',
 } as const;
