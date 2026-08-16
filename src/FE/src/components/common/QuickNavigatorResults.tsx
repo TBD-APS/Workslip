@@ -50,7 +50,7 @@ export function QuickNavigatorResults({
               <span className="quick-nav-result-icon"><Icon size={19} /></span>
               <span className="quick-nav-result-copy">
                 <strong>{result.command.label}</strong>
-                <span>{result.command.description}</span>
+                <span>{result.command.description} · Navigation</span>
               </span>
               <ArrowRight size={17} className="quick-nav-result-arrow" aria-hidden="true" />
             </button>
