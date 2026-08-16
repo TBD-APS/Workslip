@@ -9,6 +9,16 @@ export function getQuickJobSearchTerm(query: string): string | null {
   return term.length >= 2 ? term : null;
 }
 
+export function getCustomerSearchTerm(query: string): string | null {
+  const trimmed = query.trim();
+  if (!trimmed) return null;
+
+  const hasJobIntent = /^(sag|job)\b/i.test(trimmed) || /^\d+$/.test(trimmed);
+  if (hasJobIntent) return null;
+
+  return trimmed.length >= 2 ? trimmed : null;
+}
+
 export function filterQuickNavigationJobs(
   jobs: JobListItemViewModel[],
   canViewAllJobs: boolean,
