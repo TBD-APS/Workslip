@@ -27,7 +27,6 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
-  const [uploadFeedback, setUploadFeedback] = useState('');
   const [imageToDelete, setImageToDelete] = useState<string | null>(null);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
@@ -52,8 +51,6 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
     if (libraryInputRef.current) libraryInputRef.current.value = '';
     if (files.length === 0) return;
 
-    setUploadFeedback('');
-    const feedbackMessages: string[] = [];
     const validationResults = files.map((file) => ({ file, error: validateImageUpload(file) }));
     const rejected = validationResults
       .filter((item): item is { file: File; error: string } => Boolean(item.error));
@@ -63,16 +60,14 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
 
     if (rejected.length > 0) {
       const reasons = [...new Set(rejected.map((item) => item.error))].join(' ');
-      const message = rejected.length === 1
+      notify.error(rejected.length === 1
         ? reasons
-        : `${rejected.length} billeder blev afvist. ${reasons}`;
-      feedbackMessages.push(message);
-      setUploadFeedback(feedbackMessages.join(' '));
-      notify.error(message);
+        : `${rejected.length} billeder blev afvist. ${reasons}`);
     }
     if (validFiles.length === 0) return;
 
     let uploadedCount = 0;
+    const uploadErrors: string[] = [];
     setUploadProgress({ current: 0, total: validFiles.length });
 
     for (let index = 0; index < validFiles.length; index += 1) {
@@ -85,19 +80,20 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
           fallback: `Kunne ikke uploade billede ${index + 1} af ${validFiles.length}. Prøv igen.`,
           tooLarge: `Billedet må højst være ${MAX_IMAGE_UPLOAD_MB} MB.`,
         });
-        if (!feedbackMessages.includes(message)) feedbackMessages.push(message);
-        setUploadFeedback(feedbackMessages.join(' '));
-        notify.error(message);
+        if (!uploadErrors.includes(message)) uploadErrors.push(message);
       }
     }
 
     setUploadProgress(null);
+
+    if (uploadErrors.length > 0) {
+      const prefix = validFiles.length > 1 ? 'Nogle billeder kunne ikke uploades. ' : '';
+      notify.error(`${prefix}${uploadErrors.join(' ')}`);
+    }
+
     if (uploadedCount > 0) {
       await queryClient.invalidateQueries({ queryKey: jobImagesQueryKey(jobId) });
-      const message = `${uploadedCount} billede${uploadedCount === 1 ? '' : 'r'} uploadet`;
-      feedbackMessages.push(message);
-      setUploadFeedback(feedbackMessages.join(' '));
-      notify.success(message);
+      notify.success(`${uploadedCount} billede${uploadedCount === 1 ? '' : 'r'} uploadet`);
     }
   };
 
@@ -109,7 +105,6 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
   };
 
   const images = imagesQuery.data ?? [];
-  const uploadFeedbackId = `job-image-upload-feedback-${jobId}`;
 
   return (
     <section className="job-images-section" aria-labelledby={`job-images-${jobId}`}>
@@ -126,7 +121,6 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
               type="file"
               accept={IMAGE_UPLOAD_ACCEPT}
               capture="environment"
-              aria-describedby={uploadFeedbackId}
               onChange={(event) => void handleFiles(event.target.files)}
               disabled={Boolean(uploadProgress)}
             />
@@ -136,13 +130,9 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
               type="file"
               accept={IMAGE_UPLOAD_ACCEPT}
               multiple
-              aria-describedby={uploadFeedbackId}
               onChange={(event) => void handleFiles(event.target.files)}
               disabled={Boolean(uploadProgress)}
             />
-            <span id={uploadFeedbackId} className="sr-only" role="status" aria-live="polite">
-              {uploadFeedback}
-            </span>
             <button
               className="btn btn-secondary job-images-upload job-images-camera-action"
               type="button"
