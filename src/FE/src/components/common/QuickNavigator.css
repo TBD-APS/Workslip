@@ -171,13 +171,13 @@
 }
 
 .quick-nav-result.active {
-  border-color: var(--border);
+  border-color: color-mix(in srgb, var(--color-primary) 32%, var(--border));
   background: var(--surface-selected);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .quick-nav-result:hover {
-    border-color: var(--border);
+    border-color: color-mix(in srgb, var(--color-primary) 32%, var(--border));
     background: var(--surface-selected);
   }
 }
@@ -198,12 +198,12 @@
 }
 
 .quick-nav-result.active .quick-nav-result-icon {
-  color: var(--primary);
+  color: var(--color-primary);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .quick-nav-result:hover .quick-nav-result-icon {
-    color: var(--primary);
+    color: var(--color-primary);
   }
 }
 
