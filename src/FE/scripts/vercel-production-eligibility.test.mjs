@@ -4,6 +4,7 @@ import {
   boundedRateLimitWaitMs,
   chooseRun,
   githubRateLimitRetryMs,
+  ignoredBuildStepExitCode,
   parseGitHubRepository,
   productionGateMode,
   validateGate,
@@ -33,6 +34,11 @@ function gate(overrides = {}) {
     ...overrides,
   };
 }
+
+test('Vercel ignored build step continues eligible deploys and ignores blocked deploys', () => {
+  assert.equal(ignoredBuildStepExitCode({ shouldDeploy: true }), 1);
+  assert.equal(ignoredBuildStepExitCode({ shouldDeploy: false }), 0);
+});
 
 test('preview and development builds skip only the production eligibility gate', () => {
   assert.deepEqual(
