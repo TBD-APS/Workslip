@@ -92,6 +92,8 @@ public interface IApplicationEnvironmentRegistry
 
 public interface IAutomationRunProvider
 {
+    string Provider { get; }
+
     Task<Result<IReadOnlyList<AutomationRunSummary>>> ListRunsAsync(
         ApplicationEnvironmentRegistration application,
         CancellationToken cancellationToken);
