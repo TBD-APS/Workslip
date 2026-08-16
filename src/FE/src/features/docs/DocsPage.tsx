@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   BookOpen,
@@ -79,10 +79,11 @@ const isConflict = (error: unknown): boolean =>
 
 export const DocsPage = () => {
   const { id } = useParams<{ id?: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const canEdit = useCan('docs:edit');
-  const isCreating = id === 'new';
+  const isCreating = id === 'new' || location.pathname === '/app/docs/new';
   const selectedId = id && id !== 'new' ? id : null;
   const draftKey = isCreating ? 'new' : selectedId ?? 'none';
 
