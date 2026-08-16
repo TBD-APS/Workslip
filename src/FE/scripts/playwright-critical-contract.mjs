@@ -181,11 +181,11 @@ async function revealStepNavigation(page) {
   if (await button.isVisible().catch(() => false)) return button;
   const shell = page.locator('.app-shell').first();
   if (await shell.count()) {
-    await shell.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    await shell.evaluate((element) => { element.scrollTo({ top: element.scrollHeight, behavior: 'instant' }); });
   } else {
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
   }
-  await page.waitForTimeout(150);
+  await button.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   return button;
 }
 async function waitForTransientToastsToClear(page, timeout = 10_000) {
