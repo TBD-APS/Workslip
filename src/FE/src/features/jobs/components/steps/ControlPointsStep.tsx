@@ -94,7 +94,7 @@ export function ControlPointsStep({
                     className={`btn btn-sm ${isIrrelevant ? 'btn-primary' : 'btn-outline'}`}
                     type="button"
                     onClick={() => onToggleCategoryIrrelevant(instType.id, cat.id)}
-                    aria-label={`${isIrrelevant ? 'Marker' : 'Umarker'} ${cat.name} som ${isIrrelevant ? 'relevant' : 'ikke relevant'}`}
+                    aria-label={`Marker ${cat.name} som ${isIrrelevant ? 'relevant' : 'ikke relevant'}`}
                     title={isIrrelevant ? 'Marker som relevant' : 'Marker som ikke relevant'}
                     aria-pressed={isIrrelevant}
                   >
