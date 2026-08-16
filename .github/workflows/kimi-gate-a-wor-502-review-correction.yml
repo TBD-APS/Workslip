@@ -27,7 +27,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Prepare trusted broker and clean feature workspace
+      - name: Prepare trusted broker and feature workspace
         id: runtime
         shell: bash
         run: |
@@ -52,7 +52,7 @@ jobs:
           cat >/tmp/wor502-design-review.txt <<'EOF'
           Product-owner review: the active site still showed the old QuickNavigator because the previous Gate A brief implemented search logic but incorrectly forbade folder mode and CSS changes. AppLayout already imports and mounts QuickNavigator correctly. Fix the ACTIVE QuickNavigator implementation, not AppLayout and not an unused parallel UnifiedSearch component.
 
-          This branch has intentionally been cleaned back to current main. Rebuild the bounded WOR-502 search/design slice from that source of truth.
+          Work from the current WOR-502 feature head exactly as checked out. It may contain a separate product-owner palette correction; preserve all pre-existing feature-head changes. Your mutation boundary remains only the allowed QuickNavigator files below.
 
           Required outcome:
           - modular home / folder / search modes;
@@ -157,7 +157,7 @@ jobs:
             fi
 
             cat >/tmp/kimi-repair.txt <<EOF
-          Deterministic validator rejected the current WOR-502 QuickNavigator candidate on repair attempt ${attempt}. Fix the exact validator failures appended below. Preserve the modular new design and all search correctness. Do not edit unrelated files, generated code, backend, config or dependencies. Do not suppress lint or weaken tests. Hooks must be unconditional before early returns; no refs/DOM mutations during render; no synchronous derived-state resets in effects. If validator output contains unrelated files, do not edit them; this branch is based on clean main so report them only if genuinely external.
+          Deterministic validator rejected the current WOR-502 QuickNavigator candidate on repair attempt ${attempt}. Fix the exact validator failures appended below. Preserve the modular new design, all search correctness, and every pre-existing feature-head change. Do not edit unrelated files, generated code, backend, config or dependencies. Do not suppress lint or weaken tests. Hooks must be unconditional before early returns; no refs/DOM mutations during render; no synchronous derived-state resets in effects. If validator output mentions files outside the allowed QuickNavigator boundary, do not edit them.
           EOF
             cat /tmp/kimi-validator.log >> /tmp/kimi-repair.txt
             python3 /tmp/kimi-gate-a-fix-wor502.py /tmp/kimi-repair.txt
@@ -194,9 +194,17 @@ jobs:
           bash src/FE/scripts/run-playwright-ephemeral.sh
 
       - name: Commit and push Kimi design
+        env:
+          KIMI_START_HEAD: ${{ steps.runtime.outputs.feature_head }}
         shell: bash
         run: |
           set -euo pipefail
+          git fetch origin "$FEATURE_BRANCH"
+          remote_head="$(git rev-parse "origin/$FEATURE_BRANCH")"
+          if [[ "$remote_head" != "$KIMI_START_HEAD" ]]; then
+            echo "Feature branch advanced during Kimi run: start=$KIMI_START_HEAD remote=$remote_head. Refusing stale push; rerun from latest feature head."
+            exit 60
+          fi
           git add src/FE/src/components/common
           git diff --cached --quiet && { echo 'Kimi produced no feature delta'; exit 50; }
           git commit -m 'RBJ-502: wire modular global search design'
