@@ -1,9 +1,10 @@
 import { HelpCircle, X } from 'lucide-react';
 import { useState } from 'react';
+import { useAuth } from '../../../providers/useAuth';
 import { JOB_STEPS } from './steps/jobSteps';
 import './JobWizardTutorial.css';
 
-const GUIDE_SEEN_STORAGE_KEY = 'workslip.job-wizard-guide-seen.v1';
+const GUIDE_SEEN_STORAGE_KEY_PREFIX = 'workslip.job-wizard-guide-seen.v2';
 
 type JobStepLabel = (typeof JOB_STEPS)[number]['label'];
 type GuideCopy = {
@@ -28,7 +29,7 @@ const GUIDE_COPY: Record<JobStepLabel, GuideCopy> = {
   Kontrolpunkter: {
     title: 'Gennemgå kontrolpunkterne',
     description:
-      'Tag de relevante kontrolpunkter én for én. Hvis en kategori ikke gælder for arbejdet, skal den markeres som ikke relevant med den krævede begrundelse.',
+      'Vælg mindst ét kontrolpunkt i hver relevant kategori. Hvis en kategori ikke gælder for arbejdet, kan du markere den som ikke relevant. Hvis alle valgte kategorier er irrelevante, kan du tilføje en samlet forklaring.',
     tip: 'Guiden springer aldrig krav over. Wizardens validering afgør, hvornår du kan gå videre.',
   },
   Timesedler: {
@@ -51,17 +52,25 @@ const GUIDE_COPY: Record<JobStepLabel, GuideCopy> = {
   },
 };
 
-function shouldOpenGuideInitially() {
+function getGuideSeenStorageKey(organizationId: string, userId: string) {
+  return `${GUIDE_SEEN_STORAGE_KEY_PREFIX}.${organizationId}.${userId}`;
+}
+
+function shouldOpenGuideInitially(storageKey: string | null) {
+  if (!storageKey) return true;
+
   try {
-    return window.localStorage.getItem(GUIDE_SEEN_STORAGE_KEY) !== '1';
+    return window.localStorage.getItem(storageKey) !== '1';
   } catch {
-    return false;
+    return true;
   }
 }
 
-function rememberGuideSeen() {
+function rememberGuideSeen(storageKey: string | null) {
+  if (!storageKey) return;
+
   try {
-    window.localStorage.setItem(GUIDE_SEEN_STORAGE_KEY, '1');
+    window.localStorage.setItem(storageKey, '1');
   } catch {
     // UI guidance must still work when browser storage is unavailable.
   }
@@ -72,7 +81,9 @@ type JobWizardTutorialProps = {
 };
 
 export function JobWizardTutorial({ currentStep }: JobWizardTutorialProps) {
-  const [isOpen, setIsOpen] = useState(shouldOpenGuideInitially);
+  const { user } = useAuth();
+  const storageKey = user ? getGuideSeenStorageKey(user.organizationId, user.id) : null;
+  const [isOpen, setIsOpen] = useState(() => shouldOpenGuideInitially(storageKey));
   const stepIndex = Math.min(Math.max(currentStep, 0), JOB_STEPS.length - 1);
   const step = JOB_STEPS[stepIndex] ?? JOB_STEPS[0];
   const guide = GUIDE_COPY[step.label];
@@ -80,7 +91,7 @@ export function JobWizardTutorial({ currentStep }: JobWizardTutorialProps) {
 
   const closeGuide = () => {
     setIsOpen(false);
-    rememberGuideSeen();
+    rememberGuideSeen(storageKey);
   };
 
   return (
