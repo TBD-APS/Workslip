@@ -13,7 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { apiClient } from '../../lib/axios';
 import { notificationListQueryKey } from '../../lib/notificationQueryKeys';
 import { useAuth } from '../../providers/useAuth';
@@ -169,6 +169,12 @@ export function NotificationsDrawer({
   const [expandedGroupKeys, setExpandedGroupKeys] = useState<Set<string>>(() => new Set());
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const navigate = useNavigate();
+  const location = useLocation();
+  const actionDeepLinkMessageId = useMemo(
+    () => new URLSearchParams(location.search).get('conversationAction'),
+    [location.search],
+  );
+  const drawerIsOpen = isOpen || Boolean(actionDeepLinkMessageId);
 
   const updateItems = useCallback((updater: (current: NotificationItem[]) => NotificationItem[]) => {
     queryClient.setQueryData<NotificationItem[]>(queryKey, (current) => updater(current ?? []));
@@ -176,18 +182,24 @@ export function NotificationsDrawer({
 
   const closeDrawer = useCallback(() => {
     setActionError(null);
+    if (actionDeepLinkMessageId) {
+      const next = new URLSearchParams(location.search);
+      next.delete('conversationAction');
+      const search = next.toString();
+      navigate(`${location.pathname}${search ? `?${search}` : ''}`, { replace: true });
+    }
     onClose();
-  }, [onClose]);
+  }, [actionDeepLinkMessageId, location.pathname, location.search, navigate, onClose]);
 
   useEffect(() => {
     onUnreadCountChange?.(countUnread(items));
   }, [items, onUnreadCountChange]);
 
   useEffect(() => {
-    if (isOpen && userId && organizationId) {
+    if (drawerIsOpen && userId && organizationId) {
       void refetch();
     }
-  }, [isOpen, organizationId, refetch, userId]);
+  }, [drawerIsOpen, organizationId, refetch, userId]);
 
   const unreadCount = useMemo(() => countUnread(items), [items]);
   const filteredItems = useMemo(
@@ -309,7 +321,7 @@ export function NotificationsDrawer({
 
   return (
     <Drawer
-      isOpen={isOpen}
+      isOpen={drawerIsOpen}
       onClose={closeDrawer}
       title="Indbakke"
       ariaLabel="Notifikationsindbakke"
