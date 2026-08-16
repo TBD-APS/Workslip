@@ -71,6 +71,8 @@ export function LocationTracking() {
   }, [isAdmin]);
 
   useEffect(() => {
+    // Initial API hydration is intentional here; subsequent updates are user actions or polling.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadStatus();
     void loadEmployees();
     const poll = window.setInterval(() => { void loadEmployees(); }, 25_000);
