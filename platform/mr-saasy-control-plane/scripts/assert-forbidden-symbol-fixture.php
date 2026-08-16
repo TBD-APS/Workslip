@@ -16,13 +16,25 @@ exec($command, $output, $exitCode);
 $text = implode(PHP_EOL, $output);
 
 if ($exitCode === 0) {
-    fwrite(STDERR, "Expected forbidden DB-symbol fixture to fail, but it passed.\n");
+    fwrite(STDERR, "Expected forbidden DB-symbol fixtures to fail, but they passed.\n");
     exit(1);
 }
 
-if (!str_contains($text, 'BadDbProvider.php') || !str_contains($text, 'Illuminate\\Support\\Facades\\DB')) {
-    fwrite(STDERR, "DB-symbol fixture failed without the intended DB facade evidence.\n{$text}\n");
-    exit(1);
+$expectedEvidence = [
+    'BadDbProvider.php',
+    'Illuminate\\Support\\Facades\\DB',
+    'BadPdoProvider.php',
+    'raw PDO import/client',
+    'BadAliasedPdoProvider.php',
+    'BadCredentialProvider.php',
+    'database environment credential access',
+];
+
+foreach ($expectedEvidence as $expected) {
+    if (!str_contains($text, $expected)) {
+        fwrite(STDERR, "DB-boundary fixtures failed without expected evidence: {$expected}.\n{$text}\n");
+        exit(1);
+    }
 }
 
-fwrite(STDOUT, "Forbidden direct DB symbol fixture failed for the intended reason.\n");
+fwrite(STDOUT, "Forbidden DB facade, raw/aliased PDO and DB credential fixtures failed for the intended reasons.\n");

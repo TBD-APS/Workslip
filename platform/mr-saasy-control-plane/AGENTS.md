@@ -8,8 +8,8 @@ This service is an MR SAAS'y platform component, not a Workslip domain module.
 
 - Do not reference Workslip backend/frontend/domain projects, DTOs, repositories, schemas or database credentials.
 - Product data may enter only through explicit `ProductAdapters/Contracts` after policy/minimization work permits it.
-- `app/AI/Application`, `app/AI/Agents` and `app/AI/Providers` must never use Laravel DB facade, Eloquent models/builders, query builder, or platform persistence implementations.
-- Provider adapters may depend on provider contracts and narrow HTTP transport only.
+- `app/AI/Application`, `app/AI/Agents` and `app/AI/Providers` must never use Laravel DB facade, Eloquent models/builders, query builder, raw database clients such as PDO/mysqli, database connection configuration/credentials, or platform persistence implementations.
+- Provider adapters may depend on provider contracts and narrow HTTP transport only; they must not resolve generic platform secrets directly.
 - Provider/model selection must never expand the caller's data permissions.
 - Unknown tenant/agent/capability state fails closed.
 - New application classes/dependencies must be assigned to an explicit Deptrac layer; uncovered dependencies fail the architecture gate rather than silently bypassing the ruleset.
