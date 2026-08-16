@@ -8,14 +8,17 @@ import type { ConversationActionStatus } from './conversationActionStatus';
 import type { ConversationActionType } from './conversationActionType';
 
 export interface ConversationActionResponse {
-  type: ConversationActionType;
-  targetUserId: string;
-  targetDisplayName: string;
-  status: ConversationActionStatus;
+  type?: ConversationActionType;
+  targetUserId?: string;
+  targetDisplayName?: string;
+  status?: ConversationActionStatus;
   /** @nullable */
-  resolvedByUserId: string | null;
+  dueUtc?: string | null;
   /** @nullable */
-  resolvedByDisplayName: string | null;
+  resolvedByUserId?: string | null;
   /** @nullable */
-  resolvedUtc: string | null;
+  resolvedByDisplayName?: string | null;
+  /** @nullable */
+  resolvedUtc?: string | null;
+  canResolve?: boolean;
 }

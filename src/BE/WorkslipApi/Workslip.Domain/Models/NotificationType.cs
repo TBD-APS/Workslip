@@ -9,5 +9,6 @@ public enum NotificationType
     JobUnassigned,
     JobDeleted,
     ConversationMention,
-    ConversationActionRequested
+    ConversationActionRequested,
+    ConversationReminder
 }

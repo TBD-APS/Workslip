@@ -32,15 +32,17 @@ vi.mock('./Drawer', () => ({
   Drawer: ({
     children,
     onClose,
+    isOpen,
   }: {
     children: ReactNode;
     onClose: () => void;
-  }) => (
+    isOpen: boolean;
+  }) => isOpen ? (
     <div>
       <button type="button" aria-label="Luk testdrawer" onClick={onClose} />
       {children}
     </div>
-  ),
+  ) : null,
 }));
 
 const readNotification = {
@@ -61,6 +63,18 @@ const unreadNotification = {
   isRead: false,
 };
 
+const assignSelfNotification = {
+  id: 'notification-assign',
+  title: 'Admin beder dig handle · SAG-R-1',
+  body: 'Tag sagen. Tryk for at åbne handlingen.',
+  url: '/app?conversationAction=message-assign',
+  createdUtc: '2026-08-16T12:00:00.000Z',
+  isRead: false,
+  actionType: 'AssignSelf',
+  jobId: 'job-assign',
+  messageId: 'message-assign',
+};
+
 function createTestQueryClient() {
   return new QueryClient({
     defaultOptions: {
@@ -72,13 +86,17 @@ function createTestQueryClient() {
   });
 }
 
-function renderDrawer(props: { isOpen?: boolean; onClose?: () => void } = {}) {
+function renderDrawer(props: {
+  isOpen?: boolean;
+  onClose?: () => void;
+  initialEntry?: string;
+} = {}) {
   const onClose = props.onClose ?? vi.fn();
   const queryClient = createTestQueryClient();
 
   render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[props.initialEntry ?? '/app']}>
         <NotificationsDrawer
           isOpen={props.isOpen ?? true}
           onClose={onClose}
@@ -222,6 +240,44 @@ describe('NotificationsDrawer', () => {
       undefined,
       { skipGlobalErrorToast: true },
     );
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  });
+
+  it('opens Inbox directly from a conversation action deep link', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue([assignSelfNotification]);
+
+    renderDrawer({
+      isOpen: false,
+      initialEntry: '/app?conversationAction=message-assign',
+    });
+
+    expect(await screen.findByRole('button', {
+      name: /Tag sagen fra Admin beder dig handle/,
+    })).toBeInTheDocument();
+  });
+
+  it('lets an unassigned target take the job directly from Inbox', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue([assignSelfNotification]);
+    vi.mocked(apiClient.post).mockResolvedValue(undefined);
+    vi.mocked(apiClient.patch).mockResolvedValue(undefined);
+    const onClose = vi.fn();
+
+    renderDrawer({ onClose });
+
+    fireEvent.click(await screen.findByRole('button', {
+      name: /Tag sagen fra Admin beder dig handle/,
+    }));
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith(
+      '/api/jobs/job-assign/conversation/messages/message-assign/resolve',
+      undefined,
+      { skipGlobalErrorToast: true },
+    ));
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalledWith(
+      '/api/notifications/notification-assign/read',
+      undefined,
+      { skipGlobalErrorToast: true },
+    ));
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 

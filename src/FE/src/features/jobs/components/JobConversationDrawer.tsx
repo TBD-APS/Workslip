@@ -6,10 +6,13 @@ import {
   CheckCheck,
   ChevronDown,
   CircleCheck,
+  Clock3,
+  ListTodo,
   Loader2,
   MessageCircle,
   Send,
   Sparkles,
+  UserPlus,
   UserRound,
   X,
 } from 'lucide-react';
@@ -45,6 +48,7 @@ type ComposerAction = {
   type: ConversationActionType;
   targetUserId: string;
   targetDisplayName: string;
+  dueUtc?: string | null;
 };
 
 const EMPTY_PARTICIPANTS: ConversationParticipantResponse[] = [];
@@ -85,12 +89,14 @@ export function JobConversationDrawer({
   });
 
   const participants = conversation.data?.participants ?? EMPTY_PARTICIPANTS;
+  const assignableUsers = conversation.data?.assignableUsers ?? EMPTY_PARTICIPANTS;
   const messages = conversation.data?.messages ?? EMPTY_MESSAGES;
   const unreadCount = Number(conversation.data?.unreadCount ?? 0);
   const participantById = useMemo(
     () => new Map(participants.map((participant) => [participant.id, participant])),
     [participants],
   );
+  const currentParticipant = participantById.get(currentUserId) ?? null;
 
   useEffect(() => {
     if (!isOpen) {
@@ -140,6 +146,10 @@ export function JobConversationDrawer({
   const submit = () => {
     const trimmedBody = body.trim();
     if (!trimmedBody && !composerAction) return;
+    if (composerAction?.type === ConversationActionType.CreateTask && !trimmedBody) {
+      notify.error('Skriv hvad opgaven går ud på.');
+      return;
+    }
 
     sendMessage.mutate(
       {
@@ -149,6 +159,7 @@ export function JobConversationDrawer({
           mentionedUserIds: selectedMentionIds,
           actionType: composerAction?.type ?? null,
           actionTargetUserId: composerAction?.targetUserId ?? null,
+          actionDueUtc: composerAction?.dueUtc ?? null,
         },
       },
       {
@@ -189,7 +200,14 @@ export function JobConversationDrawer({
   };
 
   const selectableParticipants = participants.filter((participant) => participant.id !== currentUserId);
-  const canSend = (body.trim().length > 0 || composerAction !== null) && !sendMessage.isPending;
+  const requiresBody = composerAction?.type === ConversationActionType.CreateTask;
+  const canSend = (
+    body.trim().length > 0
+      || (composerAction !== null && !requiresBody)
+  ) && !sendMessage.isPending;
+  const hasActions = selectableParticipants.length > 0
+    || assignableUsers.length > 0
+    || currentParticipant !== null;
 
   return (
     <Drawer
@@ -270,8 +288,17 @@ export function JobConversationDrawer({
           {composerAction && (
             <div className="conversation-action-draft">
               <div>
-                <span className="conversation-action-draft__eyebrow">Handling til {composerAction.targetDisplayName}</span>
+                <span className="conversation-action-draft__eyebrow">
+                  {composerAction.type === ConversationActionType.RemindMe
+                    ? 'Påmindelse til dig'
+                    : `Handling til ${composerAction.targetDisplayName}`}
+                </span>
                 <strong>{getActionLabel(composerAction.type)}</strong>
+                {composerAction.dueUtc && (
+                  <span className="conversation-action-draft__eyebrow">
+                    {formatDueDate(composerAction.dueUtc)}
+                  </span>
+                )}
               </div>
               <button
                 type="button"
@@ -296,7 +323,11 @@ export function JobConversationDrawer({
                 submit();
               }
             }}
-            placeholder="Skriv til dem på sagen..."
+            placeholder={composerAction?.type === ConversationActionType.CreateTask
+              ? 'Skriv hvad opgaven går ud på...'
+              : composerAction?.type === ConversationActionType.RemindMe
+                ? 'Hvad skal Workslip minde dig om?'
+                : 'Skriv til dem på sagen...'}
             rows={3}
             maxLength={4000}
             disabled={sendMessage.isPending}
@@ -325,7 +356,7 @@ export function JobConversationDrawer({
                   setMentionsOpen(false);
                 }}
                 aria-expanded={actionsOpen}
-                disabled={selectableParticipants.length === 0}
+                disabled={!hasActions}
               >
                 <Sparkles size={17} />
                 Handling
@@ -355,12 +386,19 @@ export function JobConversationDrawer({
           {actionsOpen && (
             <ActionPicker
               participants={selectableParticipants}
+              assignableUsers={assignableUsers}
+              currentParticipant={currentParticipant}
               allowSubmitForReview={allowSubmitForReview}
               onSelect={(action) => {
                 setComposerAction(action);
                 setActionsOpen(false);
-                setSelectedMentionIds((current) =>
-                  current.includes(action.targetUserId) ? current : [...current, action.targetUserId]);
+                if (
+                  action.type !== ConversationActionType.AssignSelf
+                  && action.type !== ConversationActionType.RemindMe
+                ) {
+                  setSelectedMentionIds((current) =>
+                    current.includes(action.targetUserId) ? current : [...current, action.targetUserId]);
+                }
               }}
             />
           )}
@@ -420,18 +458,21 @@ function ConversationMessage({
             <div className="conversation-action-card__icon" aria-hidden="true">
               {message.action.status === ConversationActionStatus.Completed
                 ? <CircleCheck size={19} />
-                : <Sparkles size={19} />}
+                : getActionIcon(message.action.type)}
             </div>
             <div className="conversation-action-card__content">
-              <span>{message.action.targetDisplayName}</span>
+              <span>{message.action.type === ConversationActionType.RemindMe ? 'Til dig selv' : message.action.targetDisplayName}</span>
               <strong>{getActionLabel(message.action.type)}</strong>
+              {message.action.dueUtc && (
+                <small>Planlagt {formatDueDate(message.action.dueUtc)}</small>
+              )}
               {message.action.status === ConversationActionStatus.Completed && (
                 <small>
                   Udført{message.action.resolvedByDisplayName ? ` af ${message.action.resolvedByDisplayName}` : ''}
                 </small>
               )}
             </div>
-            {isTarget && isPendingAction ? (
+            {isTarget && isPendingAction && message.action.canResolve ? (
               <button
                 type="button"
                 className="btn btn-primary conversation-action-card__button"
@@ -441,6 +482,8 @@ function ConversationMessage({
                 {isResolving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                 {getActionButtonLabel(message.action.type)}
               </button>
+            ) : isTarget && isPendingAction && !message.action.canResolve ? (
+              <span className="conversation-action-pending"><Clock3 size={15} /> Planlagt</span>
             ) : message.action.status === ConversationActionStatus.Completed ? (
               <span className="conversation-action-completed"><CheckCheck size={15} /> Udført</span>
             ) : (
@@ -493,14 +536,19 @@ function ParticipantPicker({
 
 function ActionPicker({
   participants,
+  assignableUsers,
+  currentParticipant,
   allowSubmitForReview,
   onSelect,
 }: {
   participants: ConversationParticipantResponse[];
+  assignableUsers: ConversationParticipantResponse[];
+  currentParticipant: ConversationParticipantResponse | null;
   allowSubmitForReview: boolean;
   onSelect: (action: ComposerAction) => void;
 }) {
   const [actionType, setActionType] = useState<ConversationActionType>(ConversationActionType.Acknowledge);
+  const targetUsers = actionType === ConversationActionType.AssignSelf ? assignableUsers : participants;
 
   return (
     <div className="conversation-picker conversation-action-picker">
@@ -514,6 +562,14 @@ function ActionPicker({
           <CheckCheck size={16} />
           Bekræft modtaget
         </button>
+        <button
+          type="button"
+          className={actionType === ConversationActionType.CreateTask ? 'selected' : ''}
+          onClick={() => setActionType(ConversationActionType.CreateTask)}
+        >
+          <ListTodo size={16} />
+          Opret opgave
+        </button>
         {allowSubmitForReview && (
           <button
             type="button"
@@ -524,27 +580,77 @@ function ActionPicker({
             Send til gennemgang
           </button>
         )}
+        {assignableUsers.length > 0 && (
+          <button
+            type="button"
+            className={actionType === ConversationActionType.AssignSelf ? 'selected' : ''}
+            onClick={() => setActionType(ConversationActionType.AssignSelf)}
+          >
+            <UserPlus size={16} />
+            Bed om at tage sagen
+          </button>
+        )}
+        {currentParticipant && (
+          <button
+            type="button"
+            className={actionType === ConversationActionType.RemindMe ? 'selected' : ''}
+            onClick={() => setActionType(ConversationActionType.RemindMe)}
+          >
+            <Clock3 size={16} />
+            Påmind mig
+          </button>
+        )}
       </div>
 
-      <strong className="conversation-picker__title">Hvem skal handle?</strong>
-      <div className="conversation-picker__buttons">
-        {participants.map((participant) => (
-          <button
-            key={participant.id}
-            type="button"
-            className="conversation-person-button"
-            onClick={() => onSelect({
-              type: actionType,
-              targetUserId: participant.id,
-              targetDisplayName: participant.displayName,
-            })}
-          >
-            <UserRound size={16} />
-            <span>{participant.displayName}</span>
-            <ChevronDown className="conversation-action-select-arrow" size={15} />
-          </button>
-        ))}
-      </div>
+      {actionType === ConversationActionType.RemindMe && currentParticipant ? (
+        <>
+          <strong className="conversation-picker__title">Hvornår?</strong>
+          <div className="conversation-picker__buttons">
+            {getReminderOptions().map((option) => (
+              <button
+                key={option.label}
+                type="button"
+                className="conversation-person-button"
+                onClick={() => onSelect({
+                  type: ConversationActionType.RemindMe,
+                  targetUserId: currentParticipant.id,
+                  targetDisplayName: currentParticipant.displayName,
+                  dueUtc: option.dueUtc,
+                })}
+              >
+                <Clock3 size={16} />
+                <span>{option.label}</span>
+                <ChevronDown className="conversation-action-select-arrow" size={15} />
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <strong className="conversation-picker__title">
+            {actionType === ConversationActionType.AssignSelf ? 'Hvem skal tage sagen?' : 'Hvem skal handle?'}
+          </strong>
+          <div className="conversation-picker__buttons">
+            {targetUsers.map((participant) => (
+              <button
+                key={participant.id}
+                type="button"
+                className="conversation-person-button"
+                onClick={() => onSelect({
+                  type: actionType,
+                  targetUserId: participant.id,
+                  targetDisplayName: participant.displayName,
+                  dueUtc: null,
+                })}
+              >
+                <UserRound size={16} />
+                <span>{participant.displayName}</span>
+                <ChevronDown className="conversation-action-select-arrow" size={15} />
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -559,18 +665,86 @@ function ConversationSkeleton() {
   );
 }
 
+function getReminderOptions() {
+  const now = new Date();
+  const inOneHour = new Date(now.getTime() + 60 * 60 * 1000);
+  const inThreeHours = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+  const tomorrowMorning = new Date(now);
+  tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
+  tomorrowMorning.setHours(8, 0, 0, 0);
+
+  return [
+    { label: 'Om 1 time', dueUtc: inOneHour.toISOString() },
+    { label: 'Om 3 timer', dueUtc: inThreeHours.toISOString() },
+    { label: 'I morgen kl. 08', dueUtc: tomorrowMorning.toISOString() },
+  ];
+}
+
+function formatDueDate(value: string) {
+  return new Date(value).toLocaleString('da-DK', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function getActionIcon(type: ConversationActionType) {
+  switch (type) {
+    case ConversationActionType.CreateTask:
+      return <ListTodo size={19} />;
+    case ConversationActionType.RemindMe:
+      return <Clock3 size={19} />;
+    case ConversationActionType.AssignSelf:
+      return <UserPlus size={19} />;
+    case ConversationActionType.SubmitForReview:
+      return <CircleCheck size={19} />;
+    default:
+      return <Sparkles size={19} />;
+  }
+}
+
 function getActionLabel(type: ConversationActionType) {
-  return type === ConversationActionType.SubmitForReview
-    ? 'Send sagen til gennemgang'
-    : 'Bekræft at du har set det';
+  switch (type) {
+    case ConversationActionType.SubmitForReview:
+      return 'Send sagen til gennemgang';
+    case ConversationActionType.CreateTask:
+      return 'Opgave';
+    case ConversationActionType.RemindMe:
+      return 'Påmind mig om sagen';
+    case ConversationActionType.AssignSelf:
+      return 'Tag sagen';
+    default:
+      return 'Bekræft at du har set det';
+  }
 }
 
 function getActionButtonLabel(type: ConversationActionType) {
-  return type === ConversationActionType.SubmitForReview ? 'Send til gennemgang' : 'Bekræft';
+  switch (type) {
+    case ConversationActionType.SubmitForReview:
+      return 'Send til gennemgang';
+    case ConversationActionType.CreateTask:
+      return 'Markér færdig';
+    case ConversationActionType.RemindMe:
+      return 'Færdig';
+    case ConversationActionType.AssignSelf:
+      return 'Tag sagen';
+    default:
+      return 'Bekræft';
+  }
 }
 
 function getResolvedToast(type: ConversationActionType) {
-  return type === ConversationActionType.SubmitForReview
-    ? 'Sagen er sendt til gennemgang.'
-    : 'Modtagelse er bekræftet.';
+  switch (type) {
+    case ConversationActionType.SubmitForReview:
+      return 'Sagen er sendt til gennemgang.';
+    case ConversationActionType.CreateTask:
+      return 'Opgaven er markeret færdig.';
+    case ConversationActionType.RemindMe:
+      return 'Påmindelsen er afsluttet.';
+    case ConversationActionType.AssignSelf:
+      return 'Sagen er overtaget.';
+    default:
+      return 'Modtagelse er bekræftet.';
+  }
 }

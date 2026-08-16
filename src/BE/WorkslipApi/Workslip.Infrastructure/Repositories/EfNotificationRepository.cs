@@ -236,8 +236,9 @@ public sealed class EfNotificationRepository : INotificationRepository
     public Task<IReadOnlyList<NotificationQueueRow>> GetHistoryAsync(Guid userId, int limit, int offset, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("notifications.history", async token =>
         {
+            var now = DateTimeOffset.UtcNow;
             var rows = await _dbContext.NotificationQueue.AsNoTracking()
-                .Where(x => x.UserId == userId)
+                .Where(x => x.UserId == userId && x.NextAttemptUtc <= now)
                 .OrderByDescending(x => x.CreatedUtc)
                 .Skip(offset).Take(limit).ToListAsync(token);
             return (IReadOnlyList<NotificationQueueRow>)rows;

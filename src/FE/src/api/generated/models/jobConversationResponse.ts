@@ -10,6 +10,7 @@ import type { ConversationParticipantResponse } from './conversationParticipantR
 export interface JobConversationResponse {
   jobId: string;
   participants: ConversationParticipantResponse[];
+  assignableUsers: ConversationParticipantResponse[];
   messages: ConversationMessageResponse[];
   /** @pattern ^-?(?:0|[1-9]\d*)$ */
   unreadCount: number | string;
