@@ -26,11 +26,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# The canonical collection creates the job before the worksheet requests later in
-# the suite. Submit-ready is now authoritative on the server, so prepare only the
-# synthetic execution copy with the minimum worksheet required by that submit
-# smoke. The source collection remains unchanged and the preparation fails closed
-# if the expected fixture cannot be found.
+# Prepare a temporary execution copy. The bootstrap bearer token is seeded into
+# collection scope (not Newman environment scope) so the Development-only token
+# request can deliberately switch to the tenant identity used by the remaining
+# workflow. The preparation also completes the canonical job fixture with the
+# minimum worksheet required by the authoritative submit-ready rules.
 node "$SCRIPT_DIR/prepare-integration-collection.mjs" "$SOURCE_COLLECTION" "$COLLECTION"
 
 args=(
@@ -41,9 +41,5 @@ args=(
   --timeout-request 30000
   --bail
 )
-
-if [ -n "${WORKSLIP_AUTH_TOKEN:-}" ]; then
-  args+=(--env-var "authToken=$WORKSLIP_AUTH_TOKEN")
-fi
 
 npx --yes newman "${args[@]}"
