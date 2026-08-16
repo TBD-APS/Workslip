@@ -2,11 +2,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Bell,
   BellRing,
+  Check,
   CheckCheck,
   ChevronDown,
   CircleCheck,
   ClipboardCheck,
   Info,
+  Loader2,
   UserPlus,
   X,
 } from 'lucide-react';
@@ -28,6 +30,9 @@ type NotificationItem = {
   createdUtc: string;
   isRead: boolean;
   status?: string;
+  actionType?: string | null;
+  jobId?: string | null;
+  messageId?: string | null;
 };
 
 type NotificationGroup = {
@@ -47,6 +52,7 @@ type NotificationsDrawerProps = {
 type NotificationFilter = 'all' | 'unread';
 
 const EMPTY_NOTIFICATIONS: NotificationItem[] = [];
+const NOTIFICATION_REFETCH_INTERVAL_MS = 60_000;
 
 const countUnread = (items: NotificationItem[]) =>
   items.reduce((count, item) => count + (item.isRead ? 0 : 1), 0);
@@ -58,6 +64,10 @@ const getBodyLines = (body: string) =>
     .filter(Boolean);
 
 const getNotificationIcon = (item: NotificationItem) => {
+  if (item.actionType === 'AssignSelf') {
+    return <UserPlus size={17} />;
+  }
+
   const haystack = `${item.title} ${item.body}`.toLocaleLowerCase('da-DK');
 
   if (haystack.includes('færdig') || haystack.includes('completed') || haystack.includes('godkend')) {
@@ -114,6 +124,11 @@ const groupNotifications = (items: NotificationItem[]): NotificationGroup[] => {
   return [...groups.values()];
 };
 
+const isAssignSelfAction = (item: NotificationItem) =>
+  item.actionType === 'AssignSelf'
+  && Boolean(item.jobId)
+  && Boolean(item.messageId);
+
 async function getNotifications(): Promise<NotificationItem[]> {
   const response = await apiClient.get('/api/notifications', {
     params: { limit: 50 },
@@ -145,9 +160,12 @@ export function NotificationsDrawer({
     queryKey,
     queryFn: getNotifications,
     enabled: userId.length > 0 && organizationId.length > 0,
+    refetchInterval: NOTIFICATION_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: false,
   });
   const [actionError, setActionError] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set());
+  const [resolvingIds, setResolvingIds] = useState<Set<string>>(() => new Set());
   const [expandedGroupKeys, setExpandedGroupKeys] = useState<Set<string>>(() => new Set());
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const navigate = useNavigate();
@@ -218,6 +236,34 @@ export function NotificationsDrawer({
     if (url) {
       closeDrawer();
       navigate(url);
+    }
+  };
+
+  const resolveAssignSelf = async (item: NotificationItem) => {
+    if (!item.jobId || !item.messageId || resolvingIds.has(item.id)) return;
+
+    setResolvingIds((current) => new Set(current).add(item.id));
+    try {
+      await apiClient.post(
+        `/api/jobs/${item.jobId}/conversation/messages/${item.messageId}/resolve`,
+        undefined,
+        { skipGlobalErrorToast: true },
+      );
+      await markItemsRead([item]);
+      updateItems((current) => current.map((entry) =>
+        entry.id === item.id ? { ...entry, actionType: null, isRead: true } : entry));
+      setActionError(null);
+      closeDrawer();
+      navigate(`/app/job/${item.jobId}?conversation=1&message=${item.messageId}`);
+    } catch {
+      setActionError('Sagen kunne ikke overtages. Hent notifikationerne igen og prøv igen.');
+      void refetch();
+    } finally {
+      setResolvingIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
     }
   };
 
@@ -336,6 +382,7 @@ export function NotificationsDrawer({
               const isExpanded = expandedGroupKeys.has(group.key);
               const isGrouped = group.items.length > 1;
               const isDeletingSingle = group.items.length === 1 && deletingIds.has(latest.id);
+              const isResolving = resolvingIds.has(latest.id);
               const bodyLines = getBodyLines(latest.body);
               const rowLabel = `${latest.title}${isGrouped ? `, ${group.items.length} hændelser` : ''}${group.unreadCount > 0 ? `, ${group.unreadCount} ulæst${group.unreadCount === 1 ? '' : 'e'}` : ''}`;
 
@@ -354,7 +401,7 @@ export function NotificationsDrawer({
                       className="activity-primary-action notification-activity-main"
                       onClick={() => void openNotifications(group.items, group.url)}
                       aria-label={rowLabel}
-                      disabled={isDeletingSingle}
+                      disabled={isDeletingSingle || isResolving}
                     >
                       <span className="activity-heading">
                         <strong className="activity-title">{latest.title}</strong>
@@ -378,6 +425,18 @@ export function NotificationsDrawer({
                     </button>
 
                     <div className="activity-actions">
+                      {isAssignSelfAction(latest) && (
+                        <button
+                          type="button"
+                          className="activity-action notification-action-primary"
+                          onClick={() => void resolveAssignSelf(latest)}
+                          disabled={isResolving}
+                          aria-label={`Tag sagen fra ${latest.title}`}
+                        >
+                          {isResolving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+                          Tag sagen
+                        </button>
+                      )}
                       {isGrouped && (
                         <button
                           type="button"
@@ -400,7 +459,7 @@ export function NotificationsDrawer({
                           type="button"
                           className="activity-action notification-delete-inline"
                           onClick={() => void deleteNotification(latest)}
-                          disabled={isDeletingSingle}
+                          disabled={isDeletingSingle || isResolving}
                           aria-label={`Slet ${latest.title}`}
                         >
                           <X size={14} />
@@ -415,13 +474,14 @@ export function NotificationsDrawer({
                       <div className="activity-sublist">
                         {group.items.map((item) => {
                           const isDeleting = deletingIds.has(item.id);
+                          const isResolvingItem = resolvingIds.has(item.id);
                           return (
                             <div key={item.id} className="activity-subrow">
                               <button
                                 type="button"
                                 className="activity-primary-action activity-subrow-main"
                                 onClick={() => void openNotifications([item], item.url)}
-                                disabled={isDeleting}
+                                disabled={isDeleting || isResolvingItem}
                                 aria-label={`${item.title}${item.isRead ? '' : ', ulæst'}`}
                               >
                                 <span className="activity-subrow-title">{item.title}</span>
@@ -430,15 +490,29 @@ export function NotificationsDrawer({
                                   {formatRelativeActivityTime(item.createdUtc)}
                                 </time>
                               </button>
-                              <button
-                                type="button"
-                                className="activity-action notification-delete-inline"
-                                onClick={() => void deleteNotification(item)}
-                                disabled={isDeleting}
-                                aria-label={`Slet ${item.title}`}
-                              >
-                                <X size={14} />
-                              </button>
+                              <div className="notification-subrow-actions">
+                                {isAssignSelfAction(item) && (
+                                  <button
+                                    type="button"
+                                    className="activity-action notification-action-primary"
+                                    onClick={() => void resolveAssignSelf(item)}
+                                    disabled={isResolvingItem}
+                                    aria-label={`Tag sagen fra ${item.title}`}
+                                  >
+                                    {isResolvingItem ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                                    Tag sagen
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  className="activity-action notification-delete-inline"
+                                  onClick={() => void deleteNotification(item)}
+                                  disabled={isDeleting || isResolvingItem}
+                                  aria-label={`Slet ${item.title}`}
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
                             </div>
                           );
                         })}
