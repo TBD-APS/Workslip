@@ -23,6 +23,7 @@ public interface IJobConversationRepository
         IReadOnlyList<Guid> mentionedUserIds,
         ConversationActionType? actionType,
         Guid? actionTargetUserId,
+        DateTimeOffset? actionDueUtc,
         CancellationToken cancellationToken);
 
     Task<ConversationMessageResponse?> GetByIdAsync(
