@@ -6,15 +6,16 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():
-    from .activities import decide_attempt, perform_tool, run_gate
+    from .activities import decide_attempt, execute_sandbox, perform_tool, run_gate
     from .contracts import (
         ApprovalSignal,
         AttemptRecord,
         ChangeRunInput,
         DecisionInput,
-        GateInput,
         GateFeedback,
+        GateInput,
         RunSnapshot,
+        SandboxInput,
         ToolInput,
     )
 
@@ -25,6 +26,23 @@ _ACTIVITY_RETRY = RetryPolicy(
     maximum_interval=timedelta(seconds=1),
     maximum_attempts=3,
 )
+
+_SANDBOX_TEST = """import unittest
+
+from calc import add
+
+
+class AddTests(unittest.TestCase):
+    def test_adds_positive_numbers(self) -> None:
+        self.assertEqual(add(2, 3), 5)
+
+    def test_adds_negative_number(self) -> None:
+        self.assertEqual(add(7, -2), 5)
+
+
+if __name__ == "__main__":
+    unittest.main()
+"""
 
 
 @workflow.defn
@@ -71,10 +89,22 @@ class ChangeRunWorkflow:
                 retry_policy=_ACTIVITY_RETRY,
             )
 
-            # Deliberate checkpoint used by the POC harness after worker recovery.
             if attempt == 1:
                 self._snapshot.state = "PAUSED_AFTER_TOOL"
                 await workflow.wait_condition(lambda: self._continue_after_tool)
+
+            self._snapshot.state = "EXECUTING_SANDBOX"
+            sandbox_result = await workflow.execute_activity(
+                execute_sandbox,
+                SandboxInput(
+                    run_id=request.run_id,
+                    attempt=attempt,
+                    source_code=decision.candidate_source,
+                    test_code=_SANDBOX_TEST,
+                ),
+                start_to_close_timeout=timedelta(seconds=30),
+                retry_policy=_ACTIVITY_RETRY,
+            )
 
             self._snapshot.state = "RUNNING_GATE"
             gate_result = await workflow.execute_activity(
@@ -83,6 +113,9 @@ class ChangeRunWorkflow:
                     run_id=request.run_id,
                     attempt=attempt,
                     patch_label=decision.patch_label,
+                    sandbox_passed=sandbox_result.passed,
+                    sandbox_exit_code=sandbox_result.evidence.exit_code,
+                    sandbox_output=sandbox_result.evidence.output,
                 ),
                 start_to_close_timeout=timedelta(seconds=5),
                 retry_policy=_ACTIVITY_RETRY,
@@ -102,6 +135,7 @@ class ChangeRunWorkflow:
                         gate_passed=False,
                         outcome="BLOCKED",
                         feedback=feedback,
+                        sandbox=sandbox_result.evidence,
                     )
                 )
                 self._snapshot.state = "RETRYING"
@@ -117,6 +151,7 @@ class ChangeRunWorkflow:
                     tool_invocation_count=tool_result.invocation_count,
                     gate_passed=True,
                     outcome="WAITING_APPROVAL",
+                    sandbox=sandbox_result.evidence,
                 )
             )
             self._snapshot.state = "WAITING_APPROVAL"

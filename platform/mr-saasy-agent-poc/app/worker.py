@@ -5,7 +5,7 @@ import os
 
 from temporalio.worker import Worker
 
-from .activities import decide_attempt, perform_tool, run_gate
+from .activities import decide_attempt, execute_sandbox, perform_tool, run_gate
 from .connection import connect_temporal
 from .workflow import ChangeRunWorkflow
 
@@ -17,7 +17,7 @@ async def main() -> None:
         client,
         task_queue=task_queue,
         workflows=[ChangeRunWorkflow],
-        activities=[decide_attempt, perform_tool, run_gate],
+        activities=[decide_attempt, perform_tool, execute_sandbox, run_gate],
     )
     await worker.run()
 
