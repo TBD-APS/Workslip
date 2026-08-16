@@ -34,17 +34,17 @@ if (!Array.isArray(createJobPrerequest)) {
   throw new Error('Could not find the canonical POST /api/jobs pre-request script.');
 }
 
-// Patch the synthetic worksheet at request runtime. The canonical job pre-request
-// already resolves reference-data IDs asynchronously, so mutating the static raw
-// JSON during collection preparation would compete with that established builder.
-// actorUserId is already known before the Jobs folder starts and is written as a
-// concrete GUID while the existing {{vand...}} variables remain available for the
-// original reference-data script to resolve before the request is sent.
+// Complete the canonical synthetic job at request runtime. The existing pre-request
+// resolves reference-data IDs asynchronously, so this preserves those placeholders
+// while supplying the submit-ready evidence that is now authoritative server-side.
 createJobPrerequest.unshift(
   "const workslipSubmitReadyActorUserId = pm.collectionVariables.get('actorUserId');",
   "if (!workslipSubmitReadyActorUserId) { throw new Error('Missing actorUserId before POST /api/jobs'); }",
   "const workslipSubmitReadyPayload = JSON.parse(pm.request.body.raw);",
   "workslipSubmitReadyPayload.timesheets = [{ workDate: '2026-10-01', userId: workslipSubmitReadyActorUserId, hoursWorked: 1, sleptOnJob: false }];",
+  "const workslipSubmitReadyControlPoints = workslipSubmitReadyPayload.work?.installationTypes?.flatMap((installationType) => installationType.categories ?? []).flatMap((category) => category.controlPoints ?? []) ?? [];",
+  "if (workslipSubmitReadyControlPoints.length === 0) { throw new Error('Missing control-point fixture before POST /api/jobs'); }",
+  "workslipSubmitReadyControlPoints[0].isChecked = true;",
   "pm.request.body.update(JSON.stringify(workslipSubmitReadyPayload));",
 );
 
