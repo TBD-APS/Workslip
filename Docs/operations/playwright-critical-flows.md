@@ -1,100 +1,93 @@
-# Playwright release-test policy
+# Playwright validation policy
 
-**Status:** Partially configured — only the write-free production smoke is runnable today
+**Status:** Active — authenticated PR-CI uses an ephemeral localhost full stack; production remains read-only smoke only
 
 **Owner:** Workslip release maintainers
 
-**Source of truth:** `src/FE/config/release-environments.json`, `tools/release/resolve-release-environment.mjs`, `.github/workflows/playwright-prod-smoke.yml`, and run artifacts
+**Source of truth:** `.github/workflows/frontend-validation.yml`, `src/FE/scripts/run-playwright-ephemeral.sh`, `src/FE/scripts/playwright-ephemeral-auth.mjs`, `src/FE/config/release-environments.json`, `.github/workflows/playwright-prod-smoke.yml`, and run evidence
 
-**Review cadence:** Before changing a release target, authentication method, or destructive scenario
+**Review cadence:** Before changing a browser-test target, authentication method, or destructive scenario
 
-## Current runnable scope
+## Two separate browser-test lanes
 
-The only deployed Playwright run that is configured and allowed is:
+Workslip deliberately separates **PR regression evidence** from **production smoke evidence**.
 
-- `public-smoke` against `https://app.mrsoftware.dk`.
+### 1. PR-CI authenticated browser regression
 
-It opens the public application in Chromium at the iPhone 13 viewport and verifies that the page responds. It does not authenticate, send an OTC, create data, or invoke an API mutation.
+Every non-documentation change runs `Playwright integration (ephemeral)` as a blocking `CI Gate` dependency.
 
-`src/FE/config/release-environments.json` is deliberately fail-closed in the current `prelive` phase:
+The job creates a disposable full stack from the exact checked-out SHA:
 
-- production has `enableDevelopmentEndpoints: false` and `allowDestructivePlaywright: false`;
-- staging has no URL and is not a runnable target;
-- `playwright-release-runner.mjs` rejects every non-public scenario against production, regardless of phase.
+- Vite frontend on loopback;
+- ASP.NET Core API on loopback with `ASPNETCORE_ENVIRONMENT=Development`;
+- disposable SQL Server database;
+- development seed data only;
+- a per-run SQL password and JWT signing key;
+- headless Chromium.
 
-The GitHub workflow exposes no target or scenario selector. It runs the one honest operation above, validates the Playwright source tests first, and uploads the short-lived public-smoke artifact. A workflow must not advertise a scenario that cannot complete in GitHub Actions.
+The browser receives a synthetic Development JWT through the existing `/api/dev/token` endpoint, stores it through the same `localStorage.authToken` contract used by the frontend, and then boots the normal authenticated React/API path. `/api/auth/me` must succeed before the UI assertion is accepted.
 
-## Critical suite: maintained, but intentionally blocked
+This is **not a deployed authentication mechanism**. `playwright-ephemeral-auth.mjs` rejects any app or API origin that is not `localhost`, `127.0.0.1`, or `::1`, and the backend endpoint remains available only in ASP.NET Development. A production, Vercel, staging, arbitrary remote, disguised-loopback, credentialed, or path-bearing URL fails before a token request is made.
 
-The authenticated scenario code remains in the repository so it can be validated statically and completed once the proper environment exists. It is **not** current deployment evidence and is not configured for GitHub Actions.
+The initial blocking browser regression proves:
 
-The full suite stays blocked until both prerequisites are complete:
+- authenticated browser bootstrap against the disposable API/database;
+- the iPhone viewport hides Quick Navigator desktop keyboard hints (`Esc`, `↑/↓`, `Enter` footer);
+- desktop keeps those keyboard hints visible.
 
-1. [WOR-309](https://linear.app/workslip/issue/WOR-309/isoleret-pre-merge-testmilj%C3%B8-og-automatisk-playwright-for-pr-sha) provides an isolated, candidate-SHA staging frontend, API, database, and synthetic data boundary.
-2. [WOR-357](https://linear.app/workslip/issue/WOR-357/replace-playwright-dev-login-dependency-with-real-test-authentication) provides approved non-interactive test authentication without a dev-token endpoint, static token, or hidden login bypass.
+Backend/frontend process logs are uploaded only on failure. Browser storage state, bearer tokens, traces, customer data, and authenticated screenshots are not uploaded.
 
-Do not solve either prerequisite by running mutations against `https://app.mrsoftware.dk`, by adding `/api/dev/token` outside ASP.NET Development, or by putting mailbox credentials in the repository or CI logs.
+## 2. Production Playwright
 
-Until those items are complete, authenticated work is reported as **implemented but Playwright-unvalidated**. That is an honest gap, not a passing critical test.
+Production remains restricted to the write-free `public-smoke` against `https://app.mrsoftware.dk`.
 
-## Assignment duplication coverage
+`src/FE/config/release-environments.json` keeps:
 
-`assignment-lifecycle` now models the actual WOR-424 requirement rather than fabricating random users:
+- `enableDevelopmentEndpoints: false` for production;
+- `allowDestructivePlaywright: false` for production;
+- no runnable deployed staging target unless separately approved later.
 
-1. an Admin resolves the stable configured `User` and `Admin` identities in the active test organization;
-2. the Admin creates a KLS task with **Opret en kopi af sagen til hver medarbejder** enabled;
-3. the test proves there is exactly one independent copy per assignee;
-4. each assignee completes and submits only their own copy;
-5. the Admin approves both copies individually.
+The production workflow authenticates nobody, sends no OTC, creates no data, and invokes no mutation. A destructive/authenticated scenario must never be redirected to production as a fallback.
 
-The harness never creates identities just to make a scenario pass. If the configured users are missing or do not have the expected roles, the scenario stops without exposing their addresses.
+## OTC authentication coverage
 
-This is source-level coverage only until an isolated staging run succeeds.
+The real Workslip login contract remains:
 
-## Authentication and evidence boundaries
+`/api/auth/send-code` → `/api/auth/verify-code/{code}` → `/api/auth/me`.
 
-Authenticated scenarios use the normal one-time-code UI and the four configured role identities described in [synthetic-test-identities.md](synthetic-test-identities.md). There is no approved automated inbox reader today, so a non-interactive authenticated run stops before `/api/auth/send-code`.
+Generic authenticated UI regression no longer depends on reading a mailbox in CI. The ephemeral lane tests application authorization/session behavior through a Development-only synthetic token boundary, while the deployed OTC flow remains a separate auth concern.
 
-For a future allowed staging run, an operator may explicitly use a headed TTY session and enter received codes only in the browser. The harness caches an already-authenticated Admin token in memory for cleanup so it does not trigger an unnecessary additional OTC login.
+The maintained critical/release harness may still use interactive OTC for explicitly approved headed local runs. There is no automatic mailbox reader, Graph integration, Mailosaur dependency, static production token, or hidden deployed auth bypass.
 
-Artifacts are minimized:
+## Security boundary
 
-- public smoke may save a screenshot;
-- authenticated scenarios save no screenshots while identity/customer redaction is not strong enough to make them safe;
-- reports redact OTC values, bearer tokens, query secrets, and email addresses;
-- traces are not uploaded;
-- generated data uses a `PLAYWRIGHT` marker and cleanup failures are recorded without personal identifiers.
+The Development token is acceptable only when all of these are true:
 
-## Local Windows validation
+1. frontend target is loopback;
+2. API target is loopback;
+3. API runs as ASP.NET Development;
+4. database is disposable and synthetic-only;
+5. credentials are generated per run and masked;
+6. no token/storage artifact is retained.
 
-Use `tools/playwright/run-critical-local.ps1` from the repository root. Today this is the supported direct run:
+Breaking any target-origin rule must fail before `/api/dev/token` is called.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\playwright\run-critical-local.ps1 `
-  -Mode Direct `
-  -Target Production `
-  -Scenario public-smoke
-```
+Do not add `/api/dev/token` to Production/Staging endpoint maps. Do not make the browser harness accept remote hosts through configuration. Do not introduce a mailbox/provider integration merely to support generic browser regression.
 
-The helper installs the version-matched Playwright runtime when required, validates release policy and source tests, resolves the committed target, and writes evidence under `artifacts/playwright-prod-smoke`.
+## CI ownership
 
-If an operator's network requires an outbound HTTP(S) proxy, set the non-secret proxy origin in `WORKSLIP_PLAYWRIGHT_PROXY` for that shell. The runner accepts only a credential-free origin and never records it in the report. If that proxy performs TLS interception and its CA cannot be installed in Chromium, a local operator may additionally set `WORKSLIP_PLAYWRIGHT_IGNORE_HTTPS_ERRORS=true`; this is accepted only with the explicit proxy setting and does not change CI. Such a run proves browser flow/connectivity, not the target certificate chain.
+`CI Gate` requires, for non-documentation changes:
 
-`-Mode Workflow` intentionally supports only the same public production smoke. A critical scenario or staging target is rejected before Docker/`act` work begins.
+- Backend;
+- Frontend + API contract;
+- Contracts + docs;
+- Postman integration (ephemeral);
+- Playwright integration (ephemeral).
 
-## Completing the configuration later
+The contracts job syntax-checks the browser scripts and shell runner and runs focused tests for the loopback-only auth boundary. A green source test is not a substitute for the real Chromium job; both are required.
 
-After WOR-309 and WOR-357 are approved and deployed:
+## Future expansion
 
-1. configure a separate HTTPS staging origin and isolated database with synthetic-only data;
-2. update the committed release policy to `live`, keeping production flags false and enabling only the isolated staging target;
-3. prove the candidate SHA is deployed to that target;
-4. add a reviewed CI-safe authentication mechanism that uses the normal auth boundary and does not expose credentials or codes;
-5. re-enable selected critical workflow inputs only after a successful staging run and artifact review;
-6. keep production restricted to `public-smoke` permanently.
+Additional authenticated browser scenarios should reuse the ephemeral lane when they need real frontend → API → SQL behavior. Add scenarios only where browser-level regression protection is valuable; do not duplicate unit/API coverage for trivial mappings.
 
-The frontend has no deployment-controlled dev-login switch. Local development buttons use `import.meta.env.DEV`, and `/api/dev/token` is mapped only in ASP.NET Development. Release policy must not claim otherwise.
-
-## Source validation
-
-`CI` validates the release-policy resolver, the release-runner guard, synthetic-auth fail-closed behavior, Playwright syntax, Postman JSON, documentation, frontend tests, and build. Those checks verify that the harness remains safe and internally coherent; they do not replace a successful browser run against the eventual isolated staging target.
+A separately deployed staging environment may still be justified later for provider callbacks, networking, deployment-specific behavior, or full release-candidate testing. It is no longer a prerequisite for ordinary authenticated browser regression.
