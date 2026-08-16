@@ -31,6 +31,7 @@ public static class EndpointConfiguration
         app.MapCacheEndpoints();
         app.MapDiagnosticsEndpoints();
         app.MapControlCenterEndpoints();
+        app.MapLocationEndpoints();
 
         return app;
     }
