@@ -88,14 +88,14 @@
 }
 
 .job-wizard-tutorial-progress {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  display: flex;
   gap: 0.35rem;
   margin-top: 0.9rem;
 }
 
 .job-wizard-tutorial-progress-step {
   display: flex;
+  flex: 1 1 0;
   align-items: center;
   min-width: 0;
 }
