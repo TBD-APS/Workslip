@@ -10,6 +10,7 @@ import './public-fonts.css';
 import './public-shell.css';
 import './public-error.css';
 import './public-performance.css';
+import './workslip-brand.css';
 import './pwa-update.css';
 import './gamification-feedback.css';
 

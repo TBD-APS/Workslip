@@ -25,7 +25,8 @@
   box-shadow: 0 0 0 1px var(--focus-ring);
 }
 
-[data-theme="day"] .form-input:focus {
+[data-theme="day"] .form-input:focus,
+.auth-shell .form-input:focus {
   background: var(--surface-input);
 }
 
@@ -50,7 +51,7 @@
 
 .form-input-invalid:focus {
   border-color: var(--danger);
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
 }
 
 .form-error-text {
@@ -177,7 +178,7 @@
 .invite-error-badge {
   padding: 0.75rem 1rem;
   background: var(--status-red-bg);
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border));
   border-radius: 12px;
   margin-bottom: 1.5rem;
   color: var(--status-red-text);
@@ -202,6 +203,47 @@
   align-items: center;
 }
 
+/* Auth and recovery are public routes, but they should feel like the same
+   product the user enters. Brand variables come from workslip-brand.css. */
+.auth-shell .bg-glow-1,
+.system-state .bg-glow-1 {
+  background: radial-gradient(circle, color-mix(in srgb, var(--brand-petrol) 24%, transparent) 0%, transparent 70%);
+}
+
+.auth-shell .bg-glow-2,
+.system-state .bg-glow-2 {
+  background: radial-gradient(circle, color-mix(in srgb, var(--brand-orange) 12%, transparent) 0%, transparent 70%);
+}
+
+.auth-shell .logo-icon,
+.system-state .logo-icon {
+  color: var(--brand-orange);
+  filter: drop-shadow(0 4px 10px color-mix(in srgb, var(--brand-orange) 24%, transparent));
+}
+
+.auth-shell .btn-primary,
+.system-state .btn-primary {
+  background: var(--brand-orange);
+  color: var(--brand-marine);
+  border: 1px solid color-mix(in srgb, var(--brand-orange) 76%, var(--brand-marine));
+  box-shadow: var(--shadow-accent);
+}
+
+.auth-shell .btn-primary:active,
+.system-state .btn-primary:active {
+  background: var(--primary-pressed);
+  box-shadow: var(--shadow-sm-raw);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .auth-shell .btn-primary:hover:not(:disabled),
+  .system-state .btn-primary:hover:not(:disabled) {
+    background: var(--primary-hover);
+    color: var(--brand-marine);
+    box-shadow: 0 12px 30px color-mix(in srgb, var(--brand-orange) 24%, transparent);
+  }
+}
+
 .login-card,
 .reauth-card {
   width: 100%;
@@ -211,7 +253,7 @@
   border: 1px solid var(--surface-border);
   border-radius: 24px;
   backdrop-filter: blur(20px);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-lg);
 }
 
 .login-card-header {
@@ -342,11 +384,11 @@
 
 .login-error-banner {
   padding: 0.75rem 1rem;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  background: var(--status-red-bg);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border));
   border-radius: 12px;
   margin-bottom: 1.5rem;
-  color: #ef4444;
+  color: var(--status-red-text);
   font-size: 0.9rem;
   display: flex;
   align-items: center;

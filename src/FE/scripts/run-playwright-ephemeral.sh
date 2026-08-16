@@ -153,5 +153,6 @@ export WORKSLIP_PLAYWRIGHT_API_URL="${API_URL}"
 export WORKSLIP_PLAYWRIGHT_ADMIN_EMAIL='admin@17v3ygzs.mailosaur.net'
 
 node scripts/playwright-ephemeral-smoke.mjs
+node scripts/playwright-auth-brand.mjs
 
 echo "Authenticated ephemeral Playwright suite completed successfully."
