@@ -6,6 +6,7 @@ const STATUS_OPTIONS = [
   { status: JobStatus.InReview, label: 'Til gennemsyn', className: 'job-status-dot--in-review' },
   { status: JobStatus.Approved, label: 'Godkendt', className: 'job-status-dot--approved' },
   { status: JobStatus.Rejected, label: 'Afvist', className: 'job-status-dot--rejected' },
+  { status: JobStatus.Reopened, label: 'Genåbnet', className: 'job-status-dot--reopened' },
 ] as const;
 
 type JobStatusDotsProps = {

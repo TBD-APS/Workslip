@@ -2,6 +2,7 @@ using Ardalis.Result;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
 using Workslip.Application.Users;
+using Workslip.Domain;
 
 namespace Workslip.Application.Images;
 
@@ -41,6 +42,11 @@ public sealed class ImageService(
         if (!access.IsSuccess)
         {
             return MapFailure<ImageInfoResponse>(access.Status);
+        }
+
+        if (access.Value.Status == JobStatus.Approved)
+        {
+            return Result<ImageInfoResponse>.Conflict("approved_job_locked");
         }
 
         var validated = await ValidateAndBufferAsync(upload, cancellationToken);
@@ -92,6 +98,11 @@ public sealed class ImageService(
         if (!access.IsSuccess)
         {
             return MapFailure(access.Status);
+        }
+
+        if (access.Value.Status == JobStatus.Approved)
+        {
+            return Result.Conflict("approved_job_locked");
         }
 
         await storage.DeleteJobImageAsync(

@@ -40,12 +40,35 @@ public sealed class JobAssignmentServiceTests
         Assert.Equal([assigneeId], assignments.AssignedUserIds);
         Assert.Equal(adminId, assignments.AssignedActorId);
         Assert.Equal((jobId, organizationId), jobs.Invalidated);
-        Assert.Equal(1, jobs.GetSingleCalls);
+        Assert.Equal(2, jobs.GetSingleCalls);
         var notification = Assert.Single(notifications.Assigned);
         Assert.Equal(assigneeId, notification.UserId);
         Assert.Equal("Montør", notification.RecipientName);
         Assert.Equal("R-1", notification.JobNumber);
         Assert.Equal("Jobvej 2", notification.Address);
+    }
+
+    [Fact]
+    public async Task AssignAsync_approved_job_returns_conflict_without_mutating()
+    {
+        var organizationId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var assignments = new RecordingAssignmentRepository();
+        var jobs = new RecordingJobService(CreateSummary(jobId, organizationId, [], JobStatus.Approved));
+        var service = new JobAssignmentService(
+            new StubValidator(JobAssignmentValidationResult.Valid()),
+            assignments,
+            jobs,
+            new TestCurrentUserContext(adminId, organizationId, Roles.Admin),
+            new RecordingNotificationService(),
+            NullLogger<JobAssignmentService>.Instance);
+
+        var result = await service.AssignAsync(jobId, [Guid.NewGuid()], CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        Assert.Null(assignments.AssignedJobId);
+        Assert.Null(jobs.Invalidated);
     }
 
     [Fact]
@@ -112,14 +135,15 @@ public sealed class JobAssignmentServiceTests
     private static JobReportSummaryResponse CreateSummary(
         Guid jobId,
         Guid organizationId,
-        IReadOnlyList<AssignedUserResponse> assignedUsers) =>
+        IReadOnlyList<AssignedUserResponse> assignedUsers,
+        JobStatus status = JobStatus.Draft) =>
         new(
             jobId,
             organizationId,
             "Test organization",
             "12345678",
             "R-1",
-            JobStatus.Draft,
+            status,
             null,
             new CustomerSnapshotResponse("Kunde", null, null, "Kundevej 1", null),
             "Jobvej 2",

@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { Navigate, useLocation, useParams } from 'react-router-dom';
 import { useGetApiJobsId } from '../../../api/generated/jobs/jobs';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { ErrorState } from '../../../components/ErrorState';
+import { notify } from '../../../lib/toast';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { CompletedJobReport } from './CompletedJobReport';
 import { JobDetail } from './JobDetail';
@@ -30,6 +32,19 @@ export function JobEntryRoute() {
   const query = useGetApiJobsId(id ?? '', {
     query: { enabled: Boolean(id) },
   });
+
+  const status = query.data?.status;
+  const reopenReason = query.data?.rejectionNote?.trim();
+
+  useEffect(() => {
+    if (status !== JobStatus.Reopened) return;
+
+    notify.warning(
+      reopenReason
+        ? `Sagen er genåbnet: ${reopenReason}`
+        : 'Sagen er genåbnet og kan redigeres igen.',
+    );
+  }, [status, reopenReason]);
 
   if (!id) {
     return <Navigate to="/app" replace />;

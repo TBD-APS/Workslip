@@ -1,6 +1,7 @@
 using Ardalis.Result;
 using FluentValidation;
 using Workslip.Application.Auth;
+using Workslip.Domain;
 
 namespace Workslip.Application.Jobs;
 
@@ -97,6 +98,20 @@ public sealed class JobAuditorScopeService(
                     ErrorMessage = error.ErrorMessage
                 }));
         }
+
+        var job = await jobService.GetSingleJobAsync(jobId, cancellationToken);
+        if (!job.IsSuccess)
+        {
+            return job.Status switch
+            {
+                ResultStatus.Unauthorized => Result<JobAuditorScopeResponse>.Unauthorized(),
+                ResultStatus.Forbidden => Result<JobAuditorScopeResponse>.Forbidden(),
+                _ => Result<JobAuditorScopeResponse>.NotFound()
+            };
+        }
+
+        if (job.Value.Status == JobStatus.Approved)
+            return Result<JobAuditorScopeResponse>.Conflict("approved_job_locked");
 
         var normalizedReason = request.IsInAuditorScope
             ? null

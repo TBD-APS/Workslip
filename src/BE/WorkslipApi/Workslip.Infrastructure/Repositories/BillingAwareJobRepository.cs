@@ -6,7 +6,8 @@ namespace Workslip.Infrastructure.Repositories;
 
 internal sealed class BillingAwareJobRepository(
     IJobRepository inner,
-    SqlDbContext dbContext) : IJobRepository
+    SqlDbContext dbContext,
+    JobReopenReasonContext reopenReasonContext) : IJobRepository
 {
     public Task<JobReportResponse> CreateAsync(
         Guid organizationId,
@@ -48,6 +49,10 @@ internal sealed class BillingAwareJobRepository(
         string? rejectionNote,
         CancellationToken cancellationToken)
     {
+        using var reopenScope = nextStatus == JobStatus.Reopened && !string.IsNullOrWhiteSpace(rejectionNote)
+            ? reopenReasonContext.Begin(id, organizationId, rejectionNote)
+            : null;
+
         var result = await inner.TransitionAsync(
             id,
             organizationId,

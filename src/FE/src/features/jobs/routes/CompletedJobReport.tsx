@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle2, ChevronRight, Download, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronRight, Download, Eye, FileCheck2, History, Link2, Loader2, Pencil, RotateCcw, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
 import { notify } from '../../../lib/toast';
 import { ErrorState } from '../../../components/ErrorState';
 import { StatusBanner } from '../../../components/StatusBanner';
@@ -33,7 +33,7 @@ import { WorksheetDetailList } from '../components/WorksheetDetailList';
 import { ControlPointOverview, getSelectedControlPoints, getIrrelevantCategories } from '../components/ControlPointOverview';
 import { formatReportNumber, formatWorkKind, formatInstallationTypeNames, formatClosureFlags } from '../utils/completedJobFormatters';
 
-type JobAction = 'approve' | 'reject' | 'undo-reject';
+type JobAction = 'approve' | 'reject' | 'undo-reject' | 'reopen';
 
 function scrollToTop() {
   document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
@@ -143,6 +143,11 @@ export const CompletedJobReport = () => {
   };
 
   const handleStartEdit = () => {
+    if (job?.status === JobStatus.Approved) {
+      notify.warning('Sagen er godkendt og låst. Genåbn sagen før du ændrer den.');
+      return;
+    }
+
     details.discardChanges();
     setIsEditing(true);
     scrollToTop();
@@ -181,7 +186,11 @@ export const CompletedJobReport = () => {
     setConfirmAction('undo-reject');
   };
 
-  const executeConfirmAction = async (rejectionNote?: string) => {
+  const handleReopen = () => {
+    setConfirmAction('reopen');
+  };
+
+  const executeConfirmAction = async (reason?: string) => {
     if (!job || !confirmAction) return;
 
     let targetStatus: JobStatus;
@@ -189,9 +198,12 @@ export const CompletedJobReport = () => {
 
     if (confirmAction === 'undo-reject') {
       targetStatus = JobStatus.InReview;
+    } else if (confirmAction === 'reopen') {
+      targetStatus = JobStatus.Reopened;
+      note = reason?.trim() || null;
     } else {
       targetStatus = confirmAction === 'approve' ? JobStatus.Approved : JobStatus.Rejected;
-      note = rejectionNote ?? null;
+      note = reason?.trim() || null;
     }
 
     try {
@@ -203,9 +215,11 @@ export const CompletedJobReport = () => {
     } catch {
       const message = confirmAction === 'undo-reject'
         ? 'Kunne ikke fortryde afvisningen. Prøv igen.'
-        : confirmAction === 'approve'
-          ? `Kunne ikke godkende ${details.form.reportNumber}. Prøv igen.`
-          : `Kunne ikke afvise ${details.form.reportNumber}. Prøv igen.`;
+        : confirmAction === 'reopen'
+          ? `Kunne ikke genåbne ${details.form.reportNumber}. Prøv igen.`
+          : confirmAction === 'approve'
+            ? `Kunne ikke godkende ${details.form.reportNumber}. Prøv igen.`
+            : `Kunne ikke afvise ${details.form.reportNumber}. Prøv igen.`;
       notify.error(message);
       setConfirmAction(null);
     }
@@ -281,6 +295,7 @@ export const CompletedJobReport = () => {
     { label: 'Destination', value: job.destinationAddress },
     { label: 'Afslutning', value: formatClosureFlags(job) },
     { label: 'Afvisningsgrund', value: job.status === JobStatus.Rejected ? job.rejectionNote : undefined },
+    { label: 'Genåbningsgrund', value: job.status === JobStatus.Reopened ? job.rejectionNote : undefined },
   ]);
   const customerPairs = compactPairs([
     { label: 'Kunde', value: job.customerSnapshot.name },
@@ -326,7 +341,7 @@ export const CompletedJobReport = () => {
               </button>
             </>
           ) : (
-            isAdmin && !readOnly && (
+            isAdmin && !readOnly && job.status !== JobStatus.Approved && (
               <button className="btn btn-secondary report-overview-icon-action" type="button" onClick={handleStartEdit} aria-label="Rediger sag">
                 <Pencil size={16} />
               </button>
@@ -390,11 +405,25 @@ export const CompletedJobReport = () => {
             </button>
           </div>
         )}
+        {isDesktop && job.status === JobStatus.Approved && isAdmin && !readOnly && !isEditing && (
+          <div className="report-overview-actions report-overview-actions--right">
+            <button className="btn btn-secondary" type="button" onClick={handleReopen} disabled={statusMutation.isPending}>
+              {statusMutation.isPending ? <Loader2 size={16} className="spin" /> : <RotateCcw size={16} />}
+              <span>{statusMutation.isPending ? 'Genåbner...' : 'Genåbn sag'}</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {isAdmin && job.status === JobStatus.InReview && !readOnly && (
         <StatusBanner variant="info" title="Klar til review">
           <p>Sagen er sendt til gennemgang og mangler din godkendelse.</p>
+        </StatusBanner>
+      )}
+
+      {job.status === JobStatus.Approved && (
+        <StatusBanner variant="success" title="Godkendt og låst">
+          <p>Sagen er nu et låst kvalitetsspor. Genåbn sagen med en begrundelse, hvis noget skal ændres.</p>
         </StatusBanner>
       )}
 
@@ -538,6 +567,21 @@ export const CompletedJobReport = () => {
               </div>
             </section>
           )}
+
+          {!isDesktop && job.status === JobStatus.Approved && isAdmin && !readOnly && !isEditing && (
+            <section className="detail-section">
+              <div className="section-header-row">
+                <ShieldCheck size={18} />
+                <h3>Låst kvalitetsspor</h3>
+              </div>
+              <div className="edit-form-bottom-actions">
+                <button className="btn btn-secondary edit-form-bottom-btn" type="button" onClick={handleReopen} disabled={statusMutation.isPending}>
+                  {statusMutation.isPending ? <Loader2 size={18} className="spin" /> : <RotateCcw size={18} />}
+                  {statusMutation.isPending ? 'Genåbner...' : 'Genåbn sag'}
+                </button>
+              </div>
+            </section>
+          )}
         </>
       )}
 
@@ -599,16 +643,21 @@ function ActionSuccessDialog({
 }) {
   const isUndoReject = action === 'undo-reject';
   const isApprove = action === 'approve';
+  const isReopen = action === 'reopen';
   const title = isUndoReject
     ? 'Afvisningen er fortrudt'
     : isApprove
       ? 'Sagen er godkendt'
-      : 'Sagen er afvist';
+      : isReopen
+        ? 'Sagen er genåbnet'
+        : 'Sagen er afvist';
   const body = isUndoReject
     ? <>Sagen <strong>{reportNumber}</strong> er sendt til gennemgang igen.</>
     : isApprove
-      ? <>Sagen <strong>{reportNumber}</strong> er godkendt.</>
-      : <>Sagen <strong>{reportNumber}</strong> er afvist.</>;
+      ? <>Sagen <strong>{reportNumber}</strong> er godkendt og låst.</>
+      : isReopen
+        ? <>Sagen <strong>{reportNumber}</strong> er genåbnet og kan nu rettes. Årsagen er gemt i historikken.</>
+        : <>Sagen <strong>{reportNumber}</strong> er afvist.</>;
 
   return createPortal(
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="action-success-title">

@@ -5,5 +5,6 @@ public enum JobStatus
     Draft,
     InReview,
     Approved,
-    Rejected
+    Rejected,
+    Reopened
 }

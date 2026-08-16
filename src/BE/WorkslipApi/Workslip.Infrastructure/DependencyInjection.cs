@@ -40,8 +40,10 @@ public static class DependencyInjection
         services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
         services.AddScoped<IApplicationTransactionFactory, EfApplicationTransactionFactory>();
 
+        services.AddScoped<JobReopenReasonContext>();
         services.AddScoped<TenantIntegrityInterceptor>();
         services.AddScoped<JobStatusTransitionInterceptor>();
+        services.AddScoped<ApprovedJobImmutabilityGuard>();
         services.AddScoped<AuditInterceptor>();
         services.AddScoped<WorksheetDailyHoursInterceptor>();
         services.AddScoped<WorksheetFinalizationGuard>();
@@ -54,12 +56,14 @@ public static class DependencyInjection
 
             var tenantIntegrityInterceptor = sp.GetRequiredService<TenantIntegrityInterceptor>();
             var transitionInterceptor = sp.GetRequiredService<JobStatusTransitionInterceptor>();
+            var approvedJobImmutabilityGuard = sp.GetRequiredService<ApprovedJobImmutabilityGuard>();
             var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
             var worksheetDailyHoursInterceptor = sp.GetRequiredService<WorksheetDailyHoursInterceptor>();
             var worksheetFinalizationGuard = sp.GetRequiredService<WorksheetFinalizationGuard>();
             options.AddInterceptors(
                 tenantIntegrityInterceptor,
                 transitionInterceptor,
+                approvedJobImmutabilityGuard,
                 auditInterceptor,
                 worksheetDailyHoursInterceptor,
                 worksheetFinalizationGuard);
@@ -82,7 +86,8 @@ public static class DependencyInjection
         services.AddScoped<IJobRepository>(serviceProvider =>
             new BillingAwareJobRepository(
                 serviceProvider.GetRequiredService<EfJobRepository>(),
-                serviceProvider.GetRequiredService<SqlDbContext>()));
+                serviceProvider.GetRequiredService<SqlDbContext>(),
+                serviceProvider.GetRequiredService<JobReopenReasonContext>()));
         services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
         services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();

@@ -5,6 +5,7 @@ const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   InReview: 'Til gennemsyn',
   Approved: 'Godkendt',
   Rejected: 'Afvist',
+  Reopened: 'Genåbnet',
 } as const;
 
 export function formatJobStatus<TStatus extends JobStatus>(status: TStatus): (typeof JOB_STATUS_LABELS)[TStatus];

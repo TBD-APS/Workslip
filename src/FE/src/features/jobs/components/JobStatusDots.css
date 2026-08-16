@@ -50,6 +50,10 @@
   --job-status-color: var(--status-red-text);
 }
 
+.job-status-dot--reopened {
+  --job-status-color: var(--primary);
+}
+
 .job-status-dot.is-current::before {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);

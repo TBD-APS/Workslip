@@ -1,0 +1,9 @@
+[data-sonner-toaster][data-y-position="bottom"] {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem) !important;
+}
+
+@media (max-width: 767px) {
+  [data-sonner-toaster][data-y-position="bottom"] {
+    bottom: calc(var(--bottom-nav-height) + 0.75rem) !important;
+  }
+}
