@@ -31,15 +31,32 @@ public sealed class EfNotificationRepository : INotificationRepository
                 await _dbContext.SaveChangesAsync(token);
             }, cancellationToken);
         }
-        catch
+        catch (DbUpdateException)
         {
-            var entry = _dbContext.Entry(row);
-            if (entry.State != EntityState.Detached)
+            Detach(row);
+            var alreadyQueued = await _dbContext.NotificationQueue
+                .AsNoTracking()
+                .AnyAsync(existing => existing.Id == row.Id, cancellationToken);
+            if (alreadyQueued)
             {
-                entry.State = EntityState.Detached;
+                return;
             }
 
             throw;
+        }
+        catch
+        {
+            Detach(row);
+            throw;
+        }
+    }
+
+    private void Detach(NotificationQueueRow row)
+    {
+        var entry = _dbContext.Entry(row);
+        if (entry.State != EntityState.Detached)
+        {
+            entry.State = EntityState.Detached;
         }
     }
 
