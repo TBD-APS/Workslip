@@ -1,6 +1,8 @@
 ---
 ---
 
+/* Default tokens — overridden at runtime by site/_layouts/default.html from theme data.
+   Safe fallback if layout injection is missing. */
 :root {
   --ink: #17324d;
   --muted: #5f6f7f;
@@ -25,7 +27,8 @@ a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outlin
 .navigation { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 4.5rem; }
 .navigation nav, .site-footer nav { display: flex; flex-wrap: wrap; gap: 1rem; }
 .navigation nav a, .site-footer nav a { font-weight: 650; }
-.brand { font-size: 1.25rem; font-weight: 750; text-decoration: none; }
+.brand { font-size: 1.25rem; font-weight: 750; text-decoration: none; display: inline-flex; align-items: center; gap: .5rem; color: var(--ink); }
+.brand-logo { height: 1.75rem; width: auto; max-width: 10rem; object-fit: contain; }
 .hero { padding: 5rem 0; background: var(--surface); }
 .hero-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 3rem; align-items: center; }
 .eyebrow { text-transform: uppercase; letter-spacing: .08em; font-weight: 700; color: var(--accent-dark); }

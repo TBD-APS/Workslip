@@ -20,6 +20,52 @@ Open `http://localhost:4000`.
 
 `Gemfile.lock` is committed. Update dependencies intentionally with Bundler, commit the resulting lockfile and let the relevant repository validation verify that Gemfile and Gemfile.lock agree.
 
+## Tenant branding (WOR-447)
+
+Branding is data-driven. Shared templates stay fork-free.
+
+### Data files
+
+| File | Role |
+|------|------|
+| `_data/theme.yml` | Default Workslip branding (safe fallback) |
+| `_data/companies/<id>.yml` | Optional per-company override |
+
+### How to fill branding (anyone on the team)
+
+1. Copy `_data/companies/example-acme.yml` to `_data/companies/<company-id>.yml`.
+2. Set `display_name`, colors, optional contact email.
+3. Add logo assets under `assets/brands/<company-id>/` (SVG preferred) and point `logo.primary` / `favicon` at them.
+4. Preview with company override:
+
+```powershell
+cd site
+bundle exec jekyll serve --livereload --config _config.yml --company example-acme
+```
+
+Jekyll does not natively take `--company`. Until a small config wrapper exists, set in `_config.yml` temporarily:
+
+```yaml
+company: example-acme
+```
+
+or pass via environment-driven config merge in CI. Missing/unknown company always falls back to `_data/theme.yml` (Workslip defaults). Never use another company's assets as fallback.
+
+### Rules
+
+- No per-customer branches or page forks.
+- No arbitrary tenant CSS/JS in v1.
+- Empty logo fields render the text brand name.
+- Section flags under `sections:` can hide nav items without editing layout.
+
+### Minimum assets when a real company goes live
+
+- Logo primary (SVG or transparent PNG)
+- Favicon (32×32 + 180×180 recommended)
+- Brand colors (primary + accent at minimum)
+
+Defaults already cover missing assets so the site never looks broken or leaks another tenant.
+
 ## Build and validation
 
 From the repository root:
