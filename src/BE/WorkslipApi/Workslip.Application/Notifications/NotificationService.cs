@@ -218,7 +218,7 @@ public sealed class NotificationService : INotificationService
             NotificationType.DailyHoursLimitReached => (
                 "Dagens maksimale timer er registreret",
                 payload.WorkDate is DateOnly workDate
-                    ? $"{payload.RecipientName}, du har registreret {payload.Hours ?? 24m:0.##} timer den {workDate:dd-MM-yyyy}."
+                    ? $"{payload.RecipientName}, du har registreret {(payload.Hours ?? 24m):0.##} timer den {workDate:dd-MM-yyyy}."
                     : $"{payload.RecipientName}, du har registreret dagens maksimale antal timer."
             ),
             _ => throw new ArgumentOutOfRangeException(nameof(notificationType), notificationType, null)
