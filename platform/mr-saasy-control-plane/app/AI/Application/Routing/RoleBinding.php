@@ -4,24 +4,6 @@ namespace App\AI\Application\Routing;
 
 use InvalidArgumentException;
 
-enum RoutingPreference: string
-{
-    case Quality = 'quality';
-    case Balanced = 'balanced';
-    case Cost = 'cost';
-    case Latency = 'latency';
-}
-
-final readonly class RolePermissions
-{
-    public function __construct(
-        public bool $canExecuteWrite,
-        public bool $canReview,
-        public bool $canApprove,
-    ) {
-    }
-}
-
 final readonly class RoleBinding
 {
     /**
