@@ -1,0 +1,105 @@
+name: Kimi Gate A - WOR-502 Brokered
+
+on:
+  push:
+    branches:
+      - rbj--637-kimi-gate-a-runner
+    paths:
+      - .github/workflows/kimi-gate-a-wor-502-v2.yml
+      - tools/ai/kimi-gate-a-wor502.py
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kimi-gate-a-wor-502-v2
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
+      MOONSHOT_BASE_URL: https://api.moonshot.ai/v1
+      FEATURE_BRANCH: rbj--502-kimi-global-search
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve Kimi model and feature branch
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${KIMI_API_KEY:-}" || { echo 'KIMI_API_KEY missing'; exit 10; }
+          response="$(curl --fail --silent --show-error -H "Authorization: Bearer ${KIMI_API_KEY}" "${MOONSHOT_BASE_URL}/models")"
+          model="$(printf '%s' "$response" | jq -r '([.data[].id | select(. == "kimi-k2.6")] + [.data[].id | select(test("^kimi-"; "i"))] + [.data[].id]) | unique | .[0] // empty')"
+          test -n "$model" || { echo 'No Kimi model discovered'; exit 11; }
+          echo "model=$model" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --heads origin "$FEATURE_BRANCH" >/dev/null 2>&1; then
+            echo 'Feature branch already exists; refusing overwrite'
+            exit 12
+          fi
+          git fetch origin main
+          git switch --create "$FEATURE_BRANCH" origin/main
+          echo "Using Kimi model: $model"
+
+      - name: Run bounded two-stage Kimi implementation
+        env:
+          KIMI_MODEL: ${{ steps.runtime.outputs.model }}
+        run: python3 tools/ai/kimi-gate-a-wor502.py
+
+      - name: Enforce feature path boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only origin/main | tee /tmp/changed-files.txt
+          test -s /tmp/changed-files.txt || { echo 'No feature changes'; exit 20; }
+          while IFS= read -r p; do
+            case "$p" in
+              src/FE/src/components/common/QuickNavigator.tsx|src/FE/src/components/common/QuickNavigatorResults.tsx|src/FE/src/components/common/quickNavigatorSearch.ts|src/FE/src/components/common/quickNavigatorSearch.test.ts|src/FE/src/components/common/quickNavigatorTypes.ts|src/FE/src/components/common/useQuickNavigatorSearch.ts) ;;
+              *) echo "Out-of-scope feature path: $p"; exit 21 ;;
+            esac
+          done < /tmp/changed-files.txt
+
+      - name: Install frontend dependencies
+        working-directory: src/FE
+        run: npm ci
+
+      - name: Run focused QuickNavigator tests
+        working-directory: src/FE
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t tests < <(find src/components/common -maxdepth 1 -type f -iname '*navigator*.test.ts*' -print)
+          test "${#tests[@]}" -gt 0 || { echo 'No focused QuickNavigator tests found'; exit 30; }
+          npx vitest run "${tests[@]}"
+
+      - name: Lint Kimi TypeScript changes
+        working-directory: src/FE
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git diff --name-only origin/main -- '*.ts' '*.tsx' | sed 's#^src/FE/##')
+          test "${#files[@]}" -gt 0 || { echo 'No TypeScript feature changes'; exit 31; }
+          npx eslint "${files[@]}"
+
+      - name: Build frontend
+        working-directory: src/FE
+        run: npm run build
+
+      - name: Commit and push Kimi feature
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Kimi Worker'
+          git config user.email 'kimi-worker@users.noreply.github.com'
+          git add src/FE/src/components/common
+          git diff --cached --quiet && { echo 'No Kimi feature diff'; exit 32; }
+          git commit -m 'RBJ-502: refine global search with modular QuickNavigator'
+          git push --set-upstream origin "$FEATURE_BRANCH"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "Kimi feature pushed at $(git rev-parse HEAD)"
