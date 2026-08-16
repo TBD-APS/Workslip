@@ -4,6 +4,7 @@ const provider = process.argv[2] || 'unknown';
 const raw = process.env.RAW_REVIEW || '';
 const actionOutcome = process.env.ACTION_OUTCOME || 'skipped';
 const configured = process.env.PROVIDER_CONFIGURED === 'true';
+const unavailableReason = process.env.PROVIDER_UNAVAILABLE_REASON || '';
 
 function fallback(reason) {
   return {
@@ -19,9 +20,9 @@ function fallback(reason) {
 
 let result;
 if (!configured) {
-  result = fallback('provider credential is not configured');
+  result = fallback(unavailableReason || 'provider credential is not configured');
 } else if (actionOutcome !== 'success') {
-  result = fallback(`provider action ${actionOutcome}`);
+  result = fallback(unavailableReason || `provider action ${actionOutcome}`);
 } else {
   try {
     const parsed = JSON.parse(raw);

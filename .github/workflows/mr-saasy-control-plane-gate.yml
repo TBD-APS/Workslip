@@ -1,0 +1,59 @@
+name: MR SAASy Control Plane Gate 0
+
+on:
+  pull_request:
+    paths:
+      - 'platform/mr-saasy-control-plane/**'
+      - 'Docs/architecture/adr/0010-mr-saasy-control-plane-bootstrap-boundary.md'
+      - '.github/workflows/mr-saasy-control-plane-gate.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'platform/mr-saasy-control-plane/**'
+      - 'Docs/architecture/adr/0010-mr-saasy-control-plane-bootstrap-boundary.md'
+      - '.github/workflows/mr-saasy-control-plane-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  gate-zero:
+    name: Laravel trust-boundary gate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/mr-saasy-control-plane
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+
+      - name: Validate locked Composer manifest
+        run: composer validate --strict
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Audit locked dependencies
+        run: composer audit --locked --no-interaction
+
+      - name: Boot and feature tests
+        run: php artisan test
+
+      - name: Architecture self-tests and guards
+        run: composer architecture
+
+      - name: Upload architecture evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mr-saasy-gate0-architecture
+          path: platform/mr-saasy-control-plane/build/architecture.mmd
+          if-no-files-found: error

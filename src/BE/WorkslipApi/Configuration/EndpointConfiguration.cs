@@ -30,6 +30,7 @@ public static class EndpointConfiguration
         app.MapPushNotificationEndpoints();
         app.MapCacheEndpoints();
         app.MapDiagnosticsEndpoints();
+        app.MapControlCenterEndpoints();
 
         return app;
     }

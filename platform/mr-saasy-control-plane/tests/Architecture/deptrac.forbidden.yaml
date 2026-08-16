@@ -1,0 +1,20 @@
+deptrac:
+  paths:
+    - ./Fixtures/Forbidden
+  layers:
+    - name: AiApplication
+      collectors:
+        - type: directory
+          value: Fixtures/Forbidden/Application/.*
+    - name: ProviderAdapters
+      collectors:
+        - type: directory
+          value: Fixtures/Forbidden/Providers/.*
+    - name: InfrastructurePersistence
+      collectors:
+        - type: directory
+          value: Fixtures/Forbidden/Persistence/.*
+  ruleset:
+    AiApplication: ~
+    ProviderAdapters: ~
+    InfrastructurePersistence: ~

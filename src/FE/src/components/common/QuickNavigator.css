@@ -355,16 +355,13 @@
     margin-inline: 0.85rem;
   }
 
+  .quick-nav-search-wrap > kbd,
+  .quick-nav-footer {
+    display: none;
+  }
+
   .quick-nav-results {
     padding-inline: 0.45rem;
-  }
-
-  .quick-nav-footer {
-    padding-inline: 0.85rem;
-  }
-
-  .quick-nav-shortcut {
-    display: none !important;
   }
 }
 
