@@ -7,7 +7,10 @@ Gate 0 proves two security properties before any real provider adapter is allowe
 1. the Laravel service can boot without Workslip/product database credentials or AI-provider credentials;
 2. AI/provider dependency directions are machine-enforced.
 
-The next provider-neutral layer adds role/model routing policy without relaxing those properties. See [`docs/agent-routing.md`](docs/agent-routing.md).
+Provider-neutral operating layers build on that boundary:
+
+- [`docs/agent-routing.md`](docs/agent-routing.md) — role/model routing, capabilities, fallback and review separation;
+- [`docs/executive-leadership.md`](docs/executive-leadership.md) — Founder/CEO hierarchy, functional delegation and human approval boundaries.
 
 It is **not** a Workslip domain module and must remain extractable to a dedicated platform repository without changing its core contracts.
 
@@ -52,7 +55,9 @@ The control plane currently contains:
 - role registry and configuration-driven primary/fallback model routing;
 - capability/tool requirement validation;
 - run provenance + separation-of-duties policy;
-- explicit human approval gates for public/irreversible actions.
+- Founder/CEO/functional-executive hierarchy and delegation rules;
+- explicit human approval gates for public/high-impact/irreversible actions;
+- explicit prohibition on executive self-escalation of permissions, budgets or governance.
 
 It deliberately does not implement:
 
@@ -61,6 +66,7 @@ It deliberately does not implement:
 - product adapters;
 - persistence;
 - customer-facing AI endpoints;
+- autonomous executive writes/approvals;
 - direct Workslip data access.
 
 Real provider integrations remain blocked by Gate 0 review and their owning issues.
