@@ -92,6 +92,8 @@ The Vercel adapter lives inside `src/FE` deliberately. Vercel projects with a co
 
 The verifier uses Vercel's Git metadata and GitHub's public repository API; it does not require a Vercel-held GitHub API token. Genuine GitHub rate-limit responses are retried only inside the existing bounded eligibility window, and every retry restarts the current-`main` and exact-CI checks from fresh API evidence. If the window expires, production remains blocked. Ordinary authentication, permission and other API failures remain terminal. Red, cancelled, stale, missing or unresolved CI evidence also blocks the build.
 
+A green `main` does not by itself prove that the production alias moved. If a frontend-affecting `main` deployment was blocked by the eligibility gate and a later recovery commit only changes files outside Vercel's configured frontend Root Directory, the project's Ignored Build Step can legitimately skip that later deployment. Production may then remain pinned to the last eligible frontend build even though current `main` is green. Recovery must therefore use a current-main change inside the frontend Root Directory or an explicit approved redeploy path, then verify that `app.mrsoftware.dk` resolves to a READY deployment whose `githubCommitSha` is the intended current `main` SHA. Do not infer production rollout from GitHub merge or CI state alone.
+
 ## Validation
 
 ```bash
