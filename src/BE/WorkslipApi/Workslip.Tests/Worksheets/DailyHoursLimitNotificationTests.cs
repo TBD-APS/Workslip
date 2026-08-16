@@ -57,6 +57,42 @@ public sealed class DailyHoursLimitNotificationTests
     }
 
     [Fact]
+    public async Task UpsertAsync_does_not_notify_when_persistence_rejects_above_24_hours()
+    {
+        var organizationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var repository = new DailyHoursWorksheetRepository(23.75m, 24m, organizationId, rejectUpsert: true);
+        var notifications = new RecordingNotificationService();
+        var service = CreateService(repository, notifications, organizationId, userId, jobId);
+
+        var result = await service.UpsertAsync(
+            new UpsertWorksheetRequest(null, jobId, userId, "Mahad", new DateOnly(2026, 8, 16), 0.5m, false),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        Assert.Empty(notifications.DailyHoursCalls);
+        Assert.Equal(1, repository.DailyHoursReadCount);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_remains_successful_when_notification_service_is_not_registered()
+    {
+        var organizationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var repository = new DailyHoursWorksheetRepository(23.75m, 24m, organizationId);
+        var service = CreateService(repository, null, organizationId, userId, jobId);
+
+        var result = await service.UpsertAsync(
+            new UpsertWorksheetRequest(null, jobId, userId, "Mahad", new DateOnly(2026, 8, 16), 0.25m, false),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, repository.DailyHoursReadCount);
+    }
+
+    [Fact]
     public async Task QueueDailyHoursLimitReachedAsync_queues_timer_navigation_payload()
     {
         var repository = new CapturingNotificationRepository();
@@ -85,9 +121,26 @@ public sealed class DailyHoursLimitNotificationTests
         Assert.Contains("16-08-2026", text.Body);
     }
 
+    [Fact]
+    public async Task QueueDailyHoursLimitReachedAsync_uses_stable_id_per_user_and_day()
+    {
+        var repository = new CapturingNotificationRepository();
+        var service = new NotificationService(repository);
+        var userId = Guid.NewGuid();
+        var workDate = new DateOnly(2026, 8, 16);
+
+        await service.QueueDailyHoursLimitReachedAsync(userId, "Mahad", workDate, 24m, CancellationToken.None);
+        await service.QueueDailyHoursLimitReachedAsync(userId, "Mahad", workDate, 24m, CancellationToken.None);
+        await service.QueueDailyHoursLimitReachedAsync(userId, "Mahad", workDate.AddDays(1), 24m, CancellationToken.None);
+
+        Assert.Equal(3, repository.QueuedNotifications.Count);
+        Assert.Equal(repository.QueuedNotifications[0].Id, repository.QueuedNotifications[1].Id);
+        Assert.NotEqual(repository.QueuedNotifications[0].Id, repository.QueuedNotifications[2].Id);
+    }
+
     private static WorksheetService CreateService(
         IWorksheetRepository repository,
-        INotificationService notifications,
+        INotificationService? notifications,
         Guid organizationId,
         Guid userId,
         Guid jobId)
@@ -133,7 +186,11 @@ public sealed class DailyHoursLimitNotificationTests
 
     private sealed record StubCurrentUserContext(Guid? UserId, Guid? OrganizationId, string? Role) : ICurrentUserContext;
 
-    private sealed class DailyHoursWorksheetRepository(decimal before, decimal after, Guid organizationId) : IWorksheetRepository
+    private sealed class DailyHoursWorksheetRepository(
+        decimal before,
+        decimal after,
+        Guid organizationId,
+        bool rejectUpsert = false) : IWorksheetRepository
     {
         public int DailyHoursReadCount { get; private set; }
 
@@ -145,17 +202,19 @@ public sealed class DailyHoursLimitNotificationTests
         }
 
         public Task<WorksheetResponse> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken) =>
-            Task.FromResult(new WorksheetResponse(
-                request.Id ?? Guid.NewGuid(),
-                organizationId,
-                request.JobId,
-                request.UserId,
-                request.UserDisplayName,
-                request.WorkDate,
-                request.HoursWorked,
-                request.SleptOnJob,
-                DateTimeOffset.UtcNow,
-                DateTimeOffset.UtcNow));
+            rejectUpsert
+                ? throw new WorksheetDailyHoursExceededException()
+                : Task.FromResult(new WorksheetResponse(
+                    request.Id ?? Guid.NewGuid(),
+                    organizationId,
+                    request.JobId,
+                    request.UserId,
+                    request.UserDisplayName,
+                    request.WorkDate,
+                    request.HoursWorked,
+                    request.SleptOnJob,
+                    DateTimeOffset.UtcNow,
+                    DateTimeOffset.UtcNow));
 
         public Task DeleteAsync(Guid worksheetId, Guid jobId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<WorksheetResponse>> ListByJobAsync(Guid jobId, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -206,11 +265,12 @@ public sealed class DailyHoursLimitNotificationTests
 
     private sealed class CapturingNotificationRepository : INotificationRepository
     {
-        public NotificationQueueRow? QueuedNotification { get; private set; }
+        public List<NotificationQueueRow> QueuedNotifications { get; } = [];
+        public NotificationQueueRow? QueuedNotification => QueuedNotifications.LastOrDefault();
 
         public Task QueueNotificationAsync(NotificationQueueRow row, CancellationToken cancellationToken)
         {
-            QueuedNotification = row;
+            QueuedNotifications.Add(row);
             return Task.CompletedTask;
         }
 
