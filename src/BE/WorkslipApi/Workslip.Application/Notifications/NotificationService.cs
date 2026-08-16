@@ -61,6 +61,29 @@ public sealed class NotificationService : INotificationService
         string actionLabel,
         Guid messageId,
         CancellationToken cancellationToken) =>
+        QueueConversationActionRequestedAsync(
+            userId,
+            recipientName,
+            jobId,
+            jobNumber,
+            customerAddress,
+            actorName,
+            actionLabel,
+            messageId,
+            actionType: string.Empty,
+            cancellationToken);
+
+    public Task QueueConversationActionRequestedAsync(
+        Guid userId,
+        string recipientName,
+        Guid jobId,
+        string jobNumber,
+        string customerAddress,
+        string actorName,
+        string actionLabel,
+        Guid messageId,
+        string actionType,
+        CancellationToken cancellationToken) =>
         QueueNotificationInternalAsync(
             userId,
             recipientName,
@@ -71,7 +94,32 @@ public sealed class NotificationService : INotificationService
             cancellationToken,
             actorName: actorName,
             actionLabel: actionLabel,
-            messageId: messageId);
+            messageId: messageId,
+            actionType: string.IsNullOrWhiteSpace(actionType) ? null : actionType);
+
+    public Task QueueConversationReminderAsync(
+        Guid userId,
+        string recipientName,
+        Guid jobId,
+        string jobNumber,
+        string customerAddress,
+        string reminderText,
+        Guid messageId,
+        DateTimeOffset dueUtc,
+        CancellationToken cancellationToken) =>
+        QueueNotificationInternalAsync(
+            userId,
+            recipientName,
+            jobId,
+            jobNumber,
+            customerAddress,
+            NotificationType.ConversationReminder,
+            cancellationToken,
+            actionLabel: reminderText,
+            messageId: messageId,
+            actionType: "RemindMe",
+            dueUtc: dueUtc,
+            nextAttemptUtc: dueUtc);
 
     public async Task<Result> DeleteAsync(Guid userId, Guid notificationId, CancellationToken cancellationToken)
     {
@@ -90,13 +138,18 @@ public sealed class NotificationService : INotificationService
         string? rejectionNote = null,
         string? actorName = null,
         string? actionLabel = null,
-        Guid? messageId = null)
+        Guid? messageId = null,
+        string? actionType = null,
+        DateTimeOffset? dueUtc = null,
+        DateTimeOffset? nextAttemptUtc = null)
     {
         var url = type switch
         {
             NotificationType.JobReadyForReview or NotificationType.JobCompleted => $"/app/completed/{jobId}",
             NotificationType.JobDeleted => "/app",
-            NotificationType.ConversationMention or NotificationType.ConversationActionRequested =>
+            NotificationType.ConversationActionRequested when string.Equals(actionType, "AssignSelf", StringComparison.Ordinal) =>
+                $"/app?conversationAction={messageId}",
+            NotificationType.ConversationMention or NotificationType.ConversationActionRequested or NotificationType.ConversationReminder =>
                 $"/app/job/{jobId}?conversation=1{(messageId is Guid id ? $"&message={id}" : string.Empty)}",
             _ => $"/app/job/{jobId}"
         };
@@ -110,8 +163,11 @@ public sealed class NotificationService : INotificationService
             rejectionNote,
             actorName,
             actionLabel,
-            messageId);
+            messageId,
+            actionType,
+            dueUtc);
         var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        var now = DateTimeOffset.UtcNow;
 
         var row = new NotificationQueueRow
         {
@@ -121,8 +177,8 @@ public sealed class NotificationService : INotificationService
             PayloadJson = json,
             Status = "Pending",
             RetryCount = 0,
-            CreatedUtc = DateTimeOffset.UtcNow,
-            NextAttemptUtc = DateTimeOffset.UtcNow
+            CreatedUtc = now,
+            NextAttemptUtc = nextAttemptUtc ?? now
         };
 
         await _notificationRepository.QueueNotificationAsync(row, cancellationToken);
@@ -184,6 +240,12 @@ public sealed class NotificationService : INotificationService
                 string.IsNullOrWhiteSpace(payload.ActionLabel)
                     ? "Der ligger en handling til dig i sagens samtale."
                     : $"{payload.ActionLabel}. Tryk for at åbne handlingen."
+            ),
+            NotificationType.ConversationReminder => (
+                $"Påmindelse · SAG-{payload.JobNumber}",
+                string.IsNullOrWhiteSpace(payload.ActionLabel)
+                    ? "Du bad Workslip om at minde dig om denne sag."
+                    : payload.ActionLabel
             ),
             _ => throw new ArgumentOutOfRangeException(nameof(notificationType), notificationType, null)
         };
