@@ -24,12 +24,21 @@ jobs:
           cache: npm
           cache-dependency-path: src/FE/package-lock.json
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
       - name: Install frontend dependencies
         working-directory: src/FE
         run: npm ci --prefer-offline --no-audit --no-fund
 
-      - name: Generate branch-matched API client
-        uses: ./.github/actions/generate-frontend-api
+      - name: Restore API project
+        run: dotnet restore src/BE/WorkslipApi/Workslip.Api.csproj --nologo
+
+      - name: Generate OpenAPI document and Orval client
+        working-directory: src/FE
+        run: node scripts/generate-api-client.mjs --no-restore
 
       - name: Commit generated contract if changed
         shell: bash
