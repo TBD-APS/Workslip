@@ -56,7 +56,7 @@ jobs:
 
           Required outcome:
           - modular home / folder / search modes;
-          - Header, SearchField, FolderGrid and Results are separate imported/rendered components;
+          - Header, SearchField, FolderGrid, Results and Footer are separate imported/rendered components;
           - home folder cards for only supported families: Sager, Kunder, Navigation;
           - mixed search rows visibly distinguish Navigation / Sag / Kunde with icon, title, subtitle, badge and ArrowRight;
           - header kicker/title, folder back button, LoaderCircle meta row, empty/error states and keyboard footer;
@@ -92,7 +92,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          allowed='^(src/FE/src/components/common/(QuickNavigator\.tsx|QuickNavigator\.css|QuickNavigatorHeader\.tsx|QuickNavigatorSearchField\.tsx|QuickNavigatorFolderGrid\.tsx|QuickNavigatorResults\.tsx|QuickNavigator\.test\.tsx|quickNavigatorSearch\.ts|quickNavigatorSearch\.test\.ts|quickNavigatorTypes\.ts|useQuickNavigatorSearch\.ts))$'
+          allowed='^(src/FE/src/components/common/(QuickNavigator\.tsx|QuickNavigator\.css|QuickNavigatorHeader\.tsx|QuickNavigatorSearchField\.tsx|QuickNavigatorFolderGrid\.tsx|QuickNavigatorResults\.tsx|QuickNavigatorFooter\.tsx|QuickNavigator\.test\.tsx|quickNavigatorSearch\.ts|quickNavigatorSearch\.test\.ts|quickNavigatorTypes\.ts|useQuickNavigatorSearch\.ts))$'
           { git diff --name-only "$KIMI_START_HEAD"; git ls-files --others --exclude-standard; } | sort -u | tee /tmp/kimi-files.txt
           test -s /tmp/kimi-files.txt
           while IFS= read -r p; do
@@ -111,7 +111,7 @@ jobs:
         shell: bash
         run: |
           set -u
-          allowed='^(src/FE/src/components/common/(QuickNavigator\.tsx|QuickNavigator\.css|QuickNavigatorHeader\.tsx|QuickNavigatorSearchField\.tsx|QuickNavigatorFolderGrid\.tsx|QuickNavigatorResults\.tsx|QuickNavigator\.test\.tsx|quickNavigatorSearch\.ts|quickNavigatorSearch\.test\.ts|quickNavigatorTypes\.ts|useQuickNavigatorSearch\.ts))$'
+          allowed='^(src/FE/src/components/common/(QuickNavigator\.tsx|QuickNavigator\.css|QuickNavigatorHeader\.tsx|QuickNavigatorSearchField\.tsx|QuickNavigatorFolderGrid\.tsx|QuickNavigatorResults\.tsx|QuickNavigatorFooter\.tsx|QuickNavigator\.test\.tsx|quickNavigatorSearch\.ts|quickNavigatorSearch\.test\.ts|quickNavigatorTypes\.ts|useQuickNavigatorSearch\.ts))$'
 
           enforce_scope() {
             { git diff --name-only "$KIMI_START_HEAD"; git ls-files --others --exclude-standard; } | sort -u > /tmp/kimi-loop-files.txt
@@ -171,7 +171,7 @@ jobs:
           css=src/FE/src/components/common/QuickNavigator.css
           hook=src/FE/src/components/common/useQuickNavigatorSearch.ts
 
-          for component in QuickNavigatorHeader QuickNavigatorSearchField QuickNavigatorFolderGrid QuickNavigatorResults; do
+          for component in QuickNavigatorHeader QuickNavigatorSearchField QuickNavigatorFolderGrid QuickNavigatorResults QuickNavigatorFooter; do
             test -f "src/FE/src/components/common/${component}.tsx" || { echo "Missing ${component}.tsx"; exit 40; }
             grep -q "import.*${component}" "$q" || { echo "${component} not imported by active QuickNavigator"; exit 41; }
             grep -q "<${component}" "$q" || { echo "${component} imported but not rendered"; exit 42; }
