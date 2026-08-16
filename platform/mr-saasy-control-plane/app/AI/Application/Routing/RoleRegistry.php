@@ -3,21 +3,6 @@
 namespace App\AI\Application\Routing;
 
 use InvalidArgumentException;
-use RuntimeException;
-
-final readonly class RoutingDecision
-{
-    public function __construct(
-        public AgentRole $role,
-        public ExecutionTarget $target,
-        public bool $usedFallback,
-    ) {
-    }
-}
-
-final class RoutingUnavailable extends RuntimeException
-{
-}
 
 final class RoleRegistry
 {
