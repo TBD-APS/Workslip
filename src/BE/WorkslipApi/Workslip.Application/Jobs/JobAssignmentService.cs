@@ -47,6 +47,17 @@ public sealed class JobAssignmentService(
             return Result<JobReportSummaryResponse>.Unauthorized();
         }
 
+        var currentJob = await jobs.GetSingleJobAsync(jobId, cancellationToken);
+        if (!currentJob.IsSuccess)
+        {
+            return currentJob;
+        }
+
+        if (currentJob.Value.Status == JobStatus.Approved)
+        {
+            return Result<JobReportSummaryResponse>.Conflict("approved_job_locked");
+        }
+
         await assignmentRepository.AssignAsync(
             jobId,
             organizationId,

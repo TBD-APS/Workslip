@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-type StatusBannerVariant = 'warning' | 'info';
+type StatusBannerVariant = 'warning' | 'info' | 'success';
 
 interface StatusBannerProps {
   variant: StatusBannerVariant;
@@ -23,10 +23,15 @@ const iconMap: Record<StatusBannerVariant, ReactNode> = {
       <path d="M12 8h.01" />
     </svg>
   ),
+  success: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  ),
 };
 
 export const StatusBanner = ({ variant, title, children }: StatusBannerProps) => (
-  <div className={`status-banner status-banner--${variant}`}>
+  <div className={`status-banner status-banner--${variant === 'success' ? 'info' : variant}`}>
     {iconMap[variant]}
     <div>
       <strong>{title}</strong>

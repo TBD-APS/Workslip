@@ -20,7 +20,8 @@ public static class DependencyInjection
 public static IServiceCollection AddWorkslipApplication(this IServiceCollection services)
 {
     services.AddScoped<JobService>();
-    services.AddScoped<IJobService, AuthorizedJobService>();
+    services.AddScoped<AuthorizedJobService>();
+    services.AddScoped<IJobService, QualityIntegrityJobService>();
     services.AddScoped<IJobOverviewService, JobOverviewService>();
     services.AddScoped<IJobAuditorScopeService, JobAuditorScopeService>();
     services.AddScoped<IJobAssignmentValidator, JobAssignmentValidator>();

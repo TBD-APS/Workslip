@@ -13,6 +13,7 @@ using Workslip.Application.Images;
 using Workslip.Application.Invitations;
 using Workslip.Application.Jobs;
 using Workslip.Application.Notifications;
+using Workslip.Application.Operations;
 using Workslip.Application.Organizations;
 using Workslip.Application.Users;
 using Workslip.Application.Worksheets;
@@ -21,6 +22,7 @@ using Workslip.Infrastructure.Diagnostics;
 using Workslip.Infrastructure.Invitations;
 using Workslip.Infrastructure.Jobs;
 using Workslip.Infrastructure.Notifications;
+using Workslip.Infrastructure.Operations;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Reporting;
 using Workslip.Infrastructure.Resilience;
@@ -40,8 +42,10 @@ public static class DependencyInjection
         services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
         services.AddScoped<IApplicationTransactionFactory, EfApplicationTransactionFactory>();
 
+        services.AddScoped<JobReopenReasonContext>();
         services.AddScoped<TenantIntegrityInterceptor>();
         services.AddScoped<JobStatusTransitionInterceptor>();
+        services.AddScoped<ApprovedJobImmutabilityGuard>();
         services.AddScoped<AuditInterceptor>();
         services.AddScoped<WorksheetDailyHoursInterceptor>();
         services.AddScoped<WorksheetFinalizationGuard>();
@@ -54,12 +58,14 @@ public static class DependencyInjection
 
             var tenantIntegrityInterceptor = sp.GetRequiredService<TenantIntegrityInterceptor>();
             var transitionInterceptor = sp.GetRequiredService<JobStatusTransitionInterceptor>();
+            var approvedJobImmutabilityGuard = sp.GetRequiredService<ApprovedJobImmutabilityGuard>();
             var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
             var worksheetDailyHoursInterceptor = sp.GetRequiredService<WorksheetDailyHoursInterceptor>();
             var worksheetFinalizationGuard = sp.GetRequiredService<WorksheetFinalizationGuard>();
             options.AddInterceptors(
                 tenantIntegrityInterceptor,
                 transitionInterceptor,
+                approvedJobImmutabilityGuard,
                 auditInterceptor,
                 worksheetDailyHoursInterceptor,
                 worksheetFinalizationGuard);
@@ -82,7 +88,8 @@ public static class DependencyInjection
         services.AddScoped<IJobRepository>(serviceProvider =>
             new BillingAwareJobRepository(
                 serviceProvider.GetRequiredService<EfJobRepository>(),
-                serviceProvider.GetRequiredService<SqlDbContext>()));
+                serviceProvider.GetRequiredService<SqlDbContext>(),
+                serviceProvider.GetRequiredService<JobReopenReasonContext>()));
         services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
         services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();
@@ -123,6 +130,16 @@ public static class DependencyInjection
         {
             client.BaseAddress = new Uri("https://api.loganalytics.azure.com/");
             client.Timeout = TimeSpan.FromSeconds(15);
+        });
+
+        services.AddOptions<GitHubActionsControlCenterOptions>()
+            .Configure<IConfiguration>((options, config) =>
+                config.GetSection(GitHubActionsControlCenterOptions.SectionName).Bind(options));
+        services.AddHttpClient<IAutomationRunProvider, GitHubActionsAutomationRunProvider>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.github.com/");
+            client.Timeout = TimeSpan.FromSeconds(10);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Workslip-ControlCenter/1.0");
         });
 
         services.AddScoped<IEmailService, AcsEmailService>();

@@ -1,5 +1,6 @@
 import { Toaster } from 'sonner';
 import { useTheme } from '../../providers/ThemeProvider';
+import './ThemedToaster.css';
 
 export function ThemedToaster() {
   const { theme } = useTheme();
@@ -7,7 +8,7 @@ export function ThemedToaster() {
   return (
     <Toaster
       theme={theme === 'night' ? 'dark' : 'light'}
-      position="top-center"
+      position="bottom-center"
       toastOptions={{
         style: {
           background: 'var(--surface-color)',
