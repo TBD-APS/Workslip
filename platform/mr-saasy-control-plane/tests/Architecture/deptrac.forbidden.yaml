@@ -1,19 +1,19 @@
 deptrac:
   paths:
-    - ./tests/Architecture/Fixtures/Forbidden
+    - ./Fixtures/Forbidden
   layers:
     - name: AiApplication
       collectors:
         - type: directory
-          value: tests/Architecture/Fixtures/Forbidden/Application/.*
+          value: Fixtures/Forbidden/Application/.*
     - name: ProviderAdapters
       collectors:
         - type: directory
-          value: tests/Architecture/Fixtures/Forbidden/Providers/.*
+          value: Fixtures/Forbidden/Providers/.*
     - name: InfrastructurePersistence
       collectors:
         - type: directory
-          value: tests/Architecture/Fixtures/Forbidden/Persistence/.*
+          value: Fixtures/Forbidden/Persistence/.*
   ruleset:
     AiApplication: ~
     ProviderAdapters: ~
