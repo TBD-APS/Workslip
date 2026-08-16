@@ -14,6 +14,7 @@ import {
   AuthContext,
   type AuthContextType,
 } from './authContextValue';
+import { isRejectedAuthSession, shouldRetryAuthSession } from './authSessionError';
 import { canUseSessionNotifications } from './sessionFeaturePolicy';
 
 interface AuthenticatedAppProviderProps {
@@ -21,6 +22,7 @@ interface AuthenticatedAppProviderProps {
   login: AuthContextType['login'];
   establishSession: AuthContextType['establishSession'];
   clearSession: () => void;
+  rejectSession: () => void;
 }
 
 function shouldPrefetchJobs(): boolean {
@@ -35,13 +37,14 @@ function AuthenticatedSessionProvider({
   login,
   establishSession,
   clearSession,
+  rejectSession,
 }: AuthenticatedAppProviderProps) {
   const { register: registerPush } = usePushNotifications();
 
-  const meQuery = useGetApiAuthMe({
+  const meQuery = useGetApiAuthMe<UserViewModel, unknown>({
     query: {
       enabled: true,
-      retry: 1,
+      retry: shouldRetryAuthSession,
       retryDelay: 500,
       refetchOnReconnect: true,
       staleTime: 5 * 60 * 1000,
@@ -52,6 +55,13 @@ function AuthenticatedSessionProvider({
   const isAuthenticated = Boolean(user);
   const canUseNotifications = canUseSessionNotifications(user?.role);
   const usesPrimaryJobList = getAuthenticatedHomePath(user?.role) === DEFAULT_AUTHENTICATED_PATH;
+
+  useEffect(() => {
+    if (!meQuery.isError || !isRejectedAuthSession(meQuery.error)) return;
+
+    queryClient.clear();
+    rejectSession();
+  }, [meQuery.error, meQuery.isError, rejectSession]);
 
   useEffect(() => {
     if (!isAuthenticated) return undefined;
