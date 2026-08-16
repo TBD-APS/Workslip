@@ -78,9 +78,9 @@
   right: 0;
   min-width: 12rem;
   padding: 0.35rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  background: var(--surface-raised);
+  background: var(--surface-actions-menu);
   box-shadow: var(--shadow-lg);
   z-index: 120;
 }
