@@ -33,6 +33,18 @@ appsettings.*.local.json
 secrets.json
 src/BE/infrastructure/entra.*.local.json
 
+# Compiled ARM output from `bicep build`. The .bicep file is the source of
+# truth for every configuration key; a committed build artifact silently goes
+# stale and becomes a second, conflicting answer.
+src/BE/infrastructure/main.json
+src/BE/infrastructure/staticConfig.json
+src/BE/infrastructure/dynamicConfig.json
+src/BE/infrastructure/keyvaultConfig.json
+src/BE/infrastructure/entraRegistrations.json
+src/BE/infrastructure/monitoring.json
+src/BE/infrastructure/githubInfrastructureIdentity.json
+src/BE/infrastructure/githubInfrastructureBootstrap.json
+
 # IDE / editor local state
 .vs/
 .vscode/
