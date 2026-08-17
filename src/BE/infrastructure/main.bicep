@@ -3,6 +3,9 @@ extension microsoftGraphV1
 param companyName string = ''
 param environment string = ''
 param globalAdminId string = ''
+@description('Default verified Entra domain of the tenant this environment is deployed into, for example contoso.onmicrosoft.com. Tenant-bound: it must be supplied per tenant and cannot be derived from the resource group. deploy-infrastructure.ps1 resolves it from Microsoft Graph when not passed explicitly.')
+@minLength(3)
+param entraDefaultDomain string
 @description('Microsoft Entra object ID for the Power BI report reader. Leave empty until the processor/privacy gate is approved.')
 param powerBiReaderPrincipalId string = ''
 @description('Workslip login email whose organization owns the exported worksheet data.')
@@ -327,6 +330,7 @@ module staticConfig './staticConfig.bicep' = {
   name: 'static-config-values'
   params: {
     appConfigurationName: appConfiguration.name
+    entraDefaultDomain: entraDefaultDomain
   }
 }
 

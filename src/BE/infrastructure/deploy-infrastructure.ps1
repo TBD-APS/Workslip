@@ -3,7 +3,14 @@ param(
     [string]$Environment = 'prod',
     [string]$Location = 'westeurope',
     [string]$COMPANY_NAME = 'mrsoftware',
+    # Entra object IDs are per-tenant. This default belongs to the original
+    # production tenant; in any other tenant it resolves to nothing. Leave it
+    # alone here — the script verifies it exists in the signed-in tenant and
+    # falls back to the deploying principal when it does not.
     [string]$GlobalAdminId = '9ea4bcd3-bf90-4249-93e0-f45070d140f7',
+    # Default verified domain of the signed-in tenant. Resolved from Microsoft
+    # Graph when omitted, so a fresh tenant needs no hand-set value.
+    [string]$EntraDefaultDomain = '',
     [string]$PowerBiReaderPrincipalId = '',
     [string]$PowerBiReaderEmail = '',
     [switch]$EnablePowerBiExport,
@@ -516,6 +523,125 @@ function Assert-EntraState {
     }
 }
 
+function Resolve-EntraDefaultDomain {
+    <#
+        UserEntraService builds userPrincipalName as "<mailNickname>@<domain>" when
+        it searches for an existing directory user. An empty or foreign domain makes
+        that filter match nothing, so the service creates a duplicate account instead
+        of reusing the real one. The value is tenant-bound and must therefore come
+        from the tenant being deployed into, never from a checked-in constant.
+    #>
+    $result = Invoke-AzureCli `
+        -Arguments @(
+            'rest',
+            '--method', 'GET',
+            '--uri', "$GraphRoot/organization?`$select=verifiedDomains",
+            '--query', 'value[0].verifiedDomains[?isDefault].name | [0]',
+            '--only-show-errors',
+            '-o', 'tsv'
+        ) `
+        -AllowFailure
+
+    if ($result.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($result.Output)) {
+        throw @"
+Could not resolve the tenant's default verified domain from Microsoft Graph.
+The deploying identity needs Organization.Read.All or Directory.Read.All, or you
+can bypass the lookup with -EntraDefaultDomain <domain>.
+$($result.Output)
+"@
+    }
+
+    return $result.Output.Trim()
+}
+
+function Test-GraphObjectExists {
+    param([Parameter(Mandatory = $true)][string]$ObjectId)
+
+    $result = Invoke-AzureCli `
+        -Arguments @(
+            'rest',
+            '--method', 'GET',
+            '--uri', "$GraphRoot/directoryObjects/$ObjectId",
+            '--only-show-errors',
+            '-o', 'none'
+        ) `
+        -AllowFailure
+
+    return $result.ExitCode -eq 0
+}
+
+function Resolve-DeployingPrincipalObjectId {
+    # Interactive/device login: a real user is signed in.
+    $userResult = Invoke-AzureCli `
+        -Arguments @('ad', 'signed-in-user', 'show', '--query', 'id', '--only-show-errors', '-o', 'tsv') `
+        -AllowFailure
+
+    if ($userResult.ExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($userResult.Output)) {
+        return $userResult.Output.Trim()
+    }
+
+    # CI/OIDC: a service principal is signed in, so resolve it via its app ID.
+    $appIdResult = Invoke-AzureCli `
+        -Arguments @('account', 'show', '--query', 'user.name', '--only-show-errors', '-o', 'tsv') `
+        -AllowFailure
+
+    if ($appIdResult.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($appIdResult.Output)) {
+        return $null
+    }
+
+    $spResult = Invoke-AzureCli `
+        -Arguments @(
+            'ad', 'sp', 'show',
+            '--id', $appIdResult.Output.Trim(),
+            '--query', 'id',
+            '--only-show-errors',
+            '-o', 'tsv'
+        ) `
+        -AllowFailure
+
+    if ($spResult.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($spResult.Output)) {
+        return $null
+    }
+
+    return $spResult.Output.Trim()
+}
+
+function Resolve-GlobalAdminId {
+    <#
+        globalAdminId receives App Configuration Data Owner and Key Vault
+        Administrator, and is added to the SQL admin group. A stale ID from another
+        tenant does not fail fast: the role assignments are accepted and the run
+        only dies much later, inside Add-GraphGroupMember's 30-attempt wait. Verify
+        it up front instead.
+    #>
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$RequestedGlobalAdminId)
+
+    if (-not [string]::IsNullOrWhiteSpace($RequestedGlobalAdminId)) {
+        if (Test-GraphObjectExists -ObjectId $RequestedGlobalAdminId) {
+            return $RequestedGlobalAdminId
+        }
+
+        Write-Host "Global administrator '$RequestedGlobalAdminId' does not exist in this tenant. Falling back to the deploying principal." -ForegroundColor Yellow
+    }
+
+    $resolved = Resolve-DeployingPrincipalObjectId
+    if ([string]::IsNullOrWhiteSpace($resolved)) {
+        throw @"
+Could not determine a global administrator object ID for this tenant.
+'$RequestedGlobalAdminId' was not found and the deploying principal could not be
+resolved. Pass -GlobalAdminId <objectId> for an identity that exists in the
+signed-in tenant.
+"@
+    }
+
+    if (-not (Test-GraphObjectExists -ObjectId $resolved)) {
+        throw "Resolved deploying principal '$resolved' is not readable in this tenant. Pass -GlobalAdminId explicitly."
+    }
+
+    Write-Host "Using deploying principal as global administrator: $resolved" -ForegroundColor Cyan
+    return $resolved
+}
+
 function Ensure-ResourceProviders {
     foreach ($provider in @(
         'Microsoft.Web',
@@ -614,6 +740,18 @@ try {
     $account = Ensure-AzureLogin
     Ensure-ResourceProviders
 
+    # Resolve every tenant-bound value before the first mutation, so deploying
+    # into a fresh tenant fails immediately and legibly rather than halfway
+    # through provisioning.
+    $resolvedEntraDefaultDomain = if (-not [string]::IsNullOrWhiteSpace($EntraDefaultDomain)) {
+        $EntraDefaultDomain.Trim()
+    } else {
+        Resolve-EntraDefaultDomain
+    }
+    Write-Host "Entra default domain: $resolvedEntraDefaultDomain" -ForegroundColor Cyan
+
+    $resolvedGlobalAdminId = Resolve-GlobalAdminId -RequestedGlobalAdminId $GlobalAdminId
+
     $groupExists = Invoke-AzureCli `
         -Arguments @('group', 'exists', '--name', $ResourceGroup, '-o', 'tsv')
     if ($groupExists.Output -ne 'true') {
@@ -674,7 +812,8 @@ try {
         parameters = [ordered]@{
             companyName = @{ value = $COMPANY_NAME }
             environment = @{ value = $Environment }
-            globalAdminId = @{ value = $GlobalAdminId }
+            globalAdminId = @{ value = $resolvedGlobalAdminId }
+            entraDefaultDomain = @{ value = $resolvedEntraDefaultDomain }
             powerBiReaderPrincipalId = @{ value = $PowerBiReaderPrincipalId }
             powerBiReaderEmail = @{ value = $PowerBiReaderEmail }
             powerBiExportEnabled = @{ value = [bool]$EnablePowerBiExport }
@@ -726,7 +865,7 @@ try {
     if ([string]::IsNullOrWhiteSpace($sqlAdminGroupId)) {
         throw 'Deployment output SQL_ADMIN_GROUP_ID was empty.'
     }
-    Add-GraphGroupMember -GroupId $sqlAdminGroupId -MemberId $GlobalAdminId -Description 'global administrator'
+    Add-GraphGroupMember -GroupId $sqlAdminGroupId -MemberId $resolvedGlobalAdminId -Description 'global administrator'
 
     & $SqlAccessScript `
         -Environment $Environment `
