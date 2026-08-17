@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ChevronRight, Clock, Hash, Heart, Mail, MapPin, MoreHorizontal, Phone, PlusCircle, Users } from 'lucide-react';
+import { ArrowLeft, Hash, Heart, Mail, MapPin, MoreHorizontal, Phone, PlusCircle, Users } from 'lucide-react';
 import { Can } from '../../../providers/permissions/Can';
 import { ErrorState } from '../../../components/ErrorState';
 import { CopyAddressButton } from '../../../components/CopyAddressButton';
@@ -9,9 +9,8 @@ import {
   getGetApiCustomersQueryKey,
   useGetApiCustomersId,
 } from '../../../api/generated/customers/customers';
-import { formatDateShort } from '../../../lib/formatDate';
-import { formatJobStatus } from '../../jobs/statusLabels';
 import { patchApiCustomersIdFavorite } from '../../jobs/customerApi';
+import { JobCard } from '../../jobs/components/JobCard';
 import { useCustomerActions } from '../components/CustomerActions';
 import { useScrollRestore } from '../../../hooks/useScrollRestore';
 import type { CustomerListItemViewModel } from '../../../api/generated/models';
@@ -184,60 +183,17 @@ export const CustomerDetail = () => {
       <div className="job-list">
         {customer.jobs.map((job) => {
           const destinationAddress = (job as typeof job & CustomerJobWithDestination).destinationAddress;
-          const openJob = () => navigate(`/app/completed/${job.id}`, { state: { from: `/app/customers/${customer.id}` } });
-          const reportNumber = (job.reportNumber || job.id.slice(0, 4)).toUpperCase();
-
           return (
-            <div
+            <JobCard
               key={job.id}
-              className={`job-card${job.status === 'Rejected' ? ' job-card--rejected' : ''}`}
-              onClick={openJob}
-              onKeyDown={(event) => {
-                if (event.target !== event.currentTarget) return;
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  openJob();
-                }
-              }}
-              role="link"
-              tabIndex={0}
-            >
-              <div className="job-card-top">
-                <div>
-                  <span className="job-number">
-                    SAG-{reportNumber}
-                    <span className="job-number-sep">&middot;</span>
-                    <span className="job-number-status">{formatJobStatus(job.status)}</span>
-                  </span>
-                  <h3 className="job-customer">{customer.name}</h3>
-                </div>
-              </div>
-
-              <p className="job-address-row">
-                <MapPin size={14} aria-hidden="true" />
-                <span className="job-address">{destinationAddress || 'Ingen adresse angivet'}</span>
-                <CopyAddressButton address={destinationAddress} />
-              </p>
-
-              <div className="job-card-meta">
-                {job.contactPerson && (
-                  <span className="meta-item"><Users size={14} aria-hidden="true" />{job.contactPerson}</span>
-                )}
-                {job.contactPhone && (
-                  <span className="meta-item"><Phone size={14} aria-hidden="true" />{job.contactPhone}</span>
-                )}
-                <span className="meta-item meta-updated">
-                  <Clock size={14} aria-hidden="true" /> Opdateret {formatDateShort(job.updatedAt)}
-                </span>
-              </div>
-
-              <div className="job-card-footer">
-                <span />
-                <span className="btn-icon" aria-hidden="true">
-                  <ChevronRight size={20} />
-                </span>
-              </div>
-            </div>
+              id={job.id}
+              reportNumber={job.reportNumber}
+              status={job.status}
+              customerName={customer.name}
+              address={destinationAddress}
+              updatedAt={job.updatedAt}
+              onOpen={() => navigate(`/app/completed/${job.id}`, { state: { from: `/app/customers/${customer.id}` } })}
+            />
           );
         })}
 
