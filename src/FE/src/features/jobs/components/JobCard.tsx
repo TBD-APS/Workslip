@@ -43,6 +43,7 @@ export function JobCard({
   showUnassigned = false,
   onOpen,
 }: JobCardProps) {
+  const hasAssignmentData = assignedUsers != null;
   const users = assignedUsers ?? [];
   const title = customerName || taskDescription || 'Sag uden kunde';
   const number = (reportNumber || id.slice(0, 4)).toUpperCase();
@@ -74,7 +75,7 @@ export function JobCard({
           {status === 'Approved' && <span className="approved-dot" aria-hidden="true" />}
           {!isSeen && <span className="unread-dot" role="img" aria-label="Ulæst" />}
           {isNewRejection && <span className="rejected-dot" role="img" aria-label="Ny afvisning" />}
-          {showUnassigned && users.length === 0 && <span className="unassigned-dot" role="img" aria-label="Ikke tildelt" />}
+          {showUnassigned && hasAssignmentData && users.length === 0 && <span className="unassigned-dot" role="img" aria-label="Ikke tildelt" />}
           <h3 className="job-customer">{title}</h3>
         </div>
       </div>
@@ -106,17 +107,21 @@ export function JobCard({
       </div>
 
       <div className="job-card-footer">
-        {users.length > 0 ? (
-          <span className="cell-comma-list">
-            {users.map((user) => (
-              <span key={user.id} className="cell-comma-list-item">{user.displayName}</span>
-            ))}
-          </span>
+        {hasAssignmentData ? (
+          users.length > 0 ? (
+            <span className="cell-comma-list">
+              {users.map((user) => (
+                <span key={user.id} className="cell-comma-list-item">{user.displayName}</span>
+              ))}
+            </span>
+          ) : (
+            <span className="unassigned">
+              <User size={12} aria-hidden="true" />
+              <span>Ikke tildelt</span>
+            </span>
+          )
         ) : (
-          <span className="unassigned">
-            <User size={12} aria-hidden="true" />
-            <span>Ikke tildelt</span>
-          </span>
+          <span aria-hidden="true" />
         )}
         <span className="btn-icon" aria-hidden="true">
           <ChevronRight size={20} />
