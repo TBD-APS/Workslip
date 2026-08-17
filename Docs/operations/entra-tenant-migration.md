@@ -62,6 +62,10 @@ argument.
 
 ## Order of operations
 
+0. **Preview.** `./plan.ps1 <env>` — reports what all four phases would do and changes
+   nothing. In a tenant where the Entra phase has not run yet, phases 1 and 2 stop early
+   and say the registrations are absent; that is the expected first result, not a fault.
+   See `src/BE/infrastructure/README.md` for what the preview can and cannot see.
 1. **Deploy infrastructure.** `./deploy-infrastructure.ps1 <env>` — resolves the default
    domain and global administrator, then deploys. Both are resolved before the first
    mutation, so a wrong tenant fails immediately instead of halfway through.

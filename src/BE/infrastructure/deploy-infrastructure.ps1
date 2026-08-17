@@ -14,7 +14,10 @@ param(
     [string]$PowerBiReaderPrincipalId = '',
     [string]$PowerBiReaderEmail = '',
     [switch]$EnablePowerBiExport,
-    [string]$EntraStatePath = ''
+    [string]$EntraStatePath = '',
+    # Resolve everything, run the ARM deployment as what-if, and stop. No resource
+    # group, secret, App Configuration, SQL or Graph write is performed.
+    [switch]$WhatIf
 )
 
 $ErrorActionPreference = 'Stop'
@@ -49,7 +52,9 @@ if (-not (Test-Path $SqlAccessScript)) {
     throw "SQL access provisioning script not found: $SqlAccessScript"
 }
 
-if (-not (Get-Command sqlcmd -ErrorAction SilentlyContinue)) {
+# A preview never runs the SQL access script, so it does not need sqlcmd. Requiring
+# it would block previewing from a machine that only has the Azure CLI.
+if (-not $WhatIf -and -not (Get-Command sqlcmd -ErrorAction SilentlyContinue)) {
     throw 'sqlcmd is required to provision the API managed identity in Azure SQL.'
 }
 
@@ -755,6 +760,16 @@ try {
     $groupExists = Invoke-AzureCli `
         -Arguments @('group', 'exists', '--name', $ResourceGroup, '-o', 'tsv')
     if ($groupExists.Output -ne 'true') {
+        if ($WhatIf) {
+            # what-if runs against a resource group, so there is nothing to compare
+            # against until it exists. Say so rather than reporting an empty diff.
+            throw @"
+Resource group '$ResourceGroup' does not exist, so there is nothing to preview against.
+Run without -WhatIf to create it, or create the group first:
+  az group create --name $ResourceGroup --location $Location
+"@
+        }
+
         Invoke-AzureCli -Arguments @('group', 'create', '--name', $ResourceGroup, '--location', $Location, '-o', 'none') | Out-Null
     }
 
@@ -763,8 +778,13 @@ try {
     }
     else {
         $entraState = Resolve-ExistingEntraState -TenantId ([string]$account.tenantId)
-        Write-Utf8JsonFile -Path $EntraStatePath -Value $entraState
-        Write-Host "Cached read-only Entra state: $EntraStatePath" -ForegroundColor Green
+        if ($WhatIf) {
+            Write-Host "Resolved Entra state in memory; cache file not written: $EntraStatePath" -ForegroundColor DarkGray
+        }
+        else {
+            Write-Utf8JsonFile -Path $EntraStatePath -Value $entraState
+            Write-Host "Cached read-only Entra state: $EntraStatePath" -ForegroundColor Green
+        }
     }
 
     Assert-EntraState -State $entraState
@@ -824,6 +844,29 @@ try {
     Write-Utf8JsonFile -Path $parameterFile.FullName -Value $deploymentParameters
 
     $deploymentName = "$COMPANY_NAME-$NormalizedEnvironment-$(Get-Date -Format 'yyyyMMddHHmmss')"
+
+    if ($WhatIf) {
+        Write-Host "Previewing Azure infrastructure: $deploymentName" -ForegroundColor Cyan
+        Invoke-AzureCli -Arguments @(
+            'deployment', 'group', 'what-if',
+            '--resource-group', $ResourceGroup,
+            '--name', $deploymentName,
+            '--mode', 'Incremental',
+            '--template-file', $Template,
+            '--parameters', "@$($parameterFile.FullName)",
+            '--only-show-errors',
+            '-o', 'table'
+        ) | ForEach-Object { Write-Host $_.Output }
+
+        # Everything past this point consumes deployment outputs and writes secrets,
+        # App Configuration references, SQL principals and Graph group membership.
+        # what-if produces no outputs, so stop here rather than half-run the phase.
+        Write-Host ''
+        Write-Host 'Not written in preview: Key Vault secrets, App Configuration references, SQL access, SQL admin group membership.' -ForegroundColor DarkGray
+        Write-Host 'Preview complete. No Azure resource was changed.' -ForegroundColor Green
+        return
+    }
+
     Write-Host "Deploying Azure infrastructure: $deploymentName" -ForegroundColor Cyan
     $deploymentResult = Invoke-AzureCli -Arguments @(
         'deployment', 'group', 'create',
