@@ -1,0 +1,280 @@
+name: WOR-281 job-card dot validation
+
+on:
+  push:
+    branches:
+      - rbj--281-job-card-status-dot-colors
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wor-281-job-card-dot-validation
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '24'
+  PLAYWRIGHT_VERSION: '1.55.0'
+  BASE_REF: release-5.0.1
+
+jobs:
+  validate:
+    name: Kimi + real browser job-card evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+      MOONSHOT_BASE_URL: ${{ vars.MOONSHOT_BASE_URL || 'https://api.moonshot.ai/v1' }}
+    steps:
+      - name: Checkout validation head
+        uses: actions/checkout@v7
+        with:
+          ref: rbj--281-job-card-status-dot-colors
+          fetch-depth: 0
+
+      - name: Verify bounded product diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "${BASE_REF}"
+          product_diff="$(git diff --name-only "origin/${BASE_REF}...HEAD" | grep -v '^.github/workflows/wor-281-job-card-dot-validation.yml$' || true)"
+          test "${product_diff}" = 'src/FE/src/farvelab-theme.css'
+          test "$(git diff --numstat "origin/${BASE_REF}...HEAD" -- src/FE/src/farvelab-theme.css)" = $'0\t3\tsrc/FE/src/farvelab-theme.css'
+          ! grep -Fq 'body:has(.app-shell) .review-dot { background: var(--warning); }' src/FE/src/farvelab-theme.css
+          ! grep -Fq 'body:has(.app-shell) .approved-dot { background: var(--success); }' src/FE/src/farvelab-theme.css
+          ! grep -Fq 'body:has(.app-shell) .rejected-dot { background: var(--danger); }' src/FE/src/farvelab-theme.css
+          grep -Fq 'body:has(.app-shell) :is(.unread-dot, .unassigned-dot) { background: var(--accent-cyan); }' src/FE/src/farvelab-theme.css
+          echo "PRODUCT_BLOB=$(git rev-parse HEAD:src/FE/src/farvelab-theme.css)" >> "$GITHUB_ENV"
+
+      - name: Run bounded Kimi frontend consistency review
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${MOONSHOT_API_KEY:-}" ]; then
+            echo '::error::MOONSHOT_API_KEY is unavailable; mandatory Kimi frontend review cannot run.'
+            exit 10
+          fi
+          mkdir -p artifacts/wor-281-job-card-dots
+          models_json="$(curl --fail --silent --show-error --max-time 30 \
+            -H "Authorization: Bearer ${MOONSHOT_API_KEY}" \
+            "${MOONSHOT_BASE_URL%/}/models")"
+          model="$(jq -r '[.data[].id | select(test("kimi"; "i"))][0] // empty' <<<"${models_json}")"
+          if [ -z "${model}" ]; then
+            echo '::error::Moonshot returned no model with a Kimi identity.'
+            exit 11
+          fi
+
+          diff_text="$(git diff "origin/${BASE_REF}...HEAD" -- src/FE/src/farvelab-theme.css)"
+          job_card_excerpt="$(sed -n '45,90p' src/FE/src/features/jobs/components/JobCard.tsx)"
+          app_css_excerpt="$(grep -n -A 10 -B 3 -E '^\.(review-dot|approved-dot|rejected-dot)' src/FE/src/App.css || true)"
+          prompt="$(cat <<EOF
+You are Kimi acting as the mandatory Workslip frontend UI-consistency reviewer. Review this bounded regression correction only.
+
+Product requirement:
+- status indicator dots on job cards/table must use the historical lifecycle colors;
+- InReview/review dot = #eab308;
+- Approved dot = #22c55e;
+- Rejected/new-rejection dot = #ef4444;
+- unread/unassigned informational dots must NOT be changed;
+- do not change card surfaces, badges, text colors, status labels, lifecycle behavior, backend behavior, or API contracts.
+
+Implementation strategy: remove exactly the three authenticated Farvelab overrides so the already-existing App.css lifecycle colors become authoritative again.
+
+CSS diff:
+${diff_text}
+
+Shared JobCard excerpt:
+${job_card_excerpt}
+
+Existing lifecycle-dot CSS excerpt:
+${app_css_excerpt}
+
+Return ONLY strict JSON with this shape:
+{"verdict":"PASS|BLOCK","findings":["..."],"rationale":"..."}
+PASS only if the correction is narrowly scoped and restores the requested job-card lifecycle colors without changing unread/unassigned dots or broader card styling.
+EOF
+)"
+          request="$(jq -n --arg model "${model}" --arg prompt "${prompt}" '{model:$model,messages:[{role:"system",content:"You are a senior frontend reviewer. Follow the requested strict JSON output."},{role:"user",content:$prompt}],stream:false,temperature:0}')"
+          response="$(curl --fail --silent --show-error --max-time 120 \
+            -H "Authorization: Bearer ${MOONSHOT_API_KEY}" \
+            -H 'Content-Type: application/json' \
+            -d "${request}" \
+            "${MOONSHOT_BASE_URL%/}/chat/completions")"
+          content="$(jq -r '.choices[0].message.content // empty' <<<"${response}")"
+          cleaned="$(printf '%s' "${content}" | sed -e 's/^```json[[:space:]]*//' -e 's/^```[[:space:]]*//' -e 's/[[:space:]]*```$//')"
+          printf '%s\n' "${cleaned}" > artifacts/wor-281-job-card-dots/kimi-review.json
+          jq -e '.verdict == "PASS" and (.findings | type == "array") and (.rationale | type == "string")' artifacts/wor-281-job-card-dots/kimi-review.json >/dev/null
+          printf 'KIMI_MODEL=%s\n' "${model}" | tee artifacts/wor-281-job-card-dots/kimi-model.txt
+          echo "Kimi review PASS via ${model}; product blob ${PRODUCT_BLOB}."
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Restore backend
+        run: dotnet restore src/BE/WorkslipApi/Workslip.Api.csproj --nologo
+
+      - name: Install frontend and Chromium
+        working-directory: src/FE
+        run: |
+          npm ci --prefer-offline --no-audit --no-fund
+          npm install --prefix scripts --no-save --package-lock=false --ignore-scripts --no-audit --no-fund "playwright@${PLAYWRIGHT_VERSION}"
+          node scripts/node_modules/playwright/cli.js install --with-deps chromium
+
+      - name: Start ephemeral SQL Server
+        shell: bash
+        run: |
+          set -euo pipefail
+          sql_password="Workslip$(openssl rand -hex 16)!A1"
+          jwt_key="$(openssl rand -hex 32)"
+          echo "::add-mask::${sql_password}"
+          echo "::add-mask::${jwt_key}"
+          echo "WORKSLIP_SQL_PASSWORD=${sql_password}" >> "$GITHUB_ENV"
+          echo "WORKSLIP_JWT_KEY=${jwt_key}" >> "$GITHUB_ENV"
+          docker run --detach --name workslip-wor281-card-sql --publish 1433:1433 --env ACCEPT_EULA=Y --env MSSQL_PID=Developer --env "MSSQL_SA_PASSWORD=${sql_password}" mcr.microsoft.com/mssql/server:2022-latest
+          ready=false
+          for attempt in $(seq 1 60); do
+            if docker exec workslip-wor281-card-sql bash -lc "if [ -x /opt/mssql-tools18/bin/sqlcmd ]; then /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${sql_password}' -C -Q 'SELECT 1'; else /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P '${sql_password}' -Q 'SELECT 1'; fi" >/dev/null 2>&1; then ready=true; break; fi
+            sleep 2
+          done
+          test "${ready}" = true
+
+      - name: Start Development backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ASPNETCORE_ENVIRONMENT=Development
+          export ASPNETCORE_URLS=http://127.0.0.1:5262
+          export Azure__AppConfiguration__Endpoint=''
+          export Azure__Sql__ConnectionString="Server=localhost,1433;Initial Catalog=WorkslipWor281Cards;User Id=sa;Password=${WORKSLIP_SQL_PASSWORD};Encrypt=false;TrustServerCertificate=true;MultipleActiveResultSets=true"
+          export Jwt__Issuer=workslip-wor281-cards-local
+          export Jwt__Audience=workslip-wor281-cards-local
+          export Jwt__SigningKey="${WORKSLIP_JWT_KEY}"
+          export Workslip__ApplyLocalMigrations=true
+          export Workslip__SeedDevelopmentData=true
+          export Workslip__SeedDevelopmentEntraIdentities=false
+          nohup dotnet run --project src/BE/WorkslipApi/Workslip.Api.csproj --no-launch-profile --no-restore >"${RUNNER_TEMP}/workslip-wor281-card-backend.log" 2>&1 &
+          echo "$!" > "${RUNNER_TEMP}/workslip-wor281-card-backend.pid"
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent http://127.0.0.1:5262/health >/dev/null; then exit 0; fi
+            if ! kill -0 "$(cat "${RUNNER_TEMP}/workslip-wor281-card-backend.pid")" 2>/dev/null; then cat "${RUNNER_TEMP}/workslip-wor281-card-backend.log"; exit 1; fi
+            sleep 1
+          done
+          cat "${RUNNER_TEMP}/workslip-wor281-card-backend.log"
+          exit 1
+
+      - name: Start local frontend
+        shell: bash
+        working-directory: src/FE
+        run: |
+          set -euo pipefail
+          nohup node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5270 --strictPort >"${RUNNER_TEMP}/workslip-wor281-card-frontend.log" 2>&1 &
+          echo "$!" > "${RUNNER_TEMP}/workslip-wor281-card-frontend.pid"
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:5270/login >/dev/null; then exit 0; fi
+            if ! kill -0 "$(cat "${RUNNER_TEMP}/workslip-wor281-card-frontend.pid")" 2>/dev/null; then cat "${RUNNER_TEMP}/workslip-wor281-card-frontend.log"; exit 1; fi
+            sleep 1
+          done
+          cat "${RUNNER_TEMP}/workslip-wor281-card-frontend.log"
+          exit 1
+
+      - name: Verify actual job-card and table dot colors
+        working-directory: src/FE
+        env:
+          WORKSLIP_LOCAL_APP_URL: http://127.0.0.1:5270
+          WORKSLIP_PRODUCT_BLOB: ${{ env.PRODUCT_BLOB }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { mkdir, writeFile } from 'node:fs/promises';
+          const { chromium } = await import('./scripts/node_modules/playwright/index.mjs');
+          const appUrl = process.env.WORKSLIP_LOCAL_APP_URL;
+          const artifactDir = '../../artifacts/wor-281-job-card-dots';
+          await mkdir(artifactDir, { recursive: true });
+          const browser = await chromium.launch({ headless: true });
+          const expected = [
+            { status: 'InReview', selector: '.review-dot', color: 'rgb(234, 179, 8)', label: 'review' },
+            { status: 'Approved', selector: '.approved-dot', color: 'rgb(34, 197, 94)', label: 'approved' },
+            { status: 'Rejected', selector: '.rejected-dot', color: 'rgb(239, 68, 68)', label: 'rejected' },
+          ];
+          const viewports = [
+            { name: 'desktop-1280x800', viewport: { width: 1280, height: 800 }, container: '.data-table tbody' },
+            { name: 'mobile-390x844', viewport: { width: 390, height: 844 }, container: '.job-card' },
+          ];
+          const report = { productBlob: process.env.WORKSLIP_PRODUCT_BLOB, browser: 'chromium', results: [] };
+          try {
+            for (const view of viewports) {
+              const context = await browser.newContext({ viewport: view.viewport, locale: 'da-DK', timezoneId: 'Europe/Copenhagen' });
+              const page = await context.newPage();
+              const consoleErrors = [];
+              const pageErrors = [];
+              page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+              page.on('pageerror', err => pageErrors.push(err.message));
+              await page.goto(`${appUrl}/login`, { waitUntil: 'domcontentloaded', timeout: 45000 });
+              await page.getByRole('button', { name: 'Dev Login · Admin', exact: true }).click();
+              await page.waitForURL(url => url.pathname.startsWith('/app'), { timeout: 30000 });
+              for (const item of expected) {
+                await page.goto(`${appUrl}/app?status=${item.status}`, { waitUntil: 'domcontentloaded', timeout: 45000 });
+                const dot = page.locator(`${view.container} ${item.selector}`).first();
+                await dot.waitFor({ state: 'visible', timeout: 30000 });
+                const color = await dot.evaluate(el => getComputedStyle(el).backgroundColor);
+                if (color !== item.color) throw new Error(`${view.name} ${item.status}: expected ${item.color}, got ${color}`);
+                report.results.push({ viewport: view.name, status: item.status, color, selector: item.selector });
+                await page.screenshot({ path: `${artifactDir}/${view.name}-${item.label}.png`, fullPage: true });
+              }
+              const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+              if (overflow) throw new Error(`${view.name}: horizontal overflow detected`);
+              if (pageErrors.length) throw new Error(`${view.name}: page errors: ${pageErrors.join(' | ')}`);
+              if (consoleErrors.length) throw new Error(`${view.name}: console errors: ${consoleErrors.join(' | ')}`);
+              report.results.push({ viewport: view.name, pageErrors: 0, consoleErrors: 0, horizontalOverflow: false });
+              await context.close();
+            }
+            report.status = 'passed';
+            await writeFile(`${artifactDir}/browser-report.json`, JSON.stringify(report, null, 2));
+          } finally {
+            await browser.close();
+          }
+          console.log('[WOR-281] desktop table + mobile job-card legacy dot colors passed.');
+          NODE
+
+      - name: Upload Kimi and browser evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: wor-281-job-card-dot-evidence-${{ github.run_id }}
+          path: |
+            artifacts/wor-281-job-card-dots
+            ${{ runner.temp }}/workslip-wor281-card-backend.log
+            ${{ runner.temp }}/workslip-wor281-card-frontend.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Remove temporary validation workflow after successful evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_blob="$(git rev-parse HEAD:src/FE/src/farvelab-theme.css)"
+          test "${current_blob}" = "${PRODUCT_BLOB}"
+          git rm .github/workflows/wor-281-job-card-dot-validation.yml
+          git config user.name 'workslip-validation-bot'
+          git config user.email 'workslip-validation-bot@users.noreply.github.com'
+          git commit -m 'WOR-281: remove temporary job-card validation workflow'
+          git push origin HEAD:rbj--281-job-card-status-dot-colors
+
+      - name: Stop isolated runtime
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          if [ -f "${RUNNER_TEMP}/workslip-wor281-card-frontend.pid" ]; then kill "$(cat "${RUNNER_TEMP}/workslip-wor281-card-frontend.pid")" 2>/dev/null || true; fi
+          if [ -f "${RUNNER_TEMP}/workslip-wor281-card-backend.pid" ]; then kill "$(cat "${RUNNER_TEMP}/workslip-wor281-card-backend.pid")" 2>/dev/null || true; fi
+          docker rm --force workslip-wor281-card-sql >/dev/null 2>&1 || true
