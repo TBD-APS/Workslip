@@ -5,8 +5,7 @@ import { JobStatus, type JobListItemViewModel } from '../../../api/generated/mod
 import { ErrorState } from '../../../components/ErrorState';
 import { saveStatusFilter } from '../../../components/filters/StatusFilter';
 import { apiClient } from '../../../lib/axios';
-import { formatDateTimeShort } from '../../../lib/formatDate';
-import { formatJobStatus } from '../../jobs/statusLabels';
+import { JobCard } from '../../jobs/components/JobCard';
 import './Overview.css';
 
 type JobOverviewResponse = {
@@ -131,32 +130,27 @@ export const Overview = () => {
             ))}
           </div>
         ) : overview?.recentJobs.length ? (
-          <div className="overview-recent-list">
-            {overview.recentJobs.map((job) => {
-              const customerName = job.customer?.name || 'Kunde ikke angivet';
-              const address = job.destinationAddress || job.customer?.address;
-              return (
-                <button
-                  type="button"
-                  className="overview-recent-row"
-                  key={job.id}
-                  onClick={() => navigate(getJobPath(job), { state: { from: '/app/overblik' } })}
-                >
-                  <span className="overview-recent-row__main">
-                    <strong>SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</strong>
-                    <span>{customerName}</span>
-                    {address && <small>{address}</small>}
-                  </span>
-                  <span className={`status-badge status-${job.status.toLowerCase()}`}>
-                    {formatJobStatus(job.status)}
-                  </span>
-                  <span className="overview-recent-row__updated">
-                    {job.updatedAt ? formatDateTimeShort(job.updatedAt) : '–'}
-                  </span>
-                  <ArrowRight size={17} aria-hidden="true" />
-                </button>
-              );
-            })}
+          <div className="job-list overview-recent-list">
+            {overview.recentJobs.map((job) => (
+              <JobCard
+                key={job.id}
+                id={job.id}
+                reportNumber={job.reportNumber}
+                status={job.status}
+                customerName={job.customer?.name}
+                taskDescription={job.taskDescription}
+                jobType={job.jobType}
+                address={job.destinationAddress || job.customer?.address}
+                installationTypes={job.installationTypes}
+                totalHours={job.totalHours}
+                assignedUsers={job.assignedUsers}
+                updatedAt={job.updatedAt}
+                isSeen={job.isSeen}
+                isNewRejection={job.isNewRejection}
+                showUnassigned
+                onOpen={() => navigate(getJobPath(job), { state: { from: '/app/overblik' } })}
+              />
+            ))}
           </div>
         ) : (
           <div className="overview-empty-state">

@@ -17,6 +17,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate architecture owner registry
+        run: |
+          node tools/agents/validate-architecture-owners.mjs
+          node --test tools/agents/architecture-owners.test.mjs
+
       - name: Self-test repository data hygiene rules
         shell: pwsh
         run: ./tools/git/check-repository-data-hygiene.ps1 -SelfTest

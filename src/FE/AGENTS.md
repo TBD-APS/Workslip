@@ -18,6 +18,18 @@ Use `src/components/forms/` and existing shared controls before creating new one
 
 Use `NumericInput` instead of raw `<input type="number">` where numeric entry is required; native number inputs can lose Danish decimal-comma input.
 
+### Shared presentation and localization
+
+- Cross-feature presentation conventions belong in `src/lib/presentation/`. Locale selection, dates/times and future standardized number/currency/text presentation must have one shared owner instead of feature-local formatting rules.
+- `src/lib/presentation/locale.ts` owns the product UI locale. Do not hard-code locale identifiers in feature code.
+- All user-visible date/time formatting must go through the shared date functions. Feature/components must not introduce their own `Intl.DateTimeFormat`, `toLocaleDateString`, `toLocaleTimeString`, `toLocaleString` or hand-built presentation date strings.
+- The canonical Workslip date-only presentation is Danish abbreviated month text: `17. aug. 2026`. Use `formatDate()` for date-only values.
+- Do not use numeric-only date presentation such as `17.08.2026` in product UI unless a specific external/export contract requires it.
+- When time is materially relevant, use `formatDateTime()` (or the compatibility helper that delegates to it); do not create a feature-local timestamp format.
+- Machine values are not presentation: API/ISO serialization and HTML date-input values may keep the formats required by their contracts.
+- New shared presentation formats require example-based regression coverage. Add number/currency/text helpers only when a concrete repeated product convention exists; do not create speculative wrappers.
+- `npm run check:presentation-formatting` enforces the locale-sensitive formatting boundary during frontend builds. Do not weaken or bypass the guard to make a feature pass.
+
 Preserve accessibility, responsive/mobile behaviour, loading/disabled/empty/error/recovery states, duplicate-submit protection, browser navigation and PWA safe-area behaviour.
 
 ## Generated API and performance

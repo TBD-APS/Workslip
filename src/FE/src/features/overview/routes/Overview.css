@@ -140,6 +140,13 @@
   display: grid;
 }
 
+.overview-recent-list.job-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 1rem;
+}
+
 .overview-recent-row {
   align-items: center;
   appearance: none;
@@ -250,6 +257,10 @@
 
   .overview-section-header {
     align-items: flex-start;
+  }
+
+  .overview-recent-list.job-list {
+    padding: 0.65rem;
   }
 
   .overview-recent-row {

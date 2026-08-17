@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Clock, Hash, Heart, Mail, MapPin, MoreHorizontal, Phone, PlusCircle, Users } from 'lucide-react';
+import { ArrowLeft, Hash, Heart, Mail, MapPin, MoreHorizontal, Phone, PlusCircle, Users } from 'lucide-react';
 import { Can } from '../../../providers/permissions/Can';
 import { ErrorState } from '../../../components/ErrorState';
 import { CopyAddressButton } from '../../../components/CopyAddressButton';
@@ -9,9 +9,8 @@ import {
   getGetApiCustomersQueryKey,
   useGetApiCustomersId,
 } from '../../../api/generated/customers/customers';
-import { formatDateLong } from '../../../lib/formatDate';
-import { formatJobStatus } from '../../jobs/statusLabels';
 import { patchApiCustomersIdFavorite } from '../../jobs/customerApi';
+import { JobCard } from '../../jobs/components/JobCard';
 import { useCustomerActions } from '../components/CustomerActions';
 import { useScrollRestore } from '../../../hooks/useScrollRestore';
 import type { CustomerListItemViewModel } from '../../../api/generated/models';
@@ -184,40 +183,17 @@ export const CustomerDetail = () => {
       <div className="job-list">
         {customer.jobs.map((job) => {
           const destinationAddress = (job as typeof job & CustomerJobWithDestination).destinationAddress;
-          const openJob = () => navigate(`/app/completed/${job.id}`, { state: { from: `/app/customers/${customer.id}` } });
-
           return (
-            <div
+            <JobCard
               key={job.id}
-              className="job-card"
-              onClick={openJob}
-              onKeyDown={(event) => {
-                if (event.target !== event.currentTarget) return;
-                if (event.key === 'Enter' || event.key === ' ') openJob();
-              }}
-              role="link"
-              tabIndex={0}
-            >
-              <div className="job-card-top">
-                <div>
-                  <span className="job-number">Sag-{job.reportNumber}</span>
-                  <h3 className="job-customer">{customer.name}</h3>
-                </div>
-                <span className={`status-badge status-${job.status.toLowerCase()}`}>{formatJobStatus(job.status)}</span>
-              </div>
-              <p className="job-address-row">
-                <MapPin size={14} />
-                <span className="job-address">{destinationAddress || 'Ingen destinationsadresse angivet'}</span>
-                <CopyAddressButton address={destinationAddress} />
-              </p>
-              <div className="job-card-body">
-                {job.contactPerson && <span className="meta-item"><Users size={14} /><span>{job.contactPerson}</span></span>}
-                {job.contactPhone && <span className="meta-item"><Phone size={14} /><span>{job.contactPhone}</span></span>}
-              </div>
-              <div className="job-card-meta">
-                <span className="meta-item"><Clock size={14} /><span className="meta-item">Sidst opdateret: {formatDateLong(job.updatedAt)}</span></span>
-              </div>
-            </div>
+              id={job.id}
+              reportNumber={job.reportNumber}
+              status={job.status}
+              customerName={customer.name}
+              address={destinationAddress}
+              updatedAt={job.updatedAt}
+              onOpen={() => navigate(`/app/completed/${job.id}`, { state: { from: `/app/customers/${customer.id}` } })}
+            />
           );
         })}
 
