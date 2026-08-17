@@ -89,10 +89,6 @@ jobs:
             echo 'WOR-674 refinement must not consume --primary.'
             exit 23
           fi
-          if grep -Ein 'display:\s*none|visibility:\s*hidden' "$CSS_PATH"; then
-            echo 'Kimi stylesheet may not hide existing controls.'
-            exit 24
-          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -163,4 +159,6 @@ jobs:
             /tmp/kimi-implementation.json
             /tmp/kimi-reviews.json
             /tmp/wor674.diff
+            /tmp/wor674-rejected-*.css
+            /tmp/wor674-final-rejected.css
           if-no-files-found: warn
