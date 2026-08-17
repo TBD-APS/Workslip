@@ -18,6 +18,14 @@ Use `src/components/forms/` and existing shared controls before creating new one
 
 Use `NumericInput` instead of raw `<input type="number">` where numeric entry is required; native number inputs can lose Danish decimal-comma input.
 
+### Date and time presentation
+
+- All user-visible date/time formatting must go through the shared functions in `src/lib/formatDate.ts`; feature/components must not introduce their own `Intl.DateTimeFormat`, `toLocaleDateString`, `toLocaleString` or hand-built date strings.
+- The canonical Workslip date-only presentation is Danish abbreviated month text: `17. aug. 2026`. Use `formatDate()` for date-only values.
+- Do not use numeric-only date presentation such as `17.08.2026` in product UI unless a specific external/export contract requires it.
+- When time is materially relevant, use an existing shared date-time formatter or add the new presentation centrally in `src/lib/formatDate.ts` with regression coverage; do not create a feature-local format.
+- New shared date/time presentations require an example-based test that locks the intended `da-DK` output.
+
 Preserve accessibility, responsive/mobile behaviour, loading/disabled/empty/error/recovery states, duplicate-submit protection, browser navigation and PWA safe-area behaviour.
 
 ## Generated API and performance
