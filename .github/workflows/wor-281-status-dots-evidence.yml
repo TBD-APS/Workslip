@@ -1,0 +1,147 @@
+name: WOR-281 status dots browser evidence
+
+on:
+  push:
+    branches:
+      - rbj--281-status-dots-browser-evidence
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '24'
+  PLAYWRIGHT_VERSION: '1.55.0'
+  PRODUCT_HEAD: '104230fb8678a3fedbce943e03de56d9ba02e390'
+
+jobs:
+  browser-evidence:
+    name: JobWizard four-dot evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout validation branch
+        uses: actions/checkout@v7
+
+      - name: Verify product lineage
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git merge-base --is-ancestor "${PRODUCT_HEAD}" HEAD
+          product_files=(
+            src/FE/src/features/jobs/components/JobStatusDots.tsx
+            src/FE/src/features/jobs/components/JobStatusDots.css
+            src/FE/src/features/jobs/components/JobStatusDots.test.tsx
+          )
+          for file in "${product_files[@]}"; do
+            test "$(git rev-parse "${PRODUCT_HEAD}:${file}")" = "$(git rev-parse "HEAD:${file}")"
+          done
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Restore backend
+        run: dotnet restore src/BE/WorkslipApi/Workslip.Api.csproj --nologo
+
+      - name: Install frontend and Chromium
+        working-directory: src/FE
+        run: |
+          npm ci --prefer-offline --no-audit --no-fund
+          npm install --prefix scripts --no-save --package-lock=false --ignore-scripts --no-audit --no-fund "playwright@${PLAYWRIGHT_VERSION}"
+          node scripts/node_modules/playwright/cli.js install --with-deps chromium
+          node --check scripts/playwright-job-status-dots-evidence.mjs
+
+      - name: Start ephemeral SQL Server
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sql_password="Workslip$(openssl rand -hex 16)!A1"
+          jwt_key="$(openssl rand -hex 32)"
+          echo "::add-mask::${sql_password}"
+          echo "::add-mask::${jwt_key}"
+          echo "WORKSLIP_SQL_PASSWORD=${sql_password}" >> "${GITHUB_ENV}"
+          echo "WORKSLIP_JWT_KEY=${jwt_key}" >> "${GITHUB_ENV}"
+          docker run --detach --name workslip-wor281-sql --publish 1433:1433 --env ACCEPT_EULA=Y --env MSSQL_PID=Developer --env "MSSQL_SA_PASSWORD=${sql_password}" mcr.microsoft.com/mssql/server:2022-latest
+          ready=false
+          for attempt in $(seq 1 60); do
+            if docker exec workslip-wor281-sql bash -lc "if [ -x /opt/mssql-tools18/bin/sqlcmd ]; then /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${sql_password}' -C -Q 'SELECT 1'; else /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P '${sql_password}' -Q 'SELECT 1'; fi" >/dev/null 2>&1; then ready=true; break; fi
+            sleep 2
+          done
+          if [ "${ready}" != true ]; then docker logs workslip-wor281-sql; exit 1; fi
+
+      - name: Start Development backend
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export ASPNETCORE_ENVIRONMENT=Development
+          export ASPNETCORE_URLS=http://127.0.0.1:5262
+          export Azure__AppConfiguration__Endpoint=''
+          export Azure__Sql__ConnectionString="Server=localhost,1433;Initial Catalog=WorkslipWor281;User Id=sa;Password=${WORKSLIP_SQL_PASSWORD};Encrypt=false;TrustServerCertificate=true;MultipleActiveResultSets=true"
+          export Jwt__Issuer=workslip-wor281-local
+          export Jwt__Audience=workslip-wor281-local
+          export Jwt__SigningKey="${WORKSLIP_JWT_KEY}"
+          export Workslip__ApplyLocalMigrations=true
+          export Workslip__SeedDevelopmentData=true
+          export Workslip__SeedDevelopmentEntraIdentities=false
+          nohup dotnet run --project src/BE/WorkslipApi/Workslip.Api.csproj --no-launch-profile --no-restore >"${RUNNER_TEMP}/workslip-wor281-backend.log" 2>&1 &
+          echo "$!" > "${RUNNER_TEMP}/workslip-wor281-backend.pid"
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent http://127.0.0.1:5262/health >/dev/null; then exit 0; fi
+            if ! kill -0 "$(cat "${RUNNER_TEMP}/workslip-wor281-backend.pid")" 2>/dev/null; then cat "${RUNNER_TEMP}/workslip-wor281-backend.log"; exit 1; fi
+            sleep 1
+          done
+          cat "${RUNNER_TEMP}/workslip-wor281-backend.log"
+          exit 1
+
+      - name: Start local frontend
+        shell: bash
+        working-directory: src/FE
+        run: |
+          set -Eeuo pipefail
+          nohup node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5270 --strictPort >"${RUNNER_TEMP}/workslip-wor281-frontend.log" 2>&1 &
+          echo "$!" > "${RUNNER_TEMP}/workslip-wor281-frontend.pid"
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:5270/login >/dev/null; then exit 0; fi
+            if ! kill -0 "$(cat "${RUNNER_TEMP}/workslip-wor281-frontend.pid")" 2>/dev/null; then cat "${RUNNER_TEMP}/workslip-wor281-frontend.log"; exit 1; fi
+            sleep 1
+          done
+          cat "${RUNNER_TEMP}/workslip-wor281-frontend.log"
+          exit 1
+
+      - name: Run JobWizard status-dot evidence
+        working-directory: src/FE
+        env:
+          WORKSLIP_LOCAL_APP_URL: http://127.0.0.1:5270
+          WORKSLIP_LOCAL_API_URL: http://127.0.0.1:5262
+          WORKSLIP_SYNTHETIC_ADMIN_EMAIL: admin@17v3ygzs.mailosaur.net
+          WORKSLIP_PRODUCT_HEAD: ${{ env.PRODUCT_HEAD }}
+        run: node scripts/playwright-job-status-dots-evidence.mjs
+
+      - name: Upload browser evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: wor-281-job-status-dots-${{ github.run_id }}
+          path: |
+            artifacts/playwright-job-status-dots
+            ${{ runner.temp }}/workslip-wor281-backend.log
+            ${{ runner.temp }}/workslip-wor281-frontend.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Stop isolated runtime
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          if [ -f "${RUNNER_TEMP}/workslip-wor281-frontend.pid" ]; then kill "$(cat "${RUNNER_TEMP}/workslip-wor281-frontend.pid")" 2>/dev/null || true; fi
+          if [ -f "${RUNNER_TEMP}/workslip-wor281-backend.pid" ]; then kill "$(cat "${RUNNER_TEMP}/workslip-wor281-backend.pid")" 2>/dev/null || true; fi
+          docker rm --force workslip-wor281-sql >/dev/null 2>&1 || true
