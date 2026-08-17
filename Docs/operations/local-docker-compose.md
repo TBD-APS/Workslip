@@ -15,9 +15,45 @@
 - `api` starts after `db` is healthy and reuses the existing Development startup path: on a fresh database it creates the schema from the EF model, baselines the migration ledger, seeds synthetic development data, and applies any pending `src/BE/infrastructure/database/migrations/*.sql` — the same behavior as running the backend natively against a fresh local SQL.
 - The startup's local-SQL safety guard only trusts provably-local hosts (`localhost`, `127.0.0.1`, …). The compose service host `db` is opted in explicitly via `WORKSLIP_ADDITIONAL_LOCAL_SQL_HOSTS=db`; the guard stays closed everywhere that variable is not set.
 - API source is volume-mounted at the repo-mirrored path `/src/BE/WorkslipApi`; `bin`/`obj` are shadowed with container-local volumes so host and container build artifacts never mix.
-- `fe` volume-mounts `src/FE` with a container-native `node_modules` volume (esbuild/rollup binaries are OS-specific). The browser calls the API directly on `http://localhost:5262` via `VITE_API_BASE_URL`; backend CORS already allows the 5270 origin.
+- `fe` volume-mounts `src/FE` with a container-native `node_modules` volume (esbuild/rollup binaries are OS-specific).
+- Frontend API calls are same-origin (`/api`). Vite proxies them to `http://api:5262` inside the Compose network. This is important for phone testing: `localhost` in Safari on an iPhone would otherwise mean the iPhone itself, not the development Mac.
 
-## Everyday commands
+## Canonical dev command
+
+`dev.ps1` is platform-aware:
+
+- Windows keeps using the native LocalDB/bootstrap flow in `tools/dev/start.ps1`.
+- macOS/Linux uses the Docker Compose full stack in `tools/dev/start-docker.ps1`.
+
+Run the current checked-out branch:
+
+```powershell
+./dev.ps1 -NoBrowser
+```
+
+Run the current checked-out branch and expose the frontend for phone testing:
+
+```powershell
+./dev.ps1 -Mobile -NoBrowser
+```
+
+On macOS/Linux the script validates Docker/Compose, starts `db`, `api`, `fe` and `seq`, waits for API + frontend readiness, prints the current Git branch/SHA, resolves the machine's LAN IPv4 address and prints a phone URL such as:
+
+```text
+Phone: http://192.168.1.42:5270/app/overblik
+```
+
+The phone and development machine must be on the same trusted Wi-Fi/LAN. The API is not exposed to the phone as a separate origin; Safari calls `/api` on the frontend origin and Vite proxies the request inside Docker.
+
+`-CheckOnly` validates Docker/Compose and LAN address resolution without changing containers:
+
+```powershell
+./dev.ps1 -Mobile -CheckOnly
+```
+
+`-Main` retains its explicit behavior on all platforms: it refuses dirty worktrees, switches to `main`, fast-forwards from `origin/main`, and then starts the platform-specific dev stack. Omit `-Main` when you want to test the branch currently checked out.
+
+## Everyday Docker commands
 
 ```bash
 docker compose up            # start everything (first run: image pulls + npm ci + restore)
@@ -26,7 +62,7 @@ docker compose down          # stop; data volumes survive
 docker compose down -v       # stop and wipe DB/node_modules/nuget volumes
 ```
 
-The native workflow (`./dev.ps1`, backend and frontend on the host) keeps working unchanged — it expects SQL on `localhost,1433`, which `docker compose up -d db` provides.
+The Windows native workflow still expects SQL on `localhost,1433`, which `docker compose up -d db` provides.
 
 ## Migrating from the manual containers
 
@@ -44,3 +80,4 @@ The compose `db` starts empty; the API seeds it on first startup. Data from the 
 - `dotnet watch` and Vite use polling file watchers in containers; large rebuilds are slower than native.
 - The SA password is a local-only credential and is intentionally committed; never reuse it outside compose.
 - On Apple Silicon the SQL Server image runs under amd64 emulation (Rosetta); expect slower DB startup.
+- Local phone access can still be blocked by host firewall/VPN/network isolation. The bootstrap checks the LAN URL from the host and prints a focused warning if localhost works but the LAN URL does not.
