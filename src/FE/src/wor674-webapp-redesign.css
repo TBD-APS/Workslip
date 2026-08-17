@@ -1,0 +1,728 @@
+@charset "UTF-8";
+
+/* ==========================================================================
+   WOR-674 — Desktop shell + component refinement (additive layer)
+   Loaded after workslip-brand.css. Uses existing semantic tokens only.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. DESKTOP LEFT RAIL NAVIGATION (>=1024px)
+   -------------------------------------------------------------------------- */
+
+@media (min-width: 1024px) {
+  /* Neutralize legacy mobile bottom-nav positioning */
+  .app-shell .bottom-nav {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: 14rem;
+    height: 100dvh;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 0.25rem;
+    padding: calc(0.75rem + env(safe-area-inset-top, 0px)) 0.75rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    border-top: 0;
+    border-right: 1px solid var(--border);
+    background: var(--nav-bg);
+    backdrop-filter: blur(20px);
+    z-index: 100;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .app-shell .bottom-nav::before {
+    content: '';
+    display: block;
+    height: 2.5rem;
+    margin-bottom: 1rem;
+    background: var(--logo-icon, none);
+  }
+
+  .app-shell .nav-item {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 0 0 auto;
+    min-height: 2.75rem;
+    padding: 0.55rem 0.85rem;
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+    font-weight: 400;
+    color: var(--text-muted);
+    transition: color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .app-shell .nav-item.active {
+    color: var(--text);
+    background: var(--surface-selected);
+  }
+
+  .app-shell .nav-item:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* Offset header and content so nothing sits under the rail */
+  .app-shell .app-header {
+    left: 14rem;
+    width: calc(100% - 14rem);
+    padding-inline: clamp(1.5rem, 2.5vw, 2.5rem);
+  }
+
+  .app-shell .app-content {
+    margin-left: 14rem;
+    padding-inline: clamp(1.5rem, 2.5vw, 2.5rem);
+    padding-bottom: 1.5rem;
+  }
+
+  /* FAB repositions to avoid rail */
+  .app-shell .fab-create {
+    right: 2rem;
+    bottom: 2rem;
+  }
+}
+
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+  .app-shell .nav-item:hover {
+    color: var(--text);
+    background: var(--surface-raised);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   2. SHELL / HEADER REFINEMENTS
+   -------------------------------------------------------------------------- */
+
+@media (min-width: 1024px) {
+  .app-shell .app-header {
+    min-height: 3.5rem;
+    padding-block: 0.6rem;
+    background: var(--surface-floating);
+    border-bottom-color: var(--border);
+    box-shadow: var(--shadow-sm-raw);
+  }
+
+  .app-shell .app-header-actions {
+    gap: 0.5rem;
+  }
+
+  .app-shell .app-header-user {
+    max-width: 16rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   3. CARDS, SECTIONS, ELEVATION
+   -------------------------------------------------------------------------- */
+
+html body:has(.app-shell) :is(
+  .overview-recent-card,
+  .data-table,
+  .job-card,
+  .customer-card,
+  .time-overview-card,
+  .detail-section,
+  .submitted-confirmation,
+  .submission-overlay
+) {
+  background: var(--surface-floating);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm-raw);
+}
+
+html body:has(.app-shell) .detail-section {
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+html body:has(.app-shell) .detail-section > :last-child {
+  margin-bottom: 0;
+}
+
+@media (min-width: 1024px) {
+  html body:has(.app-shell) .detail-section {
+    padding: 1.5rem 2rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   4. JOB DETAIL — HIERARCHY & LAYOUT
+   -------------------------------------------------------------------------- */
+
+html body:has(.app-shell) .detail-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 0.75rem 1rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  background: var(--surface-floating);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm-raw);
+}
+
+html body:has(.app-shell) .detail-header .btn-icon {
+  margin-top: 0.15rem;
+}
+
+html body:has(.app-shell) .job-number {
+  display: block;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.35rem;
+}
+
+html body:has(.app-shell) .detail-title {
+  font-size: var(--fs-xl);
+  font-weight: 400;
+  line-height: 1.25;
+  color: var(--text);
+  margin: 0.25rem 0 0;
+}
+
+html body:has(.app-shell) .detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+html body:has(.app-shell) .job-details-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+html body:has(.app-shell) .job-conversation-entry {
+  margin-bottom: 0.5rem;
+}
+
+@media (min-width: 1024px) {
+  html body:has(.app-shell) .detail-header {
+    padding: 1.25rem 1.75rem;
+    gap: 1rem 1.25rem;
+  }
+
+  html body:has(.app-shell) .detail-title {
+    font-size: var(--fs-2xl, 1.5rem);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   5. STEP INDICATORS & NAVIGATION
+   -------------------------------------------------------------------------- */
+
+html body:has(.app-shell) .step-indicators {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem 0.5rem;
+  margin-bottom: 0.75rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+html body:has(.app-shell) .step-indicators::-webkit-scrollbar {
+  display: none;
+}
+
+html body:has(.app-shell) .step-indicator {
+  flex: 1 1 auto;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+html body:has(.app-shell) .step-indicator.active {
+  background: var(--surface-selected-strong);
+  border-color: color-mix(in srgb, var(--color-primary) 40%, var(--border));
+  color: var(--text);
+}
+
+html body:has(.app-shell) .step-indicator.completed {
+  color: var(--color-primary);
+}
+
+html body:has(.app-shell) .step-indicator:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+html body:has(.app-shell) .step-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  margin-top: 1rem;
+  background: var(--surface-floating);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm-raw);
+}
+
+html body:has(.app-shell) .step-navigation .btn {
+  min-height: 2.75rem;
+  padding-inline: 1.25rem;
+}
+
+@media (min-width: 1024px) {
+  html body:has(.app-shell) .step-indicators {
+    padding: 1rem 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  html body:has(.app-shell) .step-indicator {
+    min-height: 3rem;
+    padding: 0.6rem 1rem;
+  }
+
+  html body:has(.app-shell) .step-navigation {
+    padding: 1.25rem 1.75rem;
+    margin-top: 1.25rem;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html body:has(.app-shell) .step-indicator:hover:not(.active) {
+    background: var(--surface-raised);
+    color: var(--text);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   6. TABLES
+   -------------------------------------------------------------------------- */
+
+html body:has(.app-shell) .data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--surface-floating);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm-raw);
+  overflow: hidden;
+}
+
+html body:has(.app-shell) .data-table thead {
+  background: var(--surface-raised);
+}
+
+html body:has(.app-shell) .data-table thead th {
+  padding: 0.85rem 1rem;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+html body:has(.app-shell) .data-table tbody tr {
+  background: var(--surface-floating);
+  transition: background-color 0.12s ease;
+}
+
+html body:has(.app-shell) .data-table tbody td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+
+html body:has(.app-shell) .data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+html body:has(.app-shell) .data-table tbody tr.clickable {
+  cursor: pointer;
+}
+
+html body:has(.app-shell) .data-table tbody tr:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--focus-ring) 32%, transparent);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html body:has(.app-shell) .data-table tbody tr:hover {
+    background: var(--surface-hover);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   7. FORMS & INPUTS
+   -------------------------------------------------------------------------- */
+
+html body:has(.app-shell) .form-group {
+  margin-bottom: 1rem;
+}
+
+html body:has(.app-shell) .form-group label,
+html body:has(.app-shell) .form-label {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 0.4rem;
+}
+
+html body:has(.app-shell) :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]) {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.85rem;
+  background: var(--surface-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--fs-base);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+html body:has(.app-shell) :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):focus-visible {
+  outline: 0;
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 22%, transparent);
+}
+
+html body:has(.app-shell) :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+html body:has(.app-shell) .form-error {
+  font-size: var(--fs-sm);
+  color: var(--danger);
+  margin-top: 0.35rem;
+}
+
+/* --------------------------------------------------------------------------
+   8. BUTTONS (non-primary — primary stays in workslip-brand.css)
+   -------------------------------------------------------------------------- */
+
+html body:has(.app-shell) :is(.btn-secondary, .btn-outline, .btn-outline-danger) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+html body:has(.app-shell) .btn-secondary {
+  background: var(--surface-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm-raw);
+}
+
+html body:has(.app-shell) .btn-outline {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+}
+
+html body:has(.app-shell) .btn-outline-danger {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+}
+
+html body:has(.app-shell) .btn-icon,
+html body:has(.app-shell) .btn-icon-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+html body:has(.app-shell) .btn-icon:focus-visible,
+html body:has(.app-shell) .btn-icon-back:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html body:has(.app-shell) .btn-secondary:hover {
+    background: var(--surface-elevated);
+    transform: translateY(-1px);
+  }
+
+  html body:has(.app-shell) .btn-outline:hover {
+    background: var(--surface);
+    border-color: var(--border-strong);
+  }
+
+  html body:has(.app-shell) .btn-outline-danger:hover {
+    background: var(--danger-bg);
+    border-color: color-mix(in srgb, var(--danger) 50%, var(--border));
+  }
+
+  html body:has(.app-shell) .btn-icon:hover,
+  html body:has(.app-shell) .btn-icon-back:hover {
+    background: var(--surface-raised);
+    color: var(--text);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   9. JOB CARDS (list/overview)
+   -------------------------------------------------------------------------- */
+
+html body:has(.app-shell) .job-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface-floating);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm-raw);
+  transition: transform 0.12s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+}
+
+html body:has(.app-shell) .job-card:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+html body:has(.app-shell) .job-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+html body:has(.app-shell) .job-card-title {
+  font-size: var(--fs-base);
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+html body:has(.app-shell) .job-card-meta {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html body:has(.app-shell) .job-card:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   10. EMPTY / ERROR / LOADING SURFACES
+   -------------------------------------------------------------------------- */
+
+html body:has(.app-shell) .empty-state,
+html body:has(.app-shell) .error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1rem;
+  padding: 2.5rem 1.5rem;
+  background: var(--surface-floating);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm-raw);
+  color: var(--text-muted);
+}
+
+html body:has(.app-shell) .empty-state svg,
+html body:has(.app-shell) .error-state svg {
+  color: var(--text-dim);
+  opacity: 0.7;
+}
+
+html body:has(.app-shell) .detail-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 3rem 1.5rem;
+  color: var(--text-muted);
+}
+
+html body:has(.app-shell) .detail-loading svg {
+  color: var(--color-info);
+}
+
+/* --------------------------------------------------------------------------
+   11. SUBMISSION / CONFIRMATION STATES
+   -------------------------------------------------------------------------- */
+
+html body:has(.app-shell) .submission-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+  padding: 3rem 1.5rem;
+}
+
+html body:has(.app-shell) .submission-overlay-spinner {
+  color: var(--color-info);
+}
+
+html body:has(.app-shell) .submission-overlay-title {
+  font-size: var(--fs-xl);
+  font-weight: 400;
+  color: var(--text);
+  margin: 0;
+}
+
+html body:has(.app-shell) .submission-overlay-body {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+html body:has(.app-shell) .submitted-confirmation {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+  padding: 2.5rem 1.5rem;
+}
+
+html body:has(.app-shell) .submitted-confirmation-icon {
+  color: var(--success);
+  margin-bottom: 0.5rem;
+}
+
+html body:has(.app-shell) .submitted-confirmation-title {
+  font-size: var(--fs-xl);
+  font-weight: 400;
+  color: var(--text);
+  margin: 0;
+}
+
+html body:has(.app-shell) .submitted-confirmation-body {
+  color: var(--text-secondary);
+  max-width: 32rem;
+  margin: 0;
+}
+
+html body:has(.app-shell) .submitted-confirmation-date {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  margin: 0 0 0.5rem;
+}
+
+html body:has(.app-shell) .submitted-confirmation-button {
+  min-width: 12rem;
+  margin-top: 0.25rem;
+}
+
+/* --------------------------------------------------------------------------
+   12. SAVE STATUS
+   -------------------------------------------------------------------------- */
+
+html body:has(.app-shell) .save-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--fs-sm);
+}
+
+html body:has(.app-shell) .save-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+html body:has(.app-shell) .save-indicator.saving {
+  color: var(--color-info);
+}
+
+html body:has(.app-shell) .save-indicator.saved {
+  color: var(--success);
+}
+
+html body:has(.app-shell) .save-indicator.error {
+  color: var(--danger);
+}
+
+/* --------------------------------------------------------------------------
+   13. REDUCED MOTION
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html body:has(.app-shell) .bottom-nav,
+  html body:has(.app-shell) .nav-item,
+  html body:has(.app-shell) .step-indicator,
+  html body:has(.app-shell) .btn,
+  html body:has(.app-shell) .job-card,
+  html body:has(.app-shell) .data-table tbody tr,
+  html body:has(.app-shell) :is(input, select, textarea) {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  html body:has(.app-shell) .job-card:hover,
+  html body:has(.app-shell) .btn-secondary:hover,
+  html body:has(.app-shell) .btn-outline:hover {
+    transform: none !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   14. ACCESSIBILITY — FOCUS VISIBLE (global safety net)
+   -------------------------------------------------------------------------- */
+
+html body:has(.app-shell) :is(
+  .btn-primary:focus-visible,
+  .btn-secondary:focus-visible,
+  .btn-outline:focus-visible,
+  .btn-danger:focus-visible,
+  .fab-create:focus-visible,
+  .job-card:focus-visible,
+  .data-table tr:focus-visible,
+  .step-indicator:focus-visible,
+  .nav-item:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible
+) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Keep table row offset consistent with existing pattern */
+html body:has(.app-shell) .data-table tr:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--focus-ring) 32%, transparent);
+  outline-offset: -2px;
+}

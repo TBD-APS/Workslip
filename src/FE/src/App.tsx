@@ -11,6 +11,7 @@ import './public-shell.css';
 import './public-error.css';
 import './public-performance.css';
 import './workslip-brand.css';
+import './wor674-webapp-redesign.css';
 import './pwa-update.css';
 import './gamification-feedback.css';
 
