@@ -31,6 +31,15 @@ public sealed class AzureBlobImageStorage : IImageStorage
             credential);
     }
 
+    private static bool IsContainerNotFound(RequestFailedException exception) =>
+        exception.Status == 404
+        && string.Equals(exception.ErrorCode, "ContainerNotFound", StringComparison.Ordinal);
+
+    private InvalidOperationException ContainerMissing(RequestFailedException exception) =>
+        new(
+            $"Blob container '{_container.Name}' does not exist. Verify Azure:DocumentFileStorage:ContainerName and that the infrastructure reconcile has provisioned the container.",
+            exception);
+
     public async Task<IReadOnlyList<ImageInfoResponse>> ListJobImagesAsync(
         Guid organizationId,
         Guid jobId,
@@ -39,30 +48,37 @@ public sealed class AzureBlobImageStorage : IImageStorage
         var prefix = JobImagePrefix(organizationId, jobId);
         var images = new List<ImageInfoResponse>();
 
-        await foreach (var blob in _container.GetBlobsAsync(
-                           BlobTraits.None,
-                           BlobStates.None,
-                           prefix,
-                           cancellationToken))
+        try
         {
-            var idText = blob.Name[prefix.Length..];
-            if (!Guid.TryParseExact(idText, "N", out var imageId))
+            await foreach (var blob in _container.GetBlobsAsync(
+                               BlobTraits.None,
+                               BlobStates.None,
+                               prefix,
+                               cancellationToken))
             {
-                continue;
-            }
+                var idText = blob.Name[prefix.Length..];
+                if (!Guid.TryParseExact(idText, "N", out var imageId))
+                {
+                    continue;
+                }
 
-            var contentType = blob.Properties.ContentType;
-            var contentLength = blob.Properties.ContentLength;
-            if (string.IsNullOrWhiteSpace(contentType) || contentLength is null)
-            {
-                continue;
-            }
+                var contentType = blob.Properties.ContentType;
+                var contentLength = blob.Properties.ContentLength;
+                if (string.IsNullOrWhiteSpace(contentType) || contentLength is null)
+                {
+                    continue;
+                }
 
-            images.Add(new ImageInfoResponse(
-                imageId,
-                contentType,
-                contentLength.Value,
-                blob.Properties.CreatedOn ?? blob.Properties.LastModified ?? DateTimeOffset.MinValue));
+                images.Add(new ImageInfoResponse(
+                    imageId,
+                    contentType,
+                    contentLength.Value,
+                    blob.Properties.CreatedOn ?? blob.Properties.LastModified ?? DateTimeOffset.MinValue));
+            }
+        }
+        catch (RequestFailedException exception) when (IsContainerNotFound(exception))
+        {
+            throw ContainerMissing(exception);
         }
 
         return images
@@ -118,13 +134,20 @@ public sealed class AzureBlobImageStorage : IImageStorage
         CancellationToken cancellationToken)
     {
         var prefix = JobImagePrefix(organizationId, jobId);
-        await foreach (var blob in _container.GetBlobsAsync(
-                           BlobTraits.None,
-                           BlobStates.None,
-                           prefix,
-                           cancellationToken))
+        try
         {
-            await _container.DeleteBlobIfExistsAsync(blob.Name, cancellationToken: cancellationToken);
+            await foreach (var blob in _container.GetBlobsAsync(
+                               BlobTraits.None,
+                               BlobStates.None,
+                               prefix,
+                               cancellationToken))
+            {
+                await _container.DeleteBlobIfExistsAsync(blob.Name, cancellationToken: cancellationToken);
+            }
+        }
+        catch (RequestFailedException exception) when (IsContainerNotFound(exception))
+        {
+            throw ContainerMissing(exception);
         }
     }
 
@@ -175,6 +198,10 @@ public sealed class AzureBlobImageStorage : IImageStorage
                 download.Value.Content,
                 details.ContentType ?? "application/octet-stream",
                 details.ContentLength);
+        }
+        catch (RequestFailedException exception) when (IsContainerNotFound(exception))
+        {
+            throw ContainerMissing(exception);
         }
         catch (RequestFailedException exception) when (exception.Status == 404)
         {

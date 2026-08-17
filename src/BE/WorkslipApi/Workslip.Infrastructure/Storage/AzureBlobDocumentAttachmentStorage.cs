@@ -27,6 +27,15 @@ public sealed class AzureBlobDocumentAttachmentStorage : IDocumentAttachmentStor
             credential);
     }
 
+    private static bool IsContainerNotFound(RequestFailedException exception) =>
+        exception.Status == 404
+        && string.Equals(exception.ErrorCode, "ContainerNotFound", StringComparison.Ordinal);
+
+    private InvalidOperationException ContainerMissing(RequestFailedException exception) =>
+        new(
+            $"Blob container '{_container.Name}' does not exist. Verify Azure:DocumentFileStorage:ContainerName and that the infrastructure reconcile has provisioned the container.",
+            exception);
+
     public async Task UploadAsync(
         Guid organizationId,
         Guid documentId,
@@ -59,6 +68,10 @@ public sealed class AzureBlobDocumentAttachmentStorage : IDocumentAttachmentStor
                 download.Value.Content,
                 download.Value.Details.ContentLength);
         }
+        catch (RequestFailedException exception) when (IsContainerNotFound(exception))
+        {
+            throw ContainerMissing(exception);
+        }
         catch (RequestFailedException exception) when (exception.Status == 404)
         {
             return null;
@@ -82,13 +95,20 @@ public sealed class AzureBlobDocumentAttachmentStorage : IDocumentAttachmentStor
         CancellationToken cancellationToken)
     {
         var prefix = AttachmentPrefix(organizationId, documentId);
-        await foreach (var blob in _container.GetBlobsAsync(
-                           BlobTraits.None,
-                           BlobStates.None,
-                           prefix,
-                           cancellationToken))
+        try
         {
-            await _container.DeleteBlobIfExistsAsync(blob.Name, cancellationToken: cancellationToken);
+            await foreach (var blob in _container.GetBlobsAsync(
+                               BlobTraits.None,
+                               BlobStates.None,
+                               prefix,
+                               cancellationToken))
+            {
+                await _container.DeleteBlobIfExistsAsync(blob.Name, cancellationToken: cancellationToken);
+            }
+        }
+        catch (RequestFailedException exception) when (IsContainerNotFound(exception))
+        {
+            throw ContainerMissing(exception);
         }
     }
 
