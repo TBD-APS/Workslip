@@ -1,6 +1,6 @@
 import { ChevronRight, Clock, MapPin, Timer, User } from 'lucide-react';
 import { CopyAddressButton } from '../../../components/CopyAddressButton';
-import { formatDateShort } from '../../../lib/formatDate';
+import { formatDate } from '../../../lib/formatDate';
 import { formatJobStatus, formatJobType } from '../statusLabels';
 
 type AssignedUserLike = {
@@ -102,7 +102,7 @@ export function JobCard({
           </span>
         )}
         <span className="meta-item meta-updated">
-          <Clock size={14} aria-hidden="true" /> Opdateret {formatDateShort(updatedAt) ?? '–'}
+          <Clock size={14} aria-hidden="true" /> Opdateret {formatDate(updatedAt) ?? '–'}
         </span>
       </div>
 
