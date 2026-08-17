@@ -38,18 +38,18 @@ jobs:
             exit 11
           fi
 
-          cat > /tmp/review.txt <<'EOF'
-You are Kimi, acting as Workslip's mandatory frontend UI-consistency reviewer.
-Review the exact release change below.
-
-Requirement: only lifecycle status-dot colors on job cards/table are restored to the historical values: review #eab308, approved #22c55e, rejected #ef4444. Unread/unassigned dots and all other card styling must remain unchanged.
-
-Implementation intent: remove only the three Farvelab overrides so the existing App.css values become authoritative again.
-
-First line must be exactly PASS or BLOCK. Then give a concise rationale and any findings.
-EOF
+          printf '%s\n' \
+            'You are Kimi, acting as Workslip mandatory frontend UI-consistency reviewer.' \
+            'Review the exact release change below.' \
+            '' \
+            'Requirement: only lifecycle status-dot colors on job cards/table are restored to the historical values: review #eab308, approved #22c55e, rejected #ef4444. Unread/unassigned dots and all other card styling must remain unchanged.' \
+            '' \
+            'Implementation intent: remove only the three Farvelab overrides so the existing App.css values become authoritative again.' \
+            '' \
+            'First line must be exactly PASS or BLOCK. Then give a concise rationale and any findings.' \
+            > /tmp/review.txt
           printf '\nExact release diff:\n' >> /tmp/review.txt
-          git show --format= -- src/FE/src/farvelab-theme.css "${product_sha}" >> /tmp/review.txt
+          git show "${product_sha}" --format= -- src/FE/src/farvelab-theme.css >> /tmp/review.txt
           printf '\nShared JobCard excerpt:\n' >> /tmp/review.txt
           sed -n '55,86p' src/FE/src/features/jobs/components/JobCard.tsx >> /tmp/review.txt
           printf '\nExisting dot CSS:\n' >> /tmp/review.txt
