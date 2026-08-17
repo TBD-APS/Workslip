@@ -38,7 +38,7 @@ html body:has(.system-state) {
   --primary: var(--brand-orange);
   --primary-hover: #ff8c3f;
   --primary-pressed: #d86417;
-  --on-primary: var(--brand-marine);
+  --on-primary: #ffffff;
   --accent-cyan: var(--brand-petrol);
   --accent-mint: #57b894;
   --accent-amber: var(--brand-orange);
@@ -110,7 +110,7 @@ html[data-theme="day"] body:has(.system-state) {
   --primary: var(--brand-orange);
   --primary-hover: #e96e18;
   --primary-pressed: #cf5e12;
-  --on-primary: var(--brand-marine);
+  --on-primary: #ffffff;
   --accent-cyan: var(--brand-petrol);
   --accent-mint: #328e72;
   --accent-amber: #b8530e;
@@ -214,12 +214,10 @@ html body:has(.app-shell) .status-filter-btn.selected {
   box-shadow: 0 6px 18px rgba(20, 122, 126, 0.23);
 }
 
-/* Signal orange (#F47A24) does not provide sufficient contrast with white
-   for normal text. Marine foreground keeps the CTA legible while preserving
-   the requested orange signal colour. */
+/* Primary action buttons use signal orange with white foreground text/icons. */
 html body:has(.app-shell) :is(.btn-primary, .fab-create) {
   background: var(--brand-orange);
-  color: var(--brand-marine);
+  color: #ffffff;
   border-color: color-mix(in srgb, var(--brand-orange) 76%, var(--brand-marine));
   box-shadow: var(--shadow-accent);
 }
@@ -239,7 +237,7 @@ html body:has(.app-shell) .app-shell {
 @media (hover: hover) and (pointer: fine) {
   html body:has(.app-shell) :is(.btn-primary, .fab-create):hover {
     background: var(--primary-hover);
-    color: var(--brand-marine);
+    color: #ffffff;
     box-shadow: 0 12px 30px rgba(244, 122, 36, 0.24);
   }
 
