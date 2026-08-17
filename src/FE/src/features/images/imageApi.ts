@@ -11,6 +11,7 @@ export function listJobImages(jobId: string) {
   return customAxiosInstance<ImageInfo[]>({
     url: `/api/jobs/${jobId}/images`,
     method: 'GET',
+    skipGlobalErrorToast: true,
   });
 }
 
