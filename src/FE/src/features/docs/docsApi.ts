@@ -16,7 +16,7 @@ export type DocumentListParams = {
 
 export function listDocuments(params?: DocumentListParams) {
   return customAxiosInstance<DocumentListResponse>({
-    url: '/api/docs/',
+    url: '/api/docs',
     method: 'GET',
     params,
   });
@@ -31,7 +31,7 @@ export function getDocument(id: string) {
 
 export function createDocument(data: CreateDocumentRequest) {
   return customAxiosInstance<DocumentDetailResponse>({
-    url: '/api/docs/',
+    url: '/api/docs',
     method: 'POST',
     data,
   });

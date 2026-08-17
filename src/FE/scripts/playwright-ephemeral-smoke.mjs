@@ -376,7 +376,7 @@ async function verifyMobileDocumentAttachmentUpload() {
 
     const createResponsePromise = page.waitForResponse((response) =>
       response.request().method() === 'POST'
-        && new URL(response.url()).pathname === '/api/docs/',
+        && new URL(response.url()).pathname === '/api/docs',
     { timeout: UI_TIMEOUT });
     await page.getByRole('button', { name: 'Gem', exact: true }).click();
     const createResponse = await createResponsePromise;
