@@ -75,12 +75,16 @@ async function verifySharedStateSemantics({ name, theme, viewport }) {
     await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     const activeResult = dialog.locator('.quick-nav-result.active').first();
     await activeResult.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    const activeNavigatorIcon = await activeResult.locator('.quick-nav-result-icon').evaluate((element) =>
+      getComputedStyle(element).color);
 
-    const result = await page.evaluate(() => {
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden', timeout: UI_TIMEOUT });
+
+    await page.evaluate(() => {
       const shell = document.querySelector('.app-shell');
-      const activeIcon = document.querySelector('.quick-nav-result.active .quick-nav-result-icon');
-      if (!(shell instanceof HTMLElement) || !(activeIcon instanceof HTMLElement)) {
-        throw new Error('Expected app shell and active Quick Navigator result were not rendered.');
+      if (!(shell instanceof HTMLElement)) {
+        throw new Error('Expected app shell was not rendered.');
       }
 
       const probe = document.createElement('div');
@@ -88,52 +92,68 @@ async function verifySharedStateSemantics({ name, theme, viewport }) {
       probe.innerHTML = `
         <div class="activity-row activity-row-unread"><span class="activity-avatar activity-avatar-primary">A</span></div>
         <a class="linked-job-link">SAG-1</a>
+        <button data-focus-sentinel type="button">Focus sentinel</button>
         <button class="linked-job-row" type="button">Linked job</button>
         <span class="favorite-customer-icon">F</span>
         <span class="unread-dot"></span>
         <div class="worksheet-list-item is-selected"></div>
       `;
       shell.appendChild(probe);
+    });
+
+    const probe = page.locator('[data-shared-state-probe]');
+    const focusSentinel = probe.locator('[data-focus-sentinel]');
+    const linkedJobRow = probe.locator('.linked-job-row');
+    await focusSentinel.focus();
+    await page.keyboard.press('Tab');
+    await linkedJobRow.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+    const result = await page.evaluate(({ navigatorIconColor }) => {
+      const probeElement = document.querySelector('[data-shared-state-probe]');
+      if (!(probeElement instanceof HTMLElement)) {
+        throw new Error('Shared-state CSS probe was not rendered.');
+      }
 
       const bodyStyle = getComputedStyle(document.body);
-      const activityRow = probe.querySelector('.activity-row-unread');
-      const activityAvatar = probe.querySelector('.activity-avatar-primary');
-      const linkedJob = probe.querySelector('.linked-job-link');
-      const linkedJobRow = probe.querySelector('.linked-job-row');
-      const favorite = probe.querySelector('.favorite-customer-icon');
-      const unread = probe.querySelector('.unread-dot');
-      const worksheet = probe.querySelector('.worksheet-list-item.is-selected');
+      const activityRow = probeElement.querySelector('.activity-row-unread');
+      const activityAvatar = probeElement.querySelector('.activity-avatar-primary');
+      const linkedJob = probeElement.querySelector('.linked-job-link');
+      const linkedJobRowElement = probeElement.querySelector('.linked-job-row');
+      const favorite = probeElement.querySelector('.favorite-customer-icon');
+      const unread = probeElement.querySelector('.unread-dot');
+      const worksheet = probeElement.querySelector('.worksheet-list-item.is-selected');
       if (!(activityRow instanceof HTMLElement)
         || !(activityAvatar instanceof HTMLElement)
         || !(linkedJob instanceof HTMLElement)
-        || !(linkedJobRow instanceof HTMLElement)
+        || !(linkedJobRowElement instanceof HTMLElement)
         || !(favorite instanceof HTMLElement)
         || !(unread instanceof HTMLElement)
         || !(worksheet instanceof HTMLElement)) {
         throw new Error('Shared-state CSS probe could not be constructed.');
       }
 
-      linkedJobRow.focus();
       const values = {
         primary: bodyStyle.getPropertyValue('--primary').trim(),
         colorPrimary: bodyStyle.getPropertyValue('--color-primary').trim(),
         colorInfo: bodyStyle.getPropertyValue('--color-info').trim(),
         focusRing: bodyStyle.getPropertyValue('--focus-ring').trim(),
         accentCoral: bodyStyle.getPropertyValue('--accent-coral').trim(),
-        activeNavigatorIcon: getComputedStyle(activeIcon).color,
+        activeNavigatorIcon: navigatorIconColor,
         activityUnread: getComputedStyle(activityRow, '::before').backgroundColor,
         activityAvatar: getComputedStyle(activityAvatar).color,
         linkedJob: getComputedStyle(linkedJob).color,
-        linkedJobOutline: getComputedStyle(linkedJobRow).outlineColor,
+        linkedJobOutline: getComputedStyle(linkedJobRowElement).outlineColor,
+        linkedJobFocusVisible: linkedJobRowElement.matches(':focus-visible'),
+        linkedJobHasFocus: document.activeElement === linkedJobRowElement,
         favorite: getComputedStyle(favorite).color,
         unreadDot: getComputedStyle(unread).backgroundColor,
         worksheetSelection: getComputedStyle(worksheet, '::before').backgroundColor,
         documentWidth: document.documentElement.scrollWidth,
         viewportWidth: window.innerWidth,
       };
-      probe.remove();
+      probeElement.remove();
       return values;
-    });
+    }, { navigatorIconColor: activeNavigatorIcon });
 
     assert.equal(result.primary, '#f47a24', `${name}: primary action token must remain signal orange.`);
     assert.equal(result.colorPrimary, '#147a7e', `${name}: selection/navigation token must remain petrol.`);
@@ -143,10 +163,12 @@ async function verifySharedStateSemantics({ name, theme, viewport }) {
     assert.equal(result.activityUnread, 'rgb(20, 122, 126)', `${name}: unread activity marker must be informational petrol.`);
     assert.equal(result.activityAvatar, 'rgb(20, 122, 126)', `${name}: activity actor/info avatar must be petrol.`);
     assert.equal(result.linkedJob, 'rgb(20, 122, 126)', `${name}: linked-job navigation must be petrol.`);
+    assert.equal(result.linkedJobHasFocus, true, `${name}: keyboard Tab must move focus to the linked-job probe.`);
+    assert.equal(result.linkedJobFocusVisible, true, `${name}: keyboard-focused linked job must match :focus-visible.`);
     assert.equal(
       result.linkedJobOutline,
       theme === 'day' ? 'rgb(20, 122, 126)' : 'rgb(85, 184, 184)',
-      `${name}: linked-job focus must use the focus token, not action orange.`,
+      `${name}: linked-job keyboard focus must use the focus token, not action orange.`,
     );
     assert.equal(
       result.favorite,
