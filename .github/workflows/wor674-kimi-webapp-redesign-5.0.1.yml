@@ -1,0 +1,178 @@
+name: WOR-674 Kimi Webapp Redesign 5.0.1
+
+on:
+  push:
+    branches:
+      - agent/wor-674-kimi-redesign-5.0.1-orchestrator
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: wor-674-kimi-redesign-5-0-1
+  cancel-in-progress: false
+
+jobs:
+  implement-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
+      MOONSHOT_BASE_URL: https://api.moonshot.ai/v1
+      BASE_BRANCH: release-5.0.1
+      TARGET_BRANCH: kimi/wor-674-webapp-redesign-5.0.1
+      CSS_PATH: src/FE/src/wor674-webapp-redesign.css
+      KIMI_TASK_CLASS: large_feature_ui
+    steps:
+      - name: Checkout isolated experiment orchestrator
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Resolve release base and strongest Kimi model
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${KIMI_API_KEY:-}" || { echo 'KIMI_API_KEY is unavailable'; exit 10; }
+          git fetch origin "$BASE_BRANCH"
+          base_sha="$(git rev-parse "origin/$BASE_BRANCH")"
+          response="$(curl --fail --silent --show-error --retry 2 --retry-delay 2 -H "Authorization: Bearer ${KIMI_API_KEY}" "${MOONSHOT_BASE_URL}/models")"
+          printf '%s' "$response" > /tmp/kimi-models.json
+          model="$(printf '%s' "$response" | jq -r '
+            [.data[].id | select(test("^kimi-"; "i"))] as $kimi |
+            (["kimi-k2.6", "kimi-k2.5", "kimi-k2", "kimi-k1.5"] | map(select(. as $p | $kimi | index($p))) | .[0]) //
+            ($kimi | sort_by(
+              capture("(?<major>[0-9]+)(?:\\.(?<minor>[0-9]+))?")? |
+              [(.major // "0" | tonumber), (.minor // "0" | tonumber)]
+            ) | reverse | .[0]) // empty')"
+          test -n "$model" || { echo 'No Kimi model available for large_feature_ui'; exit 11; }
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          echo "model=$model" >> "$GITHUB_OUTPUT"
+          echo "task_class=$KIMI_TASK_CLASS" >> "$GITHUB_OUTPUT"
+          cp .github/wor674/kimi_worker.py /tmp/kimi_worker.py
+          printf '{"task_class":"%s","base_branch":"%s","base_sha":"%s","selected_model":"%s","available_kimi_models":%s}\n' \
+            "$KIMI_TASK_CLASS" "$BASE_BRANCH" "$base_sha" "$model" "$(printf '%s' "$response" | jq -c '[.data[].id | select(test("^kimi-"; "i"))]')" \
+            > /tmp/kimi-model-selection.json
+          echo "Base $BASE_BRANCH@$base_sha; selected Kimi model $model"
+
+      - name: Generate bounded redesign with Kimi
+        env:
+          KIMI_MODEL: ${{ steps.resolve.outputs.model }}
+          KIMI_WORKER_MODE: generate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git switch --detach "origin/$BASE_BRANCH"
+          python3 /tmp/kimi_worker.py
+
+      - name: Build isolated implementation branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin "$TARGET_BRANCH" >/dev/null 2>&1; then
+            echo "Target branch already exists; refusing to overwrite it."
+            exit 20
+          fi
+          git switch --create "$TARGET_BRANCH" "origin/$BASE_BRANCH"
+          cp /tmp/wor674.css "$CSS_PATH"
+          test -s "$CSS_PATH" || { echo 'Generated CSS is empty.'; exit 25; }
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/FE/src/App.tsx')
+          source = p.read_text(encoding='utf-8')
+          marker = "import './workslip-brand.css';"
+          addition = "import './wor674-webapp-redesign.css';"
+          if addition not in source:
+              if marker not in source:
+                  raise SystemExit('workslip-brand.css import marker not found')
+              source = source.replace(marker, marker + '\n' + addition)
+          p.write_text(source, encoding='utf-8')
+          PY
+          changed="$(git status --porcelain=v1 | sed -E 's/^.. //' | sort)"
+          expected="$(printf '%s\n' src/FE/src/App.tsx "$CSS_PATH" | sort)"
+          test "$changed" = "$expected" || { printf 'Unexpected scope:\n%s\n' "$changed"; exit 21; }
+          if grep -Ein '#[0-9a-fA-F]{3,8}\b' "$CSS_PATH"; then
+            echo 'Hardcoded hex color found; semantic tokens are required.'
+            exit 22
+          fi
+          if grep -Ein 'var\(--primary\)' "$CSS_PATH"; then
+            echo 'WOR-674 refinement must not consume --primary.'
+            exit 23
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Frontend tests and production build
+        working-directory: src/FE
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run test -- --run
+          npm run build
+
+      - name: Authenticated browser regression suite
+        working-directory: src/FE
+        shell: bash
+        run: ./scripts/run-playwright-ephemeral.sh
+
+      - name: Commit and push exact implementation head
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Kimi Worker'
+          git config user.email 'kimi-worker@users.noreply.github.com'
+          git add src/FE/src/App.tsx "$CSS_PATH"
+          git commit -m 'WOR-674: redesign authenticated webapp shell for 5.0.1'
+          sha="$(git rev-parse HEAD)"
+          git push --set-upstream origin "$TARGET_BRANCH"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Three independent Kimi exact-head reviews
+        env:
+          KIMI_MODEL: ${{ steps.resolve.outputs.model }}
+          KIMI_WORKER_MODE: review
+          MAIN_SHA: ${{ steps.resolve.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.commit.outputs.sha }}
+        shell: bash
+        run: python3 /tmp/kimi_worker.py
+
+      - name: Open Draft PR to release-5.0.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ steps.resolve.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.commit.outputs.sha }}
+          KIMI_MODEL: ${{ steps.resolve.outputs.model }}
+          KIMI_TASK_CLASS: ${{ steps.resolve.outputs.task_class }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          summary="$(jq -r '.summary // ""' /tmp/kimi-implementation.json)"
+          reviews="$(jq -r 'map("- " + .role + ": " + .verdict + " — " + (.summary // "")) | join("\n")' /tmp/kimi-reviews.json)"
+          body="WOR-674 webapp redesign generated by a bounded Kimi experiment for release-5.0.1.\n\nBase branch: ${BASE_BRANCH}\nBase SHA: ${BASE_SHA}\nExact head: ${HEAD_SHA}\nTask class: ${KIMI_TASK_CLASS}\nSelected model: ${KIMI_MODEL}\n\nScope: one additive authenticated-app redesign stylesheet plus its App.tsx import. No route, API, auth, backend, dependency or deployment changes are permitted.\n\nKimi implementation summary: ${summary}\n\nValidation before push: frontend unit suite, production build and authenticated ephemeral Playwright suite passed.\n\nBrowser-Evidence: required\nBrowser-Scenarios: shared-ui\nBrowser-Result: passed\nBrowser-Viewports: authenticated ephemeral desktop and mobile suite\nBrowser-Page-Errors: 0\nBrowser-Console-Errors: 0\n\nIndependent exact-head Kimi reviews:\n${reviews}\n\nDesign contract: warm cream/elevated surfaces, petrol for selection/navigation, signal orange reserved for primary actions, desktop vertical navigation rail, mobile behavior preserved. Human visual review is still required before merge.\n\nThis is a temporary Experiment/POC execution path under WOR-693 ownership boundaries and must be retired after the implementation PR is produced."
+          gh pr create --base "$BASE_BRANCH" --head "$TARGET_BRANCH" --title 'WOR-674: webapp redesign for 5.0.1' --body "$body" --draft
+
+      - name: Upload Kimi evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wor674-kimi-5-0-1-evidence-${{ github.run_id }}
+          path: |
+            /tmp/kimi-implementation.json
+            /tmp/kimi-reviews.json
+            /tmp/kimi-model-selection.json
+            /tmp/kimi-models.json
+            /tmp/wor674.diff
+          if-no-files-found: warn
