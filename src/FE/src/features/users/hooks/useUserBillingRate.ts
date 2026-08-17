@@ -5,6 +5,7 @@ import {
   useGetApiJobCostingUsersIdRate,
   usePatchApiJobCostingUsersIdRate,
 } from '../../../api/generated/job-costing/job-costing';
+import { formatFixedNumber } from '../../../lib/presentation/number';
 import { notify } from '../../../lib/toast';
 
 export function normalizeBillableHourlyRate(value: number | string | null | undefined): number | null {
@@ -17,10 +18,7 @@ export function formatBillableHourlyRate(value: number | string | null | undefin
   const normalized = normalizeBillableHourlyRate(value);
   if (normalized == null) return 'Ikke angivet';
 
-  return `${normalized.toLocaleString('da-DK', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} kr./time`;
+  return `${formatFixedNumber(normalized, 2)} kr./time`;
 }
 
 export function useUserBillingRate(userId: string) {
