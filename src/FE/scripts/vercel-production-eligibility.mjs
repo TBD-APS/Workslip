@@ -156,10 +156,10 @@ export function boundedRateLimitWaitMs({ retryMs, deadlineMs, nowMs = Date.now()
   return waitMs < remainingMs ? waitMs : null;
 }
 
-export function ignoredBuildStepExitCode({ shouldDeploy }) {
-  // Vercel's Ignored Build Step contract is intentionally inverted:
-  // exit 0 => ignore/cancel deployment, exit 1 => continue deployment.
-  return shouldDeploy ? 1 : 0;
+export function productionBuildExitCode({ shouldDeploy }) {
+  // This script is the first command in Vercel's buildCommand, so normal shell semantics apply:
+  // exit 0 => continue to npm run build, non-zero => block the deployment.
+  return shouldDeploy ? 0 : 1;
 }
 
 class GitHubRateLimitError extends Error {
@@ -301,10 +301,10 @@ const modulePath = resolve(fileURLToPath(import.meta.url));
 if (invokedPath && invokedPath === modulePath) {
   main()
     .then(() => {
-      process.exitCode = ignoredBuildStepExitCode({ shouldDeploy: true });
+      process.exitCode = productionBuildExitCode({ shouldDeploy: true });
     })
     .catch((error) => {
       console.error(`[release] Vercel production blocked: ${error.message}`);
-      process.exitCode = ignoredBuildStepExitCode({ shouldDeploy: false });
+      process.exitCode = productionBuildExitCode({ shouldDeploy: false });
     });
 }

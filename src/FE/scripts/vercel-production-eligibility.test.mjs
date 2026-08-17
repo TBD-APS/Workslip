@@ -5,8 +5,8 @@ import {
   boundedRateLimitWaitMs,
   chooseRun,
   githubRateLimitRetryMs,
-  ignoredBuildStepExitCode,
   parseGitHubRepository,
+  productionBuildExitCode,
   productionGateMode,
   validateGate,
 } from './vercel-production-eligibility.mjs';
@@ -45,9 +45,9 @@ test('Vercel Git policy uses a globstar catch-all and enables only main', () => 
   });
 });
 
-test('Vercel ignored build step continues eligible deploys and ignores blocked deploys', () => {
-  assert.equal(ignoredBuildStepExitCode({ shouldDeploy: true }), 1);
-  assert.equal(ignoredBuildStepExitCode({ shouldDeploy: false }), 0);
+test('Vercel build command continues eligible deploys and blocks ineligible deploys', () => {
+  assert.equal(productionBuildExitCode({ shouldDeploy: true }), 0);
+  assert.equal(productionBuildExitCode({ shouldDeploy: false }), 1);
 });
 
 test('preview and development builds skip only the production eligibility gate', () => {
