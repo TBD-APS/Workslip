@@ -54,18 +54,13 @@
 }
 
 .otp-input-cell-filled {
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--surface-raised);
 }
 
 .otp-input:focus-within .otp-input-cell-active {
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--surface-selected);
   border-color: var(--focus-ring);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 24%, transparent);
-}
-
-[data-theme="day"] .otp-input-cell-filled,
-[data-theme="day"] .otp-input:focus-within .otp-input-cell-active {
-  background: var(--surface-input);
 }
 
 .otp-input-invalid .otp-input-cell,
@@ -74,7 +69,7 @@
 }
 
 .otp-input-invalid:focus-within .otp-input-cell-active {
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
 }
 
 .otp-input-disabled {

@@ -3,6 +3,7 @@ import { ArrowRight, CheckCircle2, CircleDot, Clock3, XCircle } from 'lucide-rea
 import { useNavigate } from 'react-router-dom';
 import { JobStatus, type JobListItemViewModel } from '../../../api/generated/models';
 import { ErrorState } from '../../../components/ErrorState';
+import { saveStatusFilter } from '../../../components/filters/StatusFilter';
 import { apiClient } from '../../../lib/axios';
 import { formatDateTimeShort } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
@@ -26,12 +27,19 @@ const getJobPath = (job: JobListItemViewModel) =>
     ? `/app/completed/${job.id}`
     : `/app/job/${job.id}`;
 
+const getStatusListPath = (status: JobStatus) => `/app?status=${encodeURIComponent(status)}`;
+
 export const Overview = () => {
   const navigate = useNavigate();
   const overviewQuery = useQuery({
     queryKey: ['/api/jobs/overview'],
     queryFn: fetchOverview,
   });
+
+  const navigateToStatus = (status: JobStatus) => {
+    saveStatusFilter('mine-jobs', [status]);
+    navigate(getStatusListPath(status));
+  };
 
   if (overviewQuery.isError) {
     return (
@@ -84,7 +92,7 @@ export const Overview = () => {
             key={card.status}
             type="button"
             className={`overview-status-card ${card.className}`}
-            onClick={() => navigate('/app')}
+            onClick={() => navigateToStatus(card.status)}
           >
             <span className="overview-status-card__icon">{card.icon}</span>
             <span className="overview-status-card__content">
@@ -105,7 +113,7 @@ export const Overview = () => {
             <p>De senest opdaterede sager.</p>
           </div>
           {(overview?.rejectedCount ?? 0) > 0 && (
-            <button type="button" className="overview-rejected-link" onClick={() => navigate('/app')}>
+            <button type="button" className="overview-rejected-link" onClick={() => navigateToStatus(JobStatus.Rejected)}>
               <XCircle size={16} aria-hidden="true" />
               {overview?.rejectedCount} afvist{overview?.rejectedCount === 1 ? '' : 'e'}
             </button>

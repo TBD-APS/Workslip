@@ -207,7 +207,7 @@ export const Login = () => {
   }
 
   return (
-    <div className="app-container app-container-center">
+    <div className="app-container app-container-center auth-shell">
       <div className="bg-glow-wrapper">
         <div className="bg-glow bg-glow-1" />
         <div className="bg-glow bg-glow-2" />
