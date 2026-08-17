@@ -283,7 +283,7 @@ export function SuperAdminUsersPanel() {
                 type="text"
                 value={draft.displayName}
                 onChange={(event) => setDraft((current) => ({ ...current, displayName: event.target.value }))}
-                maxLength={256}
+                maxLength={200}
                 required
               />
             </label>

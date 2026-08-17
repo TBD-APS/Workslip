@@ -15,10 +15,11 @@ public sealed class CreateUserRequestValidator : AbstractValidator<CreateUserReq
 
         RuleFor(x => x.DisplayName)
             .NotEmpty().WithMessage("Visningsnavn er påkrævet.")
-            .MaximumLength(256).WithMessage("Visningsnavn må højst være 256 tegn.");
+            .MaximumLength(200).WithMessage("Visningsnavn må højst være 200 tegn.");
 
         RuleFor(x => x.Phone)
             .MaximumLength(20).WithMessage("Telefonnummer må højst være 20 tegn.")
+            .Matches(@"^[0-9+()\-\s]+$").WithMessage("Telefonnummer må kun indeholde tal og tegnene + ( ) - og mellemrum.")
             .When(x => !string.IsNullOrEmpty(x.Phone));
 
         RuleFor(x => x.Role)
@@ -33,11 +34,12 @@ public sealed class UpdateUserRequestValidator : AbstractValidator<UpdateUserReq
     public UpdateUserRequestValidator()
     {
         RuleFor(x => x.DisplayName)
-            .MaximumLength(256).WithMessage("Visningsnavn må højst være 256 tegn.")
+            .MaximumLength(200).WithMessage("Visningsnavn må højst være 200 tegn.")
             .When(x => !string.IsNullOrEmpty(x.DisplayName));
 
         RuleFor(x => x.Phone)
             .MaximumLength(20).WithMessage("Telefonnummer må højst være 20 tegn.")
+            .Matches(@"^[0-9+()\-\s]+$").WithMessage("Telefonnummer må kun indeholde tal og tegnene + ( ) - og mellemrum.")
             .When(x => !string.IsNullOrEmpty(x.Phone));
 
         RuleFor(x => x.Role)
