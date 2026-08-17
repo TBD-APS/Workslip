@@ -54,6 +54,7 @@ The control plane currently contains:
 - platform/provider contracts;
 - role registry and configuration-driven primary/fallback model routing;
 - capability/tool requirement validation;
+- a fail-closed Context/Policy Gateway core — cross-tenant isolation, capability authorization, field minimization and masking, with audited allow and deny decisions (WOR-574, first increment);
 - run provenance + separation-of-duties policy;
 - Founder/CEO/functional-executive hierarchy and delegation rules;
 - explicit human approval gates for public/high-impact/irreversible actions;
@@ -62,7 +63,7 @@ The control plane currently contains:
 It deliberately does not implement:
 
 - Kimi/OpenAI/Ollama adapters;
-- Context/Policy Gateway behavior;
+- product-adapter-backed context sources or a denied-access UI for the Context/Policy Gateway;
 - product adapters;
 - persistence;
 - customer-facing AI endpoints;
