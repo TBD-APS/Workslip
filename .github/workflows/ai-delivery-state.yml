@@ -1,0 +1,107 @@
+name: AI Delivery State
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to evaluate manually
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+
+concurrency:
+  group: ai-delivery-state-${{ github.event.workflow_run.pull_requests[0].number || inputs.pr_number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  TRUSTED_BRANCH: main
+  MOONSHOT_BASE_URL: https://api.moonshot.ai/v1
+
+jobs:
+  delivery-state:
+    name: AI completion state
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Resolve pull request
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MANUAL_PR: ${{ inputs.pr_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "$GITHUB_EVENT_NAME" = "workflow_run" ]; then
+            event="$(jq -r '.workflow_run.event // ""' "$GITHUB_EVENT_PATH")"
+            trigger_head="$(jq -r '.workflow_run.head_sha // ""' "$GITHUB_EVENT_PATH")"
+            pr_number="$(jq -r '.workflow_run.pull_requests[0].number // ""' "$GITHUB_EVENT_PATH")"
+
+            if [ "$event" != "pull_request" ]; then
+              echo 'eligible=false' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            if [ -z "$pr_number" ] && [ -n "$trigger_head" ]; then
+              pr_number="$(gh api -H 'Accept: application/vnd.github+json' \
+                "/repos/${GITHUB_REPOSITORY}/commits/${trigger_head}/pulls" --jq '.[0].number // empty')"
+            fi
+          else
+            pr_number="$MANUAL_PR"
+            trigger_head=''
+          fi
+
+          if ! [[ "$pr_number" =~ ^[0-9]+$ ]]; then
+            echo 'Unable to resolve PR number.' >&2
+            exit 1
+          fi
+
+          pr_json="$(gh api "/repos/${GITHUB_REPOSITORY}/pulls/${pr_number}")"
+          head_sha="$(printf '%s' "$pr_json" | jq -r '.head.sha // ""')"
+          association="$(printf '%s' "$pr_json" | jq -r '.author_association // "NONE"')"
+
+          if [ -z "$head_sha" ]; then
+            echo 'Unable to resolve PR head SHA.' >&2
+            exit 1
+          fi
+
+          if [ -n "$trigger_head" ] && [ "$trigger_head" != "$head_sha" ]; then
+            echo "Skipping stale CI result for ${trigger_head}; PR now points to ${head_sha}."
+            echo 'eligible=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          case "$association" in
+            OWNER|MEMBER|COLLABORATOR) ;;
+            *)
+              echo "External/untrusted author association ${association}; publishing safe UNKNOWN state without secrets."
+              ;;
+          esac
+
+          echo 'eligible=true' >> "$GITHUB_OUTPUT"
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "association=$association" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout trusted evaluator
+        if: steps.resolve.outputs.eligible == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.TRUSTED_BRANCH }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Publish independent AI delivery state
+        if: steps.resolve.outputs.eligible == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.resolve.outputs.pr_number }}
+          KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
+        run: python3 .github/ai-delivery-state/evaluate.py
