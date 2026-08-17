@@ -304,17 +304,46 @@ async function verifyQuickNavigator() {
   await verifyDesktopQuickNavigator();
 }
 
+async function assertGlobalSearchSurface(page, dialog) {
+  await dialog.getByText('Global søgning', { exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await dialog.getByText('Søg på tværs af funktioner, sager og kunder fra ét sted.', { exact: true })
+    .waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+  const searchInput = dialog.getByRole('searchbox', { name: 'Søg i hele Workslip' });
+  const searchWrap = dialog.locator('.quick-nav-search-wrap');
+  await searchInput.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+  await dialog.getByRole('button', { name: 'Luk søgning' }).focus();
+  const unfocusedBorder = await searchWrap.evaluate((element) => getComputedStyle(element).borderTopColor);
+  await searchInput.focus();
+  const focusedStyles = await searchWrap.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { border: style.borderTopColor, boxShadow: style.boxShadow };
+  });
+  assert.equal(focusedStyles.border, unfocusedBorder, 'Search focus must not replace the neutral border with a petrol/green border.');
+  assert.notEqual(focusedStyles.boxShadow, 'none', 'Search focus must retain a visible neutral focus affordance.');
+
+  return searchInput;
+}
+
 async function verifyMobileQuickNavigator() {
   const { context } = await authenticatedContext(devices['iPhone 13']);
   try {
     const session = await openAuthenticatedApp(context);
     const { page } = session;
+    const consoleErrors = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
+
     await page.locator('.quick-nav-mobile-trigger').click();
-    const dialog = page.getByRole('dialog', { name: 'Hvor vil du hen?' });
+    const dialog = page.getByRole('dialog', { name: 'Søg i hele Workslip' });
     await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await assertGlobalSearchSurface(page, dialog);
 
     assert.equal(await dialog.locator('.quick-nav-search-wrap kbd').isVisible(), false, 'Esc key hint must be hidden on mobile.');
     assert.equal(await dialog.locator('.quick-nav-footer').isVisible(), false, 'Keyboard shortcut footer must be hidden on mobile.');
+    assert.deepEqual(consoleErrors, [], `Quick Navigator mobile console errors: ${consoleErrors.join(' | ')}`);
     session.assertNoPageErrors();
   } finally {
     await context.close();
@@ -326,12 +355,35 @@ async function verifyDesktopQuickNavigator() {
   try {
     const session = await openAuthenticatedApp(context);
     const { page } = session;
+    const consoleErrors = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
+
     await page.keyboard.press('Control+K');
-    const dialog = page.getByRole('dialog', { name: 'Hvor vil du hen?' });
+    const dialog = page.getByRole('dialog', { name: 'Søg i hele Workslip' });
     await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    const searchInput = await assertGlobalSearchSurface(page, dialog);
 
     assert.equal(await dialog.locator('.quick-nav-search-wrap kbd').isVisible(), true, 'Esc key hint must remain visible on desktop.');
     assert.equal(await dialog.locator('.quick-nav-footer').isVisible(), true, 'Keyboard shortcut footer must remain visible on desktop.');
+
+    const jobRequest = page.waitForRequest((request) => {
+      const url = new URL(request.url());
+      return request.method() === 'GET'
+        && url.pathname === '/api/jobs'
+        && url.searchParams.get('search') === 'Niels';
+    }, { timeout: UI_TIMEOUT });
+    const customerRequest = page.waitForRequest((request) => {
+      const url = new URL(request.url());
+      return request.method() === 'GET'
+        && url.pathname === '/api/customers/search'
+        && url.searchParams.get('query') === 'Niels';
+    }, { timeout: UI_TIMEOUT });
+
+    await searchInput.fill('Niels');
+    await Promise.all([jobRequest, customerRequest]);
+    assert.deepEqual(consoleErrors, [], `Quick Navigator desktop console errors: ${consoleErrors.join(' | ')}`);
     session.assertNoPageErrors();
   } finally {
     await context.close();
