@@ -6,13 +6,23 @@ import { JobStatusDots } from './JobStatusDots';
 afterEach(cleanup);
 
 describe('JobStatusDots', () => {
-  it('shows all statuses and marks the current status', () => {
+  it('shows exactly the four product statuses and marks the current status', () => {
     render(<JobStatusDots status={JobStatus.Draft} />);
 
+    expect(screen.getAllByRole('button')).toHaveLength(4);
     expect(screen.getByRole('button', { name: 'Aktiv, nuværende status' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Til gennemsyn, ikke tilgængelig' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Godkendt, ikke tilgængelig' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Afvist, ikke tilgængelig' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /Genåbnet/ })).not.toBeInTheDocument();
+  });
+
+  it('presents a reopened job as active without adding a fifth dot', () => {
+    render(<JobStatusDots status={JobStatus.Reopened} />);
+
+    expect(screen.getAllByRole('button')).toHaveLength(4);
+    expect(screen.getByRole('button', { name: 'Aktiv, nuværende status' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: /Genåbnet/ })).not.toBeInTheDocument();
   });
 
   it('selects an enabled status', () => {

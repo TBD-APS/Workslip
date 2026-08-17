@@ -10,14 +10,14 @@ Coupling = fan-in + fan-out between `Workslip.Application.*` modules. File refs 
 
 | Module | Files | LOC | Fan-in | Fan-out | Inbound file refs | Outbound file refs | Coupling |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Auth | 5 | 263 | 8 | 1 | 20 | 2 | **9** |
-| Jobs | 29 | 3270 | 4 | 3 | 6 | 13 | **7** |
+| Auth | 5 | 263 | 8 | 1 | 22 | 2 | **9** |
+| Jobs | 31 | 3414 | 4 | 3 | 6 | 18 | **7** |
 | Users | 14 | 1671 | 4 | 2 | 8 | 4 | **6** |
 | Images | 4 | 443 | 1 | 3 | 1 | 3 | **4** |
 | Invitations | 6 | 726 | 0 | 3 | 0 | 7 | **3** |
-| Worksheets | 5 | 515 | 1 | 2 | 4 | 4 | **3** |
+| Worksheets | 5 | 515 | 1 | 2 | 6 | 4 | **3** |
 | Customers | 7 | 562 | 0 | 2 | 0 | 2 | **2** |
-| Notifications | 8 | 277 | 1 | 1 | 2 | 1 | **2** |
+| Notifications | 8 | 277 | 1 | 1 | 3 | 1 | **2** |
 | Organizations | 7 | 594 | 0 | 2 | 0 | 4 | **2** |
 | Common | 3 | 167 | 1 | 0 | 1 | 0 | **1** |
 | Documents | 9 | 744 | 0 | 1 | 0 | 2 | **1** |
@@ -27,15 +27,15 @@ Coupling = fan-in + fan-out between `Workslip.Application.*` modules. File refs 
 
 | From → To | File refs |
 | --- | --- |
-| Jobs -> Auth | 7 |
-| Jobs -> Worksheets | 4 |
+| Jobs -> Auth | 9 |
+| Jobs -> Worksheets | 6 |
 | Invitations -> Auth | 3 |
 | Invitations -> Users | 3 |
+| Jobs -> Notifications | 3 |
 | Users -> Auth | 3 |
 | Worksheets -> Jobs | 3 |
 | Auth -> Users | 2 |
 | Documents -> Auth | 2 |
-| Jobs -> Notifications | 2 |
 | Organizations -> Auth | 2 |
 | Organizations -> Users | 2 |
 | (root) -> Auth | 1 |
@@ -140,9 +140,9 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 | --- | --- |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Schema/SqlDbContext.cs` | 1485 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs` | 1077 |
-| `src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs` | 1067 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Schema/AuditPolicies.cs` | 926 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Diagnostics/ApplicationInsightsErrorDiagnosticsService.cs` | 879 |
+| `src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs` | 847 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/JobReportPdfService.cs` | 679 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Seeding/DatabaseSeeder.cs` | 625 |
 | `src/BE/WorkslipApi/Workslip.Application/Invitations/InvitationService.cs` | 548 |
