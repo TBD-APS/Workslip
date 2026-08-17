@@ -1,0 +1,74 @@
+name: WOR-281 Kimi release validation
+
+on:
+  push:
+    branches:
+      - rbj--281-release-validation
+
+permissions:
+  contents: read
+
+jobs:
+  kimi-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: rbj--281-release-validation
+          fetch-depth: 0
+
+      - name: Review exact release product change with Kimi
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${MOONSHOT_API_KEY:-}" ]; then
+            echo '::error::MOONSHOT_API_KEY is missing.'
+            exit 10
+          fi
+          mkdir -p artifacts/wor-281-kimi
+          product_sha='f828da251901a34349d3f99bd5bc9ad266d67f26'
+          product_blob="$(git rev-parse "${product_sha}:src/FE/src/farvelab-theme.css")"
+          models="$(curl --fail --silent --show-error --max-time 30 -H "Authorization: Bearer ${MOONSHOT_API_KEY}" https://api.moonshot.ai/v1/models)"
+          model="$(printf '%s' "${models}" | jq -r '.data[].id' | grep -i kimi | head -n 1)"
+          if [ -z "${model}" ]; then
+            echo '::error::No Kimi model was returned by Moonshot model discovery.'
+            exit 11
+          fi
+
+          cat > /tmp/review.txt <<'EOF'
+You are Kimi, acting as Workslip's mandatory frontend UI-consistency reviewer.
+Review the exact release change below.
+
+Requirement: only lifecycle status-dot colors on job cards/table are restored to the historical values: review #eab308, approved #22c55e, rejected #ef4444. Unread/unassigned dots and all other card styling must remain unchanged.
+
+Implementation intent: remove only the three Farvelab overrides so the existing App.css values become authoritative again.
+
+First line must be exactly PASS or BLOCK. Then give a concise rationale and any findings.
+EOF
+          printf '\nExact release diff:\n' >> /tmp/review.txt
+          git show --format= -- src/FE/src/farvelab-theme.css "${product_sha}" >> /tmp/review.txt
+          printf '\nShared JobCard excerpt:\n' >> /tmp/review.txt
+          sed -n '55,86p' src/FE/src/features/jobs/components/JobCard.tsx >> /tmp/review.txt
+          printf '\nExisting dot CSS:\n' >> /tmp/review.txt
+          grep -n -A 8 -B 2 -E '^\.(review-dot|approved-dot|rejected-dot)' src/FE/src/App.css >> /tmp/review.txt || true
+
+          request="$(jq -n --arg model "${model}" --rawfile prompt /tmp/review.txt '{model:$model,messages:[{role:"system",content:"You are a senior frontend reviewer."},{role:"user",content:$prompt}],stream:false,temperature:0}')"
+          response="$(curl --fail --silent --show-error --max-time 120 -H "Authorization: Bearer ${MOONSHOT_API_KEY}" -H 'Content-Type: application/json' -d "${request}" https://api.moonshot.ai/v1/chat/completions)"
+          content="$(printf '%s' "${response}" | jq -r '.choices[0].message.content // empty')"
+          test -n "${content}"
+          printf '%s\n' "${content}" | tee artifacts/wor-281-kimi/review.txt
+          printf 'model=%s\nrelease_sha=%s\nproduct_blob=%s\n' "${model}" "${product_sha}" "${product_blob}" > artifacts/wor-281-kimi/metadata.txt
+          first_line="$(printf '%s\n' "${content}" | head -n 1 | tr -d '\r')"
+          test "${first_line}" = 'PASS'
+
+      - name: Upload Kimi evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wor-281-kimi-${{ github.run_id }}
+          path: artifacts/wor-281-kimi
+          if-no-files-found: warn
+          retention-days: 7
