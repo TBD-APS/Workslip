@@ -8,6 +8,7 @@ import type { QuickNavigatorSearchScope } from './quickNavigatorTypes';
 import type { JobListItemViewModel } from '../../api/generated/models';
 import type { CustomerSearchViewModel } from '../../api/generated/models';
 import { JobStatus } from '../../api/generated/models';
+import { toUiLowerCase } from '../../lib/presentation/text';
 import './QuickNavigator.css';
 
 export type QuickNavigatorResult =
@@ -35,7 +36,7 @@ interface QuickNavigatorProps {
   showProfile: boolean;
 }
 
-const normalize = (value: string) => value.trim().toLocaleLowerCase('da-DK');
+const normalize = (value: string) => toUiLowerCase(value.trim());
 
 export function QuickNavigator({
   isOpen,
@@ -126,7 +127,7 @@ export function QuickNavigator({
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === 'k') {
+      if ((event.metaKey || event.ctrlKey) && toUiLowerCase(event.key) === 'k') {
         event.preventDefault();
         onOpen();
       }
@@ -232,11 +233,14 @@ export function QuickNavigator({
         onKeyDown={handleDialogKeyDown}
       >
         <div className="quick-nav-header">
-          <div>
-            <div className="quick-nav-kicker">Hurtig navigation</div>
-            <h2 id="quick-nav-title">Hvor vil du hen?</h2>
+          <div className="quick-nav-heading">
+            <div className="quick-nav-kicker">Global søgning</div>
+            <h2 id="quick-nav-title">Søg i hele Workslip</h2>
+            <p className="quick-nav-scope-copy">
+              Søg på tværs af funktioner, sager og kunder fra ét sted.
+            </p>
           </div>
-          <button type="button" className="quick-nav-close" onClick={resetAndClose} aria-label="Luk hurtig navigation">
+          <button type="button" className="quick-nav-close" onClick={resetAndClose} aria-label="Luk søgning">
             <X size={18} />
           </button>
         </div>
@@ -252,8 +256,8 @@ export function QuickNavigator({
               setActiveIndex(0);
             }}
             onKeyDown={handleInputKeyDown}
-            placeholder="Søg efter side, sag eller kunde…"
-            aria-label="Søg i Workslip"
+            placeholder="Søg efter sag, kunde, side eller funktion…"
+            aria-label="Søg i hele Workslip"
             autoComplete="off"
             spellCheck={false}
           />
@@ -261,7 +265,7 @@ export function QuickNavigator({
         </div>
 
         <div className="quick-nav-meta" aria-live="polite">
-          <span>{hasSearchQuery ? resultCountText : 'Genveje'}</span>
+          <span>{hasSearchQuery ? resultCountText : 'Søg på tværs af Workslip'}</span>
           {searchResult.isLoading && (
             <span className="quick-nav-searching">Søger…</span>
           )}
