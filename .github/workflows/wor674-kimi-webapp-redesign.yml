@@ -65,6 +65,7 @@ jobs:
           fi
           git switch --create "$TARGET_BRANCH" origin/main
           cp /tmp/wor674.css "$CSS_PATH"
+          test -s "$CSS_PATH" || { echo 'Generated CSS is empty.'; exit 25; }
           python3 - <<'PY'
           from pathlib import Path
           p = Path('src/FE/src/App.tsx')
@@ -77,7 +78,7 @@ jobs:
               source = source.replace(marker, marker + '\n' + addition)
           p.write_text(source, encoding='utf-8')
           PY
-          changed="$(git diff --name-only | sort)"
+          changed="$(git status --porcelain=v1 | sed -E 's/^.. //' | sort)"
           expected="$(printf '%s\n' src/FE/src/App.tsx "$CSS_PATH" | sort)"
           test "$changed" = "$expected" || { printf 'Unexpected scope:\n%s\n' "$changed"; exit 21; }
           if grep -Ein '#[0-9a-fA-F]{3,8}\b' "$CSS_PATH"; then
