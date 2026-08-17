@@ -38,4 +38,9 @@ if ($switchToMain) {
     Write-Host '[OK] Running from current main' -ForegroundColor Green
 }
 
-& (Join-Path $PSScriptRoot 'tools/dev/start.ps1') @forwardArgs
+if ($env:OS -eq 'Windows_NT') {
+    & (Join-Path $PSScriptRoot 'tools/dev/start.ps1') @forwardArgs
+}
+else {
+    & (Join-Path $PSScriptRoot 'tools/dev/start-docker.ps1') @forwardArgs
+}
