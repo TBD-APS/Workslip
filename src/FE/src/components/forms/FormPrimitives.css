@@ -1,0 +1,41 @@
+@charset "UTF-8";
+
+/* Shared authenticated form primitives extracted from legacy App.css by WOR-475. */
+/* Forms */
+.form-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--surface-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font-main);
+  font-size: var(--fs-body);
+  transition: all 0.2s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  background: rgba(0, 0, 0, 0.3);
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 1px var(--focus-ring);
+}
+
+.form-input.is-readonly,
+.form-input[readonly] {
+  color: var(--text-muted);
+  cursor: default;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.6;
+}
+
+.form-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.form-input:focus::placeholder,
+.form-textarea:focus::placeholder {
+  opacity: 0;
+}
