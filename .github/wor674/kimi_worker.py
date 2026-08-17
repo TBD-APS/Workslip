@@ -33,6 +33,24 @@ def call_kimi(system: str, user: str, max_tokens: int = 9000):
     return api, json.loads(api['choices'][0]['message']['content'])
 
 
+def hidden_interactive_rules(content: str):
+    findings = []
+    interactive_markers = (
+        'button', '.btn', '.nav-item', '.bottom-nav', '.fab-', '.app-header',
+        '.form-', 'input', 'select', 'textarea', '.detail-header-actions',
+        '.step-navigation', '.job-conversation', '.history-btn', '[role=',
+    )
+    for match in re.finditer(r'([^{}]+)\{([^{}]*)\}', content, re.S):
+        selectors = match.group(1).strip()
+        body = match.group(2)
+        if not re.search(r'(?:display\s*:\s*none|visibility\s*:\s*hidden)', body, re.I):
+            continue
+        lowered = selectors.lower()
+        if any(marker in lowered for marker in interactive_markers):
+            findings.append(selectors[:240])
+    return findings
+
+
 def stylesheet_violations(content: str):
     violations = []
     if not isinstance(content, str) or not content.strip():
@@ -46,8 +64,9 @@ def stylesheet_violations(content: str):
         violations.append('contains hardcoded hex color; every color must use an existing semantic CSS variable')
     if 'var(--primary)' in content:
         violations.append('consumes --primary; this additive refinement must leave action-orange ownership to the existing brand layer')
-    if re.search(r'(?:display\s*:\s*none|visibility\s*:\s*hidden)', content, re.I):
-        violations.append('hides an existing element/control with display:none or visibility:hidden')
+    hidden = hidden_interactive_rules(content)
+    if hidden:
+        violations.append('hides interactive/control selector(s): ' + ' | '.join(hidden[:5]))
     return violations
 
 
@@ -81,43 +100,53 @@ Requirements:
 - Make the desktop shell restrained and premium using existing semantic variables only.
 - Improve existing cards, detail sections/header/content, step indicators/navigation, tables, job cards, forms, buttons and empty/error surfaces using current classes only.
 - Job detail is the reference screen: strong hierarchy, job number/status above title, card-like content, clear actions/history affordance, responsive without horizontal overflow.
-- Preserve focus-visible, reduced-motion and 44px interactive targets. Do not hide controls.
+- Preserve focus-visible, reduced-motion and 44px interactive targets. Never hide interactive controls, navigation, actions or form controls.
 - Night theme must stay coherent by relying on semantic variables.
 - Never use var(--primary) in this new stylesheet. Selection/navigation use --color-primary/--color-info/--focus-ring; primary-action styling remains owned by workslip-brand.css.
 - Use ZERO literal hex colors, even #fff/#ffffff/#000. Consume existing variables such as --text, --brand-cream, --surface-floating, --surface-raised, --border, --focus-ring.
-- Do not use display:none or visibility:hidden; preserve all existing controls.
 - Avoid !important unless needed only to neutralize the legacy fixed bottom-nav transform/transition.
 - Keep clear WOR-674 sections and avoid huge selector dumps.
 
 REFERENCE SOURCES:\n''' + '\n\n'.join(context)
     api, result = call_kimi(system, task, 10000)
     content = result.get('content', '')
-    violations = stylesheet_violations(content)
+    initial_violations = stylesheet_violations(content)
+    repairs = []
 
-    if violations:
+    for repair_number in range(1, 3):
+        violations = stylesheet_violations(content)
+        if not violations:
+            break
+        repairs.extend(violations)
+        pathlib.Path(f'/tmp/wor674-rejected-{repair_number}.css').write_text(content if isinstance(content, str) else '', encoding='utf-8')
         repair_system = (
             'You are Kimi repairing your own bounded WOR-674 CSS candidate. Return JSON only with keys content, summary, validation_notes. '
-            'content must be the COMPLETE repaired stylesheet. Preserve the design intent and selectors while fixing every listed policy violation. '
+            'content must be the COMPLETE repaired stylesheet. Preserve design intent and selectors while fixing every listed policy violation. '
             'Do not add routes, JS, markup, dependencies or new token definitions.'
         )
         repair_task = (
-            'The generated stylesheet failed the deterministic design-policy gate:\n- '
+            'The stylesheet failed the deterministic policy gate:\n- '
             + '\n- '.join(violations)
-            + '\n\nRepair it. Hard requirements after repair: zero literal hex colors; zero var(--primary); zero display:none/visibility:hidden; '
-              'must retain desktop @media (min-width: 1024px) and .bottom-nav vertical-rail refinement. '
-              'Use only existing semantic variables.\n\nCANDIDATE CSS:\n' + content
+            + '\n\nRepair every listed issue. Hard requirements: zero literal hex colors; zero var(--primary); '
+              'never hide navigation, buttons/actions, form controls, header controls, step navigation or job conversation/history controls; '
+              'retain desktop @media (min-width: 1024px) and .bottom-nav vertical-rail refinement. '
+              'Use existing semantic variables only.\n\nCANDIDATE CSS:\n' + (content if isinstance(content, str) else '')
         )
         repair_api, repair_result = call_kimi(repair_system, repair_task, 10000)
         content = repair_result.get('content', '')
-        remaining = stylesheet_violations(content)
-        if remaining:
-            raise SystemExit('Kimi repair still violates stylesheet policy: ' + '; '.join(remaining))
         result = repair_result
         api = repair_api
+
+    remaining = stylesheet_violations(content)
+    if remaining:
+        pathlib.Path('/tmp/wor674-final-rejected.css').write_text(content if isinstance(content, str) else '', encoding='utf-8')
+        raise SystemExit('Kimi repair still violates stylesheet policy: ' + '; '.join(remaining))
+
+    if repairs:
         result['validation_notes'] = (
             (result.get('validation_notes') or '')
-            + ' Automated Kimi repair pass resolved: '
-            + '; '.join(violations)
+            + ' Automated Kimi repair passes resolved: '
+            + '; '.join(dict.fromkeys(repairs))
         ).strip()
 
     pathlib.Path('/tmp/wor674.css').write_text(content, encoding='utf-8')
@@ -125,6 +154,7 @@ REFERENCE SOURCES:\n''' + '\n\n'.join(context)
         'model': api.get('model') or MODEL,
         'summary': result.get('summary', ''),
         'validation_notes': result.get('validation_notes', ''),
+        'initial_policy_violations': initial_violations,
     }, indent=2), encoding='utf-8')
 
 
