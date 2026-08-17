@@ -382,8 +382,7 @@ jobs:
             state=error
             description='No AI review provider is configured'
           elif [ "${PROVIDERS:-0}" = "0" ]; then
-            state=error
-            description='No AI review provider was available'
+            description='AI review unavailable (degraded mode; provider outage/quota)'
           elif [ "${BLOCKING}" = "true" ]; then
             state=failure
             description='Independent AI providers found a consensus blocker'
