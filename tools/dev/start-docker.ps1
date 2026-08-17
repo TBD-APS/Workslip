@@ -42,7 +42,7 @@ function Wait-ForUrl([string]$Url, [int]$TimeoutSeconds, [string]$Name) {
     }
 
     Write-Host ''
-    Write-Host "Last Docker logs for $Name:" -ForegroundColor Yellow
+    Write-Host "Last Docker logs for ${Name}:" -ForegroundColor Yellow
     & docker compose logs --tail 80
     throw "$Name did not become ready at $Url within $TimeoutSeconds seconds."
 }
