@@ -48,7 +48,7 @@ When documentation disagrees with implementation, fix the maintained documentati
 
 - Never push directly to `main`.
 - One Linear issue per implementation branch and pull request. Repository-governance-only changes explicitly requested by the repository owner may omit a Linear issue.
-- Branch: `rbj--<issue>-<description>`.
+- Branch: `rbj-<issue>-<description>`.
 - PR title: `RBJ-<issue>: <description>`.
 - Prefer small, cohesive PRs and squash merging.
 - **Prefer Git stacks by default for related, ordered or overlapping work.** Keep one cohesive issue per stack layer, create each child branch from the previous stack branch, and target the child PR at its parent branch while the stack is active.

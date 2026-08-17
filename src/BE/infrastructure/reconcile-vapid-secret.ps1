@@ -2,7 +2,10 @@ param(
     [Parameter(Position = 0)]
     [string]$Environment = 'prod',
     [string]$CompanyName = 'mrsoftware',
-    [switch]$ValidateOnly
+    # Self-test of P-256 key generation. Never contacts Azure.
+    [switch]$ValidateOnly,
+    # Report whether the VAPID secret would be created, without creating it.
+    [switch]$WhatIf
 )
 
 $ErrorActionPreference = 'Stop'
@@ -120,6 +123,19 @@ if (-not $secretExists -and
     $secretState.ExitCode -ne 0 -and
     $secretState.Output -notmatch '(?i)(SecretNotFound|VaultNotFound|ResourceNotFound|not found|does not exist|404)') {
     throw "Could not inspect VAPID private-key secret.`n$($secretState.Output)"
+}
+
+if ($WhatIf) {
+    if ($secretExists) {
+        Write-Host "VAPID private key already present in '$KeyVaultName'. No change." -ForegroundColor Green
+    }
+    else {
+        Write-Host "would CREATE  VAPID private key '$SecretName' in '$KeyVaultName'" -ForegroundColor Yellow
+        Write-Host 'Existing push subscriptions stay valid; the key is only generated when missing.' -ForegroundColor DarkGray
+    }
+
+    Write-Host 'Preview complete. No secret was written.' -ForegroundColor Green
+    return
 }
 
 if (-not $secretExists) {

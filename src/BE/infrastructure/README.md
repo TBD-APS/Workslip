@@ -6,15 +6,43 @@
 **Review cadence:** whenever Azure, Entra, SQL, GitHub OIDC, monitoring or secret handling changes  
 **Linear:** WOR-190, WOR-212, WOR-223
 
-Workslip has exactly three supported deployment entry points:
+Workslip has exactly three supported deployment entry points, plus one read-only entry point that previews them:
 
 | Script | Purpose |
 |---|---|
 | `deploy.ps1` | Reconcile Entra, deploy Azure infrastructure and reconcile deployment-owned runtime secrets. |
 | `deploy-entra.ps1` | Reconcile only the Microsoft Entra application registrations and service principals. |
 | `deploy-infrastructure.ps1` | Deploy only Azure resources using existing Entra state or read-only Entra discovery. |
+| `plan.ps1` | Preview all four phases. Changes nothing, and has no parameter that lets it. |
 
-Do not add another public deployment wrapper. Helper scripts such as `reconcile-vapid-secret.ps1` are implementation details and must not be presented as operator entry points.
+Do not add another public deployment *wrapper*. `plan.ps1` is admitted as the single exception because it removes a capability rather than adding one: it exists so previewing production cannot be turned into deploying production by a mistyped argument. Any further entry point must deploy nothing that an existing one already deploys.
+
+Helper scripts such as `reconcile-vapid-secret.ps1` are implementation details and must not be presented as operator entry points.
+
+## Previewing before deploying
+
+Every phase accepts `-WhatIf` and reports what it would do without doing it.
+
+```powershell
+./plan.ps1 prod          # preferred: cannot mutate
+./deploy.ps1 prod -WhatIf   # same preview, from the deploying entry point
+```
+
+Per phase:
+
+| Phase | Preview behaviour |
+|---|---|
+| Entra | Lists the Microsoft Graph upserts it would send. Graph has no server-side what-if, so this is the intended writes, not a computed diff. |
+| Azure infrastructure | Runs `az deployment group what-if` and prints the resource diff. |
+| VAPID secret | Reports whether the private key would be created. |
+| GitHub OIDC identity | Runs a subscription-level what-if and skips the GitHub environment write. |
+
+A preview needs neither `sqlcmd` nor the GitHub CLI, because it never reaches the steps that use them.
+
+Two limits worth knowing before trusting the output:
+
+- The infrastructure phase previews against the Entra registrations that exist **now**. In a tenant where the Entra phase has not run yet, the registrations are absent, and both phases stop early and say so. Run the Entra phase for real first, then preview again to get a meaningful infrastructure diff.
+- `what-if` compares against deployed resource state. It does not predict what the deployment scripts do *after* ARM returns — Key Vault writes, App Configuration references, SQL principals and SQL admin group membership are all outside its view. The preview lists those as skipped rather than pretending to diff them.
 
 ## Prerequisites
 
