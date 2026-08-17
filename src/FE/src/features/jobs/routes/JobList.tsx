@@ -15,7 +15,7 @@ import { apiClient } from '../../../lib/axios';
 import { useAuth } from '../../../providers/useAuth';
 import { ErrorState } from '../../../components/ErrorState';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
-import { formatDateLong, formatDateTimeShort } from '../../../lib/formatDate';
+import { formatDateLong, formatDateShort } from '../../../lib/formatDate';
 import { formatJobStatus } from '../statusLabels';
 import '../components/RejectedJobsIndicator.css';
 
@@ -499,7 +499,7 @@ export function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; o
           </span>
         )}
         <span className="meta-item meta-updated">
-          <Clock size={14} aria-hidden="true" /> Opdateret {formatDateTimeShort(job.updatedAt)}
+          <Clock size={14} aria-hidden="true" /> Opdateret {formatDateShort(job.updatedAt)}
         </span>
       </div>
 
