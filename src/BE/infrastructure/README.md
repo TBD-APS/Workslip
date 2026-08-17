@@ -180,6 +180,30 @@ Alert recipients are maintained in `monitoring.config.json`. This is intentional
 
 After deployment, use Azure Monitor's **Test action group** function to verify delivery. Do not deliberately stop production or generate production errors solely to test an alert. Tune the response-time threshold if the F1 App Service cold-start behaviour creates repeated non-actionable notifications.
 
+## Cost budget
+
+`budgets.bicep` provisions one monthly `Microsoft.Consumption` budget scoped to the resource group. It reuses the action group from `monitoring.bicep`, so cost warnings reach the same mailboxes as health alerts and there is no second recipient list to maintain.
+
+| Notification | Fires when |
+|---|---|
+| Actual 50% | Half the monthly budget is already spent |
+| Actual 80% | Spend is approaching the ceiling |
+| Actual 100% | The budget is exceeded |
+| Forecasted 100% | Azure projects the month to end over budget |
+
+The forecasted threshold is the one worth acting on — it warns before the money is gone. A fresh subscription has no history to project from, so expect it to stay quiet through the first billing period.
+
+The budget alarms; it does not cap. Azure keeps serving traffic after the threshold is passed.
+
+| Parameter | Default | Notes |
+|---|---|---|
+| `-BudgetMonthlyAmount` | `800` | **In the billing currency of the subscription, which is not necessarily DKK.** Confirm the currency before trusting the number. The default leaves headroom over the ~534/month lean production baseline so it alarms on a runaway, not on normal operation. |
+| `-BudgetEnabled` | `$true` | Set `$false` only if the deploying identity cannot write `Microsoft.Consumption` budgets. Cost alerting is then absent — record why. |
+
+`Microsoft.Consumption` is registered by `deploy-infrastructure.ps1` alongside the other providers. Without it the first deployment into a fresh subscription fails on an unregistered provider.
+
+Set the amount from measured consumption once the environment has run for a full billing period, not from an estimate. Related: the standard availability test in `monitoring.bicep` runs from five locations every five minutes and is itself a meaningful line item — measure it before adding environments or locations.
+
 ## Required post-deployment verification
 
 A successful script exit is not sufficient release evidence. Verify:
