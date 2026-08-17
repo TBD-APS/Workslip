@@ -152,8 +152,11 @@ export WORKSLIP_PLAYWRIGHT_APP_URL="${APP_URL}"
 export WORKSLIP_PLAYWRIGHT_API_URL="${API_URL}"
 export WORKSLIP_PLAYWRIGHT_ADMIN_EMAIL='admin@17v3ygzs.mailosaur.net'
 
+echo "[playwright] running authenticated smoke"
 node scripts/playwright-ephemeral-smoke.mjs
+echo "[playwright] running auth brand evidence"
 node scripts/playwright-auth-brand.mjs
+echo "[playwright] running shared state semantics evidence"
 node scripts/playwright-shared-state-semantics.mjs
 
 echo "Authenticated ephemeral Playwright suite completed successfully."
