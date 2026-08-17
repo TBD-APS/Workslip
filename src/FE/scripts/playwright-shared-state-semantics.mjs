@@ -75,18 +75,29 @@ async function verifySharedStateSemantics({ name, theme, viewport }) {
     await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     const activeResult = dialog.locator('.quick-nav-result.active').first();
     await activeResult.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    const activeNavigatorIcon = await activeResult.locator('.quick-nav-result-icon').evaluate(
+      (element) => getComputedStyle(element).color,
+    );
+
+    // The linked-job focus contract lives outside Quick Navigator. Close the modal
+    // before exercising it so the test does not fight the dialog's intentional
+    // focus trap, then reach the target with a real keyboard Tab. Programmatic
+    // focus alone does not reliably activate :focus-visible across Chromium input
+    // modalities and made the release gate flaky on mobile-sized cases.
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden', timeout: UI_TIMEOUT });
 
     const result = await page.evaluate(() => {
       const shell = document.querySelector('.app-shell');
-      const activeIcon = document.querySelector('.quick-nav-result.active .quick-nav-result-icon');
-      if (!(shell instanceof HTMLElement) || !(activeIcon instanceof HTMLElement)) {
-        throw new Error('Expected app shell and active Quick Navigator result were not rendered.');
+      if (!(shell instanceof HTMLElement)) {
+        throw new Error('Expected app shell was not rendered.');
       }
 
       const probe = document.createElement('div');
       probe.setAttribute('data-shared-state-probe', '');
       probe.innerHTML = `
         <div class="activity-row activity-row-unread"><span class="activity-avatar activity-avatar-primary">A</span></div>
+        <button type="button" data-focus-origin>Focus origin</button>
         <a class="linked-job-link">SAG-1</a>
         <button class="linked-job-row" type="button">Linked job</button>
         <span class="favorite-customer-icon">F</span>
@@ -99,52 +110,61 @@ async function verifySharedStateSemantics({ name, theme, viewport }) {
       const activityRow = probe.querySelector('.activity-row-unread');
       const activityAvatar = probe.querySelector('.activity-avatar-primary');
       const linkedJob = probe.querySelector('.linked-job-link');
-      const linkedJobRow = probe.querySelector('.linked-job-row');
       const favorite = probe.querySelector('.favorite-customer-icon');
       const unread = probe.querySelector('.unread-dot');
       const worksheet = probe.querySelector('.worksheet-list-item.is-selected');
       if (!(activityRow instanceof HTMLElement)
         || !(activityAvatar instanceof HTMLElement)
         || !(linkedJob instanceof HTMLElement)
-        || !(linkedJobRow instanceof HTMLElement)
         || !(favorite instanceof HTMLElement)
         || !(unread instanceof HTMLElement)
         || !(worksheet instanceof HTMLElement)) {
         throw new Error('Shared-state CSS probe could not be constructed.');
       }
 
-      linkedJobRow.focus();
-      const values = {
+      return {
         primary: bodyStyle.getPropertyValue('--primary').trim(),
         colorPrimary: bodyStyle.getPropertyValue('--color-primary').trim(),
         colorInfo: bodyStyle.getPropertyValue('--color-info').trim(),
         focusRing: bodyStyle.getPropertyValue('--focus-ring').trim(),
         accentCoral: bodyStyle.getPropertyValue('--accent-coral').trim(),
-        activeNavigatorIcon: getComputedStyle(activeIcon).color,
         activityUnread: getComputedStyle(activityRow, '::before').backgroundColor,
         activityAvatar: getComputedStyle(activityAvatar).color,
         linkedJob: getComputedStyle(linkedJob).color,
-        linkedJobOutline: getComputedStyle(linkedJobRow).outlineColor,
         favorite: getComputedStyle(favorite).color,
         unreadDot: getComputedStyle(unread).backgroundColor,
         worksheetSelection: getComputedStyle(worksheet, '::before').backgroundColor,
         documentWidth: document.documentElement.scrollWidth,
         viewportWidth: window.innerWidth,
       };
-      probe.remove();
-      return values;
+    });
+
+    await page.locator('[data-focus-origin]').focus();
+    await page.keyboard.press('Tab');
+    const focusResult = await page.evaluate(() => {
+      const linkedJobRow = document.querySelector('[data-shared-state-probe] .linked-job-row');
+      if (!(linkedJobRow instanceof HTMLElement)) {
+        throw new Error('Linked-job focus target was not rendered.');
+      }
+      return {
+        isActiveElement: document.activeElement === linkedJobRow,
+        isFocusVisible: linkedJobRow.matches(':focus-visible'),
+        outlineColor: getComputedStyle(linkedJobRow).outlineColor,
+      };
     });
 
     assert.equal(result.primary, '#f47a24', `${name}: primary action token must remain signal orange.`);
     assert.equal(result.colorPrimary, '#147a7e', `${name}: selection/navigation token must remain petrol.`);
     assert.equal(result.colorInfo, '#147a7e', `${name}: informational token must remain petrol.`);
     assert.notEqual(result.colorPrimary, result.primary, `${name}: selection/navigation must stay distinct from primary action.`);
-    assert.equal(result.activeNavigatorIcon, 'rgb(20, 122, 126)', `${name}: active Quick Navigator icon must use petrol.`);
+    assert.equal(activeNavigatorIcon, 'rgb(20, 122, 126)', `${name}: active Quick Navigator icon must use petrol.`);
     assert.equal(result.activityUnread, 'rgb(20, 122, 126)', `${name}: unread activity marker must be informational petrol.`);
     assert.equal(result.activityAvatar, 'rgb(20, 122, 126)', `${name}: activity actor/info avatar must be petrol.`);
     assert.equal(result.linkedJob, 'rgb(20, 122, 126)', `${name}: linked-job navigation must be petrol.`);
+    assert.equal(focusResult.isActiveElement, true, `${name}: keyboard Tab must reach the linked-job row.`);
+    assert.equal(focusResult.isFocusVisible, true, `${name}: linked-job keyboard focus must activate :focus-visible.`);
     assert.equal(
-      result.linkedJobOutline,
+      focusResult.outlineColor,
       theme === 'day' ? 'rgb(20, 122, 126)' : 'rgb(85, 184, 184)',
       `${name}: linked-job focus must use the focus token, not action orange.`,
     );
@@ -158,6 +178,8 @@ async function verifySharedStateSemantics({ name, theme, viewport }) {
     assert.ok(result.documentWidth <= result.viewportWidth, `${name}: semantic styling must not introduce horizontal overflow.`);
     assert.deepEqual(pageErrors, [], `${name}: browser page errors: ${pageErrors.join(' | ')}`);
     assert.deepEqual(consoleErrors, [], `${name}: browser console errors: ${consoleErrors.join(' | ')}`);
+
+    await page.evaluate(() => document.querySelector('[data-shared-state-probe]')?.remove());
   } finally {
     await context.close();
   }
