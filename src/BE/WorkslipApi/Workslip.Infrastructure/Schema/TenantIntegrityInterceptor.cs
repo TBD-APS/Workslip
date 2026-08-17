@@ -149,12 +149,12 @@ public sealed class TenantIntegrityInterceptor : SaveChangesInterceptor
 
         foreach (var job in addedJobs)
         {
-            if (job.FilialId == Guid.Empty)
+            if (job.FilialId is null || job.FilialId == Guid.Empty)
             {
                 job.FilialId = defaultFilials[job.OrganizationId];
             }
 
-            EnsureFilialBelongsToOrganization(job.OrganizationId, job.FilialId, availableFilials);
+            EnsureFilialBelongsToOrganization(job.OrganizationId, job.FilialId.GetValueOrDefault(), availableFilials);
         }
     }
 

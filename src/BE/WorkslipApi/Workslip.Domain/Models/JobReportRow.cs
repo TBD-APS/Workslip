@@ -5,7 +5,11 @@ public sealed class JobReportRow : IJobRelated
     public Guid Id { get; init; }
     public Guid JobReportId => Id;
     public Guid OrganizationId { get; init; }
-    public Guid FilialId { get; set; }
+    // Nullable to match the WOR-385 expand-phase column, which is NULL for job rows created
+    // before the Filial backfill/triggers. A non-nullable Guid here makes EF materialize such
+    // rows into a non-nullable property and throw on read (the WOR-405 "500 opening an existing
+    // job"). WOR-398 contracts the column to NOT NULL, at which point this can return to Guid.
+    public Guid? FilialId { get; set; }
     public OrganizationRow? OrganizationRow { get; set; }
     public Guid? CustomerId { get; init; }
     public CustomerRow? CustomerRow { get; set; }

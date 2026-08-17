@@ -112,6 +112,13 @@ try
 
     await app.RunAsync();
 }
+catch (HostAbortedException)
+{
+    // Expected during design-time tooling (e.g. `dotnet ef …`), which builds the host
+    // and then deliberately aborts it before it runs. This is not a startup failure, so
+    // it must not be logged as fatal. Rethrow so the EF tooling can observe it as normal.
+    throw;
+}
 catch (Exception exception)
 {
     if (applicationStarted)
