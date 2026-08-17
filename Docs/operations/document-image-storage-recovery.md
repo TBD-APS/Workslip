@@ -59,6 +59,10 @@ az storage account show -g rg-mrsoftware-prod -n stmrsoftwareprod -o none
 az storage container-rm show -g rg-mrsoftware-prod \
   --storage-account stmrsoftwareprod -n uploads -o none
 
+# Which container is the API configured to use? It must match a container that exists.
+az appconfig kv show --name appcs-mrsoftware-prod \
+  --key 'Azure:DocumentFileStorage:ContainerName' --auth-mode login --query value -o tsv
+
 # Does the API managed identity hold Storage Blob Data Contributor on the account?
 apiPrincipalId=$(az identity show -g rg-mrsoftware-prod -n id-mrsoftware-prod --query principalId -o tsv)
 accountId=$(az storage account show -g rg-mrsoftware-prod -n stmrsoftwareprod --query id -o tsv)
@@ -70,7 +74,7 @@ Read the exception type behind the 500 in Application Insights (see [`APPLICATIO
 
 - `InvalidOperationException` referencing `Azure:DocumentFileStorage:StorageAccountName` — the configuration key is missing.
 - `RequestFailedException` status `403` — the managed-identity role assignment is missing or has not propagated.
-- `RequestFailedException` status `404` with `ContainerNotFound` — the `uploads` container does not exist.
+- `RequestFailedException` status `404` with `ContainerNotFound` — the request reached and authenticated against the account, but the **configured** container does not exist. Either the container was never created, or `Azure:DocumentFileStorage:ContainerName` names a container that was never provisioned — for example a stale `report-attachments` value while the provisioned container is `uploads`. A 404 here proves the account name and the role assignment are already correct, so the container name is the only remaining variable.
 
 ## Recovery
 
@@ -79,6 +83,14 @@ Read the exception type behind the 500 in Application Insights (see [`APPLICATIO
 3. If you reconcile outside that workflow, restart the API afterwards so it re-reads App Configuration:
 
    ```bash
+   az webapp restart -g rg-mrsoftware-prod -n api-mrsoftware-prod
+   ```
+
+4. If Diagnosis shows only the container name is wrong — a `404 ContainerNotFound` while the `uploads` container exists — the reconcile realigns `Azure:DocumentFileStorage:ContainerName` from `staticConfig.bicep`. For immediate relief without a full reconcile, set the value directly and restart so the app re-reads App Configuration:
+
+   ```bash
+   az appconfig kv set --name appcs-mrsoftware-prod \
+     --key 'Azure:DocumentFileStorage:ContainerName' --value uploads --auth-mode login --yes
    az webapp restart -g rg-mrsoftware-prod -n api-mrsoftware-prod
    ```
 
@@ -97,3 +109,5 @@ Role-assignment propagation can lag; if reads still return `403` immediately aft
 ## Prevention
 
 Treat storage-backed features as having an infrastructure prerequisite. When a change adds or renames a storage account, container, role assignment or `Azure:DocumentFileStorage:*` key, run the infrastructure reconcile for the target environment before — or together with — the release that depends on it, rather than relying on the automatic backend deploy. The infrastructure entry points and their sequence are documented in [`../../src/BE/infrastructure/README.md`](../../src/BE/infrastructure/README.md); release-track expectations are in [`ci-quality-gates.md`](ci-quality-gates.md).
+
+Keep the container name in `staticConfig.bicep` in agreement with the container that `main.bicep` actually creates. A drift between the two — or a deployed `Azure:DocumentFileStorage:ContainerName` value left behind by an older reconcile — produces the `ContainerNotFound` failure above even though the account, container and role assignment all exist.
