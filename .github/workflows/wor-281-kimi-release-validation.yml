@@ -13,7 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+      KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
+      MOONSHOT_BASE_URL: https://api.moonshot.ai/v1
     steps:
       - uses: actions/checkout@v7
         with:
@@ -24,15 +25,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${MOONSHOT_API_KEY:-}" ]; then
-            echo '::error::MOONSHOT_API_KEY is missing.'
+          if [ -z "${KIMI_API_KEY:-}" ]; then
+            echo '::error::KIMI_API_KEY is missing.'
             exit 10
           fi
           mkdir -p artifacts/wor-281-kimi
           product_sha='f828da251901a34349d3f99bd5bc9ad266d67f26'
           product_blob="$(git rev-parse "${product_sha}:src/FE/src/farvelab-theme.css")"
-          models="$(curl --fail --silent --show-error --max-time 30 -H "Authorization: Bearer ${MOONSHOT_API_KEY}" https://api.moonshot.ai/v1/models)"
-          model="$(printf '%s' "${models}" | jq -r '.data[].id' | grep -i kimi | head -n 1)"
+          models="$(curl --fail --silent --show-error --retry 2 --retry-delay 2 --max-time 30 -H "Authorization: Bearer ${KIMI_API_KEY}" "${MOONSHOT_BASE_URL}/models")"
+          model="$(printf '%s' "${models}" | jq -r '([.data[].id | select(. == "kimi-k2.6")] + [.data[].id | select(test("^kimi-"; "i"))] + [.data[].id]) | unique | .[0] // empty')"
           if [ -z "${model}" ]; then
             echo '::error::No Kimi model was returned by Moonshot model discovery.'
             exit 11
@@ -55,8 +56,8 @@ jobs:
           printf '\nExisting dot CSS:\n' >> /tmp/review.txt
           grep -n -A 8 -B 2 -E '^\.(review-dot|approved-dot|rejected-dot)' src/FE/src/App.css >> /tmp/review.txt || true
 
-          request="$(jq -n --arg model "${model}" --rawfile prompt /tmp/review.txt '{model:$model,messages:[{role:"system",content:"You are a senior frontend reviewer."},{role:"user",content:$prompt}],stream:false,temperature:0}')"
-          response="$(curl --fail --silent --show-error --max-time 120 -H "Authorization: Bearer ${MOONSHOT_API_KEY}" -H 'Content-Type: application/json' -d "${request}" https://api.moonshot.ai/v1/chat/completions)"
+          request="$(jq -n --arg model "${model}" --rawfile prompt /tmp/review.txt '{model:$model,messages:[{role:"system",content:"You are a senior frontend reviewer."},{role:"user",content:$prompt}],thinking:{type:"disabled"},stream:false,temperature:0}')"
+          response="$(curl --fail --silent --show-error --max-time 180 -H "Authorization: Bearer ${KIMI_API_KEY}" -H 'Content-Type: application/json' -d "${request}" "${MOONSHOT_BASE_URL}/chat/completions")"
           content="$(printf '%s' "${response}" | jq -r '.choices[0].message.content // empty')"
           test -n "${content}"
           printf '%s\n' "${content}" | tee artifacts/wor-281-kimi/review.txt
