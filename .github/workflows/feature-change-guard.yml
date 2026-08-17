@@ -6,7 +6,7 @@ on:
       - main
       - 'release-*'
       - 'release/**'
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
   pull_request_review:
     types: [submitted, dismissed]
 
@@ -43,6 +43,9 @@ jobs:
       - name: Test change-risk classifier
         run: node --test tools/release/validate-pr-change-risk.test.mjs
 
+      - name: Test browser-evidence guard
+        run: node --test tools/release/validate-pr-browser-evidence.test.mjs
+
       - name: Validate ruleset reconciler syntax
         shell: pwsh
         run: >-
@@ -65,6 +68,23 @@ jobs:
         run: |
           echo '::error::Feature change classifier failed before producing a valid risk decision.'
           exit 1
+
+      - name: Validate flow-level browser evidence
+        id: browser
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -Eeuo pipefail
+          body_file="$(mktemp)"
+          trap 'rm -f "$body_file"' EXIT
+          printf '%s' "$PR_BODY" > "$body_file"
+          node tools/release/validate-pr-browser-evidence.mjs \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA" \
+            --body-file "$body_file"
 
       - name: Require explicit approval for high-risk feature change
         if: steps.risk.outputs.high_risk == 'true'
@@ -98,4 +118,4 @@ jobs:
 
       - name: Guard passed
         if: steps.risk.outputs.high_risk != 'true'
-        run: echo 'No high-risk product feature change detected.'
+        run: echo 'Feature-change and browser-evidence guards passed.'
