@@ -11,21 +11,47 @@ const job = (id: string, assignedUserIds: string[]) => ({
   assignedUsers: assignedUserIds.map((userId) => ({ id: userId })),
 }) as JobListItemViewModel;
 
-describe('quick navigator job search', () => {
-  it('only searches the jobs endpoint for explicit job intent', () => {
-    expect(getQuickJobSearchTerm('timer')).toBeNull();
-    expect(getQuickJobSearchTerm('kunde')).toBeNull();
-    expect(getQuickJobSearchTerm('sag 1234')).toBe('1234');
-    expect(getQuickJobSearchTerm('job #AB12')).toBe('AB12');
+describe('quick navigator global search', () => {
+  it('fans ordinary text out to both jobs and customers', () => {
+    expect(getQuickJobSearchTerm('niels')).toBe('niels');
+    expect(getCustomerSearchTerm('niels')).toBe('niels');
+    expect(getQuickJobSearchTerm('  Viborgvej  ')).toBe('Viborgvej');
+    expect(getCustomerSearchTerm('  Viborgvej  ')).toBe('Viborgvej');
     expect(getQuickJobSearchTerm('1234')).toBe('1234');
+    expect(getCustomerSearchTerm('1234')).toBe('1234');
   });
 
-  it('requires at least 2 characters after stripping intent prefix', () => {
+  it('supports explicit job intent as an optional precision prefix', () => {
+    expect(getQuickJobSearchTerm('sag 1234')).toBe('1234');
+    expect(getQuickJobSearchTerm('job #AB12')).toBe('AB12');
+    expect(getCustomerSearchTerm('sag 1234')).toBeNull();
+    expect(getCustomerSearchTerm('job #AB12')).toBeNull();
+  });
+
+  it('supports explicit customer intent as an optional precision prefix', () => {
+    expect(getCustomerSearchTerm('kunde Niels')).toBe('Niels');
+    expect(getCustomerSearchTerm('kunde #1234')).toBe('1234');
+    expect(getQuickJobSearchTerm('kunde Niels')).toBeNull();
+  });
+
+  it('requires at least 2 characters for remote search', () => {
+    expect(getQuickJobSearchTerm('')).toBeNull();
+    expect(getCustomerSearchTerm('')).toBeNull();
+    expect(getQuickJobSearchTerm('a')).toBeNull();
+    expect(getCustomerSearchTerm('a')).toBeNull();
     expect(getQuickJobSearchTerm('sag 1')).toBeNull();
-    expect(getQuickJobSearchTerm('job A')).toBeNull();
-    expect(getQuickJobSearchTerm('sag 12')).toBe('12');
-    expect(getQuickJobSearchTerm('1')).toBeNull();
-    expect(getQuickJobSearchTerm('12')).toBe('12');
+    expect(getCustomerSearchTerm('kunde a')).toBeNull();
+    expect(getQuickJobSearchTerm('ab')).toBe('ab');
+    expect(getCustomerSearchTerm('ab')).toBe('ab');
+  });
+
+  it('does not mistake words that merely start like an intent for prefixes', () => {
+    expect(getQuickJobSearchTerm('saggy pants')).toBe('saggy pants');
+    expect(getCustomerSearchTerm('saggy pants')).toBe('saggy pants');
+    expect(getQuickJobSearchTerm('jobless')).toBe('jobless');
+    expect(getCustomerSearchTerm('jobless')).toBe('jobless');
+    expect(getQuickJobSearchTerm('kundeservice')).toBe('kundeservice');
+    expect(getCustomerSearchTerm('kundeservice')).toBe('kundeservice');
   });
 
   it('keeps non-admin quick results scoped to assigned jobs', () => {
@@ -35,33 +61,5 @@ describe('quick navigator job search', () => {
       .toEqual(['mine']);
     expect(filterQuickNavigationJobs(jobs, false, undefined)).toEqual([]);
     expect(filterQuickNavigationJobs(jobs, true, undefined)).toEqual(jobs);
-  });
-});
-
-describe('quick navigator customer search', () => {
-  it('returns null for empty or short queries', () => {
-    expect(getCustomerSearchTerm('')).toBeNull();
-    expect(getCustomerSearchTerm('  ')).toBeNull();
-    expect(getCustomerSearchTerm('a')).toBeNull();
-  });
-
-  it('returns the trimmed query for normal text >= 2 chars', () => {
-    expect(getCustomerSearchTerm('acme')).toBe('acme');
-    expect(getCustomerSearchTerm('  acme  ')).toBe('acme');
-    expect(getCustomerSearchTerm('ab')).toBe('ab');
-  });
-
-  it('excludes explicit job intent from customer search', () => {
-    expect(getCustomerSearchTerm('sag 1234')).toBeNull();
-    expect(getCustomerSearchTerm('job #AB12')).toBeNull();
-    expect(getCustomerSearchTerm('1234')).toBeNull();
-    expect(getCustomerSearchTerm('sag')).toBeNull();
-    expect(getCustomerSearchTerm('job')).toBeNull();
-  });
-
-  it('allows mixed text that does not start with job intent', () => {
-    expect(getCustomerSearchTerm('acme 1234')).toBe('acme 1234');
-    expect(getCustomerSearchTerm('saggy pants')).toBe('saggy pants');
-    expect(getCustomerSearchTerm('jobless')).toBe('jobless');
   });
 });
