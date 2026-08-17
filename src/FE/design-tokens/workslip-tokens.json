@@ -1,0 +1,1244 @@
+{
+  "$schema": "https://workslip.dk/schemas/design-tokens-1.json",
+  "meta": {
+    "generatedBy": "src/FE/scripts/export-design-tokens.mjs",
+    "paletteSource": "src/FE/src/workslip-brand.css",
+    "shapeSource": "src/FE/src/farvelab-theme.css",
+    "note": "workslip-brand.css owns colour semantics and overrides the Farvelab layer on specificity. Farvelab still owns shape, spacing and component structure.",
+    "figma": {
+      "collections": [
+        "Primitives",
+        "Color",
+        "Color Day",
+        "Scale"
+      ],
+      "modeLimitation": "Figma Starter allows one mode per collection, so Night and Day are paired collections sharing identical variable names. On a paid plan they merge into one collection with two modes without renaming anything."
+    }
+  },
+  "collections": {
+    "Primitives": {
+      "modes": [
+        "Value"
+      ],
+      "variables": {
+        "brand/marine": "#123b4a",
+        "brand/petrol": "#147a7e",
+        "brand/orange": "#f47a24",
+        "brand/cream": "#fff7e8"
+      }
+    },
+    "Color": {
+      "modes": [
+        "Night"
+      ],
+      "variables": [
+        {
+          "name": "bg",
+          "cssProperty": "--bg",
+          "value": "#0d303b",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--bg)"
+          }
+        },
+        {
+          "name": "text/default",
+          "cssProperty": "--text",
+          "value": "#fff7e8",
+          "aliasOf": "brand/cream",
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--text)"
+          }
+        },
+        {
+          "name": "text/muted",
+          "cssProperty": "--text-muted",
+          "value": "#bfd0d1",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--text-muted)"
+          }
+        },
+        {
+          "name": "text/dim",
+          "cssProperty": "--text-dim",
+          "value": "#8eaaac",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--text-dim)"
+          }
+        },
+        {
+          "name": "text/disabled",
+          "cssProperty": "--text-disabled",
+          "value": "rgba(255, 247, 232, 0.42)",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--text-disabled)"
+          }
+        },
+        {
+          "name": "primary/default",
+          "cssProperty": "--primary",
+          "value": "#f47a24",
+          "aliasOf": "brand/orange",
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--primary)"
+          }
+        },
+        {
+          "name": "primary/hover",
+          "cssProperty": "--primary-hover",
+          "value": "#ff8c3f",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--primary-hover)"
+          }
+        },
+        {
+          "name": "primary/pressed",
+          "cssProperty": "--primary-pressed",
+          "value": "#d86417",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--primary-pressed)"
+          }
+        },
+        {
+          "name": "primary/on",
+          "cssProperty": "--on-primary",
+          "value": "#ffffff",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--on-primary)"
+          }
+        },
+        {
+          "name": "accent/cyan",
+          "cssProperty": "--accent-cyan",
+          "value": "#147a7e",
+          "aliasOf": "brand/petrol",
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--accent-cyan)"
+          }
+        },
+        {
+          "name": "accent/mint",
+          "cssProperty": "--accent-mint",
+          "value": "#57b894",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--accent-mint)"
+          }
+        },
+        {
+          "name": "accent/amber",
+          "cssProperty": "--accent-amber",
+          "value": "#f47a24",
+          "aliasOf": "brand/orange",
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--accent-amber)"
+          }
+        },
+        {
+          "name": "accent/coral",
+          "cssProperty": "--accent-coral",
+          "value": "#ef695f",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--accent-coral)"
+          }
+        },
+        {
+          "name": "surface/floating",
+          "cssProperty": "--surface-floating",
+          "value": "#123b4a",
+          "aliasOf": "brand/marine",
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface-floating)"
+          }
+        },
+        {
+          "name": "surface/base",
+          "cssProperty": "--surface",
+          "value": "rgba(255, 247, 232, 0.055)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface)"
+          }
+        },
+        {
+          "name": "surface/raised",
+          "cssProperty": "--surface-raised",
+          "value": "rgba(255, 247, 232, 0.095)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface-raised)"
+          }
+        },
+        {
+          "name": "surface/input",
+          "cssProperty": "--surface-input",
+          "value": "rgba(7, 39, 49, 0.82)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface-input)"
+          }
+        },
+        {
+          "name": "surface/elevated",
+          "cssProperty": "--surface-elevated",
+          "value": "rgba(255, 247, 232, 0.15)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface-elevated)"
+          }
+        },
+        {
+          "name": "surface/selected",
+          "cssProperty": "--surface-selected",
+          "value": "rgba(20, 122, 126, 0.22)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface-selected)"
+          }
+        },
+        {
+          "name": "surface/selected-strong",
+          "cssProperty": "--surface-selected-strong",
+          "value": "rgba(20, 122, 126, 0.34)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface-selected-strong)"
+          }
+        },
+        {
+          "name": "surface/modal",
+          "cssProperty": "--surface-modal",
+          "value": "#123b4a",
+          "aliasOf": "brand/marine",
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface-modal)"
+          }
+        },
+        {
+          "name": "surface/overlay",
+          "cssProperty": "--surface-overlay",
+          "value": "rgba(7, 39, 49, 0.68)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface-overlay)"
+          }
+        },
+        {
+          "name": "border/default",
+          "cssProperty": "--border",
+          "value": "rgba(255, 247, 232, 0.13)",
+          "aliasOf": null,
+          "scopes": [
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--border)"
+          }
+        },
+        {
+          "name": "border/strong",
+          "cssProperty": "--border-strong",
+          "value": "rgba(255, 247, 232, 0.24)",
+          "aliasOf": null,
+          "scopes": [
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--border-strong)"
+          }
+        },
+        {
+          "name": "focus-ring",
+          "cssProperty": "--focus-ring",
+          "value": "#55b8b8",
+          "aliasOf": null,
+          "scopes": [
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--focus-ring)"
+          }
+        },
+        {
+          "name": "status/danger",
+          "cssProperty": "--danger",
+          "value": "#ef695f",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--danger)"
+          }
+        },
+        {
+          "name": "status/danger-hover",
+          "cssProperty": "--danger-hover",
+          "value": "#f47d74",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--danger-hover)"
+          }
+        },
+        {
+          "name": "status/danger-bg",
+          "cssProperty": "--danger-bg",
+          "value": "rgba(239, 105, 95, 0.14)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--danger-bg)"
+          }
+        },
+        {
+          "name": "status/warning",
+          "cssProperty": "--warning",
+          "value": "#f47a24",
+          "aliasOf": "brand/orange",
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--warning)"
+          }
+        },
+        {
+          "name": "status/success",
+          "cssProperty": "--success",
+          "value": "#57b894",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--success)"
+          }
+        },
+        {
+          "name": "status/blue-bg",
+          "cssProperty": "--status-blue-bg",
+          "value": "rgba(20, 122, 126, 0.2)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-blue-bg)"
+          }
+        },
+        {
+          "name": "status/blue-text",
+          "cssProperty": "--status-blue-text",
+          "value": "#83d6d2",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-blue-text)"
+          }
+        },
+        {
+          "name": "status/red-bg",
+          "cssProperty": "--status-red-bg",
+          "value": "rgba(239, 105, 95, 0.16)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-red-bg)"
+          }
+        },
+        {
+          "name": "status/red-text",
+          "cssProperty": "--status-red-text",
+          "value": "#ffaaa4",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-red-text)"
+          }
+        },
+        {
+          "name": "status/amber-bg",
+          "cssProperty": "--status-amber-bg",
+          "value": "rgba(244, 122, 36, 0.18)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-amber-bg)"
+          }
+        },
+        {
+          "name": "status/amber-text",
+          "cssProperty": "--status-amber-text",
+          "value": "#ffc08f",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-amber-text)"
+          }
+        },
+        {
+          "name": "status/green-bg",
+          "cssProperty": "--status-green-bg",
+          "value": "rgba(87, 184, 148, 0.16)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-green-bg)"
+          }
+        },
+        {
+          "name": "status/green-text",
+          "cssProperty": "--status-green-text",
+          "value": "#9adcc4",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-green-text)"
+          }
+        },
+        {
+          "name": "status/neutral-bg",
+          "cssProperty": "--status-neutral-bg",
+          "value": "rgba(191, 208, 209, 0.12)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-neutral-bg)"
+          }
+        },
+        {
+          "name": "status/neutral-text",
+          "cssProperty": "--status-neutral-text",
+          "value": "#c6d7d8",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-neutral-text)"
+          }
+        },
+        {
+          "name": "overlay/subtle",
+          "cssProperty": "--overlay-subtle",
+          "value": "rgba(4, 28, 36, 0.4)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--overlay-subtle)"
+          }
+        },
+        {
+          "name": "overlay/medium",
+          "cssProperty": "--overlay-medium",
+          "value": "rgba(4, 28, 36, 0.64)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--overlay-medium)"
+          }
+        },
+        {
+          "name": "overlay/heavy",
+          "cssProperty": "--overlay-heavy",
+          "value": "rgba(4, 28, 36, 0.88)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--overlay-heavy)"
+          }
+        },
+        {
+          "name": "overlay/blur",
+          "cssProperty": "--overlay-blur",
+          "value": "rgba(13, 48, 59, 0.84)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--overlay-blur)"
+          }
+        },
+        {
+          "name": "overlay/nav-bg",
+          "cssProperty": "--nav-bg",
+          "value": "rgba(14, 52, 64, 0.94)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--nav-bg)"
+          }
+        }
+      ]
+    },
+    "Color Day": {
+      "modes": [
+        "Day"
+      ],
+      "variables": [
+        {
+          "name": "bg",
+          "cssProperty": "--bg",
+          "value": "#fff7e8",
+          "aliasOf": "brand/cream",
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--bg)"
+          }
+        },
+        {
+          "name": "text/default",
+          "cssProperty": "--text",
+          "value": "#123b4a",
+          "aliasOf": "brand/marine",
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--text)"
+          }
+        },
+        {
+          "name": "text/muted",
+          "cssProperty": "--text-muted",
+          "value": "#566f75",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--text-muted)"
+          }
+        },
+        {
+          "name": "text/dim",
+          "cssProperty": "--text-dim",
+          "value": "#819398",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--text-dim)"
+          }
+        },
+        {
+          "name": "text/disabled",
+          "cssProperty": "--text-disabled",
+          "value": "rgba(18, 59, 74, 0.42)",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--text-disabled)"
+          }
+        },
+        {
+          "name": "primary/default",
+          "cssProperty": "--primary",
+          "value": "#f47a24",
+          "aliasOf": "brand/orange",
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--primary)"
+          }
+        },
+        {
+          "name": "primary/hover",
+          "cssProperty": "--primary-hover",
+          "value": "#e96e18",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--primary-hover)"
+          }
+        },
+        {
+          "name": "primary/pressed",
+          "cssProperty": "--primary-pressed",
+          "value": "#cf5e12",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--primary-pressed)"
+          }
+        },
+        {
+          "name": "primary/on",
+          "cssProperty": "--on-primary",
+          "value": "#ffffff",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--on-primary)"
+          }
+        },
+        {
+          "name": "accent/cyan",
+          "cssProperty": "--accent-cyan",
+          "value": "#147a7e",
+          "aliasOf": "brand/petrol",
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--accent-cyan)"
+          }
+        },
+        {
+          "name": "accent/mint",
+          "cssProperty": "--accent-mint",
+          "value": "#328e72",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--accent-mint)"
+          }
+        },
+        {
+          "name": "accent/amber",
+          "cssProperty": "--accent-amber",
+          "value": "#b8530e",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--accent-amber)"
+          }
+        },
+        {
+          "name": "accent/coral",
+          "cssProperty": "--accent-coral",
+          "value": "#c84e45",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--accent-coral)"
+          }
+        },
+        {
+          "name": "surface/floating",
+          "cssProperty": "--surface-floating",
+          "value": "#ffffff",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface-floating)"
+          }
+        },
+        {
+          "name": "surface/base",
+          "cssProperty": "--surface",
+          "value": "rgba(18, 59, 74, 0.045)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface)"
+          }
+        },
+        {
+          "name": "surface/raised",
+          "cssProperty": "--surface-raised",
+          "value": "rgba(18, 59, 74, 0.075)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface-raised)"
+          }
+        },
+        {
+          "name": "surface/input",
+          "cssProperty": "--surface-input",
+          "value": "#ffffff",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface-input)"
+          }
+        },
+        {
+          "name": "surface/elevated",
+          "cssProperty": "--surface-elevated",
+          "value": "rgba(18, 59, 74, 0.12)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface-elevated)"
+          }
+        },
+        {
+          "name": "surface/selected",
+          "cssProperty": "--surface-selected",
+          "value": "rgba(20, 122, 126, 0.1)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface-selected)"
+          }
+        },
+        {
+          "name": "surface/selected-strong",
+          "cssProperty": "--surface-selected-strong",
+          "value": "rgba(20, 122, 126, 0.16)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface-selected-strong)"
+          }
+        },
+        {
+          "name": "surface/modal",
+          "cssProperty": "--surface-modal",
+          "value": "#ffffff",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface-modal)"
+          }
+        },
+        {
+          "name": "surface/overlay",
+          "cssProperty": "--surface-overlay",
+          "value": "rgba(255, 247, 232, 0.78)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--surface-overlay)"
+          }
+        },
+        {
+          "name": "border/default",
+          "cssProperty": "--border",
+          "value": "rgba(18, 59, 74, 0.12)",
+          "aliasOf": null,
+          "scopes": [
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--border)"
+          }
+        },
+        {
+          "name": "border/strong",
+          "cssProperty": "--border-strong",
+          "value": "rgba(18, 59, 74, 0.22)",
+          "aliasOf": null,
+          "scopes": [
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--border-strong)"
+          }
+        },
+        {
+          "name": "focus-ring",
+          "cssProperty": "--focus-ring",
+          "value": "#147a7e",
+          "aliasOf": "brand/petrol",
+          "scopes": [
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--focus-ring)"
+          }
+        },
+        {
+          "name": "status/danger",
+          "cssProperty": "--danger",
+          "value": "#c84e45",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--danger)"
+          }
+        },
+        {
+          "name": "status/danger-hover",
+          "cssProperty": "--danger-hover",
+          "value": "#b84139",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--danger-hover)"
+          }
+        },
+        {
+          "name": "status/danger-bg",
+          "cssProperty": "--danger-bg",
+          "value": "#fce7e4",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--danger-bg)"
+          }
+        },
+        {
+          "name": "status/warning",
+          "cssProperty": "--warning",
+          "value": "#9b4308",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--warning)"
+          }
+        },
+        {
+          "name": "status/success",
+          "cssProperty": "--success",
+          "value": "#267a61",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "TEXT_FILL",
+            "STROKE_COLOR"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--success)"
+          }
+        },
+        {
+          "name": "status/blue-bg",
+          "cssProperty": "--status-blue-bg",
+          "value": "#e2f2f1",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-blue-bg)"
+          }
+        },
+        {
+          "name": "status/blue-text",
+          "cssProperty": "--status-blue-text",
+          "value": "#0d686b",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-blue-text)"
+          }
+        },
+        {
+          "name": "status/red-bg",
+          "cssProperty": "--status-red-bg",
+          "value": "#fce9e7",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-red-bg)"
+          }
+        },
+        {
+          "name": "status/red-text",
+          "cssProperty": "--status-red-text",
+          "value": "#a63f37",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-red-text)"
+          }
+        },
+        {
+          "name": "status/amber-bg",
+          "cssProperty": "--status-amber-bg",
+          "value": "#ffead8",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-amber-bg)"
+          }
+        },
+        {
+          "name": "status/amber-text",
+          "cssProperty": "--status-amber-text",
+          "value": "#9b4308",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-amber-text)"
+          }
+        },
+        {
+          "name": "status/green-bg",
+          "cssProperty": "--status-green-bg",
+          "value": "#e4f3ed",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-green-bg)"
+          }
+        },
+        {
+          "name": "status/green-text",
+          "cssProperty": "--status-green-text",
+          "value": "#236d58",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-green-text)"
+          }
+        },
+        {
+          "name": "status/neutral-bg",
+          "cssProperty": "--status-neutral-bg",
+          "value": "#edf1ef",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-neutral-bg)"
+          }
+        },
+        {
+          "name": "status/neutral-text",
+          "cssProperty": "--status-neutral-text",
+          "value": "#536a70",
+          "aliasOf": null,
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--status-neutral-text)"
+          }
+        },
+        {
+          "name": "overlay/subtle",
+          "cssProperty": "--overlay-subtle",
+          "value": "rgba(18, 59, 74, 0.08)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--overlay-subtle)"
+          }
+        },
+        {
+          "name": "overlay/medium",
+          "cssProperty": "--overlay-medium",
+          "value": "rgba(18, 59, 74, 0.22)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--overlay-medium)"
+          }
+        },
+        {
+          "name": "overlay/heavy",
+          "cssProperty": "--overlay-heavy",
+          "value": "rgba(18, 59, 74, 0.5)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--overlay-heavy)"
+          }
+        },
+        {
+          "name": "overlay/blur",
+          "cssProperty": "--overlay-blur",
+          "value": "rgba(255, 247, 232, 0.88)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--overlay-blur)"
+          }
+        },
+        {
+          "name": "overlay/nav-bg",
+          "cssProperty": "--nav-bg",
+          "value": "rgba(255, 250, 239, 0.95)",
+          "aliasOf": null,
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "codeSyntax": {
+            "WEB": "var(--nav-bg)"
+          }
+        }
+      ]
+    },
+    "Scale": {
+      "modes": [
+        "Value"
+      ],
+      "variables": {
+        "--radius-sm": "10px",
+        "--radius": "14px",
+        "--radius-lg": "20px",
+        "--card-padding": "1.25rem"
+      }
+    }
+  }
+}

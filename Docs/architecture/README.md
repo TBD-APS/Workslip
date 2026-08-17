@@ -10,6 +10,7 @@ Current implementation is the technical source of truth. This area records durab
 
 - [`domain-and-dataflows.md`](domain-and-dataflows.md) — tenant ownership and core data-integrity boundaries.
 - [`dependency-map.md`](dependency-map.md) — generated module coupling map; regenerate with `node tools/depmap/depmap.mjs`.
+- [`figma-design-environment.md`](figma-design-environment.md) — colour-token ownership, the Figma export contract and design-file layout.
 - [`frontend-design-accessibility.md`](frontend-design-accessibility.md) — authenticated frontend visual system, semantic tokens and accessibility baseline.
 - [`frontend-stylesheet-boundaries.md`](frontend-stylesheet-boundaries.md) — ownership and migration rules for the legacy `App.css` boundary.
 - [`github-actions-convergence.md`](github-actions-convergence.md) — boundary between thin GitHub Actions execution and MR SAAS'y-owned agent runtime/orchestration.
