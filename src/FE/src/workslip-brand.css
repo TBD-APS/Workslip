@@ -168,10 +168,43 @@ html[data-theme="day"] body:has(.system-state) {
   --overlay-light-050: rgba(18, 59, 74, 0.66);
 }
 
-/* Active navigation and selected filters use petrol so orange remains a
-   scarce, high-salience action colour instead of becoming visual noise. */
-html body:has(.app-shell) :is(.nav-item.active, .user-avatar[aria-current="page"]) {
+/* Active navigation, informational activity and selected content use petrol so
+   orange remains a scarce, high-salience action colour. Structural selectors
+   remain owned by their existing stylesheets; this layer only assigns colour
+   semantics while WOR-475 continues the App.css ownership migration. */
+html body:has(.app-shell) :is(
+  .nav-item.active,
+  .user-avatar[aria-current="page"],
+  .linked-job-link,
+  .nav-maps-link:hover,
+  .pull-to-refresh.ready,
+  .pull-to-refresh.refreshing,
+  .multi-select-option-icon,
+  .submission-overlay-spinner
+) {
   color: var(--brand-petrol);
+}
+
+html body:has(.app-shell) .user-avatar--accent {
+  background: var(--brand-petrol);
+  border-color: color-mix(in srgb, var(--brand-petrol) 42%, var(--border));
+  color: var(--brand-cream);
+}
+
+html body:has(.app-shell) .linked-job-row:focus-visible {
+  outline: 2px solid var(--focus-ring);
+}
+
+html body:has(.app-shell) :is(
+  .unread-dot,
+  .unassigned-dot,
+  .worksheet-list-item.is-selected::before
+) {
+  background: var(--color-info);
+}
+
+html body:has(.app-shell) .favorite-customer-icon {
+  color: var(--accent-coral);
 }
 
 html body:has(.app-shell) .status-filter-btn.selected {
