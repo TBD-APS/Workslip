@@ -3,11 +3,14 @@ import os
 import pathlib
 import re
 import subprocess
+import time
+import urllib.error
 import urllib.request
 
 BASE_URL = os.environ.get('MOONSHOT_BASE_URL', 'https://api.moonshot.ai/v1').rstrip('/')
 API_KEY = os.environ['KIMI_API_KEY']
 MODEL = os.environ['KIMI_MODEL']
+MAX_REPAIR_PASSES = 4
 
 
 def call_kimi(system: str, user: str, max_tokens: int = 9000):
@@ -22,15 +25,29 @@ def call_kimi(system: str, user: str, max_tokens: int = 9000):
         'max_completion_tokens': max_tokens,
         'stream': False,
     }
-    req = urllib.request.Request(
-        BASE_URL + '/chat/completions',
-        data=json.dumps(payload).encode('utf-8'),
-        headers={'Authorization': 'Bearer ' + API_KEY, 'Content-Type': 'application/json'},
-        method='POST',
-    )
-    with urllib.request.urlopen(req, timeout=240) as response:
-        api = json.load(response)
-    return api, json.loads(api['choices'][0]['message']['content'])
+    request_body = json.dumps(payload).encode('utf-8')
+    last_error = None
+    for attempt in range(1, 4):
+        req = urllib.request.Request(
+            BASE_URL + '/chat/completions',
+            data=request_body,
+            headers={'Authorization': 'Bearer ' + API_KEY, 'Content-Type': 'application/json'},
+            method='POST',
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=240) as response:
+                api = json.load(response)
+            raw = api['choices'][0]['message']['content']
+            result = json.loads(raw)
+            if not isinstance(result, dict):
+                raise ValueError('Kimi response JSON must be an object')
+            return api, result
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, KeyError, ValueError) as exc:
+            last_error = exc
+            if attempt == 3:
+                break
+            time.sleep(attempt * 2)
+    raise RuntimeError(f'Kimi API/response failed after 3 attempts: {last_error}')
 
 
 def hidden_interactive_rules(content: str):
@@ -51,6 +68,17 @@ def hidden_interactive_rules(content: str):
     return findings
 
 
+def normalize_safe_policy_tokens(content: str):
+    """Apply only semantics-preserving deterministic fixes that are safe for this bounded layer."""
+    if not isinstance(content, str):
+        return '', []
+    changes = []
+    normalized, count = re.subn(r'var\(\s*--primary\s*\)', 'var(--color-primary)', content, flags=re.I)
+    if count:
+        changes.append(f'remapped {count} var(--primary) reference(s) to var(--color-primary)')
+    return normalized, changes
+
+
 def stylesheet_violations(content: str):
     violations = []
     if not isinstance(content, str) or not content.strip():
@@ -62,7 +90,7 @@ def stylesheet_violations(content: str):
         violations.append('missing desktop navigation refinement')
     if re.search(r'#[0-9a-fA-F]{3,8}\b', content):
         violations.append('contains hardcoded hex color; every color must use an existing semantic CSS variable')
-    if 'var(--primary)' in content:
+    if re.search(r'var\(\s*--primary\s*\)', content, re.I):
         violations.append('consumes --primary; this additive refinement must leave action-orange ownership to the existing brand layer')
     hidden = hidden_interactive_rules(content)
     if hidden:
@@ -110,10 +138,13 @@ Requirements:
 REFERENCE SOURCES:\n''' + '\n\n'.join(context)
     api, result = call_kimi(system, task, 10000)
     content = result.get('content', '')
+    content, deterministic_changes = normalize_safe_policy_tokens(content)
     initial_violations = stylesheet_violations(content)
     repairs = []
 
-    for repair_number in range(1, 3):
+    for repair_number in range(1, MAX_REPAIR_PASSES + 1):
+        content, safe_changes = normalize_safe_policy_tokens(content)
+        deterministic_changes.extend(safe_changes)
         violations = stylesheet_violations(content)
         if not violations:
             break
@@ -122,32 +153,38 @@ REFERENCE SOURCES:\n''' + '\n\n'.join(context)
         repair_system = (
             'You are Kimi repairing your own bounded WOR-674 CSS candidate. Return JSON only with keys content, summary, validation_notes. '
             'content must be the COMPLETE repaired stylesheet. Preserve design intent and selectors while fixing every listed policy violation. '
-            'Do not add routes, JS, markup, dependencies or new token definitions.'
+            'Do not add routes, JS, markup, dependencies or new token definitions. '
+            'Do not merely explain the fix: the returned content itself must satisfy every listed rule.'
         )
         repair_task = (
-            'The stylesheet failed the deterministic policy gate:\n- '
+            f'Repair pass {repair_number} of {MAX_REPAIR_PASSES}. The stylesheet failed the deterministic policy gate:\n- '
             + '\n- '.join(violations)
             + '\n\nRepair every listed issue. Hard requirements: zero literal hex colors; zero var(--primary); '
               'never hide navigation, buttons/actions, form controls, header controls, step navigation or job conversation/history controls; '
               'retain desktop @media (min-width: 1024px) and .bottom-nav vertical-rail refinement. '
-              'Use existing semantic variables only.\n\nCANDIDATE CSS:\n' + (content if isinstance(content, str) else '')
+              'Use existing semantic variables only. For selection/navigation color use var(--color-primary), var(--color-info), or var(--focus-ring); '
+              'do not restyle primary-action ownership in this additive layer.\n\nCANDIDATE CSS:\n' + (content if isinstance(content, str) else '')
         )
         repair_api, repair_result = call_kimi(repair_system, repair_task, 10000)
         content = repair_result.get('content', '')
+        content, safe_changes = normalize_safe_policy_tokens(content)
+        deterministic_changes.extend(safe_changes)
         result = repair_result
         api = repair_api
 
     remaining = stylesheet_violations(content)
     if remaining:
         pathlib.Path('/tmp/wor674-final-rejected.css').write_text(content if isinstance(content, str) else '', encoding='utf-8')
-        raise SystemExit('Kimi repair still violates stylesheet policy: ' + '; '.join(remaining))
+        raise SystemExit('Kimi repair still violates stylesheet policy after '
+                         f'{MAX_REPAIR_PASSES} passes: ' + '; '.join(remaining))
 
+    notes = []
+    if deterministic_changes:
+        notes.append('Deterministic safe normalizations: ' + '; '.join(dict.fromkeys(deterministic_changes)))
     if repairs:
-        result['validation_notes'] = (
-            (result.get('validation_notes') or '')
-            + ' Automated Kimi repair passes resolved: '
-            + '; '.join(dict.fromkeys(repairs))
-        ).strip()
+        notes.append('Kimi repair passes resolved: ' + '; '.join(dict.fromkeys(repairs)))
+    if notes:
+        result['validation_notes'] = ((result.get('validation_notes') or '') + ' ' + ' '.join(notes)).strip()
 
     pathlib.Path('/tmp/wor674.css').write_text(content, encoding='utf-8')
     pathlib.Path('/tmp/kimi-implementation.json').write_text(json.dumps({
@@ -155,6 +192,8 @@ REFERENCE SOURCES:\n''' + '\n\n'.join(context)
         'summary': result.get('summary', ''),
         'validation_notes': result.get('validation_notes', ''),
         'initial_policy_violations': initial_violations,
+        'deterministic_normalizations': list(dict.fromkeys(deterministic_changes)),
+        'repair_pass_limit': MAX_REPAIR_PASSES,
     }, indent=2), encoding='utf-8')
 
 
