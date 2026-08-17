@@ -17,6 +17,9 @@ import type { DocumentDetailResponse } from '../../api/generated/models';
 import { ConfirmDeleteDialog } from '../../components/common/ConfirmDeleteDialog';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { ErrorState } from '../../components/ErrorState';
+import { formatDateTime } from '../../lib/formatDate';
+import { formatNumber } from '../../lib/presentation/number';
+import { toUiLowerCase } from '../../lib/presentation/text';
 import { notify } from '../../lib/toast';
 import { useCan } from '../../providers/permissions/usePermissions';
 import { DocumentAttachments } from './DocumentAttachments';
@@ -57,7 +60,7 @@ const parseTags = (value: string): string[] => {
   for (const part of value.split(',')) {
     const tag = part.trim();
     if (!tag) continue;
-    const key = tag.toLocaleLowerCase('da-DK');
+    const key = toUiLowerCase(tag);
     if (seen.has(key)) continue;
     seen.add(key);
     tags.push(tag);
@@ -65,11 +68,7 @@ const parseTags = (value: string): string[] => {
   return tags;
 };
 
-const formatUpdatedAt = (value: string): string =>
-  new Intl.DateTimeFormat('da-DK', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
+const formatUpdatedAt = (value: string): string => formatDateTime(value) ?? value;
 
 const isConflict = (error: unknown): boolean =>
   typeof error === 'object'
@@ -411,7 +410,7 @@ export const DocsPage = () => {
                   </label>
 
                   <label className="docs-field docs-content-field">
-                    <span>Indhold <small>{draft.content.length.toLocaleString('da-DK')} / 200.000</small></span>
+                    <span>Indhold <small>{formatNumber(draft.content.length)} / 200.000</small></span>
                     <textarea
                       value={draft.content}
                       onChange={(event) => updateDraft((current) => ({ ...current, content: event.target.value }))}
