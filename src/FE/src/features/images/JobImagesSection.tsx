@@ -283,7 +283,7 @@ function JobImageTile({ jobId, image, index, allowDelete, deleting, onPreview, o
 
   const imageQuery = useQuery({
     queryKey: jobImageBlobQueryKey(jobId, image.id),
-    queryFn: () => fetchJobImageBlob(jobId, image.id),
+    queryFn: ({ signal }) => fetchJobImageBlob(jobId, image.id, signal),
     enabled: visible,
     retry: false,
     staleTime: 5 * 60 * 1000,
@@ -337,7 +337,7 @@ function JobImagePreview({ jobId, images, index, onClose, onPrevious, onNext }: 
   const image = images[index];
   const imageQuery = useQuery({
     queryKey: image ? jobImageBlobQueryKey(jobId, image.id) : ['job-image-preview-missing'],
-    queryFn: () => fetchJobImageBlob(jobId, image.id),
+    queryFn: ({ signal }) => fetchJobImageBlob(jobId, image.id, signal),
     enabled: Boolean(image),
     retry: false,
     staleTime: 5 * 60 * 1000,
