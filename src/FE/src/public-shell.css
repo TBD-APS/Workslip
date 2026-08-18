@@ -221,6 +221,7 @@
   filter: drop-shadow(0 4px 10px color-mix(in srgb, var(--brand-orange) 24%, transparent));
 }
 
+/* Primary auth/system actions consume the shared orange + on-primary pair. */
 .auth-shell .btn-primary,
 .system-state .btn-primary {
   background: var(--brand-orange);
