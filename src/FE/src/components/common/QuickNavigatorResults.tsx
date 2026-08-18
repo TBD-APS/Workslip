@@ -102,8 +102,8 @@ export function QuickNavigatorResults({
       {!hasSearchQuery && !hasAnyResults && (
         <div className="quick-nav-empty">
           <Search size={22} aria-hidden="true" />
-          <strong>Ingen resultater</strong>
-          <span>Prøv fx "timer", "docs", "kunde" eller "sag 1234".</span>
+          <strong>Søg på tværs af Workslip</strong>
+          <span>Prøv fx "Niels", "Viborgvej", "sag 1234" eller "kunde Niels".</span>
         </div>
       )}
 
@@ -111,7 +111,7 @@ export function QuickNavigatorResults({
         <div className="quick-nav-empty">
           <Search size={22} aria-hidden="true" />
           <strong>Ingen resultater</strong>
-          <span>Prøv et andet søgeord.</span>
+          <span>Søgningen leder på tværs af navigation, sager og kunder. Prøv et andet søgeord.</span>
         </div>
       )}
 

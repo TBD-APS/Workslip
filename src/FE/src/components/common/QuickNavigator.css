@@ -34,6 +34,10 @@
   padding: 1.1rem 1.1rem 0.85rem;
 }
 
+.quick-nav-heading {
+  min-width: 0;
+}
+
 .quick-nav-kicker {
   margin-bottom: 0.2rem;
   color: var(--text-muted);
@@ -47,6 +51,14 @@
   color: var(--text);
   font-size: clamp(1.15rem, 2vw, 1.4rem);
   line-height: 1.2;
+}
+
+.quick-nav-scope-copy {
+  max-width: 34rem;
+  margin: 0.42rem 0 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
 }
 
 .quick-nav-close {
@@ -81,12 +93,12 @@
   border-radius: var(--radius);
   background: var(--surface-input);
   color: var(--text-muted);
-  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+  transition: box-shadow 120ms ease, background-color 120ms ease;
 }
 
 .quick-nav-search-wrap:focus-within {
-  border-color: var(--focus-ring);
-  box-shadow: 0 0 0 2px var(--surface-selected);
+  border-color: var(--border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 12%, transparent), var(--shadow-sm);
   background: var(--surface-raised);
 }
 

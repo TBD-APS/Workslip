@@ -71,7 +71,7 @@ async function verifySharedStateSemantics({ name, theme, viewport }) {
     } else {
       await page.keyboard.press('Control+K');
     }
-    const dialog = page.getByRole('dialog', { name: 'Hvor vil du hen?' });
+    const dialog = page.getByRole('dialog', { name: 'Søg i hele Workslip' });
     await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     const activeResult = dialog.locator('.quick-nav-result.active').first();
     await activeResult.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
