@@ -1,0 +1,101 @@
+name: WOR-701 Admin Reference Implementation
+
+on:
+  push:
+    branches:
+      - agent/wor-701-admin-reference-orchestrator
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: wor-701-admin-reference
+  cancel-in-progress: true
+
+jobs:
+  implement-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BASE_BRANCH: release-5.0.1
+      TARGET_BRANCH: wor-701-admin-overview-reference-match
+    steps:
+      - name: Checkout orchestrator
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Prepare isolated WOR-701 branch
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/wor701/implement.py /tmp/wor701-implement.py
+          git fetch origin "$BASE_BRANCH"
+          base_sha="$(git rev-parse "origin/$BASE_BRANCH")"
+          git switch -C "$TARGET_BRANCH" "origin/$BASE_BRANCH"
+          python3 /tmp/wor701-implement.py
+          changed="$(git status --porcelain=v1 | sed -E 's/^.. //' | sort)"
+          expected="$(printf '%s\n' \
+            src/FE/src/features/jobs/components/AdminJobReferenceOverview.css \
+            src/FE/src/features/jobs/components/AdminJobReferenceOverview.tsx \
+            src/FE/src/features/jobs/components/JobConversationLauncher.tsx \
+            src/FE/src/features/jobs/components/JobDetails.tsx | sort)"
+          test "$changed" = "$expected" || { printf 'Unexpected WOR-701 scope:\n%s\n' "$changed"; exit 21; }
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Frontend tests and production build
+        working-directory: src/FE
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run test -- --run
+          npm run build
+
+      - name: Commit and push exact implementation
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'WOR-701 Worker'
+          git config user.email 'wor-701-worker@users.noreply.github.com'
+          git add \
+            src/FE/src/features/jobs/components/AdminJobReferenceOverview.css \
+            src/FE/src/features/jobs/components/AdminJobReferenceOverview.tsx \
+            src/FE/src/features/jobs/components/JobConversationLauncher.tsx \
+            src/FE/src/features/jobs/components/JobDetails.tsx
+          git commit -m 'WOR-701: match admin case overview to reference design'
+          sha="$(git rev-parse HEAD)"
+          git push --force-with-lease --set-upstream origin "$TARGET_BRANCH"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update draft PR for review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ steps.prepare.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.commit.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing="$(gh pr list --base "$BASE_BRANCH" --head "$TARGET_BRANCH" --state open --json number --jq '.[0].number // empty')"
+          body="WOR-701 — admin-only case overview/detail reference match.\n\nScope is intentionally restricted to the admin case overview/detail presentation. Other roles and pages retain the existing implementation.\n\nReference source of truth: Workslip sagsoverblik med historik.png supplied by the product owner.\n\nBase: ${BASE_BRANCH}@${BASE_SHA}\nExact head: ${HEAD_SHA}\n\nChanged product files:\n- AdminJobReferenceOverview.tsx\n- AdminJobReferenceOverview.css\n- JobDetails.tsx (admin-only routing into the reference overview)\n- JobConversationLauncher.tsx (backwards-compatible optional label prop only)\n\nBehavior:\n- Admin opens the reference-style overview by default.\n- Rediger returns to the existing job editor/wizard without changing that workflow.\n- Kommentarer reuses the existing conversation drawer.\n- Historik scrolls to the persistent history panel.\n- Download reuses the existing report route.\n- Non-admin users remain on the existing flow.\n\nValidation before PR: full frontend unit suite + production build.\n\nBrowser-Evidence: required\nBrowser-Scenarios: job-wizard,shared-ui\nBrowser-Result: pending CI review evidence\nBrowser-Viewports: desktop,mobile\nBrowser-Page-Errors: pending\nBrowser-Console-Errors: pending\n\nKnown deliberate fidelity boundary: existing Workslip data/functions are reused rather than inventing backend fields or file metadata solely to mimic the mock. No backend/API changes.\n\nNo merge or deploy is part of WOR-701."
+          if [[ -n "$existing" ]]; then
+            gh pr edit "$existing" --title 'WOR-701: admin case overview reference match' --body "$body"
+            gh pr ready "$existing" --undo >/dev/null 2>&1 || true
+            echo "Updated draft PR #$existing"
+          else
+            gh pr create \
+              --base "$BASE_BRANCH" \
+              --head "$TARGET_BRANCH" \
+              --title 'WOR-701: admin case overview reference match' \
+              --body "$body" \
+              --draft
+          fi
