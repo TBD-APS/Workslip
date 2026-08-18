@@ -1,4 +1,5 @@
 import { AXIOS_INSTANCE } from '../api/fetcherOrval';
+import { AUTH_TOKEN_KEY, AuthStorage } from '../providers/authContextValue';
 
 export type PdfFilePreview = {
   url: string;
@@ -14,6 +15,7 @@ type PdfFileRequest = {
 
 type ReusablePdfFile = {
   reuseKey: string;
+  authToken: string | null;
   blob: Blob;
   fileName: string;
   timeoutId: number;
@@ -88,14 +90,16 @@ function rememberPdfFileForDownload(
   if (!request.reuseKey) return;
 
   const reuseKey = request.reuseKey;
+  const authToken = AuthStorage.getItem(AUTH_TOKEN_KEY);
   const timeoutId = window.setTimeout(() => {
-    if (reusablePdfFile?.reuseKey === reuseKey) {
+    if (reusablePdfFile?.reuseKey === reuseKey && reusablePdfFile.authToken === authToken) {
       reusablePdfFile = null;
     }
   }, OBJECT_URL_LIFETIME_MS);
 
   reusablePdfFile = {
     reuseKey,
+    authToken,
     blob: pdfFile.blob,
     fileName: pdfFile.fileName,
     timeoutId,
@@ -103,7 +107,12 @@ function rememberPdfFileForDownload(
 }
 
 function takeReusablePdfFile(request: PdfFileRequest) {
-  if (!request.reuseKey || reusablePdfFile?.reuseKey !== request.reuseKey) {
+  const currentAuthToken = AuthStorage.getItem(AUTH_TOKEN_KEY);
+  if (
+    !request.reuseKey
+    || reusablePdfFile?.reuseKey !== request.reuseKey
+    || reusablePdfFile.authToken !== currentAuthToken
+  ) {
     clearReusablePdfFile();
     return null;
   }
