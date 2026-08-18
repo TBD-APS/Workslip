@@ -4,7 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Login } from './Login';
 
 const { authState, authMocks, entraMocks } = vi.hoisted(() => ({
-  authState: { isAuthenticated: true, user: null as { role?: string } | null },
+  authState: {
+    hasAuthToken: false,
+    isAuthenticated: true,
+    isLoading: false,
+    user: null as { role?: string } | null,
+  },
   authMocks: {
     establishSession: vi.fn(),
   },
@@ -20,7 +25,9 @@ const { authState, authMocks, entraMocks } = vi.hoisted(() => ({
 
 vi.mock('../../../providers/useAuth', () => ({
   useAuth: () => ({
+    hasAuthToken: authState.hasAuthToken,
     isAuthenticated: authState.isAuthenticated,
+    isLoading: authState.isLoading,
     user: authState.user,
     establishSession: authMocks.establishSession,
   }),
@@ -49,9 +56,12 @@ function renderLogin(initialEntries: string[] = ['/login'], initialIndex = initi
 }
 
 beforeEach(() => {
+  authState.hasAuthToken = false;
   authState.isAuthenticated = true;
+  authState.isLoading = false;
   authState.user = null;
   localStorage.clear();
+  document.documentElement.removeAttribute('data-auth-transition');
   window.history.replaceState(null, '', '/login');
   authMocks.establishSession.mockReset();
   entraMocks.clearEntraLoginSession.mockReset();
@@ -81,10 +91,22 @@ describe('Login browser history handling', () => {
     expect(router.state.location.pathname).toBe('/before');
   });
 
-  it('completes a Microsoft callback inside the SPA and routes Superadmin directly', async () => {
+  it('keeps a stored session on the auth loading surface while identity is pending', async () => {
+    authState.hasAuthToken = true;
+    authState.isAuthenticated = false;
+    authState.isLoading = true;
+
+    renderLogin();
+
+    expect(await screen.findByText('Tjekker login')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Log ind med Microsoft passkey' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the Microsoft callback on the auth loading surface and routes Superadmin directly', async () => {
     authState.isAuthenticated = false;
     entraMocks.hasEntraLoginCallback.mockReturnValue(true);
-    entraMocks.completeEntraLogin.mockResolvedValue({
+
+    const callbackResult = {
       auth: {
         token: 'token',
         tokenType: 'Bearer',
@@ -98,10 +120,22 @@ describe('Login browser history handling', () => {
         },
       },
       returnTo: '/app',
-    });
+    };
+    let finishCallback!: () => void;
+    entraMocks.completeEntraLogin.mockImplementation(() => new Promise((resolve) => {
+      finishCallback = () => resolve(callbackResult);
+    }));
     window.history.replaceState(null, '', '/login?code=callback&state=state');
 
     const router = renderLogin(['/login?code=callback&state=state']);
+
+    expect(await screen.findByText('Tjekker login')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Log ind med Microsoft passkey' })).not.toBeInTheDocument();
+    expect(document.documentElement).toHaveAttribute('data-auth-transition');
+
+    await act(async () => {
+      finishCallback();
+    });
 
     await waitFor(() => expect(authMocks.establishSession).toHaveBeenCalledWith(
       'token',
@@ -119,7 +153,8 @@ describe('Login browser history handling', () => {
     renderLogin();
 
     fireEvent.click(screen.getByRole('button', { name: 'Log ind med Microsoft passkey' }));
-    expect(await screen.findByText('Sender til Microsoft...')).toBeInTheDocument();
+    expect(await screen.findByText('Tjekker login')).toBeInTheDocument();
+    expect(document.documentElement).toHaveAttribute('data-auth-transition');
 
     entraMocks.hasEntraLoginSession.mockReturnValue(true);
     const pageShow = new Event('pageshow') as PageTransitionEvent;
@@ -128,6 +163,7 @@ describe('Login browser history handling', () => {
 
     expect(await screen.findByText('Login afbrudt. Klik på knappen for at prøve igen.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Log ind med Microsoft passkey' })).toBeEnabled();
+    expect(document.documentElement).not.toHaveAttribute('data-auth-transition');
     expect(entraMocks.clearEntraLoginSession).toHaveBeenCalled();
   });
 

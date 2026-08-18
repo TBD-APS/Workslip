@@ -4,6 +4,7 @@ import { Loader2, ShieldCheck } from 'lucide-react';
 import { FullscreenSystemState } from '../../../components/common/FullscreenSystemState';
 import { useAuth } from '../../../providers/useAuth';
 import {
+  AUTH_TRANSITION_ATTRIBUTE,
   USER_EMAIL_KEY,
   AuthStorage,
   clearReauthInFlight,
@@ -25,7 +26,17 @@ const OneTimeCodeLogin = lazy(() =>
 );
 
 const LOGIN_INTERRUPTED_MESSAGE = 'Login afbrudt. Klik på knappen for at prøve igen.';
+const AUTH_LOADING_TITLE = 'Tjekker login';
+const AUTH_LOADING_MESSAGE = 'Vi kontrollerer din session og forbinder til Workslip.';
 const devLoginEnabled = import.meta.env.DEV;
+
+const beginAuthTransition = () => {
+  document.documentElement.setAttribute(AUTH_TRANSITION_ATTRIBUTE, '');
+};
+
+const endAuthTransition = () => {
+  document.documentElement.removeAttribute(AUTH_TRANSITION_ATTRIBUTE);
+};
 
 const isBackForwardNavigation = () =>
   typeof performance !== 'undefined' &&
@@ -34,7 +45,7 @@ const isBackForwardNavigation = () =>
 
 export const Login = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, user, establishSession } = useAuth();
+  const { hasAuthToken, isAuthenticated, isLoading, user, establishSession } = useAuth();
   const [historyInterruptedLogin] = useState(() =>
     !hasEntraLoginCallback() && hasEntraLoginSession() && isBackForwardNavigation(),
   );
@@ -55,6 +66,7 @@ export const Login = () => {
     clearReauthInFlight();
     clearEntraLoginSession();
     reauthStartedRef.current = false;
+    endAuthTransition();
     window.history.replaceState(null, '', '/login');
     setErrorMsg(message);
     setIsSubmitting(false);
@@ -79,10 +91,13 @@ export const Login = () => {
     if (historyInterruptedLogin) {
       clearReauthInFlight();
       clearEntraLoginSession();
+      endAuthTransition();
       window.history.replaceState(null, '', '/login');
       return;
     }
     if (!isCallback && !isReauthRequest) return;
+
+    beginAuthTransition();
     reauthStartedRef.current = true;
 
     const returnTo = sanitizeReturnTo(params.get('returnTo'));
@@ -149,12 +164,14 @@ export const Login = () => {
 
   const handleMicrosoftLogin = async () => {
     setErrorMsg(null);
+    beginAuthTransition();
     setIsSubmitting(true);
     try {
       const returnTo = sanitizeReturnTo(new URLSearchParams(window.location.search).get('returnTo'));
       await startEntraLogin({ returnTo });
     } catch (err: unknown) {
       clearEntraLoginSession();
+      endAuthTransition();
       const message = (err as Error)?.message || 'Kunne ikke starte Microsoft login.';
       setErrorMsg(message);
       setIsSubmitting(false);
@@ -165,6 +182,7 @@ export const Login = () => {
     if (!devLoginEnabled) return;
 
     setErrorMsg(null);
+    beginAuthTransition();
     setIsSubmitting(true);
 
     try {
@@ -173,6 +191,7 @@ export const Login = () => {
       establishSession(response.token, response.user.email, response.user.role);
       navigate(getAuthenticatedHomePath(response.user.role), { replace: true });
     } catch {
+      endAuthTransition();
       setErrorMsg(`Dev login failed - ${email} not found`);
       setIsSubmitting(false);
     }
@@ -185,14 +204,15 @@ export const Login = () => {
   if (isReauth) {
     return (
       <FullscreenSystemState
-        title="Genindlæser login"
-        message="Vi genopretter din sikre session og sender dig videre automatisk."
+        title={AUTH_LOADING_TITLE}
+        message={AUTH_LOADING_MESSAGE}
         actions={(
           <button
             type="button"
             onClick={() => {
               clearReauthInFlight();
               clearEntraLoginSession();
+              endAuthTransition();
               window.history.replaceState(null, '', '/login');
               setIsReauth(false);
               setIsSubmitting(false);
@@ -202,6 +222,15 @@ export const Login = () => {
             Annuller
           </button>
         )}
+      />
+    );
+  }
+
+  if (isSubmitting || (hasAuthToken && isLoading)) {
+    return (
+      <FullscreenSystemState
+        title={AUTH_LOADING_TITLE}
+        message={AUTH_LOADING_MESSAGE}
       />
     );
   }
