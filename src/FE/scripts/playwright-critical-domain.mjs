@@ -169,7 +169,7 @@ async function rejectJobViaUi(session, jobId, rejectionNote = 'Mangler dokumenta
   await session.page.locator('button:visible').filter({ hasText: /^Afvis$/ }).last().click();
   const dialog = session.page.getByRole('dialog', { name: 'Afvis sag' });
   await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await dialog.locator('#rejection-note').fill(rejectionNote);
+  await dialog.getByLabel('Begrundelse for afvisning', { exact: true }).fill(rejectionNote);
   const response = waitForApiResponse(session.page, 'POST', `/api/jobs/${jobId}/status`, [200]);
   await dialog.getByRole('button', { name: 'Afvis', exact: true }).click();
   await response;
