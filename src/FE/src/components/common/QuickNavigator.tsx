@@ -233,13 +233,7 @@ export function QuickNavigator({
         onKeyDown={handleDialogKeyDown}
       >
         <div className="quick-nav-header">
-          <div className="quick-nav-heading">
-            <div className="quick-nav-kicker">Global søgning</div>
-            <h2 id="quick-nav-title">Søg i hele Workslip</h2>
-            <p className="quick-nav-scope-copy">
-              Søg på tværs af funktioner, sager og kunder fra ét sted.
-            </p>
-          </div>
+          <h2 id="quick-nav-title">Søg</h2>
           <button type="button" className="quick-nav-close" onClick={resetAndClose} aria-label="Luk søgning">
             <X size={18} />
           </button>
@@ -256,7 +250,7 @@ export function QuickNavigator({
               setActiveIndex(0);
             }}
             onKeyDown={handleInputKeyDown}
-            placeholder="Søg efter sag, kunde, side eller funktion…"
+            placeholder="Søg efter sag, kunde eller funktion…"
             aria-label="Søg i hele Workslip"
             autoComplete="off"
             spellCheck={false}
@@ -265,7 +259,7 @@ export function QuickNavigator({
         </div>
 
         <div className="quick-nav-meta" aria-live="polite">
-          <span>{hasSearchQuery ? resultCountText : 'Søg på tværs af Workslip'}</span>
+          <span>{hasSearchQuery ? resultCountText : 'Sager · kunder · funktioner'}</span>
           {searchResult.isLoading && (
             <span className="quick-nav-searching">Søger…</span>
           )}
