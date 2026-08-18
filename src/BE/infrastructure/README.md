@@ -103,11 +103,11 @@ The script uses the local Entra state when present. Otherwise, it performs read-
 The infrastructure phase:
 
 1. validates the environment and tenant;
-2. writes a temporary compile-time Entra handoff;
-3. deploys `main.bicep` once;
-4. reconciles Azure-owned deployment secrets without exposing them on command lines;
-5. provisions the API user-assigned managed identity in Azure SQL;
-6. restores the committed handoff placeholder.
+2. deploys `main.bicep` once, passing the resolved Entra identifiers and alert recipients as parameters;
+3. reconciles Azure-owned deployment secrets without exposing them on command lines;
+4. provisions the API user-assigned managed identity in Azure SQL.
+
+The template takes no compile-time file input. Everything instance-specific arrives as a deployment parameter, so `main.bicep` describes *a* Workslip environment rather than this one, and a deployment no longer writes to the working tree as a side effect. `monitoring.config.json` remains operator configuration; the deployment script reads it and passes the addresses through.
 
 An infrastructure-only deployment does not generate the VAPID private key. Use the full `deploy.ps1` entry point when establishing a new environment or repairing a missing VAPID secret.
 

@@ -6,8 +6,11 @@ param webApiResourceId string
 param healthEndpointUrl string
 param tags object
 
-var monitoringConfig = loadJsonContent('./monitoring.config.json')
-var alertEmailAddresses = array(monitoringConfig.alertEmailAddresses)
+@description('Mailboxes that receive operational alerts. Supplied by the deployment script from monitoring.config.json rather than loaded at compile time, so the template describes any environment rather than this one.')
+@minLength(1)
+param alertEmailAddressList array
+
+var alertEmailAddresses = array(alertEmailAddressList)
 var normalizedEnvironment = toLower(environment)
 var actionGroupName = take('ag-${companyName}-${normalizedEnvironment}-api', 260)
 var availabilityTestName = take('availability-${companyName}-${normalizedEnvironment}-api-health', 260)
