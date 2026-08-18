@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
@@ -37,6 +38,7 @@ const DAWA_RESPONSE = [{
     postnrnavn: TEST_ADDRESS.city,
   },
 }];
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const postmanPath = path.resolve(scriptDirectory, '../../BE/WorkslipApi/Postman/postman_collection.json');
@@ -101,11 +103,15 @@ async function createLifecycleSession({ email, role, suffix }) {
   });
 
   const apiExpect = async (method, pathname, body, expectedStatuses = [200]) => {
+    const normalizedMethod = method.toUpperCase();
+    const correlationId = randomUUID();
     const response = await fetch(`${API_URL}${pathname}`, {
-      method,
+      method: normalizedMethod,
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${bootstrap.token}`,
+        'X-Correlation-ID': correlationId,
+        ...(MUTATING_METHODS.has(normalizedMethod) ? { 'Idempotency-Key': correlationId } : {}),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -116,7 +122,7 @@ async function createLifecycleSession({ email, role, suffix }) {
       ? await response.json().catch(() => null)
       : await response.text().catch(() => null);
     if (!expectedStatuses.includes(response.status)) {
-      throw new Error(`${method} ${pathname} returned HTTP ${response.status}; expected ${expectedStatuses.join('/')}.`);
+      throw new Error(`${normalizedMethod} ${pathname} returned HTTP ${response.status}; expected ${expectedStatuses.join('/')}.`);
     }
     return payload;
   };
