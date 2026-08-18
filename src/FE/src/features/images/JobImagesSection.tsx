@@ -196,6 +196,19 @@ function JobImagesSectionContent({ jobId, allowManage = false }: JobImagesSectio
         <p className="job-images-state">Der er ikke tilføjet billeder endnu.</p>
       )}
 
+      {hasCollapsedImages && expanded && (
+        <button
+          type="button"
+          className="job-images-expand job-images-expand--collapse"
+          aria-expanded="true"
+          aria-controls={gridId}
+          onClick={() => setExpanded(false)}
+        >
+          <ChevronUp size={17} aria-hidden="true" />
+          Vis færre billeder
+        </button>
+      )}
+
       {images.length > 0 && (
         <div className="job-images-grid" id={gridId}>
           {visibleImages.map((image, index) => (
@@ -213,16 +226,16 @@ function JobImagesSectionContent({ jobId, allowManage = false }: JobImagesSectio
         </div>
       )}
 
-      {hasCollapsedImages && (
+      {hasCollapsedImages && !expanded && (
         <button
           type="button"
           className="job-images-expand"
-          aria-expanded={expanded}
+          aria-expanded="false"
           aria-controls={gridId}
-          onClick={() => setExpanded((current) => !current)}
+          onClick={() => setExpanded(true)}
         >
-          {expanded ? <ChevronUp size={17} aria-hidden="true" /> : <ChevronDown size={17} aria-hidden="true" />}
-          {expanded ? 'Vis færre billeder' : `Se flere billeder (${hiddenImageCount})`}
+          <ChevronDown size={17} aria-hidden="true" />
+          Se flere billeder ({hiddenImageCount})
         </button>
       )}
 
