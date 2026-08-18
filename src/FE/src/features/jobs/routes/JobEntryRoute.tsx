@@ -20,9 +20,9 @@ function shouldOpenReport(
   jobType: string | null | undefined,
   isAdmin: boolean,
   readOnly: boolean,
-  forceEdit: boolean,
+  forceRejectedAdminEdit: boolean,
 ): boolean {
-  if (forceEdit && isAdmin && !readOnly && status !== JobStatus.Approved) return false;
+  if (forceRejectedAdminEdit) return false;
   if (readOnly || jobType === 'Diverse') return true;
   if (status === JobStatus.InReview || status === JobStatus.Approved) return true;
   return isAdmin && status === JobStatus.Rejected;
@@ -73,12 +73,17 @@ export function JobEntryRoute() {
     );
   }
 
+  const readOnly = Boolean(state?.readOnly);
+  const forceRejectedAdminEdit = Boolean(state?.forceEdit)
+    && isAdmin
+    && !readOnly
+    && query.data.status === JobStatus.Rejected;
   const reportMode = shouldOpenReport(
     query.data.status,
     query.data.jobType,
     isAdmin,
-    Boolean(state?.readOnly),
-    Boolean(state?.forceEdit),
+    readOnly,
+    forceRejectedAdminEdit,
   );
   const currentMode = location.pathname.includes('/completed/') ? 'report' : 'edit';
   const targetMode = reportMode ? 'report' : 'edit';
@@ -97,5 +102,9 @@ export function JobEntryRoute() {
     return <JobDetail />;
   }
 
-  return isAdmin ? <AdminCompletedJobReport /> : <CompletedJobReport />;
+  const useAdminReferenceView = isAdmin
+    && !readOnly
+    && query.data.status === JobStatus.Rejected;
+
+  return useAdminReferenceView ? <AdminCompletedJobReport /> : <CompletedJobReport />;
 }
