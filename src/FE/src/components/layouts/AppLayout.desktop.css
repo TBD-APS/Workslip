@@ -3,6 +3,15 @@
  * Keep narrow/mobile shell behaviour in the mobile-first layout stylesheet and only tighten
  * how already-responsive surfaces use wide desktop viewports here.
  */
+
+/* Search is a persistent primary navigation action on tablet/desktop as well as mobile.
+   QuickNavigator.css still owns the dialog; AppLayout owns whether its nav trigger is visible. */
+@media (min-width: 768px) {
+  .bottom-nav .quick-nav-mobile-trigger {
+    display: flex;
+  }
+}
+
 @media (min-width: 1024px) {
   .app-content {
     padding-inline: clamp(2rem, 3vw, 3rem);
