@@ -82,24 +82,28 @@
   }
 }
 
+/* The search field is part of the command palette, not a card inside a card.
+   Keep it visually open and use a quiet underline/focus cue instead of a boxed input. */
 .quick-nav-search-wrap {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.75rem;
   margin: 0 1.1rem;
-  padding: 0.75rem 0.85rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-input);
+  padding: 0.8rem 0 0.7rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
   color: var(--text-muted);
-  transition: box-shadow 120ms ease, background-color 120ms ease;
+  box-shadow: none;
+  transition: box-shadow 120ms ease, color 120ms ease;
 }
 
 .quick-nav-search-wrap:focus-within {
-  border-color: var(--border);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 12%, transparent), var(--shadow-sm);
-  background: var(--surface-raised);
+  background: transparent;
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--color-primary) 68%, var(--border));
 }
 
 .quick-nav-search-wrap input {
@@ -111,7 +115,8 @@
   background: transparent;
   color: var(--text);
   font: inherit;
-  font-size: 1rem;
+  font-size: 1.05rem;
+  line-height: 1.5;
 }
 
 .quick-nav-search-wrap input::placeholder {
