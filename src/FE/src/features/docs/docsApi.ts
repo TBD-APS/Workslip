@@ -14,12 +14,17 @@ export type DocumentListParams = {
   search?: string;
 };
 
-export function listDocuments(params?: DocumentListParams) {
-  return customAxiosInstance<DocumentListResponse>({
+export async function listDocuments(params?: DocumentListParams) {
+  const response = await customAxiosInstance<DocumentListResponse>({
     url: '/api/docs',
     method: 'GET',
     params,
   });
+
+  return {
+    ...response,
+    totalCount: Number(response.totalCount),
+  };
 }
 
 export function getDocument(id: string) {
