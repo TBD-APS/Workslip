@@ -2,14 +2,17 @@ namespace Workslip.Application.Documents;
 
 public interface IDocumentRepository
 {
-    Task<IReadOnlyList<DocumentListItemResponse>> ListAsync(
+    Task<DocumentListResponse> ListAsync(
         Guid organizationId,
         int limit,
         int offset,
         string? search,
         CancellationToken cancellationToken);
 
-    Task<int> CountAsync(Guid organizationId, string? search, CancellationToken cancellationToken);
+    Task<bool> ExistsAsync(
+        Guid organizationId,
+        Guid id,
+        CancellationToken cancellationToken);
 
     Task<DocumentDetailResponse?> GetByIdAsync(
         Guid organizationId,
