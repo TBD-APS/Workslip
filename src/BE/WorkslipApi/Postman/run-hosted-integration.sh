@@ -143,6 +143,15 @@ npx --yes newman run "${SCRIPT_DIR}/auditor_scope.postman_collection.json" \
   --timeout-request 30000 \
   --bail
 
+echo "Running WOR-502 global-search Postman regression against the isolated local API."
+npx --yes newman run "${SCRIPT_DIR}/wor502_global_search.postman_collection.json" \
+  --env-var "baseUrl=${API_URL}" \
+  --env-var "adminToken=${admin_token}" \
+  --env-var "userToken=${user_token}" \
+  --reporters cli \
+  --timeout-request 30000 \
+  --bail
+
 echo "Running main Postman collection with Newman against the isolated local API."
 WORKSLIP_INTEGRATION_BASE_URL="${API_URL}" \
 WORKSLIP_AUTH_TOKEN="${auth_token}" \
