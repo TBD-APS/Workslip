@@ -151,9 +151,13 @@ fi
 export WORKSLIP_PLAYWRIGHT_APP_URL="${APP_URL}"
 export WORKSLIP_PLAYWRIGHT_API_URL="${API_URL}"
 export WORKSLIP_PLAYWRIGHT_ADMIN_EMAIL='admin@17v3ygzs.mailosaur.net'
+export WORKSLIP_PLAYWRIGHT_USER_EMAIL='user@17v3ygzs.mailosaur.net'
+export WORKSLIP_PLAYWRIGHT_AUDITOR_EMAIL='auditor@17v3ygzs.mailosaur.net'
 
 echo "[playwright] running authenticated smoke"
 node scripts/playwright-ephemeral-smoke.mjs
+echo "[playwright] running rare critical auth/role flows"
+node scripts/playwright-critical-rare-flows.mjs
 echo "[playwright] running auth brand evidence"
 node scripts/playwright-auth-brand.mjs
 echo "[playwright] running shared state semantics evidence"
