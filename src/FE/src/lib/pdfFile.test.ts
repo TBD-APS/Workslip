@@ -115,6 +115,47 @@ describe('pdf file helper', () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it('reuses a freshly previewed PDF for the matching download version', async () => {
+    vi.useFakeTimers();
+    const blob = new Blob(['pdf'], { type: 'application/pdf' });
+    getMock.mockResolvedValue({ data: blob, headers: {} });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const request = {
+      url: '/api/jobs/job-1/report/pdf',
+      fallbackFileName: 'rapport-1.pdf',
+      reuseKey: 'job-1:version-1',
+    };
+
+    await createPdfFilePreview(request);
+    await downloadPdfFile(request);
+
+    expect(getMock).toHaveBeenCalledTimes(1);
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+
+  it('refetches the PDF when the requested report version changed after preview', async () => {
+    vi.useFakeTimers();
+    const firstBlob = new Blob(['first'], { type: 'application/pdf' });
+    const updatedBlob = new Blob(['updated'], { type: 'application/pdf' });
+    getMock
+      .mockResolvedValueOnce({ data: firstBlob, headers: {} })
+      .mockResolvedValueOnce({ data: updatedBlob, headers: {} });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    await createPdfFilePreview({
+      url: '/api/jobs/job-1/report/pdf',
+      fallbackFileName: 'rapport-1.pdf',
+      reuseKey: 'job-1:version-1',
+    });
+    await downloadPdfFile({
+      url: '/api/jobs/job-1/report/pdf',
+      fallbackFileName: 'rapport-1.pdf',
+      reuseKey: 'job-1:version-2',
+    });
+
+    expect(getMock).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps download Blob URLs alive long enough for slower mobile browsers', async () => {
     vi.useFakeTimers();
     const blob = new Blob(['pdf'], { type: 'application/pdf' });

@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text;
 using Ardalis.Result;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -71,7 +72,7 @@ public sealed class MonthlyHoursPdfTests
     }
 
     [Fact]
-    public void Generator_creates_pdf_and_png_preview_from_same_monthly_hours_data()
+    public void Generator_creates_pdf_and_bounded_resolution_png_preview_from_same_monthly_hours_data()
     {
         QuestPDF.Settings.License = LicenseType.Community;
         var month = CreateMonth();
@@ -84,6 +85,12 @@ public sealed class MonthlyHoursPdfTests
         Assert.Equal("%PDF-", Encoding.ASCII.GetString(pdf, 0, 5));
         Assert.NotEmpty(previewPages);
         Assert.All(previewPages, page => Assert.True(page.AsSpan().StartsWith(PngSignature)));
+
+        var firstPage = previewPages[0];
+        var width = BinaryPrimitives.ReadInt32BigEndian(firstPage.AsSpan(16, 4));
+        var height = BinaryPrimitives.ReadInt32BigEndian(firstPage.AsSpan(20, 4));
+        Assert.InRange(width, 1000, 1200);
+        Assert.InRange(height, 700, 850);
     }
 
     private static CapturingWorksheetRepository CreateRepository(Guid userId) =>
