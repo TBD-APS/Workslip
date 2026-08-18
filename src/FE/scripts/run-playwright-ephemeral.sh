@@ -156,14 +156,14 @@ export WORKSLIP_PLAYWRIGHT_AUDITOR_EMAIL='auditor@17v3ygzs.mailosaur.net'
 
 echo "[playwright] running authenticated smoke"
 node scripts/playwright-ephemeral-smoke.mjs
+echo "[playwright] running auth brand and login transition evidence"
+node scripts/playwright-auth-brand.mjs
 echo "[playwright] running PDF performance evidence"
 node scripts/playwright-pdf-performance.mjs
 echo "[playwright] running rare critical auth/role flows"
 node scripts/playwright-critical-rare-flows.mjs
 echo "[playwright] running critical job lifecycle flows"
 node scripts/playwright-critical-job-lifecycle.mjs
-echo "[playwright] running auth brand evidence"
-node scripts/playwright-auth-brand.mjs
 echo "[playwright] running shared state semantics evidence"
 node scripts/playwright-shared-state-semantics.mjs
 echo "[playwright] running overview status navigation evidence"
