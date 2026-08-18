@@ -1,8 +1,11 @@
 # ADR 0010: Bootstrap the MR SAAS'y AI control plane as an isolated extractable service
 
-- Status: Accepted
+- Status: Superseded (Laravel bootstrap) by mr-saasy ADR-005
 - Date: 2026-08-16
 - Tracking: WOR-573, WOR-579, WOR-582
+- Superseded-by: mr-saasy `docs/adr/ADR-005-platform-language-and-runtime.md`
+
+> **Supersession note (mr-saasy ADR-005):** The trust-boundary and dependency-direction gates in this ADR remain in force. Its choice of a Laravel/PHP runtime for the bootstrap is superseded: the MR SAAS'y control plane is bootstrapped in C#/.NET in the `mr-saasy` repository (platform of record). This preserves this ADR's own benefit — extraction stays a source move within one language rather than a cross-language redesign.
 
 ## Context
 
