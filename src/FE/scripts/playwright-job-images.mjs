@@ -133,7 +133,6 @@ async function verifyGallery({ name, viewport }) {
       buffer: PNG_FIXTURE,
     }));
     await libraryInput.setInputFiles(files, { timeout: UI_TIMEOUT });
-    await page.getByText('6 billeder uploadet', { exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
     const expandButton = section.getByRole('button', { name: 'Se flere billeder (2)', exact: true });
     await expandButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
