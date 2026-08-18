@@ -1,0 +1,98 @@
+name: WOR-502 Search Validation
+
+on:
+  push:
+    branches:
+      - mahad-wor-502-desktop-search-discoverability
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '24'
+  BACKEND_SOLUTION: src/BE/WorkslipApi/Workslip.slnx
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - run: dotnet restore "${BACKEND_SOLUTION}" --nologo
+      - run: dotnet build "${BACKEND_SOLUTION}" --configuration Release --no-restore --nologo
+      - run: dotnet test "${BACKEND_SOLUTION}" --configuration Release --no-build --nologo
+
+  frontend:
+    name: Frontend tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: src/FE
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - run: npm run test -- --run
+      - run: npm run build
+
+  postman:
+    name: Postman integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Run isolated Postman suite including WOR-502
+        shell: bash
+        run: bash src/BE/WorkslipApi/Postman/run-hosted-integration.sh
+      - name: Upload backend diagnostics on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: wor502-postman-backend-${{ github.run_id }}
+          path: ${{ runner.temp }}/workslip-postman-backend.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  playwright:
+    name: Playwright integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+      - name: Run authenticated browser suite
+        shell: bash
+        run: bash src/FE/scripts/run-playwright-ephemeral.sh
+      - name: Upload diagnostics on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: wor502-playwright-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/workslip-playwright-backend.log
+            ${{ runner.temp }}/workslip-playwright-frontend.log
+          if-no-files-found: warn
+          retention-days: 7
