@@ -9,6 +9,26 @@ namespace Workslip.Tests.Documents;
 public sealed class DocumentAttachmentServiceTests
 {
     [Fact]
+    public async Task List_uses_tenant_scoped_exists_without_loading_document_detail()
+    {
+        var organizationId = Guid.NewGuid();
+        var document = CreateDocument();
+        var docs = new DocumentRepositoryStub { ExistingDocument = document };
+        var attachments = new AttachmentRepositoryStub();
+        var storage = new AttachmentStorageStub();
+        var service = CreateService(docs, attachments, storage, new TestCurrentUserContext(Guid.NewGuid(), organizationId, "User"));
+
+        var result = await service.ListAsync(document.Id, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, docs.ExistsCount);
+        Assert.Equal(0, docs.GetByIdCount);
+        Assert.Equal(organizationId, docs.LastOrganizationId);
+        Assert.Equal(organizationId, attachments.LastOrganizationId);
+        Assert.Equal(document.Id, attachments.LastDocumentId);
+    }
+
+    [Fact]
     public async Task Upload_without_organization_fails_closed()
     {
         var docs = new DocumentRepositoryStub { ExistingDocument = CreateDocument() };
@@ -193,17 +213,25 @@ public sealed class DocumentAttachmentServiceTests
     {
         public DocumentDetailResponse? ExistingDocument { get; init; }
         public Guid? LastOrganizationId { get; private set; }
+        public int ExistsCount { get; private set; }
+        public int GetByIdCount { get; private set; }
 
         public Task<DocumentDetailResponse?> GetByIdAsync(Guid organizationId, Guid id, CancellationToken cancellationToken)
         {
+            GetByIdCount++;
             LastOrganizationId = organizationId;
             return Task.FromResult(ExistingDocument is not null && ExistingDocument.Id == id ? ExistingDocument : null);
         }
 
-        public Task<IReadOnlyList<DocumentListItemResponse>> ListAsync(Guid organizationId, int limit, int offset, string? search, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<DocumentListItemResponse>>([]);
+        public Task<DocumentListResponse> ListAsync(Guid organizationId, int limit, int offset, string? search, CancellationToken cancellationToken) =>
+            Task.FromResult(new DocumentListResponse([], 0));
 
-        public Task<int> CountAsync(Guid organizationId, string? search, CancellationToken cancellationToken) => Task.FromResult(0);
+        public Task<bool> ExistsAsync(Guid organizationId, Guid id, CancellationToken cancellationToken)
+        {
+            ExistsCount++;
+            LastOrganizationId = organizationId;
+            return Task.FromResult(ExistingDocument is not null && ExistingDocument.Id == id);
+        }
 
         public Task<DocumentDetailResponse> CreateAsync(Guid organizationId, Guid? actorUserId, DocumentWriteData document, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
