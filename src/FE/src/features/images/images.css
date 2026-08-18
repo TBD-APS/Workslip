@@ -358,6 +358,10 @@
     width: 100%;
   }
 
+  .job-images-section:has(.job-images-expand[aria-expanded="true"]) {
+    margin-bottom: calc(var(--bottom-nav-height) + var(--bottom-nav-extra) + 4.5rem);
+  }
+
   .job-image-preview-content {
     padding: 4.5rem 0.75rem 4rem;
   }
