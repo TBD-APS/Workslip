@@ -262,7 +262,7 @@ export function QuickNavigator({
               setActiveIndex(0);
             }}
             onKeyDown={handleInputKeyDown}
-            placeholder="Søg sag, kunde, adresse eller dokument…"
+            placeholder="Søg efter sag, kunde eller funktion…"
             aria-label="Søg i hele Workslip"
             autoComplete="off"
             spellCheck={false}
@@ -271,7 +271,7 @@ export function QuickNavigator({
         </div>
 
         <div className="quick-nav-meta" aria-live="polite">
-          <span>{hasSearchQuery ? resultCountText : 'Sager · kunder · adresser · docs · funktioner'}</span>
+          <span>{hasSearchQuery ? resultCountText : 'Sager · kunder · adresser · dokumenter · funktioner'}</span>
           {searchResult.isLoading && (
             <span className="quick-nav-searching">Søger…</span>
           )}
