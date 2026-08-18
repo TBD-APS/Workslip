@@ -67,7 +67,7 @@
 
 .overview-status-card__icon {
   align-items: center;
-  background: var(--surface-muted, rgba(0, 0, 0, 0.04));
+  background: var(--surface-raised);
   border-radius: 12px;
   display: inline-flex;
   height: 44px;
@@ -76,15 +76,15 @@
 }
 
 .overview-status-card--active .overview-status-card__icon {
-  color: var(--status-active, #2563eb);
+  color: var(--status-blue-text);
 }
 
 .overview-status-card--review .overview-status-card__icon {
-  color: var(--status-review, #b7791f);
+  color: var(--status-amber-text);
 }
 
 .overview-status-card--approved .overview-status-card__icon {
-  color: var(--status-approved, #15803d);
+  color: var(--status-green-text);
 }
 
 .overview-status-card__content {
@@ -168,7 +168,7 @@
 }
 
 .overview-recent-row:hover {
-  background: var(--surface-muted, rgba(0, 0, 0, 0.03));
+  background: var(--surface-raised);
 }
 
 .overview-recent-row__main {
