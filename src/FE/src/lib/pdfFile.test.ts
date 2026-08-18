@@ -13,6 +13,7 @@ describe('pdf file helper', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.useRealTimers();
+    window.localStorage.clear();
     getMock.mockReset();
     Object.defineProperty(window.URL, 'createObjectURL', {
       configurable: true,
@@ -25,6 +26,7 @@ describe('pdf file helper', () => {
   });
 
   afterEach(() => {
+    window.localStorage.clear();
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -113,6 +115,100 @@ describe('pdf file helper', () => {
     })).rejects.toThrow('network failure');
 
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('reuses a freshly previewed PDF for the matching download version', async () => {
+    vi.useFakeTimers();
+    const blob = new Blob(['pdf'], { type: 'application/pdf' });
+    getMock.mockResolvedValue({ data: blob, headers: {} });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const request = {
+      url: '/api/jobs/job-1/report/pdf',
+      fallbackFileName: 'rapport-1.pdf',
+      reuseKey: 'job-1:version-1',
+    };
+
+    window.localStorage.setItem('authToken', 'token-a');
+    await createPdfFilePreview(request);
+    await downloadPdfFile(request);
+
+    expect(getMock).toHaveBeenCalledTimes(1);
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+
+  it('refetches the PDF when the requested report version changed after preview', async () => {
+    vi.useFakeTimers();
+    const firstBlob = new Blob(['first'], { type: 'application/pdf' });
+    const updatedBlob = new Blob(['updated'], { type: 'application/pdf' });
+    getMock
+      .mockResolvedValueOnce({ data: firstBlob, headers: {} })
+      .mockResolvedValueOnce({ data: updatedBlob, headers: {} });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    window.localStorage.setItem('authToken', 'token-a');
+    await createPdfFilePreview({
+      url: '/api/jobs/job-1/report/pdf',
+      fallbackFileName: 'rapport-1.pdf',
+      reuseKey: 'job-1:version-1',
+    });
+    await downloadPdfFile({
+      url: '/api/jobs/job-1/report/pdf',
+      fallbackFileName: 'rapport-1.pdf',
+      reuseKey: 'job-1:version-2',
+    });
+
+    expect(getMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('refetches the PDF when the authenticated session changed after preview', async () => {
+    vi.useFakeTimers();
+    const firstBlob = new Blob(['first'], { type: 'application/pdf' });
+    const secondBlob = new Blob(['second'], { type: 'application/pdf' });
+    getMock
+      .mockResolvedValueOnce({ data: firstBlob, headers: {} })
+      .mockResolvedValueOnce({ data: secondBlob, headers: {} });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const request = {
+      url: '/api/jobs/job-1/report/pdf',
+      fallbackFileName: 'rapport-1.pdf',
+      reuseKey: 'job-1:version-1',
+    };
+
+    window.localStorage.setItem('authToken', 'token-a');
+    await createPdfFilePreview(request);
+    window.localStorage.setItem('authToken', 'token-b');
+    await downloadPdfFile(request);
+
+    expect(getMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not cache a PDF response when the authenticated session changes while preview is loading', async () => {
+    vi.useFakeTimers();
+    const firstBlob = new Blob(['first'], { type: 'application/pdf' });
+    const secondBlob = new Blob(['second'], { type: 'application/pdf' });
+    let resolvePreview!: (value: { data: Blob; headers: Record<string, string> }) => void;
+    getMock
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolvePreview = resolve;
+      }))
+      .mockResolvedValueOnce({ data: secondBlob, headers: {} });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const request = {
+      url: '/api/jobs/job-1/report/pdf',
+      fallbackFileName: 'rapport-1.pdf',
+      reuseKey: 'job-1:version-1',
+    };
+
+    window.localStorage.setItem('authToken', 'token-a');
+    const previewPromise = createPdfFilePreview(request);
+    expect(getMock).toHaveBeenCalledTimes(1);
+
+    window.localStorage.setItem('authToken', 'token-b');
+    resolvePreview({ data: firstBlob, headers: {} });
+    await previewPromise;
+    await downloadPdfFile(request);
+
+    expect(getMock).toHaveBeenCalledTimes(2);
   });
 
   it('keeps download Blob URLs alive long enough for slower mobile browsers', async () => {

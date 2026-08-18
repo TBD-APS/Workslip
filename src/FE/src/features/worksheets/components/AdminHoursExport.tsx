@@ -195,6 +195,8 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
                 key={index}
                 className="hours-pdf-preview-page"
                 src={url}
+                loading={index === 0 ? 'eager' : 'lazy'}
+                decoding="async"
                 alt={`Side ${index + 1} af ${pdfPreview.pageUrls.length}`}
               />
             ))}

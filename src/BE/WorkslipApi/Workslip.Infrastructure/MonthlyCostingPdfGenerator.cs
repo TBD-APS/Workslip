@@ -17,7 +17,7 @@ public sealed class MonthlyCostingPdfGenerator : IMonthlyHoursPdfGenerator
     {
         ImageFormat = ImageFormat.Png,
         ImageCompressionQuality = ImageCompressionQuality.High,
-        RasterDpi = 144
+        RasterDpi = 96
     };
 
     public byte[] Generate(MyWorksheetsMonthResponse month) =>
