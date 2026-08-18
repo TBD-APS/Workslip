@@ -135,8 +135,6 @@ export const JobCreate = () => {
         <button
           className="step-nav-btn step-nav-btn-next step-nav-btn-next--wide"
           type="button"
-          data-testid="job-create-submit"
-          aria-disabled={!create.canSave || create.isSaving || create.hasPendingAuditorScope}
           onClick={create.save}
           disabled={create.isSaving || create.hasPendingAuditorScope}
         >
