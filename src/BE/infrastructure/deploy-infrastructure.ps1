@@ -14,6 +14,12 @@ param(
     [string]$PowerBiReaderPrincipalId = '',
     [string]$PowerBiReaderEmail = '',
     [switch]$EnablePowerBiExport,
+    # Monthly cost budget in the subscription's billing currency. Threshold
+    # notifications go to the existing API alert action group.
+    [int]$BudgetMonthlyAmount = 800,
+    # Escape hatch for a deploying identity without Microsoft.Consumption write
+    # permission. Turning this off removes cost alerting entirely.
+    [bool]$BudgetEnabled = $true,
     [string]$EntraStatePath = '',
     # Resolve everything, run the ARM deployment as what-if, and stop. No resource
     # group, secret, App Configuration, SQL or Graph write is performed.
@@ -658,6 +664,9 @@ function Ensure-ResourceProviders {
         'Microsoft.Sql',
         'Microsoft.ManagedIdentity',
         'Microsoft.Communication',
+        # Required by the cost budget in budgets.bicep. Without it the first
+        # deployment into a fresh subscription fails on an unregistered provider.
+        'Microsoft.Consumption',
         'Microsoft.Resources'
     )) {
         $state = Invoke-AzureCli `
@@ -837,6 +846,8 @@ Run without -WhatIf to create it, or create the group first:
             powerBiReaderPrincipalId = @{ value = $PowerBiReaderPrincipalId }
             powerBiReaderEmail = @{ value = $PowerBiReaderEmail }
             powerBiExportEnabled = @{ value = [bool]$EnablePowerBiExport }
+            budgetMonthlyAmount = @{ value = $BudgetMonthlyAmount }
+            budgetEnabled = @{ value = $BudgetEnabled }
             location = @{ value = $Location }
             sqlAdminPassword = @{ value = $sqlAdminPassword }
         }

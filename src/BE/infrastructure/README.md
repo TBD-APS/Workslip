@@ -180,6 +180,64 @@ Alert recipients are maintained in `monitoring.config.json`. This is intentional
 
 After deployment, use Azure Monitor's **Test action group** function to verify delivery. Do not deliberately stop production or generate production errors solely to test an alert. Tune the response-time threshold if the F1 App Service cold-start behaviour creates repeated non-actionable notifications.
 
+## Cost budget
+
+`budgets.bicep` provisions one monthly `Microsoft.Consumption` budget scoped to the resource group. It reuses the action group from `monitoring.bicep`, so cost warnings reach the same mailboxes as health alerts and there is no second recipient list to maintain.
+
+| Notification | Fires when |
+|---|---|
+| Actual 50% | Half the monthly budget is already spent |
+| Actual 80% | Spend is approaching the ceiling |
+| Actual 100% | The budget is exceeded |
+| Forecasted 100% | Azure projects the month to end over budget |
+
+The forecasted threshold is the one worth acting on — it warns before the money is gone. A fresh subscription has no history to project from, so expect it to stay quiet through the first billing period.
+
+The budget alarms; it does not cap. Azure keeps serving traffic after the threshold is passed.
+
+| Parameter | Default | Notes |
+|---|---|---|
+| `-BudgetMonthlyAmount` | `800` | **In the billing currency of the subscription, which is not necessarily DKK.** Confirm the currency before trusting the number. The default leaves headroom over the ~534/month lean production baseline so it alarms on a runaway, not on normal operation. |
+| `-BudgetEnabled` | `$true` | Set `$false` only if the deploying identity cannot write `Microsoft.Consumption` budgets. Cost alerting is then absent — record why. |
+
+`Microsoft.Consumption` is registered by `deploy-infrastructure.ps1` alongside the other providers. Without it the first deployment into a fresh subscription fails on an unregistered provider.
+
+Set the amount from measured consumption once the environment has run for a full billing period, not from an estimate. Related: the standard availability test in `monitoring.bicep` runs from five locations every five minutes and is itself a meaningful line item — measure it before adding environments or locations.
+
+## Platform observability
+
+`observability.bicep` covers the resources the API depends on but that the API alerts cannot see. When SQL saturates or blob storage degrades, the API itself often stays up and healthy, so `apiAvailabilityAlert` and `apiHttp5xxAlert` stay quiet while users experience failures.
+
+### Alerts
+
+| Alert | Condition | Severity |
+|---|---|---|
+| SQL DTU saturation | Average `dtu_consumption_percent` above 80% over fifteen minutes | Warning (2) |
+| SQL storage saturation | Average `storage_percent` above 80% over one hour | Warning (2) |
+| Storage availability | Average `Availability` below 99% over five minutes | Error (1) |
+
+The database is Basic tier — five DTU and a two gigabyte ceiling — so both limits are reachable under ordinary growth, not only under abuse. The DTU window is fifteen minutes rather than five because a single report render spikes the gauge on five DTU; a shorter window would alert on normal use. Database size moves slowly, so the storage window is an hour, which costs nothing in warning time and removes noise.
+
+### Diagnostic streams
+
+| Source | Collected | Not collected |
+|---|---|---|
+| SQL database | All logs, `Basic` metrics | — |
+| Blob service | `StorageWrite`, `StorageDelete`, `Transaction` metrics | `StorageRead` |
+| Communication Services | All logs, all metrics | — |
+
+The workspace is capped at `dailyQuotaGb: 1`. That cap makes log selection more important, not less: a high-volume stream does not merely cost money, it crowds out the signals that matter once the cap is hit. Blob reads are by far the noisiest thing this system produces — every job image view is one — and carry almost no diagnostic value, so they are excluded while writes and deletes are kept.
+
+Communication Services logs matter more than their volume suggests. Invitations and one-time codes go out through that resource, and when delivery stops nothing errors — the mail simply never arrives, and onboarding fails silently.
+
+### Not yet covered
+
+There is no alert on email delivery failure. The diagnostic stream above is the prerequisite, but the alert itself needs the metric or table names read off a live Communication Services resource; they could not be verified when this was written. Tracked separately.
+
+### Dashboards
+
+These streams exist to be reported on, not only alerted on. Everything above lands in the `logAnal-<company>-<env>` workspace and is queryable from day one, which is what a later dashboard will be built from — cost per tenant, email delivery rate, storage growth, database headroom. Keep that in mind before narrowing what is collected: an alert only needs the threshold, a dashboard needs the history behind it.
+
 ## Required post-deployment verification
 
 A successful script exit is not sufficient release evidence. Verify:

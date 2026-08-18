@@ -12,6 +12,11 @@ param powerBiReaderPrincipalId string = ''
 param powerBiReaderEmail string = ''
 @description('Explicit production activation switch for the worksheet export.')
 param powerBiExportEnabled bool = false
+@description('Monthly cost budget in the billing currency of the subscription. Notifications reuse the API alert action group.')
+@minValue(1)
+param budgetMonthlyAmount int = 800
+@description('Set false only if the deploying identity cannot write Microsoft.Consumption budgets. Cost alerting is then absent, so record why.')
+param budgetEnabled bool = true
 param location string = resourceGroup().location
 param storageAccountName string       = take('st${companyName}${toLower(environment)}', 24)
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
@@ -331,6 +336,31 @@ module staticConfig './staticConfig.bicep' = {
   params: {
     appConfigurationName: appConfiguration.name
     entraDefaultDomain: entraDefaultDomain
+  }
+}
+
+module platformObservability './observability.bicep' = {
+  name: 'platform-observability'
+  params: {
+    companyName: companyName
+    environment: environment
+    logAnalyticsWorkspaceId: logAnalyticsWorkspace.id
+    actionGroupId: apiMonitoring.outputs.ACTION_GROUP_ID
+    sqlServerName: sqlServer.name
+    sqlDatabaseName: sqlDatabase.name
+    storageAccountName: storageAccount.name
+    communicationServiceName: communicationService.name
+    tags: tags
+  }
+}
+
+module costBudget './budgets.bicep' = if (budgetEnabled) {
+  name: 'cost-budget'
+  params: {
+    companyName: companyName
+    environment: environment
+    actionGroupId: apiMonitoring.outputs.ACTION_GROUP_ID
+    monthlyAmount: budgetMonthlyAmount
   }
 }
 
