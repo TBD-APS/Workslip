@@ -5,12 +5,14 @@ import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { ErrorState } from '../../../components/ErrorState';
 import { notify } from '../../../lib/toast';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
+import { AdminCompletedJobReport } from './AdminCompletedJobReport';
 import { CompletedJobReport } from './CompletedJobReport';
 import { JobDetail } from './JobDetail';
 
 type JobEntryLocationState = {
   from?: string;
   readOnly?: boolean;
+  forceEdit?: boolean;
 };
 
 function shouldOpenReport(
@@ -18,7 +20,9 @@ function shouldOpenReport(
   jobType: string | null | undefined,
   isAdmin: boolean,
   readOnly: boolean,
+  forceEdit: boolean,
 ): boolean {
+  if (forceEdit && isAdmin && !readOnly && status !== JobStatus.Approved) return false;
   if (readOnly || jobType === 'Diverse') return true;
   if (status === JobStatus.InReview || status === JobStatus.Approved) return true;
   return isAdmin && status === JobStatus.Rejected;
@@ -74,6 +78,7 @@ export function JobEntryRoute() {
     query.data.jobType,
     isAdmin,
     Boolean(state?.readOnly),
+    Boolean(state?.forceEdit),
   );
   const currentMode = location.pathname.includes('/completed/') ? 'report' : 'edit';
   const targetMode = reportMode ? 'report' : 'edit';
@@ -88,5 +93,9 @@ export function JobEntryRoute() {
     );
   }
 
-  return reportMode ? <CompletedJobReport /> : <JobDetail />;
+  if (!reportMode) {
+    return <JobDetail />;
+  }
+
+  return isAdmin ? <AdminCompletedJobReport /> : <CompletedJobReport />;
 }
