@@ -13,6 +13,7 @@ import {
   listDocumentAttachments,
   uploadDocumentAttachment,
 } from './docsApi';
+import { docsQueryKeys } from './docsQueryKeys';
 import {
   ACCEPTED_DOCUMENT_FILES,
   MAX_DOCUMENT_ATTACHMENT_MB,
@@ -58,9 +59,10 @@ export function DocumentAttachments({ documentId, canEdit }: DocumentAttachments
   const [audioPreview, setAudioPreview] = useState<AudioPreview | null>(null);
   const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
   const [attachmentToRemove, setAttachmentToRemove] = useState<DocumentAttachmentInfoResponse | null>(null);
+  const attachmentsKey = docsQueryKeys.attachments(documentId);
 
   const attachmentsQuery = useQuery({
-    queryKey: ['docs', 'attachments', documentId],
+    queryKey: attachmentsKey,
     queryFn: () => listDocumentAttachments(documentId),
     staleTime: 15_000,
   });
@@ -78,7 +80,7 @@ export function DocumentAttachments({ documentId, canEdit }: DocumentAttachments
   const uploadMutation = useMutation({
     mutationFn: (file: File) => uploadDocumentAttachment(documentId, file),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['docs', 'attachments', documentId] });
+      await queryClient.invalidateQueries({ queryKey: attachmentsKey });
       notify.success('Filen er tilføjet.');
     },
     onError: (error) => notify.error(getUploadErrorMessage(error, {
@@ -92,7 +94,7 @@ export function DocumentAttachments({ documentId, canEdit }: DocumentAttachments
     onSuccess: async (_, attachmentId) => {
       setAttachmentToRemove(null);
       if (audioPreviewRef.current?.attachmentId === attachmentId) replaceAudioPreview(null);
-      await queryClient.invalidateQueries({ queryKey: ['docs', 'attachments', documentId] });
+      await queryClient.invalidateQueries({ queryKey: attachmentsKey });
       notify.success('Filen er fjernet.');
     },
     onError: () => notify.error('Filen kunne ikke fjernes.'),
