@@ -246,3 +246,33 @@ html body:has(.app-shell) .app-shell {
     border-color: color-mix(in srgb, var(--brand-petrol) 40%, var(--border));
   }
 }
+
+/* Job status badges consume the semantic status pairs so status is scannable in
+   lists. `.status-badge` receives `status-{status}` from the job routes, but the
+   modifier classes had no declarations, so every status rendered identically.
+   The visible label remains the authoritative meaning; colour is supplementary.
+   JobStatusDots.css consumes the same pairs, so both surfaces stay in step. */
+html body:has(.app-shell) .status-badge.status-draft {
+  background: var(--status-blue-bg);
+  color: var(--status-blue-text);
+}
+
+html body:has(.app-shell) .status-badge.status-inreview {
+  background: var(--status-amber-bg);
+  color: var(--status-amber-text);
+}
+
+html body:has(.app-shell) .status-badge.status-approved {
+  background: var(--status-green-bg);
+  color: var(--status-green-text);
+}
+
+html body:has(.app-shell) .status-badge.status-rejected {
+  background: var(--status-red-bg);
+  color: var(--status-red-text);
+}
+
+html body:has(.app-shell) .status-badge.status-reopened {
+  background: var(--status-neutral-bg);
+  color: var(--status-neutral-text);
+}

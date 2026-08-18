@@ -64,13 +64,24 @@ async function fillOverviewFields(session, { customerName, address }) {
   if (await customerPicker.isVisible().catch(() => false)) {
     await customerPicker.click();
     const createOption = page.getByRole('option', { name: /Opret ny kunde/ });
-    if (await createOption.isVisible().catch(() => false)) await createOption.click();
+    await createOption.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await createOption.click();
   }
 
-  await fillIfVisible(page.getByPlaceholder('Kundenavn', { exact: true }), customerName);
+  const requiredCustomerFields = [
+    [page.getByPlaceholder('Kundenavn', { exact: true }), customerName, 'Kundenavn'],
+    [page.getByPlaceholder('Email', { exact: true }), session.data.customerEmail, 'Email'],
+    [page.getByPlaceholder('Telefon', { exact: true }), session.data.phone, 'Telefon'],
+  ];
+  for (const [field, value, label] of requiredCustomerFields) {
+    await field.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await field.fill(String(value));
+    if ((await field.inputValue()).trim() !== String(value).trim()) {
+      throw new Error(`Required KLS create field ${label} did not retain its value.`);
+    }
+  }
+
   await fillIfVisible(page.getByPlaceholder('Adresse', { exact: true }), address.text);
-  await fillIfVisible(page.getByPlaceholder('Email', { exact: true }), session.data.customerEmail);
-  await fillIfVisible(page.getByPlaceholder('Telefon', { exact: true }), session.data.phone);
   await fillIfVisible(page.getByPlaceholder('Kontaktperson', { exact: true }), session.data.contactPerson);
   await fillIfVisible(page.getByPlaceholder('Beskriv opgaven...'), session.data.taskDescription);
 }
@@ -150,6 +161,21 @@ async function navigateToAttestation(session, referenceData) {
   }
 }
 
+async function waitForPersistedJobStatus(session, jobId, expectedStatuses) {
+  const expected = expectedStatuses.map((status) => String(status).toLowerCase());
+  const deadline = Date.now() + API_TIMEOUT;
+  let lastStatus = null;
+
+  while (Date.now() < deadline) {
+    const job = await session.apiExpect('GET', `/api/jobs/${jobId}`, undefined, [200]);
+    lastStatus = job?.status ?? null;
+    if (expected.includes(String(lastStatus).toLowerCase())) return job;
+    await session.page.waitForTimeout(200);
+  }
+
+  throw new Error(`Job ${jobId} did not reach ${expectedStatuses.join('/')} within ${API_TIMEOUT}ms; last status was ${lastStatus ?? 'unknown'}.`);
+}
+
 async function approveJobViaUi(session, jobId) {
   await session.page.goto(`${APP_URL}/app/completed/${jobId}`, { waitUntil: 'domcontentloaded' });
   await session.page.getByRole('heading', { name: 'Sagsoverblik', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
@@ -158,9 +184,9 @@ async function approveJobViaUi(session, jobId) {
   await approve.click();
   const dialog = session.page.getByRole('dialog', { name: 'Godkend sag' });
   await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  const response = waitForApiResponse(session.page, 'POST', `/api/jobs/${jobId}/status`, [200]);
   await dialog.getByRole('button', { name: 'Godkend', exact: true }).click();
-  await response;
+  await waitForPersistedJobStatus(session, jobId, ['Approved', 'Godkendt']);
+  await dialog.waitFor({ state: 'hidden', timeout: UI_TIMEOUT }).catch(() => {});
 }
 
 async function rejectJobViaUi(session, jobId, rejectionNote = 'Mangler dokumentation for udført arbejde.') {
@@ -172,7 +198,8 @@ async function rejectJobViaUi(session, jobId, rejectionNote = 'Mangler dokumenta
   await dialog.getByLabel('Begrundelse for afvisning', { exact: true }).fill(rejectionNote);
   const response = waitForApiResponse(session.page, 'POST', `/api/jobs/${jobId}/status`, [200]);
   await dialog.getByRole('button', { name: 'Afvis', exact: true }).click();
-  await response;
+  await waitForPersistedJobStatus(session, jobId, ['Rejected', 'Afvist']);
+  await dialog.waitFor({ state: 'hidden', timeout: UI_TIMEOUT }).catch(() => {});
 }
 
 async function createCustomerViaUi(session) {

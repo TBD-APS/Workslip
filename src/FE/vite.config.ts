@@ -68,8 +68,8 @@ export default defineConfig({
         name: 'Workslip',
         short_name: 'Workslip',
         description: 'Den digitale arbejdsseddel til VVS',
-        theme_color: '#050505',
-        background_color: '#050505',
+        theme_color: '#FFF7E8',
+        background_color: '#FFF7E8',
         display: 'standalone',
         icons: [
           {

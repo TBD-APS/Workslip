@@ -5,8 +5,11 @@ import { buildQuickNavigatorCommands, type QuickNavigatorCommand } from './quick
 import { useQuickNavigatorSearch } from './useQuickNavigatorSearch';
 import { QuickNavigatorResults } from './QuickNavigatorResults';
 import type { QuickNavigatorSearchScope } from './quickNavigatorTypes';
-import type { JobListItemViewModel } from '../../api/generated/models';
-import type { CustomerSearchViewModel } from '../../api/generated/models';
+import type {
+  CustomerSearchViewModel,
+  DocumentListItemResponse,
+  JobListItemViewModel,
+} from '../../api/generated/models';
 import { JobStatus } from '../../api/generated/models';
 import { toUiLowerCase } from '../../lib/presentation/text';
 import './QuickNavigator.css';
@@ -14,7 +17,8 @@ import './QuickNavigator.css';
 export type QuickNavigatorResult =
   | { type: 'command'; command: QuickNavigatorCommand }
   | { type: 'job'; job: JobListItemViewModel }
-  | { type: 'customer'; customer: CustomerSearchViewModel };
+  | { type: 'customer'; customer: CustomerSearchViewModel }
+  | { type: 'document'; document: DocumentListItemResponse };
 
 interface QuickNavigatorProps {
   isOpen: boolean;
@@ -105,9 +109,10 @@ export function QuickNavigator({
     canViewAllJobs,
     currentUserId,
     canViewCustomers,
+    canViewDocs,
     query,
     isOpen,
-  }), [canSearchJobs, canViewAllJobs, currentUserId, canViewCustomers, query, isOpen]);
+  }), [canSearchJobs, canViewAllJobs, currentUserId, canViewCustomers, canViewDocs, query, isOpen]);
 
   const searchResult = useQuickNavigatorSearch(searchScope);
 
@@ -115,7 +120,8 @@ export function QuickNavigator({
     ...filteredCommands.map((command) => ({ type: 'command' as const, command })),
     ...searchResult.jobs.map((job) => ({ type: 'job' as const, job })),
     ...searchResult.customers.map((customer) => ({ type: 'customer' as const, customer })),
-  ], [filteredCommands, searchResult.jobs, searchResult.customers]);
+    ...searchResult.documents.map((document) => ({ type: 'document' as const, document })),
+  ], [filteredCommands, searchResult.jobs, searchResult.customers, searchResult.documents]);
 
   const safeActiveIndex = Math.min(activeIndex, Math.max(results.length - 1, 0));
 
@@ -163,6 +169,12 @@ export function QuickNavigator({
       const from = `${location.pathname}${location.search}${location.hash}`;
       resetAndClose();
       navigate(`/app/customers/${result.customer.id}`, { state: { from } });
+      return;
+    }
+    if (result.type === 'document') {
+      const from = `${location.pathname}${location.search}${location.hash}`;
+      resetAndClose();
+      navigate(`/app/docs/${result.document.id}`, { state: { from } });
       return;
     }
     const path = result.job.status === JobStatus.InReview || result.job.status === JobStatus.Approved
@@ -233,13 +245,7 @@ export function QuickNavigator({
         onKeyDown={handleDialogKeyDown}
       >
         <div className="quick-nav-header">
-          <div className="quick-nav-heading">
-            <div className="quick-nav-kicker">Global søgning</div>
-            <h2 id="quick-nav-title">Søg i hele Workslip</h2>
-            <p className="quick-nav-scope-copy">
-              Søg på tværs af funktioner, sager og kunder fra ét sted.
-            </p>
-          </div>
+          <h2 id="quick-nav-title">Søg</h2>
           <button type="button" className="quick-nav-close" onClick={resetAndClose} aria-label="Luk søgning">
             <X size={18} />
           </button>
@@ -256,7 +262,7 @@ export function QuickNavigator({
               setActiveIndex(0);
             }}
             onKeyDown={handleInputKeyDown}
-            placeholder="Søg efter sag, kunde, side eller funktion…"
+            placeholder="Søg efter sag, kunde eller funktion…"
             aria-label="Søg i hele Workslip"
             autoComplete="off"
             spellCheck={false}
@@ -265,7 +271,7 @@ export function QuickNavigator({
         </div>
 
         <div className="quick-nav-meta" aria-live="polite">
-          <span>{hasSearchQuery ? resultCountText : 'Søg på tværs af Workslip'}</span>
+          <span>{hasSearchQuery ? resultCountText : 'Sager · kunder · adresser · dokumenter · funktioner'}</span>
           {searchResult.isLoading && (
             <span className="quick-nav-searching">Søger…</span>
           )}
@@ -273,6 +279,7 @@ export function QuickNavigator({
 
         <QuickNavigatorResults
           results={results}
+          query={query}
           safeActiveIndex={safeActiveIndex}
           hasSearchQuery={hasSearchQuery}
           searchResult={searchResult}

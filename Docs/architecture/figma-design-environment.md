@@ -32,6 +32,17 @@ Each exported variable carries the CSS property it came from, its Figma scope an
 
 Re-run the export whenever `workslip-brand.css` changes, and import the result into Figma in the same change.
 
+## Colour ownership guard
+
+Two checks keep the palette from drifting back apart, both run by `prebuild`:
+
+- `npm run check:brand-palette` asserts the canonical brand colours, the required semantic scopes, and that the surfaces which paint before JavaScript runs — `index.html`, `ThemeProvider.tsx` and the `vite.config.ts` PWA manifest — agree on them.
+- `npm run check:color-budget` counts colour literals written into ordinary declarations rather than consumed from a token, and fails above a fixed ceiling.
+
+The colour budget is a shrinking ceiling, matching the `App.css` byte budget in [`frontend-stylesheet-boundaries.md`](frontend-stylesheet-boundaries.md). It is a ceiling and not a target: transparent gradient stops and neutral scrims are legitimate literals. Values that define a custom property are excluded, since that is the token layer doing its job.
+
+Lower the ceiling in the same change whenever a conversion removes literals. Never raise it to accommodate new styling.
+
 ## Figma file layout
 
 The design file mirrors the export:

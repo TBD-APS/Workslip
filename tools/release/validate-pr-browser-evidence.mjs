@@ -69,8 +69,6 @@ export function parseEvidence(body) {
     viewports: splitCsv(fields.get('viewports')),
     pageErrors: fields.get('page-errors') ?? '',
     consoleErrors: fields.get('console-errors') ?? '',
-    waiverOwner: fields.get('waiver-owner') ?? '',
-    waiverReason: fields.get('waiver-reason') ?? '',
   };
 }
 
@@ -89,18 +87,10 @@ export function validateBrowserEvidence({ changedPaths, body }) {
     return { required, requiredFlows, uiPaths, evidence, errors };
   }
 
-  if (evidence.evidence === 'waived') {
-    if (!/^@?[A-Za-z0-9_.-]+$/.test(evidence.waiverOwner)) {
-      errors.push('Browser waiver requires Browser-Waiver-Owner with a concrete GitHub/owner identifier.');
-    }
-    if (evidence.waiverReason.length < 20) {
-      errors.push('Browser waiver requires Browser-Waiver-Reason with a concrete reason (minimum 20 characters).');
-    }
-    return { required, requiredFlows, uiPaths, evidence, errors };
-  }
-
+  // Browser evidence is unconditionally blocking. A UI runtime change either has a
+  // passing browser scenario for every inferred flow, or this guard stays red.
   if (evidence.evidence !== 'required') {
-    errors.push('UI runtime changes require Browser-Evidence: required, or Browser-Evidence: waived with owner and reason.');
+    errors.push('UI runtime changes require Browser-Evidence: required. There is no exemption path.');
     return { required, requiredFlows, uiPaths, evidence, errors };
   }
 
