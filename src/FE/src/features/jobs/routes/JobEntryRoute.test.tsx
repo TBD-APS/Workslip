@@ -36,7 +36,17 @@ vi.mock('./CompletedJobReport', () => ({
   CompletedJobReport: () => <RouteProbe mode="report" />,
 }));
 
-function renderRoute(path: string, state?: { from?: string; readOnly?: boolean }) {
+vi.mock('./AdminCompletedJobReport', () => ({
+  AdminCompletedJobReport: () => <RouteProbe mode="admin-reference" />,
+}));
+
+type RouteState = {
+  from?: string;
+  readOnly?: boolean;
+  forceEdit?: boolean;
+};
+
+function renderRoute(path: string, state?: RouteState) {
   render(
     <MemoryRouter initialEntries={[{ pathname: path, state }]}>
       <Routes>
@@ -68,29 +78,49 @@ describe('JobEntryRoute', () => {
     expect(await screen.findByText('edit:/app/job/job-1:from=/app/customers/customer-1')).toBeInTheDocument();
   });
 
-  it.each([JobStatus.InReview, JobStatus.Approved])('routes %s jobs to the report', async (status) => {
+  it.each([JobStatus.InReview, JobStatus.Approved])('keeps %s jobs on the existing report for admins', async (status) => {
+    mocks.isAdmin = true;
     mocks.job = { status, jobType: 'KLS' };
     renderRoute('/app/job/job-1', { from: '/app' });
 
     expect(await screen.findByText('report:/app/completed/job-1:from=/app')).toBeInTheDocument();
+    expect(screen.queryByText(/admin-reference/)).not.toBeInTheDocument();
   });
 
-  it('routes rejected jobs to the report for admins without injecting unrelated controls into the flow', async () => {
+  it('routes rejected jobs to the isolated reference view for admins', async () => {
     mocks.isAdmin = true;
     mocks.job = { status: JobStatus.Rejected, jobType: 'KLS' };
     renderRoute('/app/job/job-1', { from: '/app' });
 
-    expect(await screen.findByText('report:/app/completed/job-1:from=/app')).toBeInTheDocument();
-    expect(screen.queryByText(/auditøradgang/i)).not.toBeInTheDocument();
+    expect(await screen.findByText('admin-reference:/app/completed/job-1:from=/app')).toBeInTheDocument();
   });
 
-  it('keeps auditor-style read-only entry in the report even for a draft status', () => {
+  it('allows only rejected admins to force the reference view back into the editor', async () => {
+    mocks.isAdmin = true;
+    mocks.job = { status: JobStatus.Rejected, jobType: 'KLS' };
+    renderRoute('/app/completed/job-1', { from: '/app', forceEdit: true });
+
+    expect(await screen.findByText('edit:/app/job/job-1:from=/app')).toBeInTheDocument();
+  });
+
+  it('does not let forceEdit bypass an InReview admin report', async () => {
+    mocks.isAdmin = true;
+    mocks.job = { status: JobStatus.InReview, jobType: 'KLS' };
+    renderRoute('/app/job/job-1', { from: '/app', forceEdit: true });
+
+    expect(await screen.findByText('report:/app/completed/job-1:from=/app')).toBeInTheDocument();
+  });
+
+  it('keeps auditor-style read-only entry in the existing report even for a draft status', () => {
+    mocks.isAdmin = true;
     renderRoute('/app/completed/job-1', { from: '/app/auditor', readOnly: true });
 
     expect(screen.getByText('report:/app/completed/job-1:from=/app/auditor')).toBeInTheDocument();
+    expect(screen.queryByText(/admin-reference/)).not.toBeInTheDocument();
   });
 
-  it('routes Diverse jobs to the report regardless of status', async () => {
+  it('routes Diverse jobs to the existing report regardless of status', async () => {
+    mocks.isAdmin = true;
     mocks.job = { status: JobStatus.Draft, jobType: 'Diverse' };
     renderRoute('/app/job/job-1', { from: '/app' });
 
