@@ -160,6 +160,8 @@ echo "[playwright] running auth brand and login transition evidence"
 node scripts/playwright-auth-brand.mjs
 echo "[playwright] running PDF performance evidence"
 node scripts/playwright-pdf-performance.mjs
+echo "[playwright] running job image gallery evidence"
+node scripts/playwright-job-images.mjs
 echo "[playwright] running rare critical auth/role flows"
 node scripts/playwright-critical-rare-flows.mjs
 echo "[playwright] running critical job lifecycle flows"
