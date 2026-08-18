@@ -34,7 +34,11 @@ type JobImagesSectionProps = {
   allowManage?: boolean;
 };
 
-export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectionProps) {
+export function JobImagesSection(props: JobImagesSectionProps) {
+  return <JobImagesSectionContent key={props.jobId} {...props} />;
+}
+
+function JobImagesSectionContent({ jobId, allowManage = false }: JobImagesSectionProps) {
   const queryClient = useQueryClient();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
@@ -42,11 +46,6 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
   const [imageToDelete, setImageToDelete] = useState<string | null>(null);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    setExpanded(false);
-    setPreviewIndex(null);
-  }, [jobId]);
 
   const imagesQuery = useQuery({
     queryKey: jobImagesQueryKey(jobId),
