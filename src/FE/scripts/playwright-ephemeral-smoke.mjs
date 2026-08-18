@@ -125,11 +125,20 @@ async function verifyAuthenticatedBootstrapReloadAndLogout() {
     await page.locator('.app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     assert.equal(new URL(page.url()).pathname, '/app/settings', 'Reload must preserve the protected deep-link.');
 
-    const accountMenuButton = page.getByRole('button', { name: 'Profil og konto' });
+    const accountMenuButton = page.getByTestId('account-menu-button');
+    await accountMenuButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal(await accountMenuButton.getAttribute('aria-haspopup'), 'menu', 'Account control must remain an accessible menu trigger.');
+    assert.ok((await accountMenuButton.getAttribute('aria-label'))?.trim(), 'Account control must retain an accessible name.');
     await accountMenuButton.click();
-    const accountMenu = page.getByRole('menu', { name: 'Profil og konto' });
+
+    const accountMenu = page.getByTestId('account-menu');
     await accountMenu.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    await accountMenu.getByRole('menuitem', { name: 'Log ud' }).click();
+    assert.equal(await accountMenu.getAttribute('role'), 'menu', 'Account surface must retain menu semantics.');
+
+    const logoutButton = page.getByTestId('logout-button');
+    await logoutButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal(await logoutButton.getAttribute('role'), 'menuitem', 'Logout control must retain menuitem semantics.');
+    await logoutButton.click();
     await page.waitForURL((url) => url.pathname === '/login', {
       waitUntil: 'domcontentloaded',
       timeout: UI_TIMEOUT,
