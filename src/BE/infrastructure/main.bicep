@@ -339,6 +339,21 @@ module staticConfig './staticConfig.bicep' = {
   }
 }
 
+module platformObservability './observability.bicep' = {
+  name: 'platform-observability'
+  params: {
+    companyName: companyName
+    environment: environment
+    logAnalyticsWorkspaceId: logAnalyticsWorkspace.id
+    actionGroupId: apiMonitoring.outputs.ACTION_GROUP_ID
+    sqlServerName: sqlServer.name
+    sqlDatabaseName: sqlDatabase.name
+    storageAccountName: storageAccount.name
+    communicationServiceName: communicationService.name
+    tags: tags
+  }
+}
+
 module costBudget './budgets.bicep' = if (budgetEnabled) {
   name: 'cost-budget'
   params: {
