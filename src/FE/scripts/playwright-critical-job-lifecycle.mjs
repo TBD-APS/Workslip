@@ -47,10 +47,10 @@ const { chromium } = await import('playwright');
 const browser = await chromium.launch({ headless: true });
 
 try {
-  console.log('[playwright] lifecycle: admin create -> user submit -> admin approve.');
+  console.log('[playwright] lifecycle: assigned draft -> user submit -> admin approve.');
   await verifyKlsSubmitApproveLifecycle();
 
-  console.log('[playwright] lifecycle: admin create -> user submit -> reject -> correct -> resubmit -> approve.');
+  console.log('[playwright] lifecycle: assigned draft -> user submit -> reject -> correct -> resubmit -> approve.');
   await verifyRejectionCorrectionLifecycle();
 
   console.log('[playwright] critical job lifecycle flows passed.');
@@ -186,10 +186,20 @@ async function resolveAssignedUser(adminSession, email) {
 }
 
 async function createAssignedKlsJob(adminSession, assignedUser) {
-  return domain.createKlsDraftViaUi(adminSession, {
-    role: 'Admin',
-    assignedUsers: [assignedUser],
+  const customer = await domain.createCustomerFixtureViaApi(adminSession);
+  const job = await domain.createMinimalJobFixtureViaApi(adminSession, customer);
+  await adminSession.apiExpect(
+    'POST',
+    `/api/jobs/${job.id}/assign`,
+    { userIds: [assignedUser.id] },
+    [200, 204],
+  );
+  adminSession.scenarioReport.generatedFixtures.push({
+    type: 'job-assignment',
+    id: job.id,
+    source: 'runtime API fixture for lifecycle isolation',
   });
+  return job;
 }
 
 async function verifyKlsSubmitApproveLifecycle() {
