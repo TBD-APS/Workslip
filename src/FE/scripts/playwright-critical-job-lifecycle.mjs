@@ -100,13 +100,19 @@ async function createLifecycleSession({ email, role, suffix }) {
     }
   });
 
+  let idempotencySequence = 0;
   const apiExpect = async (method, pathname, body, expectedStatuses = [200]) => {
+    const normalizedMethod = method.toUpperCase();
+    const mutationHeaders = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(normalizedMethod)
+      ? { 'Idempotency-Key': `playwright-lifecycle-${suffix}-${++idempotencySequence}` }
+      : {};
     const response = await fetch(`${API_URL}${pathname}`, {
-      method,
+      method: normalizedMethod,
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${bootstrap.token}`,
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...mutationHeaders,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(API_TIMEOUT),
@@ -116,7 +122,7 @@ async function createLifecycleSession({ email, role, suffix }) {
       ? await response.json().catch(() => null)
       : await response.text().catch(() => null);
     if (!expectedStatuses.includes(response.status)) {
-      throw new Error(`${method} ${pathname} returned HTTP ${response.status}; expected ${expectedStatuses.join('/')}.`);
+      throw new Error(`${normalizedMethod} ${pathname} returned HTTP ${response.status}; expected ${expectedStatuses.join('/')}.`);
     }
     return payload;
   };
