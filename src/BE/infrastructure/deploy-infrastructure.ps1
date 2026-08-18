@@ -37,7 +37,7 @@ $SqlServerName = "db-$COMPANY_NAME-$NormalizedEnvironment-server"
 $SqlDatabaseName = "db-$COMPANY_NAME-$NormalizedEnvironment"
 $Template = Join-Path $InfrastructureRoot 'main.bicep'
 $SqlAccessScript = Join-Path $PSScriptRoot 'grant-web-api-sql-access.ps1'
-$ProvisionedValuesPath = Join-Path $InfrastructureRoot 'entra-provisioned.json'
+$MonitoringConfigPath = Join-Path $InfrastructureRoot 'monitoring.config.json'
 $GraphRoot = 'https://graph.microsoft.com/v1.0'
 $OAuthUniqueName = "workslip-oauth-server-$NormalizedEnvironment"
 $ClientUniqueName = "workslip-client-$NormalizedEnvironment"
@@ -68,12 +68,6 @@ if ($EnablePowerBiExport -and
     ([string]::IsNullOrWhiteSpace($PowerBiReaderPrincipalId) -or
      [string]::IsNullOrWhiteSpace($PowerBiReaderEmail))) {
     throw 'Power BI export activation requires both PowerBiReaderPrincipalId and PowerBiReaderEmail.'
-}
-
-$OriginalProvisionedValues = $null
-$ProvisionedValuesExisted = Test-Path $ProvisionedValuesPath
-if ($ProvisionedValuesExisted) {
-    $OriginalProvisionedValues = [System.IO.File]::ReadAllText($ProvisionedValuesPath)
 }
 
 function Initialize-AzureCliInvocation {
@@ -766,6 +760,15 @@ try {
 
     $resolvedGlobalAdminId = Resolve-GlobalAdminId -RequestedGlobalAdminId $GlobalAdminId
 
+    # Operator configuration, not template content. Read here and passed as a
+    # parameter so main.bicep stays independent of what sits next to it on disk.
+    $alertEmailAddresses = @(
+        (Get-Content -Path $MonitoringConfigPath -Raw | ConvertFrom-Json).alertEmailAddresses
+    )
+    if ($alertEmailAddresses.Count -eq 0) {
+        throw "No alertEmailAddresses configured in $MonitoringConfigPath. Operational alerts would have no recipient."
+    }
+
     $groupExists = Invoke-AzureCli `
         -Arguments @('group', 'exists', '--name', $ResourceGroup, '-o', 'tsv')
     if ($groupExists.Output -ne 'true') {
@@ -802,14 +805,6 @@ Run without -WhatIf to create it, or create the group first:
         throw "Entra state belongs to tenant '$($entraState.tenantId)', but Azure CLI is signed into '$($account.tenantId)'."
     }
 
-    $handoff = [ordered]@{
-        environment = $NormalizedEnvironment
-        oauthClientId = [string]$entraState.oauthClientId
-        oauthAppObjectId = [string]$entraState.oauthAppObjectId
-        clientAppId = [string]$entraState.clientAppId
-        clientAppObjectId = [string]$entraState.clientAppObjectId
-    }
-    Write-Utf8JsonFile -Path $ProvisionedValuesPath -Value $handoff
 
     $existingSqlAdminPassword = Get-KeyVaultSecretValue -SecretName $SqlAdminPasswordSecretName
     $sqlAdminPassword = if (-not [string]::IsNullOrWhiteSpace($env:WORKSLIP_SQL_ADMIN_PASSWORD)) {
@@ -848,6 +843,11 @@ Run without -WhatIf to create it, or create the group first:
             powerBiExportEnabled = @{ value = [bool]$EnablePowerBiExport }
             budgetMonthlyAmount = @{ value = $BudgetMonthlyAmount }
             budgetEnabled = @{ value = $BudgetEnabled }
+            oauthClientId = @{ value = [string]$entraState.oauthClientId }
+            oauthAppObjectId = @{ value = [string]$entraState.oauthAppObjectId }
+            clientAppId = @{ value = [string]$entraState.clientAppId }
+            clientAppObjectId = @{ value = [string]$entraState.clientAppObjectId }
+            alertEmailAddressList = @{ value = $alertEmailAddresses }
             location = @{ value = $Location }
             sqlAdminPassword = @{ value = $sqlAdminPassword }
         }
@@ -936,17 +936,6 @@ Run without -WhatIf to create it, or create the group first:
 }
 finally {
     Remove-Item $parameterFile.FullName -Force -ErrorAction SilentlyContinue
-
-    if ($ProvisionedValuesExisted) {
-        [System.IO.File]::WriteAllText(
-            $ProvisionedValuesPath,
-            $OriginalProvisionedValues,
-            [System.Text.UTF8Encoding]::new($false)
-        )
-    }
-    else {
-        Remove-Item $ProvisionedValuesPath -Force -ErrorAction SilentlyContinue
-    }
 
     $sqlAdminPassword = $null
     $requestedJwtSigningKey = $null

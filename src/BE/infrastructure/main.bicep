@@ -45,6 +45,23 @@ param githubRepositoryId string     = '1245555609'
 param githubEnvironment string        = environment
 param sqlAdminGroupName string        = 'sql${companyName}${toLower(environment)}group'
 
+// ── Entra handoff ─────────────────────────────────────────────────────────────
+// Resolved by deploy-entra.ps1 and passed through by deploy-infrastructure.ps1.
+// Parameters rather than a compile-time file load, so this template describes a
+// Workslip environment rather than one specific instance of it.
+@description('Application (client) ID of the OAuth server registration.')
+param oauthClientId string
+@description('Directory object ID of the OAuth server registration.')
+param oauthAppObjectId string
+@description('Application (client) ID of the browser client registration.')
+param clientAppId string
+@description('Directory object ID of the browser client registration.')
+param clientAppObjectId string
+
+@description('Mailboxes that receive operational alerts. Supplied from monitoring.config.json by the deployment script.')
+@minLength(1)
+param alertEmailAddressList array
+
 // ── SQL admin password ────────────────────────────────────────────────────────
 // SECURITY: was previously hardcoded as 'Num64bqe!' in this file. Moved to
 // a @secure() parameter so it does not get baked into compiled main.json or
@@ -303,6 +320,7 @@ module apiMonitoring './monitoring.bicep' = {
     appInsightsResourceId: appInsights.id
     webApiResourceId: webApi.id
     healthEndpointUrl: 'https://${webApi.properties.defaultHostName}/health'
+    alertEmailAddressList: alertEmailAddressList
     tags: tags
   }
 }
@@ -480,6 +498,10 @@ module EntraAppRegistrations './entraRegistrations.bicep' = {
   name: 'entraApps'
   params: {
     environment: environment
+    oauthClientId: oauthClientId
+    oauthAppObjectId: oauthAppObjectId
+    clientAppId: clientAppId
+    clientAppObjectId: clientAppObjectId
   }
 }
 
