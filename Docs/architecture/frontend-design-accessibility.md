@@ -58,6 +58,8 @@ Accessibility is designed around functional needs rather than assuming everyone 
 
 ## Current semantic token model
 
+Colour *values* are owned by `workslip-brand.css`, not by the Farvelab layer. It is imported later and scoped to `html body:has(.app-shell)`, so it outranks the Farvelab `body:has(.app-shell)` declarations on specificity. Farvelab continues to own shape, spacing, elevation, focus and motion. See [`figma-design-environment.md`](figma-design-environment.md) for the ownership split and the token export contract.
+
 The authenticated theme owns these categories centrally:
 
 - canvas and text: `--bg`, `--text`, `--text-muted`, `--text-dim`
@@ -98,6 +100,8 @@ When a future table can model the primary destination as a normal link inside a 
 ## Static contrast evidence for WOR-452
 
 The following ratios are deterministic sRGB calculations for the token pairs changed in WOR-452. They are useful regression evidence but do not replace browser inspection because compositing, font size/weight and actual component backgrounds still matter.
+
+These ratios describe the Farvelab indigo values that WOR-452 introduced. WOR-665 later moved colour ownership to `workslip-brand.css`, so they no longer describe the rendered palette; recalculate against the brand tokens before citing them as current evidence.
 
 | Pair | Previous | Current |
 | --- | ---: | ---: |
