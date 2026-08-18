@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera, ChevronLeft, ChevronRight, ImagePlus, Loader2, Trash2, X } from 'lucide-react';
+import {
+  Camera,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ImagePlus,
+  Loader2,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { ConfirmDeleteDialog } from '../../components/common/ConfirmDeleteDialog';
 import { useModalAccessibility } from '../../components/common/useModalAccessibility';
 import { notify } from '../../lib/toast';
@@ -17,6 +27,8 @@ import { jobImageBlobQueryKey, jobImagesQueryKey } from './imageQueryKeys';
 import { useObjectUrl } from './useObjectUrl';
 import './images.css';
 
+const COLLAPSED_IMAGE_COUNT = 4;
+
 type JobImagesSectionProps = {
   jobId: string;
   allowManage?: boolean;
@@ -29,10 +41,17 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [imageToDelete, setImageToDelete] = useState<string | null>(null);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    setExpanded(false);
+    setPreviewIndex(null);
+  }, [jobId]);
 
   const imagesQuery = useQuery({
     queryKey: jobImagesQueryKey(jobId),
     queryFn: () => listJobImages(jobId),
+    staleTime: 30_000,
   });
 
   const deleteMutation = useMutation({
@@ -105,6 +124,10 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
   };
 
   const images = imagesQuery.data ?? [];
+  const hasCollapsedImages = images.length > COLLAPSED_IMAGE_COUNT;
+  const visibleImages = expanded ? images : images.slice(0, COLLAPSED_IMAGE_COUNT);
+  const hiddenImageCount = Math.max(images.length - COLLAPSED_IMAGE_COUNT, 0);
+  const gridId = `job-images-grid-${jobId}`;
 
   return (
     <section className="job-images-section" aria-labelledby={`job-images-${jobId}`}>
@@ -175,8 +198,8 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
       )}
 
       {images.length > 0 && (
-        <div className="job-images-grid">
-          {images.map((image, index) => (
+        <div className="job-images-grid" id={gridId}>
+          {visibleImages.map((image, index) => (
             <JobImageTile
               key={image.id}
               jobId={jobId}
@@ -189,6 +212,19 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
             />
           ))}
         </div>
+      )}
+
+      {hasCollapsedImages && (
+        <button
+          type="button"
+          className="job-images-expand"
+          aria-expanded={expanded}
+          aria-controls={gridId}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? <ChevronUp size={17} aria-hidden="true" /> : <ChevronDown size={17} aria-hidden="true" />}
+          {expanded ? 'Vis færre billeder' : `Se flere billeder (${hiddenImageCount})`}
+        </button>
       )}
 
       {previewIndex !== null && images.length > 0 && (
