@@ -191,6 +191,7 @@ async function verifyUserPermissionBoundaries() {
     await menu.getByRole('menuitem', { name: 'Docs', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await page.keyboard.press('Escape');
 
+    await navigateAndExpect(page, '/app/timer', '/app/timer');
     await navigateAndExpect(page, '/app/settings', '/app');
     await navigateAndExpect(page, '/app/users', '/app');
     await navigateAndExpect(page, '/app/auditor', '/app');
@@ -223,6 +224,7 @@ async function verifyAuditorPermissionBoundaries() {
     await menu.getByRole('menuitem', { name: 'Docs', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await page.keyboard.press('Escape');
 
+    await navigateAndExpect(page, '/app/timer', '/app/auditor');
     await navigateAndExpect(page, '/app/settings', '/app/auditor');
     await navigateAndExpect(page, '/app/users', '/app/auditor');
     await navigateAndExpect(page, '/app/customers', '/app/auditor');
