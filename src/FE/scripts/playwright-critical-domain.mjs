@@ -195,7 +195,7 @@ async function rejectJobViaUi(session, jobId, rejectionNote = 'Mangler dokumenta
   await session.page.locator('button:visible').filter({ hasText: /^Afvis$/ }).last().click();
   const dialog = session.page.getByRole('dialog', { name: 'Afvis sag' });
   await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await dialog.locator('#rejection-note').fill(rejectionNote);
+  await dialog.locator('#status-reason').fill(rejectionNote);
   await dialog.getByRole('button', { name: 'Afvis', exact: true }).click();
   await waitForPersistedJobStatus(session, jobId, ['Rejected', 'Afvist']);
   await dialog.waitFor({ state: 'hidden', timeout: UI_TIMEOUT }).catch(() => {});
