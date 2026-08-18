@@ -126,7 +126,7 @@ async function verifyAuthBrandCase({ name, theme, viewport }) {
       `${name}: login card must use the shared Workslip floating surface.`,
     );
     assert.equal(styles.buttonBackground, 'rgb(244, 122, 36)', `${name}: primary login action must be signal orange.`);
-    assert.equal(styles.buttonColor, 'rgb(18, 59, 74)', `${name}: orange primary action must use marine foreground for contrast.`);
+    assert.equal(styles.buttonColor, 'rgb(255, 255, 255)', `${name}: orange primary action must use the shared white on-primary foreground.`);
     assert.equal(styles.logoColor, 'rgb(244, 122, 36)', `${name}: Workslip login mark must use the brand action accent.`);
     assert.equal(styles.appShellCount, 0, `${name}: public login must not mount the authenticated app shell.`);
     assert.ok(styles.cardLeft >= 0, `${name}: login card must not overflow the left viewport edge.`);
