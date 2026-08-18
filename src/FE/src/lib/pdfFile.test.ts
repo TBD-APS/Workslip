@@ -182,6 +182,35 @@ describe('pdf file helper', () => {
     expect(getMock).toHaveBeenCalledTimes(2);
   });
 
+  it('does not cache a PDF response when the authenticated session changes while preview is loading', async () => {
+    vi.useFakeTimers();
+    const firstBlob = new Blob(['first'], { type: 'application/pdf' });
+    const secondBlob = new Blob(['second'], { type: 'application/pdf' });
+    let resolvePreview!: (value: { data: Blob; headers: Record<string, string> }) => void;
+    getMock
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolvePreview = resolve;
+      }))
+      .mockResolvedValueOnce({ data: secondBlob, headers: {} });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const request = {
+      url: '/api/jobs/job-1/report/pdf',
+      fallbackFileName: 'rapport-1.pdf',
+      reuseKey: 'job-1:version-1',
+    };
+
+    window.localStorage.setItem('authToken', 'token-a');
+    const previewPromise = createPdfFilePreview(request);
+    expect(getMock).toHaveBeenCalledTimes(1);
+
+    window.localStorage.setItem('authToken', 'token-b');
+    resolvePreview({ data: firstBlob, headers: {} });
+    await previewPromise;
+    await downloadPdfFile(request);
+
+    expect(getMock).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps download Blob URLs alive long enough for slower mobile browsers', async () => {
     vi.useFakeTimers();
     const blob = new Blob(['pdf'], { type: 'application/pdf' });
