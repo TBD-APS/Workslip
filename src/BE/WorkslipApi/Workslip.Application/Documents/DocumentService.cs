@@ -28,15 +28,14 @@ public sealed class DocumentService(
         var normalizedOffset = Math.Max(offset ?? 0, 0);
         var normalizedSearch = NormalizeSearch(search);
 
-        var documents = await documentRepository.ListAsync(
+        var page = await documentRepository.ListAsync(
             organizationId,
             normalizedLimit,
             normalizedOffset,
             normalizedSearch,
             cancellationToken);
-        var totalCount = await documentRepository.CountAsync(organizationId, normalizedSearch, cancellationToken);
 
-        return Result<DocumentListResponse>.Success(new DocumentListResponse(documents, totalCount));
+        return Result<DocumentListResponse>.Success(page);
     }
 
     public async Task<Result<DocumentDetailResponse>> GetByIdAsync(Guid id, CancellationToken cancellationToken)
