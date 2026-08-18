@@ -224,7 +224,7 @@
 .auth-shell .btn-primary,
 .system-state .btn-primary {
   background: var(--brand-orange);
-  color: var(--brand-marine);
+  color: var(--on-primary);
   border: 1px solid color-mix(in srgb, var(--brand-orange) 76%, var(--brand-marine));
   box-shadow: var(--shadow-accent);
 }
@@ -239,7 +239,7 @@
   .auth-shell .btn-primary:hover:not(:disabled),
   .system-state .btn-primary:hover:not(:disabled) {
     background: var(--primary-hover);
-    color: var(--brand-marine);
+    color: var(--on-primary);
     box-shadow: 0 12px 30px color-mix(in srgb, var(--brand-orange) 24%, transparent);
   }
 }
