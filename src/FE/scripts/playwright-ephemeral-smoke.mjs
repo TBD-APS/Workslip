@@ -305,13 +305,16 @@ async function verifyQuickNavigator() {
 }
 
 async function assertGlobalSearchSurface(page, dialog) {
-  await dialog.getByText('Global søgning', { exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await dialog.getByText('Søg på tværs af funktioner, sager og kunder fra ét sted.', { exact: true })
-    .waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await dialog.getByRole('heading', { name: 'Søg', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
   const searchInput = dialog.getByRole('searchbox', { name: 'Søg i hele Workslip' });
   const searchWrap = dialog.locator('.quick-nav-search-wrap');
   await searchInput.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  assert.equal(
+    await searchInput.getAttribute('placeholder'),
+    'Søg efter sag, kunde eller funktion…',
+    'Search placeholder must stay concise while describing the broad search scope.',
+  );
 
   await dialog.getByRole('button', { name: 'Luk søgning' }).focus();
   const unfocusedBorder = await searchWrap.evaluate((element) => getComputedStyle(element).borderTopColor);
@@ -337,7 +340,7 @@ async function verifyMobileQuickNavigator() {
     });
 
     await page.locator('.quick-nav-mobile-trigger').click();
-    const dialog = page.getByRole('dialog', { name: 'Søg i hele Workslip' });
+    const dialog = page.getByRole('dialog', { name: 'Søg' });
     await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await assertGlobalSearchSurface(page, dialog);
 
@@ -361,7 +364,7 @@ async function verifyDesktopQuickNavigator() {
     });
 
     await page.keyboard.press('Control+K');
-    const dialog = page.getByRole('dialog', { name: 'Søg i hele Workslip' });
+    const dialog = page.getByRole('dialog', { name: 'Søg' });
     await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     const searchInput = await assertGlobalSearchSurface(page, dialog);
 
