@@ -11,6 +11,7 @@
     "generate:api:dev": "dotenv -e .env.dev -- orval --config orval.config.ts",
     "generate:api:prod": "dotenv -e .env.production -- orval --config orval.config.ts",
     "sync:fonts": "node scripts/sync-fonts.mjs",
+    "export:design-tokens": "node scripts/export-design-tokens.mjs",
     "check:prototype-safety": "node scripts/check-prototype-safety.mjs",
     "check:app-css-budget": "node scripts/check-app-css-budget.mjs",
     "check:brand-palette": "node scripts/check-brand-palette-boundary.mjs",
