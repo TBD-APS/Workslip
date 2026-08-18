@@ -64,13 +64,24 @@ async function fillOverviewFields(session, { customerName, address }) {
   if (await customerPicker.isVisible().catch(() => false)) {
     await customerPicker.click();
     const createOption = page.getByRole('option', { name: /Opret ny kunde/ });
-    if (await createOption.isVisible().catch(() => false)) await createOption.click();
+    await createOption.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await createOption.click();
   }
 
-  await fillIfVisible(page.getByPlaceholder('Kundenavn', { exact: true }), customerName);
+  const requiredCustomerFields = [
+    [page.getByPlaceholder('Kundenavn', { exact: true }), customerName, 'Kundenavn'],
+    [page.getByPlaceholder('Email', { exact: true }), session.data.customerEmail, 'Email'],
+    [page.getByPlaceholder('Telefon', { exact: true }), session.data.phone, 'Telefon'],
+  ];
+  for (const [field, value, label] of requiredCustomerFields) {
+    await field.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await field.fill(String(value));
+    if ((await field.inputValue()).trim() !== String(value).trim()) {
+      throw new Error(`Required KLS create field ${label} did not retain its value.`);
+    }
+  }
+
   await fillIfVisible(page.getByPlaceholder('Adresse', { exact: true }), address.text);
-  await fillIfVisible(page.getByPlaceholder('Email', { exact: true }), session.data.customerEmail);
-  await fillIfVisible(page.getByPlaceholder('Telefon', { exact: true }), session.data.phone);
   await fillIfVisible(page.getByPlaceholder('Kontaktperson', { exact: true }), session.data.contactPerson);
   await fillIfVisible(page.getByPlaceholder('Beskriv opgaven...'), session.data.taskDescription);
 }
