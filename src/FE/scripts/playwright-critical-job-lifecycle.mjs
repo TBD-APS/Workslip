@@ -1,0 +1,246 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+import { createContractHelpers } from './playwright-critical-contract.mjs';
+import { createDomainHelpers } from './playwright-critical-domain.mjs';
+import { requireLoopbackOrigin, seedLocalBrowserSession } from './playwright-ephemeral-auth.mjs';
+
+const APP_URL = requireLoopbackOrigin(
+  process.env.WORKSLIP_PLAYWRIGHT_APP_URL || 'http://127.0.0.1:5270',
+  'WORKSLIP_PLAYWRIGHT_APP_URL',
+);
+const API_URL = requireLoopbackOrigin(
+  process.env.WORKSLIP_PLAYWRIGHT_API_URL || 'http://127.0.0.1:5262',
+  'WORKSLIP_PLAYWRIGHT_API_URL',
+);
+const ADMIN_EMAIL = String(process.env.WORKSLIP_PLAYWRIGHT_ADMIN_EMAIL || 'admin@17v3ygzs.mailosaur.net').trim();
+const USER_EMAIL = String(process.env.WORKSLIP_PLAYWRIGHT_USER_EMAIL || 'user@17v3ygzs.mailosaur.net').trim();
+const API_TIMEOUT = 30_000;
+const UI_TIMEOUT = 25_000;
+const VIEWPORT = { width: 1280, height: 800 };
+const TEST_ADDRESS = {
+  text: 'Testvej 1, 8000 Aarhus C',
+  street: 'Testvej 1',
+  zipCode: '8000',
+  city: 'Aarhus C',
+};
+const DAWA_RESPONSE = [{
+  tekst: TEST_ADDRESS.text,
+  adresse: {
+    vejnavn: 'Testvej',
+    husnr: '1',
+    etage: null,
+    dør: null,
+    postnr: TEST_ADDRESS.zipCode,
+    postnrnavn: TEST_ADDRESS.city,
+  },
+}];
+
+const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
+const postmanPath = path.resolve(scriptDirectory, '../../BE/WorkslipApi/Postman/postman_collection.json');
+const postman = JSON.parse(await readFile(postmanPath, 'utf8'));
+const contractHelpers = createContractHelpers({ API_TIMEOUT, UI_TIMEOUT, postman });
+const domain = createDomainHelpers({ APP_URL, API_TIMEOUT, UI_TIMEOUT, postman }, contractHelpers);
+const { chromium } = await import('playwright');
+const browser = await chromium.launch({ headless: true });
+
+try {
+  console.log('[playwright] lifecycle: user submit -> admin approve.');
+  await verifyKlsSubmitApproveLifecycle();
+
+  console.log('[playwright] lifecycle: reject -> correct -> resubmit -> approve.');
+  await verifyRejectionCorrectionLifecycle();
+
+  console.log('[playwright] critical job lifecycle flows passed.');
+} finally {
+  await browser.close();
+}
+
+async function createLifecycleSession({ email, role, suffix }) {
+  const context = await browser.newContext({
+    locale: 'da-DK',
+    timezoneId: 'Europe/Copenhagen',
+    viewport: VIEWPORT,
+  });
+  await context.route('https://dawa.aws.dk/adresser/autocomplete**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(DAWA_RESPONSE),
+    });
+  });
+
+  const bootstrap = await seedLocalBrowserSession(context, {
+    appUrl: APP_URL,
+    apiUrl: API_URL,
+    email,
+  });
+  assert.equal(String(bootstrap.user.role).toLowerCase(), role.toLowerCase(), `Synthetic ${role} identity resolved unexpectedly.`);
+
+  const page = await context.newPage();
+  const pageErrors = [];
+  const consoleErrors = [];
+  const failedRequests = [];
+  const failedApiResponses = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+  page.on('requestfailed', (request) => {
+    failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText ?? 'unknown'}`);
+  });
+  page.on('response', (response) => {
+    if (response.url().includes('/api/') && response.status() >= 400) {
+      failedApiResponses.push(`${response.request().method()} ${new URL(response.url()).pathname} ${response.status()}`);
+    }
+  });
+
+  const apiExpect = async (method, pathname, body, expectedStatuses = [200]) => {
+    const response = await fetch(`${API_URL}${pathname}`, {
+      method,
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${bootstrap.token}`,
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(API_TIMEOUT),
+    });
+    const contentType = response.headers.get('content-type') ?? '';
+    const payload = contentType.includes('json')
+      ? await response.json().catch(() => null)
+      : await response.text().catch(() => null);
+    if (!expectedStatuses.includes(response.status)) {
+      throw new Error(`${method} ${pathname} returned HTTP ${response.status}; expected ${expectedStatuses.join('/')}.`);
+    }
+    return payload;
+  };
+
+  const user = await apiExpect('GET', '/api/auth/me', undefined, [200]);
+  assert.equal(String(user.role).toLowerCase(), role.toLowerCase());
+
+  const scenarioReport = {
+    generatedFixtures: [],
+    steps: [],
+  };
+  const unique = `${Date.now()}-${suffix}`;
+  const session = {
+    context,
+    page,
+    auth: { token: bootstrap.token, user },
+    fixtures: { jobs: [], customers: [], users: [] },
+    scenarioReport,
+    address: TEST_ADDRESS,
+    data: {
+      customerName: `Playwright Lifecycle ${unique}`,
+      customerEmail: `lifecycle-${unique}@example.test`,
+      contactPerson: `Test Kontakt ${unique}`,
+      phone: '20112233',
+      taskDescription: `Lifecycle test ${unique}`,
+      correctedObservation: `Rettet efter afvisning ${unique}`,
+      customWorkKind: `Service ${unique}`,
+    },
+    apiExpect,
+    async getReferenceData() {
+      const data = await apiExpect('GET', '/api/reference-data', undefined, [200]);
+      if (!Array.isArray(data?.installationTypes) || !Array.isArray(data?.workKinds) || !Array.isArray(data?.closureFlags)) {
+        throw new Error('Runtime reference data is incomplete.');
+      }
+      return data;
+    },
+    async step(label, action) {
+      scenarioReport.steps.push(label);
+      return action();
+    },
+  };
+  session.referenceData = await session.getReferenceData();
+
+  return {
+    session,
+    async close() {
+      await context.close();
+    },
+    assertCleanBrowser() {
+      assert.deepEqual(pageErrors, [], `Lifecycle page errors: ${pageErrors.join(' | ')}`);
+      assert.deepEqual(consoleErrors, [], `Lifecycle console errors: ${consoleErrors.join(' | ')}`);
+      assert.deepEqual(failedRequests, [], `Lifecycle failed requests: ${failedRequests.join(' | ')}`);
+      assert.deepEqual(failedApiResponses, [], `Lifecycle failed API responses: ${failedApiResponses.join(' | ')}`);
+    },
+  };
+}
+
+async function verifyKlsSubmitApproveLifecycle() {
+  const userHarness = await createLifecycleSession({ email: USER_EMAIL, role: 'User', suffix: 'approve-user' });
+  const adminHarness = await createLifecycleSession({ email: ADMIN_EMAIL, role: 'Admin', suffix: 'approve-admin' });
+  try {
+    const job = await domain.createKlsDraftViaUi(userHarness.session, { role: 'User' });
+    await domain.completeAndSubmitKlsViaUi(userHarness.session, job);
+
+    const submitted = await userHarness.session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
+    contractHelpers.assertStatus(submitted, ['InReview']);
+
+    await domain.approveJobViaUi(adminHarness.session, job.id);
+    const approved = await adminHarness.session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
+    contractHelpers.assertStatus(approved, ['Approved', 'Godkendt']);
+
+    await adminHarness.session.page.goto(`${APP_URL}/app/completed/${job.id}`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+    await adminHarness.session.page.getByRole('heading', { name: 'Sagsoverblik', exact: true })
+      .waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+    userHarness.assertCleanBrowser();
+    adminHarness.assertCleanBrowser();
+  } finally {
+    await userHarness.close();
+    await adminHarness.close();
+  }
+}
+
+async function verifyRejectionCorrectionLifecycle() {
+  const userHarness = await createLifecycleSession({ email: USER_EMAIL, role: 'User', suffix: 'reject-user' });
+  const adminHarness = await createLifecycleSession({ email: ADMIN_EMAIL, role: 'Admin', suffix: 'reject-admin' });
+  const rejectionNote = 'Playwright: mangler dokumentation for udført arbejde.';
+
+  try {
+    const job = await domain.createKlsDraftViaUi(userHarness.session, { role: 'User' });
+    await domain.completeAndSubmitKlsViaUi(userHarness.session, job);
+
+    await domain.rejectJobViaUi(adminHarness.session, job.id, rejectionNote);
+    const rejected = await adminHarness.session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
+    contractHelpers.assertStatus(rejected, ['Rejected', 'Afvist']);
+    assert.equal(rejected.rejectionNote, rejectionNote, 'Rejection note must persist with the rejected job.');
+
+    await userHarness.session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+    await contractHelpers.waitForWizardStep(userHarness.session.page, 'Sagsdetaljer');
+    const technical = userHarness.session.page.getByPlaceholder('Skriv en kommentar til sagen...');
+    const correctionSave = contractHelpers.waitForApiResponse(userHarness.session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
+    await technical.fill(userHarness.session.data.correctedObservation);
+    await correctionSave;
+
+    await domain.navigateToAttestation(userHarness.session, userHarness.session.referenceData);
+    await userHarness.session.page.getByRole('checkbox', { name: /Jeg bekræfter, at sagen er gennemgået/ }).check();
+    const resubmittedResponse = contractHelpers.waitForApiResponse(userHarness.session.page, 'POST', `/api/jobs/${job.id}/status`, [200]);
+    await userHarness.session.page.getByRole('button', { name: 'Attestér og indsend', exact: true }).click();
+    await resubmittedResponse;
+
+    const resubmitted = await userHarness.session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
+    contractHelpers.assertStatus(resubmitted, ['InReview']);
+
+    await domain.approveJobViaUi(adminHarness.session, job.id);
+    const approved = await adminHarness.session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
+    contractHelpers.assertStatus(approved, ['Approved', 'Godkendt']);
+
+    const history = await adminHarness.session.apiExpect('GET', `/api/jobs/${job.id}/history`, undefined, [200]);
+    const historyText = JSON.stringify(history).toLowerCase();
+    for (const expected of ['rejected', 'inreview', 'approved']) {
+      assert.ok(historyText.includes(expected), `Job history must include ${expected}.`);
+    }
+
+    userHarness.assertCleanBrowser();
+    adminHarness.assertCleanBrowser();
+  } finally {
+    await userHarness.close();
+    await adminHarness.close();
+  }
+}
