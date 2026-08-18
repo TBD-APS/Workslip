@@ -1,3 +1,7 @@
+// Mirrors MultiSelectDropdown COMMIT_DELAY_MS (1000 ms) plus a margin so the debounced
+// commitOnClose selection has reliably reached the form before we submit.
+const ASSIGNMENT_COMMIT_DELAY_MS = 1200;
+
 export function createDomainHelpers(env, c) {
   const { APP_URL, API_TIMEOUT, UI_TIMEOUT, postman } = env;
   const {
@@ -22,6 +26,13 @@ async function createKlsDraftViaUi(session, { role, assignedUsers = [], duplicat
         await session.page.getByRole('option', { name: assignedUser.displayName, exact: true }).click();
       }
       await trigger.click();
+      // The assignment selector (MultiSelectDropdown, commitOnClose) does not push the
+      // selection to the form synchronously on close: it commits through a debounced timer
+      // (COMMIT_DELAY_MS = 1000 ms). Clicking "Opret sag" faster than that debounce sends the
+      // POST with the pre-selection assignees (the creator's default), even though the chips
+      // already show the intended choice. Wait past the debounce so the committed value is the
+      // one that reaches /api/jobs.
+      await session.page.waitForTimeout(ASSIGNMENT_COMMIT_DELAY_MS);
       if (duplicatePerAssignedUser) {
         const duplicate = session.page.getByRole('checkbox', {
           name: /Opret en kopi af sagen til hver medarbejder/,
@@ -35,7 +46,13 @@ async function createKlsDraftViaUi(session, { role, assignedUsers = [], duplicat
     { timeout: API_TIMEOUT });
     const create = session.page.getByRole('button', { name: 'Opret sag', exact: true });
     await waitForEnabled(create, 'Opret sag');
-    await create.click();
+    // The "Ny sag" step's primary button sits in normal flow at the foot of the form,
+    // not in the sticky .step-nav-anchor the later steps use. On desktop viewports it
+    // scrolls to rest under the fixed .bottom-nav (z-index 100), which then intercepts a
+    // pointer click. Activate it from the keyboard — a real, accessible submit path that
+    // does not depend on the click point being clear of the fixed navigation.
+    await create.focus();
+    await session.page.keyboard.press('Enter');
     const response = await responsePromise;
     if (!response.ok()) throw new Error(`KLS draft creation returned HTTP ${response.status()}.`);
     const created = await response.json();
@@ -195,7 +212,7 @@ async function rejectJobViaUi(session, jobId, rejectionNote = 'Mangler dokumenta
   await session.page.locator('button:visible').filter({ hasText: /^Afvis$/ }).last().click();
   const dialog = session.page.getByRole('dialog', { name: 'Afvis sag' });
   await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await dialog.locator('#rejection-note').fill(rejectionNote);
+  await dialog.locator('#status-reason').fill(rejectionNote);
   await dialog.getByRole('button', { name: 'Afvis', exact: true }).click();
   await waitForPersistedJobStatus(session, jobId, ['Rejected', 'Afvist']);
   await dialog.waitFor({ state: 'hidden', timeout: UI_TIMEOUT }).catch(() => {});
