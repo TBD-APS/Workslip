@@ -296,11 +296,11 @@ async function verifyRejectionCorrectionLifecycle() {
     await userHarness.session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
     await contractHelpers.waitForWizardStep(userHarness.session.page, 'Sagsdetaljer');
     const technical = userHarness.session.page.getByPlaceholder('Skriv en kommentar til sagen...');
-    const correctionSave = contractHelpers.waitForApiResponse(userHarness.session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
     await technical.fill(userHarness.session.data.correctedObservation);
+    const correctionSave = contractHelpers.waitForApiResponse(userHarness.session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
+    await domain.navigateToAttestation(userHarness.session, userHarness.session.referenceData);
     await correctionSave;
 
-    await domain.navigateToAttestation(userHarness.session, userHarness.session.referenceData);
     await userHarness.session.page.getByRole('checkbox', { name: /Jeg bekræfter, at sagen er gennemgået/ }).check();
     const resubmittedResponse = contractHelpers.waitForApiResponse(userHarness.session.page, 'POST', `/api/jobs/${job.id}/status`, [200]);
     await userHarness.session.page.getByRole('button', { name: 'Attestér og indsend', exact: true }).click();
