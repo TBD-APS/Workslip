@@ -192,18 +192,43 @@ async function resolveAssignedUser(adminSession, email) {
 }
 
 async function createAssignedKlsJob(adminSession, assignedUser) {
-  const customer = await domain.createCustomerFixtureViaApi(adminSession);
-  const job = await domain.createMinimalJobFixtureViaApi(adminSession, customer);
-  await adminSession.apiExpect(
-    'POST',
-    `/api/jobs/${job.id}/assign`,
-    { userIds: [assignedUser.id] },
-    [200, 204],
+  const body = {
+    customerId: null,
+    customerSnapshot: {
+      name: adminSession.data.customerName,
+      address: adminSession.address.text,
+      email: adminSession.data.customerEmail,
+      contactPerson: adminSession.data.contactPerson,
+      phone: adminSession.data.phone,
+    },
+    createCustomerFromSnapshot: false,
+    destinationAddress: adminSession.address.street,
+    destinationZipCode: adminSession.address.zipCode,
+    destinationCity: adminSession.address.city,
+    jobType: 'KLS',
+    assignedUserIds: [assignedUser.id],
+    observations: {
+      reportDate: null,
+      taskDescription: adminSession.data.taskDescription,
+      customerObservations: null,
+      technicalObservations: null,
+    },
+  };
+
+  const job = await adminSession.apiExpect('POST', '/api/jobs/', body, [200, 201]);
+  if (!job?.id) throw new Error('Lifecycle draft response did not include a job id.');
+  contractHelpers.assertStatus(job, ['Draft']);
+  assert.equal(job.jobType, 'KLS', 'Lifecycle fixture must use the production KLS job type.');
+  assert.ok(
+    (job.assignedUsers ?? []).some((candidate) => candidate.id === assignedUser.id),
+    'Lifecycle draft must be atomically assigned to the executing User.',
   );
+
+  adminSession.fixtures.jobs.push(job.id);
   adminSession.scenarioReport.generatedFixtures.push({
-    type: 'job-assignment',
+    type: 'job',
     id: job.id,
-    source: 'runtime API fixture for lifecycle isolation',
+    source: 'production-shaped KLS Draft API fixture with atomic User assignment',
   });
   return job;
 }
