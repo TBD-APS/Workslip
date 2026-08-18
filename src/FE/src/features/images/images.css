@@ -142,6 +142,11 @@
   cursor: pointer;
 }
 
+.job-images-expand--collapse {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .job-images-expand:hover {
     background: var(--surface-elevated, var(--surface));
@@ -356,10 +361,6 @@
 
   .job-images-expand {
     width: 100%;
-  }
-
-  .job-images-section:has(.job-images-expand[aria-expanded="true"]) {
-    margin-bottom: calc(var(--bottom-nav-height) + var(--bottom-nav-extra) + 4.5rem);
   }
 
   .job-image-preview-content {
