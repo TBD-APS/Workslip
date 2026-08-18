@@ -15,7 +15,7 @@ public sealed class SqlDocumentRepository(
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public Task<IReadOnlyList<DocumentListItemResponse>> ListAsync(
+    public Task<DocumentListResponse> ListAsync(
         Guid organizationId,
         int limit,
         int offset,
@@ -23,8 +23,11 @@ public sealed class SqlDocumentRepository(
         CancellationToken cancellationToken) =>
         retryPolicy.ExecuteAsync("docs.list", token => ListCoreAsync(organizationId, limit, offset, search, token), cancellationToken);
 
-    public Task<int> CountAsync(Guid organizationId, string? search, CancellationToken cancellationToken) =>
-        retryPolicy.ExecuteAsync("docs.count", token => CountCoreAsync(organizationId, search, token), cancellationToken);
+    public Task<bool> ExistsAsync(
+        Guid organizationId,
+        Guid id,
+        CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("docs.exists", token => ExistsCoreAsync(organizationId, id, token), cancellationToken);
 
     public Task<DocumentDetailResponse?> GetByIdAsync(
         Guid organizationId,
@@ -51,7 +54,7 @@ public sealed class SqlDocumentRepository(
     public Task<bool> DeleteAsync(Guid organizationId, Guid id, CancellationToken cancellationToken) =>
         DeleteCoreAsync(organizationId, id, cancellationToken);
 
-    private async Task<IReadOnlyList<DocumentListItemResponse>> ListCoreAsync(
+    private async Task<DocumentListResponse> ListCoreAsync(
         Guid organizationId,
         int limit,
         int offset,
@@ -83,6 +86,11 @@ public sealed class SqlDocumentRepository(
               AND {searchPredicate}
             ORDER BY d.UpdatedAt DESC, d.Title ASC, d.Id ASC
             {pagination};
+
+            SELECT COUNT(1)
+            FROM {documents} d
+            WHERE d.OrganizationId = @OrganizationId
+              AND {searchPredicate};
             """;
 
         return await WithConnectionAsync(async (connection, transaction) =>
@@ -92,29 +100,36 @@ public sealed class SqlDocumentRepository(
                 new { OrganizationId = organizationId, Search = search, Limit = limit, Offset = offset },
                 transaction,
                 cancellationToken: cancellationToken);
-            var rows = await connection.QueryAsync<DocumentListRow>(command);
-            return rows.Select(ToListResponse).ToArray();
+            using var grid = await connection.QueryMultipleAsync(command);
+            var rows = (await grid.ReadAsync<DocumentListRow>()).ToArray();
+            var totalCount = await grid.ReadSingleAsync<int>();
+            return new DocumentListResponse(rows.Select(ToListResponse).ToArray(), totalCount);
         }, cancellationToken);
     }
 
-    private async Task<int> CountCoreAsync(Guid organizationId, string? search, CancellationToken cancellationToken)
+    private async Task<bool> ExistsCoreAsync(
+        Guid organizationId,
+        Guid id,
+        CancellationToken cancellationToken)
     {
         var documents = TableName("KnowledgeDocuments");
         var sql = $"""
-            SELECT COUNT(1)
-            FROM {documents} d
-            WHERE d.OrganizationId = @OrganizationId
-              AND {SearchPredicate("d")};
+            SELECT CASE WHEN EXISTS (
+                SELECT 1
+                FROM {documents}
+                WHERE OrganizationId = @OrganizationId
+                  AND Id = @Id
+            ) THEN 1 ELSE 0 END;
             """;
 
         return await WithConnectionAsync(async (connection, transaction) =>
         {
             var command = new CommandDefinition(
                 sql,
-                new { OrganizationId = organizationId, Search = search },
+                new { OrganizationId = organizationId, Id = id },
                 transaction,
                 cancellationToken: cancellationToken);
-            return await connection.QuerySingleAsync<int>(command);
+            return await connection.QuerySingleAsync<int>(command) == 1;
         }, cancellationToken);
     }
 
