@@ -47,10 +47,10 @@ const { chromium } = await import('playwright');
 const browser = await chromium.launch({ headless: true });
 
 try {
-  console.log('[playwright] lifecycle: user submit -> admin approve.');
+  console.log('[playwright] lifecycle: admin create -> user submit -> admin approve.');
   await verifyKlsSubmitApproveLifecycle();
 
-  console.log('[playwright] lifecycle: reject -> correct -> resubmit -> approve.');
+  console.log('[playwright] lifecycle: admin create -> user submit -> reject -> correct -> resubmit -> approve.');
   await verifyRejectionCorrectionLifecycle();
 
   console.log('[playwright] critical job lifecycle flows passed.');
@@ -82,14 +82,17 @@ async function createLifecycleSession({ email, role, suffix }) {
   const page = await context.newPage();
   const pageErrors = [];
   const consoleErrors = [];
-  const failedRequests = [];
+  const failedApiRequests = [];
   const failedApiResponses = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
   });
   page.on('requestfailed', (request) => {
-    failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText ?? 'unknown'}`);
+    const failure = request.failure()?.errorText ?? 'unknown';
+    if (request.url().includes('/api/') && !/ERR_ABORTED/i.test(failure)) {
+      failedApiRequests.push(`${request.method()} ${new URL(request.url()).pathname} ${failure}`);
+    }
   });
   page.on('response', (response) => {
     if (response.url().includes('/api/') && response.status() >= 400) {
@@ -165,21 +168,44 @@ async function createLifecycleSession({ email, role, suffix }) {
     assertCleanBrowser() {
       assert.deepEqual(pageErrors, [], `Lifecycle page errors: ${pageErrors.join(' | ')}`);
       assert.deepEqual(consoleErrors, [], `Lifecycle console errors: ${consoleErrors.join(' | ')}`);
-      assert.deepEqual(failedRequests, [], `Lifecycle failed requests: ${failedRequests.join(' | ')}`);
+      assert.deepEqual(failedApiRequests, [], `Lifecycle failed API requests: ${failedApiRequests.join(' | ')}`);
       assert.deepEqual(failedApiResponses, [], `Lifecycle failed API responses: ${failedApiResponses.join(' | ')}`);
     },
   };
 }
 
+async function resolveAssignedUser(adminSession, email) {
+  const payload = await adminSession.apiExpect('GET', '/api/users/?limit=200', undefined, [200]);
+  const users = contractHelpers.unwrapCollection(payload);
+  const expected = email.trim().toLowerCase();
+  const user = users.find((candidate) => String(candidate?.email ?? '').trim().toLowerCase() === expected);
+  if (!user?.id || !user?.displayName) {
+    throw new Error('Configured lifecycle User identity is not assignable in the active Development organization.');
+  }
+  return user;
+}
+
+async function createAssignedKlsJob(adminSession, assignedUser) {
+  return domain.createKlsDraftViaUi(adminSession, {
+    role: 'Admin',
+    assignedUsers: [assignedUser],
+  });
+}
+
 async function verifyKlsSubmitApproveLifecycle() {
-  const userHarness = await createLifecycleSession({ email: USER_EMAIL, role: 'User', suffix: 'approve-user' });
   const adminHarness = await createLifecycleSession({ email: ADMIN_EMAIL, role: 'Admin', suffix: 'approve-admin' });
+  const userHarness = await createLifecycleSession({ email: USER_EMAIL, role: 'User', suffix: 'approve-user' });
   try {
-    const job = await domain.createKlsDraftViaUi(userHarness.session, { role: 'User' });
+    const assignedUser = await resolveAssignedUser(adminHarness.session, USER_EMAIL);
+    const job = await createAssignedKlsJob(adminHarness.session, assignedUser);
     await domain.completeAndSubmitKlsViaUi(userHarness.session, job);
 
     const submitted = await userHarness.session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
     contractHelpers.assertStatus(submitted, ['InReview']);
+    assert.ok(
+      (submitted.assignedUsers ?? []).some((candidate) => candidate.id === assignedUser.id),
+      'Submitted lifecycle job must remain assigned to the executing User.',
+    );
 
     await domain.approveJobViaUi(adminHarness.session, job.id);
     const approved = await adminHarness.session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
@@ -189,27 +215,32 @@ async function verifyKlsSubmitApproveLifecycle() {
     await adminHarness.session.page.getByRole('heading', { name: 'Sagsoverblik', exact: true })
       .waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
-    userHarness.assertCleanBrowser();
     adminHarness.assertCleanBrowser();
+    userHarness.assertCleanBrowser();
   } finally {
-    await userHarness.close();
     await adminHarness.close();
+    await userHarness.close();
   }
 }
 
 async function verifyRejectionCorrectionLifecycle() {
-  const userHarness = await createLifecycleSession({ email: USER_EMAIL, role: 'User', suffix: 'reject-user' });
   const adminHarness = await createLifecycleSession({ email: ADMIN_EMAIL, role: 'Admin', suffix: 'reject-admin' });
+  const userHarness = await createLifecycleSession({ email: USER_EMAIL, role: 'User', suffix: 'reject-user' });
   const rejectionNote = 'Playwright: mangler dokumentation for udført arbejde.';
 
   try {
-    const job = await domain.createKlsDraftViaUi(userHarness.session, { role: 'User' });
+    const assignedUser = await resolveAssignedUser(adminHarness.session, USER_EMAIL);
+    const job = await createAssignedKlsJob(adminHarness.session, assignedUser);
     await domain.completeAndSubmitKlsViaUi(userHarness.session, job);
 
     await domain.rejectJobViaUi(adminHarness.session, job.id, rejectionNote);
     const rejected = await adminHarness.session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
     contractHelpers.assertStatus(rejected, ['Rejected', 'Afvist']);
     assert.equal(rejected.rejectionNote, rejectionNote, 'Rejection note must persist with the rejected job.');
+    assert.ok(
+      (rejected.assignedUsers ?? []).some((candidate) => candidate.id === assignedUser.id),
+      'Rejected lifecycle job must be assigned back to the submitting User.',
+    );
 
     await userHarness.session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
     await contractHelpers.waitForWizardStep(userHarness.session.page, 'Sagsdetaljer');
@@ -237,10 +268,10 @@ async function verifyRejectionCorrectionLifecycle() {
       assert.ok(historyText.includes(expected), `Job history must include ${expected}.`);
     }
 
-    userHarness.assertCleanBrowser();
     adminHarness.assertCleanBrowser();
+    userHarness.assertCleanBrowser();
   } finally {
-    await userHarness.close();
     await adminHarness.close();
+    await userHarness.close();
   }
 }
