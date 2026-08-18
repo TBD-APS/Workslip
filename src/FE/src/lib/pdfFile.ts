@@ -37,8 +37,9 @@ async function fetchPdfFile(request: PdfFileRequest) {
 }
 
 export async function createPdfFilePreview(request: PdfFileRequest): Promise<PdfFilePreview> {
+  const requestAuthToken = AuthStorage.getItem(AUTH_TOKEN_KEY);
   const pdfFile = await fetchPdfFile(request);
-  rememberPdfFileForDownload(request, pdfFile);
+  rememberPdfFileForDownload(request, pdfFile, requestAuthToken);
   return {
     ...pdfFile,
     url: window.URL.createObjectURL(pdfFile.blob),
@@ -85,12 +86,12 @@ export async function downloadPdfFile(request: PdfFileRequest): Promise<void> {
 function rememberPdfFileForDownload(
   request: PdfFileRequest,
   pdfFile: Pick<PdfFilePreview, 'blob' | 'fileName'>,
+  authToken: string | null,
 ) {
   clearReusablePdfFile();
-  if (!request.reuseKey) return;
+  if (!request.reuseKey || AuthStorage.getItem(AUTH_TOKEN_KEY) !== authToken) return;
 
   const reuseKey = request.reuseKey;
-  const authToken = AuthStorage.getItem(AUTH_TOKEN_KEY);
   const timeoutId = window.setTimeout(() => {
     if (reusablePdfFile?.reuseKey === reuseKey && reusablePdfFile.authToken === authToken) {
       reusablePdfFile = null;
