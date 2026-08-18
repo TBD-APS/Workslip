@@ -139,6 +139,10 @@
     min-height: 44px;
   }
 
+  .hours-export-csv-button {
+    display: none;
+  }
+
   .hours-pdf-preview-header {
     align-items: flex-start;
     flex-direction: column;

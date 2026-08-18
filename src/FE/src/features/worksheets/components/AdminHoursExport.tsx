@@ -128,7 +128,7 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
           )}
           <button
             type="button"
-            className="btn btn-secondary hours-export-button"
+            className="btn btn-secondary hours-export-button hours-export-csv-button"
             onClick={downloadCsv}
             disabled={!hasRows || pdfAction !== null}
           >
