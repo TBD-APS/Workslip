@@ -47,10 +47,10 @@ const { chromium } = await import('playwright');
 const browser = await chromium.launch({ headless: true });
 
 try {
-  console.log('[playwright] lifecycle: admin create -> user submit -> admin approve.');
+  console.log('[playwright] lifecycle: fixture create -> user submit -> admin approve.');
   await verifyKlsSubmitApproveLifecycle();
 
-  console.log('[playwright] lifecycle: admin create -> user submit -> reject -> correct -> resubmit -> approve.');
+  console.log('[playwright] lifecycle: fixture create -> user submit -> reject -> correct -> resubmit -> approve.');
   await verifyRejectionCorrectionLifecycle();
 
   console.log('[playwright] critical job lifecycle flows passed.');
@@ -100,13 +100,19 @@ async function createLifecycleSession({ email, role, suffix }) {
     }
   });
 
+  let idempotencySequence = 0;
   const apiExpect = async (method, pathname, body, expectedStatuses = [200]) => {
+    const normalizedMethod = method.toUpperCase();
+    const mutationHeaders = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(normalizedMethod)
+      ? { 'Idempotency-Key': `playwright-lifecycle-${suffix}-${++idempotencySequence}` }
+      : {};
     const response = await fetch(`${API_URL}${pathname}`, {
-      method,
+      method: normalizedMethod,
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${bootstrap.token}`,
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...mutationHeaders,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(API_TIMEOUT),
@@ -116,7 +122,7 @@ async function createLifecycleSession({ email, role, suffix }) {
       ? await response.json().catch(() => null)
       : await response.text().catch(() => null);
     if (!expectedStatuses.includes(response.status)) {
-      throw new Error(`${method} ${pathname} returned HTTP ${response.status}; expected ${expectedStatuses.join('/')}.`);
+      throw new Error(`${normalizedMethod} ${pathname} returned HTTP ${response.status}; expected ${expectedStatuses.join('/')}.`);
     }
     return payload;
   };
@@ -186,9 +192,54 @@ async function resolveAssignedUser(adminSession, email) {
 }
 
 async function createAssignedKlsJob(adminSession, assignedUser) {
-  return domain.createKlsDraftViaUi(adminSession, {
-    role: 'Admin',
-    assignedUsers: [assignedUser],
+  return adminSession.step('create assigned KLS fixture through API', async () => {
+    const created = await adminSession.apiExpect('POST', '/api/jobs', {
+      customerId: null,
+      customerSnapshot: {
+        name: adminSession.data.customerName,
+        email: adminSession.data.customerEmail,
+        phone: adminSession.data.phone,
+        address: adminSession.address.text,
+        contactPerson: adminSession.data.contactPerson,
+      },
+      createCustomerFromSnapshot: false,
+      destinationAddress: adminSession.address.street,
+      destinationZipCode: adminSession.address.zipCode,
+      destinationCity: adminSession.address.city,
+      jobType: 'KLS',
+      assignedUserIds: [assignedUser.id],
+      duplicatePerAssignedUser: false,
+      linkedJobIds: [],
+      work: null,
+      observations: {
+        reportDate: null,
+        taskDescription: adminSession.data.taskDescription,
+        customerObservations: null,
+        technicalObservations: null,
+      },
+    }, [200, 201]);
+
+    if (!created?.id) throw new Error('KLS fixture creation returned no id.');
+    const createdJobIds = created.createdJobIds?.length ? created.createdJobIds : [created.id];
+    adminSession.fixtures.jobs.push(...createdJobIds);
+    for (const id of createdJobIds) {
+      adminSession.scenarioReport.generatedFixtures.push({ type: 'job', id, source: 'runtime API fixture' });
+    }
+
+    const persisted = await adminSession.apiExpect('GET', `/api/jobs/${created.id}`, undefined, [200]);
+    contractHelpers.assertStatus(persisted, ['Draft', 'Kladde']);
+    assert.ok(
+      (persisted.assignedUsers ?? []).some((candidate) => candidate.id === assignedUser.id),
+      'KLS fixture must persist the configured assignee before the UI lifecycle starts.',
+    );
+
+    return {
+      id: created.id,
+      createdJobIds,
+      reportNumber: created.reportNumber,
+      customerName: adminSession.data.customerName,
+      role: 'Admin',
+    };
   });
 }
 
@@ -245,11 +296,11 @@ async function verifyRejectionCorrectionLifecycle() {
     await userHarness.session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
     await contractHelpers.waitForWizardStep(userHarness.session.page, 'Sagsdetaljer');
     const technical = userHarness.session.page.getByPlaceholder('Skriv en kommentar til sagen...');
-    const correctionSave = contractHelpers.waitForApiResponse(userHarness.session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
     await technical.fill(userHarness.session.data.correctedObservation);
+    const correctionSave = contractHelpers.waitForApiResponse(userHarness.session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
+    await domain.navigateToAttestation(userHarness.session, userHarness.session.referenceData);
     await correctionSave;
 
-    await domain.navigateToAttestation(userHarness.session, userHarness.session.referenceData);
     await userHarness.session.page.getByRole('checkbox', { name: /Jeg bekræfter, at sagen er gennemgået/ }).check();
     const resubmittedResponse = contractHelpers.waitForApiResponse(userHarness.session.page, 'POST', `/api/jobs/${job.id}/status`, [200]);
     await userHarness.session.page.getByRole('button', { name: 'Attestér og indsend', exact: true }).click();
