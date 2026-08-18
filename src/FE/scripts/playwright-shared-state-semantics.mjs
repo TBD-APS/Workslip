@@ -71,7 +71,10 @@ async function verifySharedStateSemantics({ name, theme, viewport }) {
     } else {
       await page.keyboard.press('Control+K');
     }
-    const dialog = page.getByRole('dialog', { name: 'Søg i hele Workslip' });
+    // The Quick Navigator dialog is labelled by its <h2 id="quick-nav-title">Søg</h2>; the
+    // longer "Søg i hele Workslip" string is now the search input's aria-label, not the
+    // dialog's accessible name (QuickNavigator refactor on release-5.0.1).
+    const dialog = page.getByRole('dialog', { name: 'Søg' });
     await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     const activeResult = dialog.locator('.quick-nav-result.active').first();
     await activeResult.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
