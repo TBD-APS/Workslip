@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const desktopCss = readFileSync(new URL('./AppLayout.desktop.css', import.meta.url), 'utf8');
-const quickNavigatorCss = readFileSync(new URL('../common/QuickNavigator.css', import.meta.url), 'utf8');
+const desktopCss = readFileSync(resolve(process.cwd(), 'src/components/layouts/AppLayout.desktop.css'), 'utf8');
+const quickNavigatorCss = readFileSync(resolve(process.cwd(), 'src/components/common/QuickNavigator.css'), 'utf8');
 
 describe('AppLayout search navigation visibility', () => {
   it('keeps the global search trigger visible on tablet and desktop', () => {
