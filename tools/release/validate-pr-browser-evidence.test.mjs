@@ -117,18 +117,8 @@ Browser-Console-Errors: 0
   assert.deepEqual(result.errors, []);
 });
 
-test('explicit waiver requires owner and concrete reason', () => {
-  const incomplete = validateBrowserEvidence({
-    changedPaths: ['src/FE/src/components/common/Button.tsx'],
-    body: `
-Browser-Evidence: waived
-Browser-Waiver-Owner: @rasm105k
-Browser-Waiver-Reason: short
-`,
-  });
-  assert.ok(incomplete.errors.length > 0);
-
-  const accepted = validateBrowserEvidence({
+test('waived evidence is rejected: there is no exemption path', () => {
+  const waived = validateBrowserEvidence({
     changedPaths: ['src/FE/src/components/common/Button.tsx'],
     body: `
 Browser-Evidence: waived
@@ -136,5 +126,14 @@ Browser-Waiver-Owner: @rasm105k
 Browser-Waiver-Reason: Pure copy-only visual change; no interaction or responsive behavior changed.
 `,
   });
-  assert.deepEqual(accepted.errors, []);
+  assert.ok(
+    waived.errors.some((error) => error.includes('Browser-Evidence: required')),
+    'A waived declaration must not satisfy the guard.',
+  );
+
+  const omitted = validateBrowserEvidence({
+    changedPaths: ['src/FE/src/components/common/Button.tsx'],
+    body: 'No evidence block at all.',
+  });
+  assert.ok(omitted.errors.length > 0, 'Omitting the evidence block must stay red.');
 });

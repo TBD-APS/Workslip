@@ -35,19 +35,19 @@
 }
 
 .job-status-dot--draft {
-  --job-status-color: #3b82f6;
+  --job-status-color: var(--status-blue-text);
 }
 
 .job-status-dot--in-review {
-  --job-status-color: #eab308;
+  --job-status-color: var(--status-amber-text);
 }
 
 .job-status-dot--approved {
-  --job-status-color: #22c55e;
+  --job-status-color: var(--status-green-text);
 }
 
 .job-status-dot--rejected {
-  --job-status-color: #ef4444;
+  --job-status-color: var(--status-red-text);
 }
 
 .job-status-dot.is-current::before {
