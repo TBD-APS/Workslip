@@ -71,6 +71,15 @@ async function createLifecycleSession({ email, role, suffix }) {
       body: JSON.stringify(DAWA_RESPONSE),
     });
   });
+  // Telemetry (Vercel Analytics / Speed Insights, Azure Application Insights) mounts after a
+  // deferred tick and pulls external scripts/beacons that are irrelevant to this flow. On the
+  // hermetic test network a blocked load surfaces as a "Failed to load resource" console error
+  // and trips assertCleanBrowser. Stub every non-loopback host (DAWA is handled above) with a
+  // benign empty response so nothing leaves the sandbox and no such error is produced.
+  await context.route(
+    (url) => !['127.0.0.1', 'localhost'].includes(url.hostname) && url.hostname !== 'dawa.aws.dk',
+    (route) => route.fulfill({ status: 204, contentType: 'application/javascript', body: '' }),
+  );
 
   const bootstrap = await seedLocalBrowserSession(context, {
     appUrl: APP_URL,
@@ -244,7 +253,21 @@ async function verifyRejectionCorrectionLifecycle() {
 
     await userHarness.session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
     await contractHelpers.waitForWizardStep(userHarness.session.page, 'Sagsdetaljer');
+    // The technical-comment field lives inside a CollapsibleSection whose default open state is
+    // derived from its value, so on a freshly rejected job (empty comment) it starts collapsed,
+    // and a collapsed section unmounts its content entirely. Its open state also persists in
+    // history.state, so whether it happens to be open depends on earlier navigation — expand it
+    // explicitly before filling to make the correction deterministic.
+    const commentTrigger = userHarness.session.page
+      .locator('button.collapsible-section-trigger')
+      .filter({ has: userHarness.session.page.getByRole('heading', { name: 'Skriv en kommentar til sagen', exact: true }) })
+      .first();
+    await commentTrigger.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    if ((await commentTrigger.getAttribute('aria-expanded')) !== 'true') {
+      await commentTrigger.click();
+    }
     const technical = userHarness.session.page.getByPlaceholder('Skriv en kommentar til sagen...');
+    await technical.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     const correctionSave = contractHelpers.waitForApiResponse(userHarness.session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
     await technical.fill(userHarness.session.data.correctedObservation);
     await correctionSave;
@@ -264,8 +287,12 @@ async function verifyRejectionCorrectionLifecycle() {
 
     const history = await adminHarness.session.apiExpect('GET', `/api/jobs/${job.id}/history`, undefined, [200]);
     const historyText = JSON.stringify(history).toLowerCase();
-    for (const expected of ['rejected', 'inreview', 'approved']) {
-      assert.ok(historyText.includes(expected), `Job history must include ${expected}.`);
+    // The audit history records localized status transitions (summaries and before/after
+    // values), e.g. "Status ændret: 'Til gennemsyn' → 'Godkendt'" and "Afvist" — not the
+    // English enum names. Assert on the Danish status labels the API actually emits so the
+    // full reject → correct → resubmit → approve arc is evidenced.
+    for (const expected of ['afvist', 'til gennemsyn', 'godkendt']) {
+      assert.ok(historyText.includes(expected), `Job history must include status "${expected}".`);
     }
 
     adminHarness.assertCleanBrowser();
