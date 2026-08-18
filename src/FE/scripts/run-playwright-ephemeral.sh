@@ -164,5 +164,7 @@ echo "[playwright] running auth brand evidence"
 node scripts/playwright-auth-brand.mjs
 echo "[playwright] running shared state semantics evidence"
 node scripts/playwright-shared-state-semantics.mjs
+echo "[playwright] running overview status navigation evidence"
+node scripts/playwright-overview-status-navigation.mjs
 
 echo "Authenticated ephemeral Playwright suite completed successfully."

@@ -29,11 +29,16 @@ The browser receives a synthetic Development JWT through the existing `/api/dev/
 
 This is **not a deployed authentication mechanism**. `playwright-ephemeral-auth.mjs` rejects any app or API origin that is not `localhost`, `127.0.0.1`, or `::1`, and the backend endpoint remains available only in ASP.NET Development. A production, Vercel, arbitrary remote, disguised-loopback, credentialed, or path-bearing URL fails before a token request is made.
 
-The initial blocking browser regression proves:
+The blocking browser regression proves:
 
 - authenticated Admin bootstrap against the disposable API/database;
 - iPhone viewport hides Quick Navigator desktop keyboard hints (`Esc`, `↑/↓`, `Enter` footer);
-- desktop `Ctrl+K` opens Quick Navigator and the keyboard hints remain visible.
+- desktop `Ctrl+K` opens Quick Navigator and the keyboard hints remain visible;
+- Overview status cards deep-link to the matching job filter, survive reload and restore on back navigation.
+
+The Overview scenario is the `overview-navigation` flow that [`tools/release/validate-pr-browser-evidence.mjs`](../../tools/release/validate-pr-browser-evidence.mjs) infers for any change touching Overview. Running it here means the evidence the guard demands is produced by CI rather than by hand. It asserts navigation and filter state rather than job counts, so it holds on the disposable database's seed data.
+
+The guard also infers a `job-wizard` flow for changes under `src/FE/src/features/jobs/`. No ephemeral scenario covers that path yet, so those changes still require a manual run. Closing that gap means porting the `/app/job/new` coverage in `playwright-critical-domain.mjs` onto the ephemeral auth contract; until then, do not treat a green CI Gate as job-wizard evidence.
 
 Backend/frontend process logs are uploaded only on failure. Browser storage state, bearer tokens, traces, customer data, and authenticated screenshots are not uploaded.
 

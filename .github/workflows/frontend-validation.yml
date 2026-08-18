@@ -268,6 +268,9 @@ jobs:
           node --check scripts/playwright-synthetic-auth.mjs
           node --check scripts/playwright-ephemeral-auth.mjs
           node --check scripts/playwright-ephemeral-smoke.mjs
+          node --check scripts/playwright-auth-brand.mjs
+          node --check scripts/playwright-shared-state-semantics.mjs
+          node --check scripts/playwright-overview-status-navigation.mjs
           node --check scripts/playwright-release-runner.test.mjs
           node --check scripts/playwright-scenarios-admin.test.mjs
           node --check scripts/playwright-ephemeral-auth.test.mjs
