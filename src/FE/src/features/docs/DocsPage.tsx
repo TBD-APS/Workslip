@@ -13,10 +13,11 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import type { DocumentDetailResponse } from '../../api/generated/models';
+import type { DocumentDetailResponse, DocumentListItemResponse } from '../../api/generated/models';
 import { ConfirmDeleteDialog } from '../../components/common/ConfirmDeleteDialog';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { ErrorState } from '../../components/ErrorState';
+import { useInfiniteList } from '../../hooks/useInfiniteList';
 import { formatDateTime } from '../../lib/formatDate';
 import { formatNumber } from '../../lib/presentation/number';
 import { toUiLowerCase } from '../../lib/presentation/text';
@@ -44,6 +45,8 @@ type DraftState = {
   key: string;
   value: Draft;
 };
+
+const DOCS_PAGE_SIZE = 50;
 
 const emptyDraft = (): Draft => ({ title: '', content: '', tagsText: '', revision: 0 });
 
@@ -98,14 +101,14 @@ export const DocsPage = () => {
     return () => window.clearTimeout(handle);
   }, [search]);
 
-  const listQuery = useQuery({
+  const listQuery = useInfiniteList<DocumentListItemResponse>({
     queryKey: ['docs', 'list', debouncedSearch],
-    queryFn: () => listDocuments({
-      limit: 100,
-      offset: 0,
+    pageSize: DOCS_PAGE_SIZE,
+    fetchPage: ({ limit, offset }) => listDocuments({
+      limit,
+      offset,
       search: debouncedSearch || undefined,
     }),
-    staleTime: 20_000,
   });
 
   const detailQuery = useQuery({
@@ -245,7 +248,8 @@ export const DocsPage = () => {
     else updateMutation.mutate();
   };
 
-  const items = listQuery.data?.items ?? [];
+  const items = listQuery.items;
+  const remainingCount = Math.max(listQuery.totalCount - items.length, 0);
   const selectedDocument = detailQuery.data;
   const showWorkspace = isCreating || Boolean(selectedId);
 
@@ -283,7 +287,7 @@ export const DocsPage = () => {
           </label>
 
           <div className="docs-list-meta">
-            <span>{listQuery.data?.totalCount ?? 0} dokumenter</span>
+            <span>{listQuery.totalCount} dokumenter</span>
             {debouncedSearch && <span>Matcher “{debouncedSearch}”</span>}
           </div>
 
@@ -327,6 +331,17 @@ export const DocsPage = () => {
                 </span>
               </button>
             ))}
+
+            {listQuery.hasNextPage && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => void listQuery.fetchNextPage()}
+                disabled={listQuery.isFetchingNextPage}
+              >
+                {listQuery.isFetchingNextPage ? 'Henter flere…' : `Vis flere (${remainingCount})`}
+              </button>
+            )}
           </div>
         </aside>
 
