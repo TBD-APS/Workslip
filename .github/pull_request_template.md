@@ -21,9 +21,7 @@ Validation notes:
 
 ## Browser/mobile evidence
 
-For user-visible frontend runtime changes, keep exactly one of the two machine-readable patterns below. Remove the unused pattern before review.
-
-Required evidence:
+For user-visible frontend runtime changes, fill in the machine-readable block below. It is unconditionally blocking: there is no waiver or exemption path, so every inferred flow needs a passing scenario before merge-readiness.
 
 Browser-Evidence: required
 Browser-Scenarios: pending
@@ -31,12 +29,6 @@ Browser-Result: pending
 Browser-Viewports: pending
 Browser-Page-Errors: pending
 Browser-Console-Errors: pending
-
-Explicit waiver (only when browser evidence is genuinely unnecessary/unavailable and an owner accepts the scoped risk):
-
-Browser-Evidence: waived
-Browser-Waiver-Owner: pending
-Browser-Waiver-Reason: pending
 
 Evidence notes / run links:
 
