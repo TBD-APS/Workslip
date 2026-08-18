@@ -7,6 +7,7 @@ const APP_URL = requireLoopbackOrigin(
   'WORKSLIP_PLAYWRIGHT_APP_URL',
 );
 const UI_TIMEOUT = 25_000;
+const AUTH_REQUEST_START_TIMEOUT_MS = 5_000;
 
 const { chromium } = await import('playwright');
 const browser = await chromium.launch({ headless: true });
@@ -17,11 +18,19 @@ const cases = [
   { name: 'day-mobile-320', theme: 'day', viewport: { width: 320, height: 740 } },
 ];
 
+const transitionCases = [
+  { name: 'stored-session-desktop', viewport: { width: 1280, height: 800 } },
+  { name: 'stored-session-mobile-390', viewport: { width: 390, height: 844 } },
+];
+
 try {
   for (const testCase of cases) {
     await verifyAuthBrandCase(testCase);
   }
-  console.log('[playwright] auth brand day/night + responsive evidence passed.');
+  for (const testCase of transitionCases) {
+    await verifyStoredSessionTransition(testCase);
+  }
+  console.log('[playwright] auth brand + stable stored-session transition evidence passed.');
 } finally {
   await browser.close();
 }
@@ -133,6 +142,104 @@ async function verifyAuthBrandCase({ name, theme, viewport }) {
 
     assert.deepEqual(pageErrors, [], `${name}: browser page errors: ${pageErrors.join(' | ')}`);
     assert.deepEqual(consoleErrors, [], `${name}: browser console errors: ${consoleErrors.join(' | ')}`);
+  } finally {
+    await context.close();
+  }
+}
+
+async function verifyStoredSessionTransition({ name, viewport }) {
+  const context = await browser.newContext({
+    locale: 'da-DK',
+    timezoneId: 'Europe/Copenhagen',
+    viewport,
+    colorScheme: 'light',
+  });
+
+  await context.addInitScript(({ appOrigin }) => {
+    if (window.location.origin === appOrigin) {
+      localStorage.setItem('theme', 'day');
+      localStorage.setItem('authToken', 'browser-evidence-stored-session');
+      localStorage.setItem('userEmail', 'stored-session@example.test');
+
+      window.__WORKSLIP_LOGIN_CARD_SEEN__ = false;
+      const observeLoginCard = () => {
+        if (document.querySelector('.login-card')) {
+          window.__WORKSLIP_LOGIN_CARD_SEEN__ = true;
+        }
+      };
+      const observer = new MutationObserver(observeLoginCard);
+      observer.observe(document, { childList: true, subtree: true });
+      observeLoginCard();
+    }
+  }, {
+    appOrigin: new URL(APP_URL).origin,
+  });
+
+  try {
+    const page = await context.newPage();
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on('pageerror', (error) => pageErrors.push(error.message));
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
+
+    let authMeRequests = 0;
+    let releaseAuthMe;
+    let signalAuthMeStarted;
+    const authMeBarrier = new Promise((resolve) => {
+      releaseAuthMe = resolve;
+    });
+    const authMeStarted = new Promise((resolve) => {
+      signalAuthMeStarted = resolve;
+    });
+
+    await page.route('**/api/auth/me', async (route) => {
+      authMeRequests += 1;
+      signalAuthMeStarted();
+      await authMeBarrier;
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'Synthetic delayed auth probe completed.' }),
+      }).catch(() => undefined);
+    });
+
+    const navigation = await page.goto(`${APP_URL}/login`, {
+      waitUntil: 'domcontentloaded',
+      timeout: UI_TIMEOUT,
+    });
+    assert.ok(navigation?.ok(), `${name}: /login returned HTTP ${navigation?.status() ?? 'unknown'}.`);
+
+    await page.locator('.system-state').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await page.getByText('Tjekker login', { exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await Promise.race([
+      authMeStarted,
+      new Promise((_, reject) => {
+        setTimeout(
+          () => reject(new Error(`${name}: /api/auth/me did not start within ${AUTH_REQUEST_START_TIMEOUT_MS}ms.`)),
+          AUTH_REQUEST_START_TIMEOUT_MS,
+        );
+      }),
+    ]);
+
+    assert.equal(authMeRequests, 1, `${name}: startup should issue one identity request.`);
+    assert.equal(
+      await page.evaluate(() => window.__WORKSLIP_LOGIN_CARD_SEEN__ === true),
+      false,
+      `${name}: login card must never mount while stored identity is pending.`,
+    );
+    assert.equal(await page.locator('.login-card').count(), 0, `${name}: login card must stay absent while stored identity is pending.`);
+    assert.equal(await page.locator('.app-shell').count(), 0, `${name}: authenticated shell must wait for identity validation.`);
+    assert.equal(
+      await page.locator('html').getAttribute('data-auth-transition'),
+      '',
+      `${name}: auth transition marker must be present before the stored-session surface paints.`,
+    );
+    assert.deepEqual(pageErrors, [], `${name}: browser page errors: ${pageErrors.join(' | ')}`);
+    assert.deepEqual(consoleErrors, [], `${name}: browser console errors: ${consoleErrors.join(' | ')}`);
+
+    releaseAuthMe();
   } finally {
     await context.close();
   }
