@@ -93,6 +93,7 @@ async function verifyAuthBrandCase({ name, theme, viewport }) {
         theme: root.getAttribute('data-theme'),
         bodyBackground: body.backgroundColor,
         primaryToken: body.getPropertyValue('--primary').trim(),
+        onPrimaryToken: body.getPropertyValue('--on-primary').trim(),
         selectionToken: body.getPropertyValue('--color-primary').trim(),
         focusToken: body.getPropertyValue('--focus-ring').trim(),
         cardBackground: card.backgroundColor,
@@ -109,6 +110,7 @@ async function verifyAuthBrandCase({ name, theme, viewport }) {
 
     assert.equal(styles.theme, theme, `${name}: stored theme must apply before the login surface is evaluated.`);
     assert.equal(styles.primaryToken, '#f47a24', `${name}: primary action token must resolve to Workslip signal orange.`);
+    assert.equal(styles.onPrimaryToken, '#ffffff', `${name}: primary action foreground token must resolve to white.`);
     assert.equal(styles.selectionToken, '#147a7e', `${name}: selection/information token must resolve to Workslip petrol.`);
     assert.equal(
       styles.focusToken,
