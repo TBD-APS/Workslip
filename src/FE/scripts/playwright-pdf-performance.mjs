@@ -12,6 +12,7 @@ const API_URL = requireLoopbackOrigin(
 );
 const ADMIN_EMAIL = String(process.env.WORKSLIP_PLAYWRIGHT_ADMIN_EMAIL || 'admin@17v3ygzs.mailosaur.net').trim();
 const UI_TIMEOUT = 25_000;
+const REPORT_MODE_STATUSES = new Set(['inreview', 'approved', 'rejected']);
 
 const { chromium, devices } = await import('playwright');
 const browser = await chromium.launch({ headless: true });
@@ -130,8 +131,10 @@ async function verifyJobPreviewDownloadReuse() {
     assert.equal(jobsResponse.status, 200, `Seeded job lookup returned HTTP ${jobsResponse.status}.`);
     const jobsPayload = await jobsResponse.json();
     const jobs = Array.isArray(jobsPayload?.items) ? jobsPayload.items : [];
-    const job = jobs.find((candidate) => String(candidate.status).toLowerCase() !== 'draft') ?? jobs[0];
-    assert.ok(job?.id, 'Seeded PDF browser fixture must contain at least one job.');
+    const job = jobs.find((candidate) =>
+      REPORT_MODE_STATUSES.has(String(candidate.status).toLowerCase())
+      || String(candidate.jobType).toLowerCase() === 'diverse');
+    assert.ok(job?.id, 'Seeded PDF browser fixture must contain a report-mode job.');
 
     const flow = await openAuthenticatedApp(context, `/app/completed/${job.id}`);
     const { page } = flow;
