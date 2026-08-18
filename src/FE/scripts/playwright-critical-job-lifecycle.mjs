@@ -47,10 +47,10 @@ const { chromium } = await import('playwright');
 const browser = await chromium.launch({ headless: true });
 
 try {
-  console.log('[playwright] lifecycle: admin create -> user submit -> admin approve.');
+  console.log('[playwright] lifecycle: fixture create -> user submit -> admin approve.');
   await verifyKlsSubmitApproveLifecycle();
 
-  console.log('[playwright] lifecycle: admin create -> user submit -> reject -> correct -> resubmit -> approve.');
+  console.log('[playwright] lifecycle: fixture create -> user submit -> reject -> correct -> resubmit -> approve.');
   await verifyRejectionCorrectionLifecycle();
 
   console.log('[playwright] critical job lifecycle flows passed.');
@@ -186,9 +186,54 @@ async function resolveAssignedUser(adminSession, email) {
 }
 
 async function createAssignedKlsJob(adminSession, assignedUser) {
-  return domain.createKlsDraftViaUi(adminSession, {
-    role: 'Admin',
-    assignedUsers: [assignedUser],
+  return adminSession.step('create assigned KLS fixture through API', async () => {
+    const created = await adminSession.apiExpect('POST', '/api/jobs', {
+      customerId: null,
+      customerSnapshot: {
+        name: adminSession.data.customerName,
+        email: adminSession.data.customerEmail,
+        phone: adminSession.data.phone,
+        address: adminSession.address.text,
+        contactPerson: adminSession.data.contactPerson,
+      },
+      createCustomerFromSnapshot: false,
+      destinationAddress: adminSession.address.street,
+      destinationZipCode: adminSession.address.zipCode,
+      destinationCity: adminSession.address.city,
+      jobType: 'KLS',
+      assignedUserIds: [assignedUser.id],
+      duplicatePerAssignedUser: false,
+      linkedJobIds: [],
+      work: null,
+      observations: {
+        reportDate: null,
+        taskDescription: adminSession.data.taskDescription,
+        customerObservations: null,
+        technicalObservations: null,
+      },
+    }, [200, 201]);
+
+    if (!created?.id) throw new Error('KLS fixture creation returned no id.');
+    const createdJobIds = created.createdJobIds?.length ? created.createdJobIds : [created.id];
+    adminSession.fixtures.jobs.push(...createdJobIds);
+    for (const id of createdJobIds) {
+      adminSession.scenarioReport.generatedFixtures.push({ type: 'job', id, source: 'runtime API fixture' });
+    }
+
+    const persisted = await adminSession.apiExpect('GET', `/api/jobs/${created.id}`, undefined, [200]);
+    contractHelpers.assertStatus(persisted, ['Draft', 'Kladde']);
+    assert.ok(
+      (persisted.assignedUsers ?? []).some((candidate) => candidate.id === assignedUser.id),
+      'KLS fixture must persist the configured assignee before the UI lifecycle starts.',
+    );
+
+    return {
+      id: created.id,
+      createdJobIds,
+      reportNumber: created.reportNumber,
+      customerName: adminSession.data.customerName,
+      role: 'Admin',
+    };
   });
 }
 
