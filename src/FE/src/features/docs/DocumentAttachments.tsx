@@ -52,6 +52,13 @@ interface DocumentAttachmentsProps {
   canEdit: boolean;
 }
 
+const triggerDownload = (url: string, fileName: string) => {
+  const anchor = window.document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+};
+
 export function DocumentAttachments({ documentId, canEdit }: DocumentAttachmentsProps) {
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -111,13 +118,16 @@ export function DocumentAttachments({ documentId, canEdit }: DocumentAttachments
   };
 
   const download = async (attachment: DocumentAttachmentInfoResponse) => {
+    const loadedAudio = audioPreviewRef.current;
+    if (loadedAudio?.attachmentId === attachment.id) {
+      triggerDownload(loadedAudio.url, attachment.fileName);
+      return;
+    }
+
     try {
       const blob = await downloadDocumentAttachment(documentId, attachment.id);
       const url = URL.createObjectURL(blob);
-      const anchor = window.document.createElement('a');
-      anchor.href = url;
-      anchor.download = attachment.fileName;
-      anchor.click();
+      triggerDownload(url, attachment.fileName);
       window.setTimeout(() => URL.revokeObjectURL(url), 0);
     } catch {
       notify.error('Filen kunne ikke hentes.');
