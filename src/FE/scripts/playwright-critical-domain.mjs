@@ -2,7 +2,7 @@ export function createDomainHelpers(env, c) {
   const { APP_URL, API_TIMEOUT, UI_TIMEOUT, postman } = env;
   const {
     postmanBody, pickReferenceSelection, valueOf, candidates,
-    waitForEnabled, waitForWizardStep, currentWizardStep, clickNext,
+    fillIfVisible, waitForEnabled, waitForWizardStep, currentWizardStep, clickNext,
     clickByTextCandidates, checkRadioByCandidates, waitForApiResponse, escapeRegex,
     sectionByHeading
   } = c;
@@ -71,10 +71,6 @@ async function fillOverviewFields(session, { customerName, address }) {
   await customerNameInput.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await customerNameInput.fill(customerName);
 
-  const customerAddress = page.getByPlaceholder('Adresse', { exact: true });
-  await customerAddress.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await customerAddress.fill(address.text);
-
   const email = page.getByPlaceholder('Email', { exact: true });
   await email.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await email.fill(session.data.customerEmail);
@@ -83,13 +79,9 @@ async function fillOverviewFields(session, { customerName, address }) {
   await phone.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await phone.fill(session.data.phone);
 
-  const contact = page.getByPlaceholder('Kontaktperson', { exact: true });
-  await contact.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await contact.fill(session.data.contactPerson);
-
-  const task = page.getByPlaceholder('Beskriv opgaven...');
-  await task.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await task.fill(session.data.taskDescription);
+  await fillIfVisible(page.getByPlaceholder('Adresse', { exact: true }), address.text);
+  await fillIfVisible(page.getByPlaceholder('Kontaktperson', { exact: true }), session.data.contactPerson);
+  await fillIfVisible(page.getByPlaceholder('Beskriv opgaven...'), session.data.taskDescription);
 }
 
 async function completeAndSubmitKlsViaUi(session, job) {
