@@ -13,10 +13,11 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import type { DocumentDetailResponse } from '../../api/generated/models';
+import type { DocumentDetailResponse, DocumentListItemResponse } from '../../api/generated/models';
 import { ConfirmDeleteDialog } from '../../components/common/ConfirmDeleteDialog';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { ErrorState } from '../../components/ErrorState';
+import { useInfiniteList } from '../../hooks/useInfiniteList';
 import { formatDateTime } from '../../lib/formatDate';
 import { formatNumber } from '../../lib/presentation/number';
 import { toUiLowerCase } from '../../lib/presentation/text';
@@ -30,6 +31,7 @@ import {
   listDocuments,
   updateDocument,
 } from './docsApi';
+import { docsQueryKeys } from './docsQueryKeys';
 import './docs.css';
 import './docsAttachments.css';
 
@@ -44,6 +46,8 @@ type DraftState = {
   key: string;
   value: Draft;
 };
+
+const DOCS_PAGE_SIZE = 50;
 
 const emptyDraft = (): Draft => ({ title: '', content: '', tagsText: '', revision: 0 });
 
@@ -98,18 +102,18 @@ export const DocsPage = () => {
     return () => window.clearTimeout(handle);
   }, [search]);
 
-  const listQuery = useQuery({
-    queryKey: ['docs', 'list', debouncedSearch],
-    queryFn: () => listDocuments({
-      limit: 100,
-      offset: 0,
+  const listQuery = useInfiniteList<DocumentListItemResponse>({
+    queryKey: docsQueryKeys.list(debouncedSearch),
+    pageSize: DOCS_PAGE_SIZE,
+    fetchPage: ({ limit, offset }) => listDocuments({
+      limit,
+      offset,
       search: debouncedSearch || undefined,
     }),
-    staleTime: 20_000,
   });
 
   const detailQuery = useQuery({
-    queryKey: ['docs', 'detail', selectedId],
+    queryKey: docsQueryKeys.detail(selectedId),
     queryFn: () => getDocument(selectedId!),
     enabled: Boolean(selectedId),
     staleTime: 10_000,
@@ -143,8 +147,8 @@ export const DocsPage = () => {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [isDirty]);
 
-  const invalidateDocs = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['docs'] });
+  const invalidateDocumentLists = async () => {
+    await queryClient.invalidateQueries({ queryKey: docsQueryKeys.lists() });
   };
 
   const createMutation = useMutation({
@@ -154,10 +158,10 @@ export const DocsPage = () => {
       tags: parseTags(draft.tagsText),
     }),
     onSuccess: async (document) => {
-      queryClient.setQueryData(['docs', 'detail', document.id], document);
+      queryClient.setQueryData(docsQueryKeys.detail(document.id), document);
       setDraftState(null);
       setEditingDocumentId(null);
-      await invalidateDocs();
+      await invalidateDocumentLists();
       notify.success('Dokumentet er oprettet.');
       navigate(`/app/docs/${document.id}`, { replace: true });
     },
@@ -172,10 +176,10 @@ export const DocsPage = () => {
       revision: draft.revision,
     }),
     onSuccess: async (document) => {
-      queryClient.setQueryData(['docs', 'detail', document.id], document);
+      queryClient.setQueryData(docsQueryKeys.detail(document.id), document);
       setDraftState({ key: document.id, value: toDraft(document) });
       setEditingDocumentId(null);
-      await invalidateDocs();
+      await invalidateDocumentLists();
       notify.success('Dokumentet er gemt.');
     },
     onError: async (error) => {
@@ -183,7 +187,7 @@ export const DocsPage = () => {
         setDraftState(null);
         setEditingDocumentId(null);
         notify.error('Dokumentet er ændret af en anden. Den nyeste version hentes nu.');
-        await queryClient.invalidateQueries({ queryKey: ['docs', 'detail', selectedId] });
+        await queryClient.invalidateQueries({ queryKey: docsQueryKeys.detail(selectedId) });
         return;
       }
       notify.error('Dokumentet kunne ikke gemmes.');
@@ -196,7 +200,11 @@ export const DocsPage = () => {
       setDeleteDialogOpen(false);
       setDraftState(null);
       setEditingDocumentId(null);
-      await invalidateDocs();
+      if (selectedId) {
+        queryClient.removeQueries({ queryKey: docsQueryKeys.detail(selectedId) });
+        queryClient.removeQueries({ queryKey: docsQueryKeys.attachments(selectedId) });
+      }
+      await invalidateDocumentLists();
       notify.success('Dokumentet er slettet.');
       navigate('/app/docs', { replace: true });
     },
@@ -245,7 +253,8 @@ export const DocsPage = () => {
     else updateMutation.mutate();
   };
 
-  const items = listQuery.data?.items ?? [];
+  const items = listQuery.items;
+  const remainingCount = Math.max(listQuery.totalCount - items.length, 0);
   const selectedDocument = detailQuery.data;
   const showWorkspace = isCreating || Boolean(selectedId);
 
@@ -283,7 +292,7 @@ export const DocsPage = () => {
           </label>
 
           <div className="docs-list-meta">
-            <span>{listQuery.data?.totalCount ?? 0} dokumenter</span>
+            <span>{listQuery.totalCount} dokumenter</span>
             {debouncedSearch && <span>Matcher “{debouncedSearch}”</span>}
           </div>
 
@@ -327,6 +336,17 @@ export const DocsPage = () => {
                 </span>
               </button>
             ))}
+
+            {listQuery.hasNextPage && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => void listQuery.fetchNextPage()}
+                disabled={listQuery.isFetchingNextPage}
+              >
+                {listQuery.isFetchingNextPage ? 'Henter flere…' : `Vis flere (${remainingCount})`}
+              </button>
+            )}
           </div>
         </aside>
 
