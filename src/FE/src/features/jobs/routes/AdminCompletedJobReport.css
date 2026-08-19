@@ -166,8 +166,6 @@
   opacity: 0.7;
 }
 
-/* Decision tiles carry the shared status tokens so approve/reject read distinctly
-   without introducing untokenised colour literals. */
 .admin-case-reference-action--approve {
   border-color: var(--status-green-text);
   color: var(--status-green-text);
@@ -193,8 +191,6 @@
   margin: 0;
 }
 
-/* Padding wrapper for the composed detail cards (control points, worksheets, linked
-   cases, images) so they match the reference cards that carry bespoke padding. */
 .admin-case-reference-section {
   display: flex;
   flex-direction: column;
@@ -208,10 +204,6 @@
   gap: 0.5rem;
 }
 
-/* On narrow screens the images sink below the text cards so the first fold stays
-   focused on case identity and status; the desktop two-column layout lifts them
-   back up beside the detail (see the 1100px breakpoint). Tile size stays at the
-   shared gallery default — position, not size, carries the prominence. */
 .admin-case-reference-media {
   order: 6;
 }
@@ -500,8 +492,6 @@
     margin-top: 0.15rem;
   }
 
-  /* With the sidebar giving the main column its own width, restore the images to
-     their high source position (right after the description) so they read first. */
   .admin-case-reference-media {
     order: 0;
   }
@@ -537,5 +527,66 @@
   .admin-case-reference-action,
   .admin-case-reference-actions .job-conversation-launcher-button.admin-case-reference-action {
     transition: none;
+  }
+}
+
+/* Desktop composition: keep the case identity and action bar together across the
+   full content width, then align case information and history as one balanced row. */
+@media (min-width: 1100px) {
+  .admin-case-reference-layout {
+    column-gap: 1.25rem;
+    row-gap: 1rem;
+    grid-template-columns: minmax(0, 1.75fr) minmax(20rem, 0.95fr);
+  }
+
+  .admin-case-reference-main {
+    display: contents;
+  }
+
+  .admin-case-reference-main > * {
+    grid-column: 1;
+  }
+
+  .admin-case-reference-hero {
+    grid-column: 1 / -1;
+    min-height: 0;
+    padding: 0.85rem 0.25rem 0.35rem;
+  }
+
+  .admin-case-reference-actions {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    margin-top: 0;
+    padding: 0;
+  }
+
+  .admin-case-reference-action,
+  .admin-case-reference-actions .job-conversation-launcher-button.admin-case-reference-action {
+    flex-direction: row;
+    justify-content: flex-start;
+    min-height: 3.75rem;
+    padding: 0.75rem 0.9rem;
+    text-align: left;
+  }
+
+  .admin-case-reference-action svg,
+  .admin-case-reference-actions .job-conversation-launcher-button.admin-case-reference-action svg {
+    flex: 0 0 auto;
+  }
+
+  .admin-case-reference-information {
+    grid-row: 3;
+    margin-top: 0;
+  }
+
+  .admin-case-reference-sidebar {
+    grid-column: 2;
+    grid-row: 3 / span 20;
+    position: sticky;
+    top: 1rem;
+  }
+
+  .admin-case-reference-history {
+    min-height: 100%;
   }
 }
