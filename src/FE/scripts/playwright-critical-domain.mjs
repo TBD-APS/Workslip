@@ -298,7 +298,7 @@ async function addWorksheetViaUi(session, user, hours) {
     }
   }
 
-  const hoursInput = page.getByLabel('Timer', { exact: true });
+  const hoursInput = page.locator('#worksheet-add-hours');
   await hoursInput.fill(hours);
   const submit = page.locator('#worksheet-add-submit');
   await submit.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
