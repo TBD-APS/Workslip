@@ -278,6 +278,7 @@ async function addWorksheetViaUi(session, user, hours) {
   const page = session.page;
   const add = page.getByRole('button', { name: 'Tilføj timeseddel', exact: true });
   await add.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await waitForEnabled(add, 'Tilføj timeseddel');
   await add.click();
   const form = page.locator('.worksheet-form');
   const trigger = page.locator('#worksheet-assignee-trigger');
@@ -296,19 +297,44 @@ async function addWorksheetViaUi(session, user, hours) {
       }
     }
   }
-  await page.getByLabel('Timer', { exact: true }).fill(hours);
-  const responsePromise = page.waitForResponse((response) =>
-    response.request().method() === 'POST'
-      && new URL(response.url()).pathname.startsWith('/api/worksheets/jobs/'),
-  { timeout: API_TIMEOUT });
+
+  const hoursInput = page.getByLabel('Timer', { exact: true });
+  await hoursInput.fill(hours);
+  const submit = page.locator('#worksheet-add-submit');
+  await submit.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await waitForEnabled(submit, 'worksheet add submit');
   const formError = page.locator('#worksheet-form-error');
-  await page.getByRole('button', { name: 'Tilføj', exact: true }).click();
-  const outcome = await Promise.race([
-    responsePromise.then((response) => ({ response })),
-    formError.waitFor({ state: 'visible', timeout: API_TIMEOUT }).then(async () => ({ formError: (await formError.innerText()).trim() })),
-  ]);
-  if ('formError' in outcome) throw new Error(`Worksheet form blocked submit: ${outcome.formError}`);
-  const response = outcome.response;
+  const worksheetPath = '/api/worksheets/jobs/';
+  const requestOutcome = page.waitForRequest((request) =>
+    request.method() === 'POST' && new URL(request.url()).pathname.startsWith(worksheetPath),
+  { timeout: API_TIMEOUT })
+    .then((request) => ({ kind: 'request', request }))
+    .catch((error) => ({ kind: 'request-timeout', error }));
+  const formErrorOutcome = formError.waitFor({ state: 'visible', timeout: API_TIMEOUT - 1000 })
+    .then(async () => ({ kind: 'form-error', message: (await formError.innerText()).trim() }))
+    .catch(() => new Promise(() => {}));
+
+  await submit.click();
+  const firstOutcome = await Promise.race([requestOutcome, formErrorOutcome]);
+  if (firstOutcome.kind === 'form-error') {
+    throw new Error(`Worksheet form blocked submit: ${firstOutcome.message}`);
+  }
+  if (firstOutcome.kind !== 'request') {
+    const diagnostics = {
+      url: page.url(),
+      submitDisabled: await submit.isDisabled().catch(() => null),
+      hours: await hoursInput.inputValue().catch(() => null),
+      assigneeVisible: await trigger.isVisible().catch(() => false),
+      assigneeText: await trigger.isVisible().catch(() => false) ? (await trigger.innerText()).trim() : null,
+      assigneeExpanded: await trigger.isVisible().catch(() => false) ? await trigger.getAttribute('aria-expanded') : null,
+      formError: await formError.isVisible().catch(() => false) ? (await formError.innerText()).trim() : null,
+    };
+    throw new Error(`Worksheet submit produced no POST request. State: ${JSON.stringify(diagnostics)}`);
+  }
+
+  const response = await page.waitForResponse((candidate) =>
+    candidate.request() === firstOutcome.request,
+  { timeout: API_TIMEOUT });
   if (!response.ok()) throw new Error(`Worksheet creation returned HTTP ${response.status()}.`);
   await form.waitFor({ state: 'hidden', timeout: API_TIMEOUT });
 }
