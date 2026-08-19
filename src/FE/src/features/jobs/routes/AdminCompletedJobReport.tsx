@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Clock3,
   Download,
+  Eye,
   FileText,
   History,
   Link2,
@@ -45,7 +46,7 @@ import { ControlPointOverview, getSelectedControlPoints, getIrrelevantCategories
 import { JobImagesSection } from '../../images/JobImagesSection';
 import { formatJobStatus } from '../statusLabels';
 import { COMPLETED_JOB_VIEW_TYPE, markJobAsSeen } from '../utils/markJobSeen';
-import { downloadJobReportPdf } from '../utils/downloadJobReportPdf';
+import { createJobReportPdfPreview, downloadJobReportPdf } from '../utils/downloadJobReportPdf';
 import {
   formatClosureFlags,
   formatInstallationTypeNames,
@@ -71,7 +72,9 @@ export function AdminCompletedJobReport() {
   const from = state?.from ?? '/app';
   const readOnly = Boolean(state?.readOnly);
   const historyPanelRef = useRef<HTMLElement | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [confirmAction, setConfirmAction] = useState<JobAction | null>(null);
   const [completedAction, setCompletedAction] = useState<JobAction | null>(null);
   const isAdmin = useIsAdmin();
@@ -151,6 +154,30 @@ export function AdminCompletedJobReport() {
       notify.error(`Kunne ikke hente PDF for ${formatReportNumber(job)}`);
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  const handlePreviewPdf = async () => {
+    setIsLoadingPreview(true);
+    try {
+      const { url } = await createJobReportPdfPreview(job);
+      if (previewUrlRef.current) {
+        window.URL.revokeObjectURL(previewUrlRef.current);
+      }
+      previewUrlRef.current = url;
+      window.open(url, '_blank');
+      // The preview Blob is reused for an immediate download; release it after a
+      // grace period so the opened tab has time to render it.
+      window.setTimeout(() => {
+        if (previewUrlRef.current === url) {
+          window.URL.revokeObjectURL(url);
+          previewUrlRef.current = null;
+        }
+      }, 60000);
+    } catch {
+      notify.error(`Kunne ikke hente PDF for ${formatReportNumber(job)}`);
+    } finally {
+      setIsLoadingPreview(false);
     }
   };
 
@@ -299,11 +326,24 @@ export function AdminCompletedJobReport() {
             <button
               type="button"
               className="admin-case-reference-action"
+              onClick={() => void handlePreviewPdf()}
+              disabled={isLoadingPreview}
+              aria-label="Forhåndsvis PDF"
+              title="Forhåndsvis PDF"
+            >
+              {isLoadingPreview ? <Loader2 className="spin" size={23} aria-hidden="true" /> : <Eye size={23} aria-hidden="true" />}
+              <span>Forhåndsvis PDF</span>
+            </button>
+            <button
+              type="button"
+              className="admin-case-reference-action"
               onClick={() => void handleDownload()}
               disabled={isDownloading}
+              aria-label="Download PDF"
+              title="Download PDF"
             >
               {isDownloading ? <Loader2 className="spin" size={23} aria-hidden="true" /> : <Download size={23} aria-hidden="true" />}
-              <span>Download</span>
+              <span>Download PDF</span>
             </button>
           </div>
 
