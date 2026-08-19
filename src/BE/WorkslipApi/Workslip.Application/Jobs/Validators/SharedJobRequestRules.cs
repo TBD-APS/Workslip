@@ -9,7 +9,8 @@ public static class SharedJobRequestRules
 {
     public static bool BeValidJobType(string? jobType)
     {
-        return Enum.TryParse<JobType>(jobType, out var _);
+        return Enum.TryParse<JobType>(jobType, out var parsed)
+            && parsed is JobType.KLS or JobType.Diverse;
     }
 
     public static void AddCommonRules(AbstractValidator<CreateJobRequest> validator)
