@@ -138,7 +138,13 @@ function captureBrowserFailures(page) {
     consoleErrors.push(text);
   });
   page.on('requestfailed', (request) => {
-    failedRequests.push(`${request.method()} ${new URL(request.url()).pathname}: ${request.failure()?.errorText ?? 'unknown'}`);
+    const url = new URL(request.url());
+    const errorText = request.failure()?.errorText ?? 'unknown';
+    const isExpectedNavigationAbort = request.method() === 'GET'
+      && !url.pathname.startsWith('/api/')
+      && errorText === 'net::ERR_ABORTED';
+    if (isExpectedNavigationAbort) return;
+    failedRequests.push(`${request.method()} ${url.pathname}: ${errorText}`);
   });
   page.on('response', (response) => {
     if (!response.url().includes('/api/') || response.status() < 400) return;
