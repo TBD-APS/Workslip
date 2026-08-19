@@ -13,6 +13,7 @@ type WorksheetDraftFormProps = {
   currentUserName: string;
   isLoadingUsers: boolean;
   isSaving: boolean;
+  submitId?: string;
   submitLabel: string;
   error?: string | null;
   onDraftChange: (draft: WorksheetDraft) => void;
@@ -28,6 +29,7 @@ export function WorksheetDraftForm({
   currentUserName,
   isLoadingUsers,
   isSaving,
+  submitId,
   submitLabel,
   error,
   onDraftChange,
@@ -89,6 +91,7 @@ export function WorksheetDraftForm({
 
       <div className="worksheet-form-actions worksheet-form-actions--compact">
         <button
+          id={submitId}
           type="button"
           className="btn btn-primary"
           onClick={onSubmit}
