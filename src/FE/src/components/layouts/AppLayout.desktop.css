@@ -10,6 +10,10 @@
   .bottom-nav .quick-nav-mobile-trigger {
     display: flex;
   }
+
+  .desktop-rail-toggle-wrap {
+    display: none;
+  }
 }
 
 @media (min-width: 1024px) {
@@ -24,22 +28,16 @@
     margin-inline: auto;
   }
 
-  /* Timer already has its own desktop padding in App.css. Let the app shell own
-     horizontal page gutters so the overview does not receive them twice. */
   .time-overview-page {
     max-width: 90rem;
     padding-inline: 0;
   }
 
-  /* Detail/report views already use structured sections and grids. Keep those
-     readable on very wide displays instead of stretching them edge to edge. */
   .job-detail-page,
   .report-overview-page {
     max-width: 72rem;
   }
 
-  /* Existing edit/create forms are intentionally denser than overview tables.
-     Constrain their page rather than introducing another form wrapper. */
   .page-container:has(> .detail-form),
   .page-container:has(> .customer-edit-form) {
     max-width: 52rem;
@@ -103,8 +101,6 @@
     outline-offset: -3px;
   }
 
-  /* Keep the existing table-header appearance while using native buttons for
-     keyboard semantics instead of clickable spans. */
   .data-table button.sort-trigger {
     display: inline-flex;
     align-items: center;
@@ -136,20 +132,24 @@
   }
 }
 
-/* WOR-716 — the reference used by WOR-701 includes a persistent left desktop rail.
-   Reuse the existing permission-aware bottom-nav markup so mobile/tablet behaviour,
-   active-route semantics and QuickNavigator access stay identical. The rail only
-   takes over on genuinely wide viewports; 200% zoom naturally falls back below
-   this breakpoint instead of compressing the content beside a fixed sidebar. */
+/* WOR-716 — persistent desktop rail. The existing permission-aware bottom-nav
+   remains the single navigation source; desktop only changes its geometry. */
 @media (min-width: 1120px) {
   .app-shell {
     --desktop-nav-rail-width: 13.5rem;
+    --desktop-nav-rail-collapsed-width: 4.75rem;
+    --desktop-nav-rail-current-width: var(--desktop-nav-rail-width);
+  }
+
+  .app-shell:has(.desktop-rail-toggle-input:checked) {
+    --desktop-nav-rail-current-width: var(--desktop-nav-rail-collapsed-width);
   }
 
   .app-header,
   .organization-session-banner,
   .app-content {
-    margin-left: var(--desktop-nav-rail-width);
+    margin-left: var(--desktop-nav-rail-current-width);
+    transition: margin-left 160ms ease;
   }
 
   .app-content {
@@ -160,19 +160,20 @@
     top: 0;
     bottom: 0;
     left: 0;
-    width: var(--desktop-nav-rail-width);
+    width: var(--desktop-nav-rail-current-width);
     height: 100dvh;
     flex-direction: column;
     justify-content: flex-start;
     align-items: stretch;
     gap: 0.35rem;
-    padding: calc(5rem + env(safe-area-inset-top, 0px)) 0.8rem max(1rem, env(safe-area-inset-bottom, 0px));
+    padding: calc(5rem + env(safe-area-inset-top, 0px)) 0.8rem max(0.75rem, env(safe-area-inset-bottom, 0px));
     border-top: 0;
     border-right: 1px solid var(--border);
     background: var(--nav-bg);
     box-shadow: 12px 0 36px var(--overlay-subtle);
     overflow-y: auto;
     overscroll-behavior: contain;
+    transition: width 160ms ease;
   }
 
   .bottom-nav .nav-item {
@@ -221,8 +222,168 @@
     background: var(--color-primary);
   }
 
+  /* Keep the identity at the top of the rail. */
+  .logo-header {
+    position: fixed;
+    z-index: 121;
+    top: calc(1rem + env(safe-area-inset-top, 0px));
+    left: 1rem;
+    width: calc(var(--desktop-nav-rail-current-width) - 2rem);
+    min-height: 2.75rem;
+    justify-content: flex-start;
+    overflow: hidden;
+    transition: width 160ms ease;
+  }
+
+  /* Notifications and account controls stay fully functional but live at the
+     bottom of the rail where they are easiest to reach. */
+  .app-header-actions {
+    position: fixed;
+    z-index: 122;
+    left: 0.8rem;
+    bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+    width: calc(var(--desktop-nav-rail-current-width) - 1.6rem);
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+    transition: width 160ms ease;
+  }
+
+  .app-header-actions .user-avatar {
+    width: 2.75rem;
+    height: 2.75rem;
+    min-width: 2.75rem;
+  }
+
+  .app-header-settings-menu {
+    top: auto;
+    right: auto;
+    bottom: 0;
+    left: calc(100% + 0.55rem);
+  }
+
+  .desktop-rail-toggle-wrap {
+    display: block;
+    margin-top: auto;
+    padding-top: 0.75rem;
+  }
+
+  .desktop-rail-toggle-input {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .desktop-rail-toggle {
+    width: 100%;
+    min-height: 2.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: var(--fs-sm);
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+
+  .desktop-rail-toggle-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex: 0 0 1.25rem;
+    position: relative;
+  }
+
+  .desktop-rail-toggle-icon::before {
+    content: '‹';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    transform: translate(-50%, -56%);
+    font-size: 1.6rem;
+    line-height: 1;
+  }
+
+  .desktop-rail-toggle-label--expand {
+    display: none;
+  }
+
+  .desktop-rail-toggle-input:focus-visible + .desktop-rail-toggle {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .app-shell:has(.desktop-rail-toggle-input:checked) .bottom-nav {
+    padding-inline: 0.55rem;
+  }
+
+  .app-shell:has(.desktop-rail-toggle-input:checked) .bottom-nav .nav-item {
+    justify-content: center;
+    padding-inline: 0.55rem;
+  }
+
+  .app-shell:has(.desktop-rail-toggle-input:checked) .bottom-nav .nav-item > span,
+  .app-shell:has(.desktop-rail-toggle-input:checked) .desktop-rail-toggle-label--collapse {
+    display: none;
+  }
+
+  .app-shell:has(.desktop-rail-toggle-input:checked) .desktop-rail-toggle-label--expand {
+    display: inline;
+  }
+
+  .app-shell:has(.desktop-rail-toggle-input:checked) .desktop-rail-toggle {
+    justify-content: center;
+    padding-inline: 0.55rem;
+  }
+
+  .app-shell:has(.desktop-rail-toggle-input:checked) .desktop-rail-toggle-label--expand {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .app-shell:has(.desktop-rail-toggle-input:checked) .desktop-rail-toggle-icon::before {
+    content: '›';
+  }
+
+  .app-shell:has(.desktop-rail-toggle-input:checked) .logo-header {
+    justify-content: center;
+    padding-inline: 0;
+    font-size: 0;
+  }
+
+  .app-shell:has(.desktop-rail-toggle-input:checked) .logo-header .logo-icon {
+    width: 1.4rem;
+    height: 1.4rem;
+  }
+
+  .app-shell:has(.desktop-rail-toggle-input:checked) .app-header-actions {
+    justify-content: center;
+    flex-direction: column;
+    left: 0.55rem;
+    width: calc(var(--desktop-nav-rail-current-width) - 1.1rem);
+  }
+
   .fab-create {
     bottom: 2rem;
+  }
+}
+
+@media (min-width: 1120px) and (hover: hover) and (pointer: fine) {
+  .nav-item:hover,
+  .desktop-rail-toggle:hover {
+    color: var(--text);
+    background: var(--surface-raised);
   }
 }
 
@@ -230,5 +391,16 @@
   .nav-item:hover {
     color: var(--text);
     background: var(--surface-raised);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-header,
+  .organization-session-banner,
+  .app-content,
+  .bottom-nav,
+  .logo-header,
+  .app-header-actions {
+    transition: none;
   }
 }
