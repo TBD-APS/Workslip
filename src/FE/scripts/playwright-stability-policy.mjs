@@ -69,7 +69,8 @@ export function inspectPlaywrightSource(filename, source) {
       }
     }
 
-    if (/await\s+(?:[\w.]+\.)?waitForResponse\s*\(/.test(line)) {
+    const definesArmedResponseHelper = /async\s+function\s+waitForApiResponse\s*\(/.test(line);
+    if (!definesArmedResponseHelper && /await\s+(?:[\w.]+\.)?waitForResponse\s*\(/.test(line)) {
       findings.push({
         file: filename,
         line: index + 1,
