@@ -127,16 +127,22 @@ async function main() {
 
   page.on('pageerror', (error) => scenarioReport.pageErrors.push(contractHelpers.redact(error.message)));
   page.on('requestfailed', (request) => {
+    const requestUrl = new URL(request.url());
+    const errorText = request.failure()?.errorText ?? 'unknown';
     const entry = {
       method: request.method(),
       url: contractHelpers.safeUrl(request.url()),
-      error: contractHelpers.redact(request.failure()?.errorText ?? 'unknown'),
+      error: contractHelpers.redact(errorText),
+      expected: request.method() === 'GET' && errorText === 'net::ERR_ABORTED',
     };
     scenarioReport.failedRequests.push(entry);
-    if (captureAuthenticatedNetwork && request.url().includes('/api/')) scenarioReport.failedApiResponses.push(entry);
+    if (captureAuthenticatedNetwork && requestUrl.pathname.startsWith('/api/')) {
+      scenarioReport.failedApiResponses.push(entry);
+    }
   });
   page.on('response', (response) => {
-    if (!captureAuthenticatedNetwork || !response.url().includes('/api/') || response.status() < 400) return;
+    const responsePath = new URL(response.url()).pathname;
+    if (!captureAuthenticatedNetwork || !responsePath.startsWith('/api/') || response.status() < 400) return;
     scenarioReport.failedApiResponses.push({
       method: response.request().method(),
       url: contractHelpers.safeUrl(response.url()),
