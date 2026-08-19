@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ReferenceDataResponse } from '../../../../api/generated/models';
 import { emptyForm } from '../../utils';
@@ -17,24 +17,11 @@ const referenceData = {
   }],
 } as ReferenceDataResponse;
 
-const reasonLabel = 'Kommentar – hvorfor var ingen kontrolpunkter relevante?';
+const legacyReasonLabel = 'Kommentar – hvorfor var ingen kontrolpunkter relevante?';
 
 describe('ControlPointsStep', () => {
-  it('only shows the shared comment at the bottom when every category is irrelevant', () => {
-    const onReasonChange = vi.fn();
-    const { rerender } = render(
-      <ControlPointsStep
-        form={{ ...emptyForm, work: { ...emptyForm.work, categoryIds: [typeId] } }}
-        referenceData={referenceData}
-        onToggleControlPoint={vi.fn()}
-        onToggleCategoryIrrelevant={vi.fn()}
-        onAllIrrelevantReasonChange={onReasonChange}
-      />,
-    );
-
-    expect(screen.queryByLabelText(reasonLabel)).not.toBeInTheDocument();
-
-    rerender(
+  it('does not render the legacy all-irrelevant comment field', () => {
+    render(
       <ControlPointsStep
         form={{
           ...emptyForm,
@@ -42,20 +29,17 @@ describe('ControlPointsStep', () => {
             ...emptyForm.work,
             categoryIds: [typeId],
             irrelevantCategoryIds: [`${typeId}-${categoryId}`],
-            allIrrelevantReason: 'Ikke en del af opgaven',
+            allIrrelevantReason: 'Kommentaren hører nu til under anlægstyper',
           },
         }}
         referenceData={referenceData}
         onToggleControlPoint={vi.fn()}
         onToggleCategoryIrrelevant={vi.fn()}
-        onAllIrrelevantReasonChange={onReasonChange}
+        onAllIrrelevantReasonChange={vi.fn()}
       />,
     );
 
-    const reason = screen.getByLabelText(reasonLabel);
-    expect(reason).toHaveValue('Ikke en del af opgaven');
-    fireEvent.change(reason, { target: { value: 'Ny begrundelse' } });
-    expect(onReasonChange).toHaveBeenCalledWith('Ny begrundelse');
+    expect(screen.queryByLabelText(legacyReasonLabel)).not.toBeInTheDocument();
   });
 
   it('models Irrelevant as a selection toggle instead of a primary action', () => {
