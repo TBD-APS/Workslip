@@ -22,7 +22,7 @@ Before leaving draft, complete the implementation/testability review:
 - browser interaction points already expose stable DOM IDs;
 - focused Unit/API regressions are in place where justified;
 - Playwright prerequisite data can be created deterministically without unrelated UI setup;
-- required browser flows and viewports are declared in the PR body.
+- required browser flows, registered scripts and viewports are declared in the PR body.
 
 `Ready for review` is the browser-evidence code-freeze transition. It triggers the authenticated browser job on the current head. A later commit to a ready PR triggers fresh exact-head evidence. If implementation must resume after browser evidence starts, normally convert the PR back to draft first.
 
@@ -45,7 +45,9 @@ The browser receives a synthetic Development JWT through the existing `/api/dev/
 
 This is **not a deployed authentication mechanism**. `playwright-ephemeral-auth.mjs` rejects any app or API origin that is not `localhost`, `127.0.0.1`, or `::1`, and the backend endpoint remains available only in ASP.NET Development. A production, Vercel, arbitrary remote, disguised-loopback, credentialed, or path-bearing URL fails before a token request is made.
 
-The maintained blocking runner validates the suite stability policy before starting the disposable runtime and then executes the registered authenticated scenarios. `tools/release/validate-pr-browser-evidence.mjs` classifies changed UI paths into flow names; the PR must declare the matching flows and required viewports. The declaration describes required scope, while the exact-head browser job supplies pass/failure truth.
+The maintained blocking runner validates the suite stability policy before starting the disposable runtime and then executes the registered authenticated scenarios. `tools/release/validate-pr-browser-evidence.mjs` classifies changed UI paths into flow names. The PR must declare the matching flows, bind every flow to a concrete `playwright-*.mjs` script in `Browser-Scripts`, and declare required viewports. Feature Change Guard verifies those scripts are registered through `run_scenario` in the exact-head `run-playwright-ephemeral.sh`; the exact-head browser job then supplies runtime pass/failure truth.
+
+This prevents a generic green browser suite from being treated as proof for a named flow that the runner never exercised. If a feature needs a focused browser scenario that is not registered, add the scenario and register it before the PR becomes ready.
 
 Backend/frontend process logs are uploaded only on failure. Browser storage state, bearer tokens, traces, customer data, and authenticated screenshots are not uploaded.
 
@@ -173,7 +175,7 @@ For a draft code PR, `CI Gate` requires:
 - Postman integration (ephemeral);
 - Playwright may be `skipped` by design.
 
-For a ready code PR or a code push to a protected delivery branch, `CI Gate` additionally requires `Playwright integration (ephemeral)` to succeed on that exact workflow revision.
+For a ready code PR or a code push to a protected delivery branch, `CI Gate` additionally requires `Playwright integration (ephemeral)` to succeed on that exact workflow revision. For UI runtime PRs, Feature Change Guard has already verified that every inferred browser flow maps to a script registered in that exact-head runner.
 
 The contracts job syntax-checks browser scripts/shell runners and runs focused source tests. Green source tests do not replace required Chromium evidence on a ready revision.
 
