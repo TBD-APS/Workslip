@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
+using Workslip.Application.Jobs.Validators;
 using Workslip.Application.Worksheets;
 using Workslip.Domain;
 using Workslip.Domain.Models;
@@ -93,6 +94,14 @@ public sealed class JobTypePersistenceDefaultTests
 
         Assert.Equal(JobType.KLS, persisted.JobType);
         Assert.Equal(JobType.KLS, created.JobType);
+    }
+
+    [Fact]
+    public void Explicit_unknown_is_not_a_valid_create_job_type()
+    {
+        Assert.True(SharedJobRequestRules.BeValidJobType("KLS"));
+        Assert.True(SharedJobRequestRules.BeValidJobType("Diverse"));
+        Assert.False(SharedJobRequestRules.BeValidJobType("Unknown"));
     }
 
     private sealed record TestCurrentUserContext(
