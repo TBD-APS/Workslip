@@ -303,6 +303,10 @@ async function addWorksheetViaUi(session, user, hours) {
   const submit = page.locator('#worksheet-add-submit');
   await submit.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await waitForEnabled(submit, 'worksheet add submit');
+  // Move focus away from the controlled hours field before the mouse click. If the
+  // focus transition causes a React render, the locator will resolve the current
+  // submit node again instead of clicking a node that was replaced mid-gesture.
+  await submit.focus();
   await submit.evaluate((button) => {
     window.__workslipWorksheetSubmitDiagnostics = { buttonClicks: 0, formSubmits: 0 };
     button.addEventListener('click', () => {
