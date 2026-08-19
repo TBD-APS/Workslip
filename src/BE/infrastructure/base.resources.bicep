@@ -27,8 +27,12 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
   location: location
   tags: tags
   properties: {
-    sku: { name: 'PerGB2018' }
-    workspaceCapping: { dailyQuotaGb: 1 }
+    sku: {
+      name: 'PerGB2018'
+    }
+    workspaceCapping: {
+      dailyQuotaGb: 1
+    }
     publicNetworkAccessForIngestion: 'Enabled'
     publicNetworkAccessForQuery: 'Enabled'
   }
@@ -49,15 +53,33 @@ resource webApiServer 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: webApiServerName
   location: location
   tags: tags
-  sku: { name: 'F1', tier: 'Free', capacity: 1 }
+  sku: {
+    name: 'F1'
+    tier: 'Free'
+    capacity: 1
+  }
   properties: {}
+}
+
+resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' = {
+  name: appConfigurationName
+  location: location
+  sku: {
+    name: 'free'
+  }
+  tags: tags
+  properties: {
+    createMode: 'Default'
+    publicNetworkAccess: 'Enabled'
+    disableLocalAuth: false
+  }
 }
 
 resource webApi 'Microsoft.Web/sites@2023-12-01' = {
   name: webApiName
   location: location
   kind: 'app'
-  tags: union(tags, { 'hidden-link:${appInsights.id}': 'Resource' })
+  tags: tags
   properties: {
     serverFarmId: webApiServer.id
     httpsOnly: true
@@ -70,30 +92,21 @@ resource webApi 'Microsoft.Web/sites@2023-12-01' = {
       minTlsVersion: '1.2'
       netFrameworkVersion: 'v10.0'
       use32BitWorkerProcess: true
-      metadata: [ { name: 'CURRENT_STACK', value: 'dotnet' } ]
       appSettings: [
-        { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
-        { name: 'Azure__AppConfiguration__Endpoint', value: appConfiguration.properties.endpoint }
-        { name: 'Azure__ApplicationInsights__ConnectionString', value: appInsights.properties.ConnectionString }
-        { name: 'Azure__ApplicationInsights__WorkspaceId', value: appInsights.properties.customerId }
-        { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
-        { name: 'APPINSIGHTS_INSTRUMENTATIONKEY', value: appInsights.properties.InstrumentationKey }
-        { name: 'ApplicationInsightsAgent_EXTENSION_VERSION', value: '~3' }
-        { name: 'XDT_MicrosoftApplicationInsights_Mode', value: 'recommended' }
+        {
+          name: 'ASPNETCORE_ENVIRONMENT'
+          value: 'Production'
+        }
+        {
+          name: 'Azure__AppConfiguration__Endpoint'
+          value: appConfiguration.properties.endpoint
+        }
+        {
+          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+          value: appInsights.properties.ConnectionString
+        }
       ]
     }
-  }
-}
-
-resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' = {
-  name: appConfigurationName
-  location: location
-  sku: { name: 'free' }
-  tags: tags
-  properties: {
-    createMode: 'Default'
-    publicNetworkAccess: 'Enabled'
-    disableLocalAuth: false
   }
 }
 
@@ -102,7 +115,10 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
   location: location
   tags: tags
   properties: {
-    sku: { name: 'standard', family: 'A' }
+    sku: {
+      name: 'standard'
+      family: 'A'
+    }
     tenantId: subscription().tenantId
     enableRbacAuthorization: true
     enableSoftDelete: true
@@ -127,15 +143,22 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   parent: sqlServer
   name: sqlDatabaseName
   location: location
-  sku: { name: 'Basic', tier: 'Basic' }
-  properties: { requestedBackupStorageRedundancy: 'Local' }
+  sku: {
+    name: 'Basic'
+    tier: 'Basic'
+  }
+  properties: {
+    requestedBackupStorageRedundancy: 'Local'
+  }
 }
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: storageAccountName
   location: location
   kind: 'StorageV2'
-  sku: { name: 'Standard_LRS' }
+  sku: {
+    name: 'Standard_LRS'
+  }
   tags: tags
   properties: {
     minimumTlsVersion: 'TLS1_2'
@@ -147,19 +170,28 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
 resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-01-01' = {
   parent: storageAccount
   name: 'default'
-  properties: { deleteRetentionPolicy: { enabled: true, days: 7 } }
+  properties: {
+    deleteRetentionPolicy: {
+      enabled: true
+      days: 7
+    }
+  }
 }
 
 resource uploadsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
   parent: blobService
   name: 'uploads'
-  properties: { publicAccess: 'None' }
+  properties: {
+    publicAccess: 'None'
+  }
 }
 
 resource documentsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
   parent: blobService
   name: 'documents'
-  properties: { publicAccess: 'None' }
+  properties: {
+    publicAccess: 'None'
+  }
 }
 
 output RESOURCE_GROUP_NAME string = resourceGroup().name
