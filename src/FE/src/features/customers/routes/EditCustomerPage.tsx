@@ -199,7 +199,7 @@ export const EditCustomerPage = () => {
       </div>
 
       <div className="modal-actions">
-        <button type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={isSaving}>
+        <button id="edit-customer-save" type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={isSaving}>
           {isSaving && <div className="animate-spin spinner-white" />}
           <span>{isSaving ? 'Gemmer...' : 'Gem'}</span>
         </button>

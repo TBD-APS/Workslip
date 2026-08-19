@@ -82,7 +82,7 @@ export const CustomerDetail = () => {
 
   if (query.isError || !customer) {
     return (
-      <div className="page-container">
+      <div id="customer-detail-error" className="page-container">
         <ErrorState message="Kunne ikke hente kundeoplysninger.">
           <button className="btn btn-primary" onClick={() => navigate('/app/customers')}>Tilbage til kunder</button>
         </ErrorState>
@@ -94,7 +94,7 @@ export const CustomerDetail = () => {
   const fullAddress = [customer.address, locality, customer.country].filter(Boolean).join(', ');
 
   return (
-    <div className="page-container">
+    <div id="customer-detail-page" className="page-container">
       <div className="detail-header">
         <button className="btn-icon-back" onClick={() => navigate('/app/customers')} aria-label="Tilbage">
           <ArrowLeft size={20} />
@@ -105,6 +105,7 @@ export const CustomerDetail = () => {
         </div>
         <Can permission="customer:edit">
           <button
+            id="customer-favorite-button"
             type="button"
             className={`btn-icon ${isFavorite ? 'text-red' : 'opacity-30'}`}
             onClick={() => favoriteMutation.mutate(!isFavorite)}
@@ -119,6 +120,7 @@ export const CustomerDetail = () => {
         <Can permission="customer:edit">
           <div className="worksheet-actions-menu-root">
             <button
+              id="customer-actions-button"
               type="button"
               className="btn-icon"
               onClick={(event) => toggleActionMenu(event, customer.id)}
@@ -134,6 +136,7 @@ export const CustomerDetail = () => {
 
       <Can permission="job:create">
         <button
+          id="customer-create-job-button"
           type="button"
           className="fab-create"
           onClick={() => navigate('/app/job/new', {
