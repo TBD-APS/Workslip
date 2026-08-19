@@ -131,8 +131,9 @@ export const CreateCustomerPage = () => {
           {fieldErrors.name && <p className="form-error-text">{fieldErrors.name}</p>}
         </div>
         <div className="form-group">
-          <label className="form-label">Adresse</label>
+          <label className="form-label" htmlFor="create-customer-address">Adresse</label>
           <AddressAutocomplete
+            inputId="create-customer-address"
             value={address}
             onTextChange={setAddress}
             onSelectSuggestion={(s: AddressSuggestion) => {
