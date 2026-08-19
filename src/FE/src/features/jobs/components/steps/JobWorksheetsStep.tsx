@@ -134,7 +134,7 @@ export function JobWorksheetsStep({
   const isDeleting = localMode ? false : rest.isDeleting;
   const worksheetUsersLoading = localMode
     ? isLoadingUsers
-    : canPickUser && jobQuery.isLoading;
+    : canPickUser && (jobQuery.isFetching || resolvedUsers.length === 0);
 
   const isDetailList = variant === 'list';
   const sortedWorksheets = useMemo(
@@ -255,7 +255,7 @@ export function JobWorksheetsStep({
       dispatch({ type: 'deleteStarted', worksheetId: worksheet.id });
       return;
     }
-    dispatch({ type: 'deleteStarted', worksheetId });
+    dispatch({ type: 'deleteStarted', worksheetId: worksheet.id });
     setPendingDelete(worksheet);
   };
 
