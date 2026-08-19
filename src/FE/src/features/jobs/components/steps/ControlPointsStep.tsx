@@ -10,6 +10,7 @@ type ControlPointsStepProps = {
   referenceData: ReferenceDataResponse;
   onToggleControlPoint: (cpId: string) => void;
   onToggleCategoryIrrelevant: (typeId: string, categoryId: string) => void;
+  onAllIrrelevantReasonChange?: (value: string) => void;
 };
 
 function bySortOrder(a: { sortOrder: string | number }, b: { sortOrder: string | number }) {
@@ -29,7 +30,6 @@ export function ControlPointsStep({
 }: ControlPointsStepProps) {
   const [validationError] = useState<string | null>(null);
 
-  // Show loading state if reference data is not ready yet
   if (!referenceData) {
     return (
       <section className="detail-section">
