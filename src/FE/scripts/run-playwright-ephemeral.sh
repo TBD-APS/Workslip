@@ -185,6 +185,7 @@ export WORKSLIP_PLAYWRIGHT_AUDITOR_EMAIL='auditor@17v3ygzs.mailosaur.net'
 run_scenario 'authenticated smoke' scripts/playwright-ephemeral-smoke.mjs
 run_scenario 'auth brand and login transition evidence' scripts/playwright-auth-brand.mjs
 run_scenario 'PDF performance evidence' scripts/playwright-pdf-performance.mjs
+run_scenario 'job image gallery evidence' scripts/playwright-job-images.mjs
 run_scenario 'rare critical auth/role flows' scripts/playwright-critical-rare-flows.mjs
 run_scenario 'critical job lifecycle flows' scripts/playwright-critical-job-lifecycle.mjs
 run_scenario 'shared state semantics evidence' scripts/playwright-shared-state-semantics.mjs
