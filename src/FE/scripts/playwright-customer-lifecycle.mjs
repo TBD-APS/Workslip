@@ -1,3 +1,5 @@
 import { runLocalAdminScenario } from './playwright-local-assignment.mjs';
 
-await runLocalAdminScenario('customer-lifecycle');
+for (const viewport of ['desktop', 'mobile']) {
+  await runLocalAdminScenario('customer-lifecycle', viewport);
+}
