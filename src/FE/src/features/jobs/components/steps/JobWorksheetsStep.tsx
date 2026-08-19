@@ -108,13 +108,16 @@ export function JobWorksheetsStep({
   const { addDraft, editDraft, editingWorksheetId, openActionMenu, isAddOpen, formError } = uiState;
   const [pendingDelete, setPendingDelete] = useState<WorksheetResponse | null>(null);
 
-  // Admin assignment data arrives asynchronously. The reducer initializer only runs once,
-  // so a first render with no assigned users can leave the add draft with an empty userId.
-  // Backfill only an empty draft so we never overwrite a deliberate user selection.
+  // Assignment data can arrive after the reducer has initialized, and the worksheet
+  // component can also survive a job/identity transition. Keep a deliberate assignee
+  // only while it is valid for the current job; otherwise repair the draft to the
+  // current job's default assignee before submission.
   useEffect(() => {
-    if (!defaultUserId || addDraft.userId) return;
+    if (!defaultUserId) return;
+    const draftUserIsValid = !canPickUser || resolvedUsers.some((candidate) => candidate.id === addDraft.userId);
+    if (addDraft.userId && draftUserIsValid) return;
     dispatch({ type: 'setAddDraft', draft: { ...addDraft, userId: defaultUserId } });
-  }, [defaultUserId, addDraft]);
+  }, [defaultUserId, addDraft, canPickUser, resolvedUsers]);
 
   const [localDrafts, setLocalDrafts] = useState<WorksheetDraft[]>([]);
   const localWorksheets = useMemo(() => localDrafts.map(draftToResponse), [localDrafts]);
@@ -252,7 +255,7 @@ export function JobWorksheetsStep({
       dispatch({ type: 'deleteStarted', worksheetId: worksheet.id });
       return;
     }
-    dispatch({ type: 'deleteStarted', worksheetId: worksheet.id });
+    dispatch({ type: 'deleteStarted', worksheetId });
     setPendingDelete(worksheet);
   };
 
