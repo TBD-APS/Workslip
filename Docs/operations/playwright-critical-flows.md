@@ -26,7 +26,7 @@ Before leaving draft, complete the implementation/testability review:
 
 `Ready for review` is the browser-evidence code-freeze transition. It triggers the authenticated browser job on the current head. A later commit to a ready PR triggers fresh exact-head evidence. If implementation must resume after browser evidence starts, normally convert the PR back to draft first.
 
-The merge-gating runtime result is the exact-head `CI Gate`, not a manually maintained `Browser-Result` field in the PR description.
+The merge-gating runtime result is the exact-head `CI Gate`, not a manually maintained `Browser-Result` field in the PR description. Draft implementation validation uses the separate `Draft CI Gate` check context so it cannot be reused as merge evidence after the Ready transition.
 
 ### PR-CI authenticated browser regression
 
@@ -167,7 +167,7 @@ The ephemeral authenticated runner is Linux/CI-oriented because it owns a dispos
 
 ## CI ownership
 
-For a draft code PR, `CI Gate` requires:
+For a draft code PR, `Draft CI Gate` requires:
 
 - Backend;
 - Frontend + API contract;
@@ -175,7 +175,7 @@ For a draft code PR, `CI Gate` requires:
 - Postman integration (ephemeral);
 - Playwright may be `skipped` by design.
 
-For a ready code PR or a code push to a protected delivery branch, `CI Gate` additionally requires `Playwright integration (ephemeral)` to succeed on that exact workflow revision. For UI runtime PRs, Feature Change Guard has already verified that every inferred browser flow maps to a script registered in that exact-head runner.
+For a ready code PR or a code push to a protected delivery branch, the separate merge-required `CI Gate` additionally requires `Playwright integration (ephemeral)` to succeed on that exact workflow revision. For UI runtime PRs, Feature Change Guard has already verified that every inferred browser flow maps to a script registered in that exact-head runner.
 
 The contracts job syntax-checks browser scripts/shell runners and runs focused source tests. Green source tests do not replace required Chromium evidence on a ready revision.
 
