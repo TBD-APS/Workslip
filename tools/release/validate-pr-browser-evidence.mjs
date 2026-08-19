@@ -96,7 +96,7 @@ export function parseEvidence(body) {
 export function registeredBrowserScripts(runnerSource) {
   const scripts = new Set();
   for (const line of String(runnerSource ?? '').split(/\r?\n/)) {
-    const match = line.match(/\brun_scenario\b.*?["']scripts\/(playwright-[a-z0-9-]+\.mjs)["']/i);
+    const match = line.match(/\brun_scenario\b.*?\s+["']?scripts\/(playwright-[a-z0-9-]+\.mjs)["']?(?:\s|$)/i);
     if (match) scripts.add(match[1]);
   }
   return scripts;
