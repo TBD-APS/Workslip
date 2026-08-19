@@ -31,18 +31,19 @@ test('falls back to shared-ui for generic runtime UI', () => {
   );
 });
 
-test('parses machine-readable evidence fields', () => {
+test('parses stable intent fields and tolerates legacy runtime fields', () => {
   const evidence = parseEvidence(`
 Browser-Evidence: required
 Browser-Scenarios: auth-session, shared-ui
-Browser-Result: passed
 Browser-Viewports: desktop-1440, mobile-390
+Browser-Result: passed
 Browser-Page-Errors: 0
 Browser-Console-Errors: 0
 `);
 
   assert.equal(evidence.evidence, 'required');
   assert.deepEqual(evidence.scenarios, ['auth-session', 'shared-ui']);
+  assert.deepEqual(evidence.viewports, ['desktop-1440', 'mobile-390']);
   assert.equal(evidence.result, 'passed');
 });
 
@@ -66,7 +67,7 @@ test('UI change fails closed when declaration is missing', () => {
   assert.ok(result.errors.some((error) => error.includes('Browser-Evidence')));
 });
 
-test('pending required evidence blocks merge-readiness', () => {
+test('runtime result is not manually merge-gating state', () => {
   const result = validateBrowserEvidence({
     changedPaths: ['src/FE/src/features/jobs/JobWizard.tsx'],
     body: `
@@ -74,31 +75,28 @@ Browser-Evidence: required
 Browser-Scenarios: job-wizard
 Browser-Result: pending
 Browser-Viewports: desktop-1440, mobile-390
-Browser-Page-Errors: 0
-Browser-Console-Errors: 0
+Browser-Page-Errors: pending
+Browser-Console-Errors: pending
 `,
   });
 
-  assert.ok(result.errors.some((error) => error.includes('Browser-Result: passed')));
+  assert.deepEqual(result.errors, []);
 });
 
-test('generic browser smoke cannot satisfy a named critical flow', () => {
+test('generic browser smoke cannot satisfy a named critical flow declaration', () => {
   const result = validateBrowserEvidence({
     changedPaths: ['src/FE/src/features/jobs/JobWizard.tsx'],
     body: `
 Browser-Evidence: required
 Browser-Scenarios: generic-smoke
-Browser-Result: passed
 Browser-Viewports: desktop-1440
-Browser-Page-Errors: 0
-Browser-Console-Errors: 0
 `,
   });
 
   assert.ok(result.errors.some((error) => error.includes('job-wizard')));
 });
 
-test('complete named evidence passes', () => {
+test('complete named browser intent passes without mutable status fields', () => {
   const result = validateBrowserEvidence({
     changedPaths: [
       'src/FE/src/features/jobs/JobWizard.tsx',
@@ -107,14 +105,23 @@ test('complete named evidence passes', () => {
     body: `
 Browser-Evidence: required
 Browser-Scenarios: job-wizard, notifications
-Browser-Result: passed
 Browser-Viewports: desktop-1440, mobile-390
-Browser-Page-Errors: 0
-Browser-Console-Errors: 0
 `,
   });
 
   assert.deepEqual(result.errors, []);
+});
+
+test('required browser intent must include viewports', () => {
+  const result = validateBrowserEvidence({
+    changedPaths: ['src/FE/src/components/common/Button.tsx'],
+    body: `
+Browser-Evidence: required
+Browser-Scenarios: shared-ui
+`,
+  });
+
+  assert.ok(result.errors.some((error) => error.includes('Browser-Viewports')));
 });
 
 test('waived evidence is rejected: there is no exemption path', () => {
