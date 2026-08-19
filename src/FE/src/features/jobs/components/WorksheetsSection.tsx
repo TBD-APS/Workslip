@@ -92,6 +92,7 @@ export function WorksheetsSection({
           currentUserName={currentUserName}
           isLoadingUsers={isLoadingUsers}
           isSaving={isSaving}
+          hoursInputId="worksheet-add-hours"
           submitId="worksheet-add-submit"
           submitLabel="Tilføj"
           error={formError}
