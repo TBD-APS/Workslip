@@ -363,7 +363,7 @@ jobs:
           retention-days: 7
 
   ci-gate:
-    name: CI Gate
+    name: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'Draft CI Gate' || 'CI Gate' }}
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
