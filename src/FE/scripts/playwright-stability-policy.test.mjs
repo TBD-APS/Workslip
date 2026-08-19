@@ -11,6 +11,16 @@ await response;
   assert.deepEqual(inspectPlaywrightSource('scenario.mjs', source), []);
 });
 
+test('accepts the shared async response helper because calling it arms the listener immediately', () => {
+  const source = `
+async function waitForApiResponse(page, method, pathname, statuses) { const response = await page.waitForResponse(() => true); return response; }
+const response = waitForApiResponse(page, 'POST', '/api/jobs', [200]);
+await page.getByRole('button', { name: 'Gem' }).click();
+await response;
+`;
+  assert.deepEqual(inspectPlaywrightSource('scenario.mjs', source), []);
+});
+
 test('blocks passively awaited response listeners', () => {
   const findings = inspectPlaywrightSource(
     'scenario.mjs',
