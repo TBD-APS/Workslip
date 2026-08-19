@@ -39,7 +39,7 @@ public sealed class DocumentAttachmentService(
         if (!TryGetOrganizationId(out var organizationId))
             return Result<IReadOnlyList<DocumentAttachmentInfoResponse>>.Unauthorized();
 
-        if (await documentRepository.GetByIdAsync(organizationId, documentId, cancellationToken) is null)
+        if (!await documentRepository.ExistsAsync(organizationId, documentId, cancellationToken))
             return Result<IReadOnlyList<DocumentAttachmentInfoResponse>>.NotFound();
 
         var attachments = await attachmentRepository.ListAsync(organizationId, documentId, cancellationToken);
@@ -54,7 +54,7 @@ public sealed class DocumentAttachmentService(
         if (!TryGetOrganizationId(out var organizationId))
             return Result<DocumentAttachmentInfoResponse>.Unauthorized();
 
-        if (await documentRepository.GetByIdAsync(organizationId, documentId, cancellationToken) is null)
+        if (!await documentRepository.ExistsAsync(organizationId, documentId, cancellationToken))
             return Result<DocumentAttachmentInfoResponse>.NotFound();
 
         var validation = ValidateUpload(upload);

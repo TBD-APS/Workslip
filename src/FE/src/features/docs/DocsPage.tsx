@@ -31,6 +31,7 @@ import {
   listDocuments,
   updateDocument,
 } from './docsApi';
+import { docsQueryKeys } from './docsQueryKeys';
 import './docs.css';
 import './docsAttachments.css';
 
@@ -102,7 +103,7 @@ export const DocsPage = () => {
   }, [search]);
 
   const listQuery = useInfiniteList<DocumentListItemResponse>({
-    queryKey: ['docs', 'list', debouncedSearch],
+    queryKey: docsQueryKeys.list(debouncedSearch),
     pageSize: DOCS_PAGE_SIZE,
     fetchPage: ({ limit, offset }) => listDocuments({
       limit,
@@ -112,7 +113,7 @@ export const DocsPage = () => {
   });
 
   const detailQuery = useQuery({
-    queryKey: ['docs', 'detail', selectedId],
+    queryKey: docsQueryKeys.detail(selectedId),
     queryFn: () => getDocument(selectedId!),
     enabled: Boolean(selectedId),
     staleTime: 10_000,
@@ -146,8 +147,8 @@ export const DocsPage = () => {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [isDirty]);
 
-  const invalidateDocs = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['docs'] });
+  const invalidateDocumentLists = async () => {
+    await queryClient.invalidateQueries({ queryKey: docsQueryKeys.lists() });
   };
 
   const createMutation = useMutation({
@@ -157,10 +158,10 @@ export const DocsPage = () => {
       tags: parseTags(draft.tagsText),
     }),
     onSuccess: async (document) => {
-      queryClient.setQueryData(['docs', 'detail', document.id], document);
+      queryClient.setQueryData(docsQueryKeys.detail(document.id), document);
       setDraftState(null);
       setEditingDocumentId(null);
-      await invalidateDocs();
+      await invalidateDocumentLists();
       notify.success('Dokumentet er oprettet.');
       navigate(`/app/docs/${document.id}`, { replace: true });
     },
@@ -175,10 +176,10 @@ export const DocsPage = () => {
       revision: draft.revision,
     }),
     onSuccess: async (document) => {
-      queryClient.setQueryData(['docs', 'detail', document.id], document);
+      queryClient.setQueryData(docsQueryKeys.detail(document.id), document);
       setDraftState({ key: document.id, value: toDraft(document) });
       setEditingDocumentId(null);
-      await invalidateDocs();
+      await invalidateDocumentLists();
       notify.success('Dokumentet er gemt.');
     },
     onError: async (error) => {
@@ -186,7 +187,7 @@ export const DocsPage = () => {
         setDraftState(null);
         setEditingDocumentId(null);
         notify.error('Dokumentet er ændret af en anden. Den nyeste version hentes nu.');
-        await queryClient.invalidateQueries({ queryKey: ['docs', 'detail', selectedId] });
+        await queryClient.invalidateQueries({ queryKey: docsQueryKeys.detail(selectedId) });
         return;
       }
       notify.error('Dokumentet kunne ikke gemmes.');
@@ -199,7 +200,11 @@ export const DocsPage = () => {
       setDeleteDialogOpen(false);
       setDraftState(null);
       setEditingDocumentId(null);
-      await invalidateDocs();
+      if (selectedId) {
+        queryClient.removeQueries({ queryKey: docsQueryKeys.detail(selectedId) });
+        queryClient.removeQueries({ queryKey: docsQueryKeys.attachments(selectedId) });
+      }
+      await invalidateDocumentLists();
       notify.success('Dokumentet er slettet.');
       navigate('/app/docs', { replace: true });
     },

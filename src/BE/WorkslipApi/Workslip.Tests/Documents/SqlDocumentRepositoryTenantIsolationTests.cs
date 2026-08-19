@@ -48,8 +48,16 @@ public sealed class SqlDocumentRepositoryTenantIsolationTests
         Assert.Equal(1, created.Revision);
         Assert.NotNull(await repository.GetByIdAsync(organizationA, created.Id, CancellationToken.None));
         Assert.Null(await repository.GetByIdAsync(organizationB, created.Id, CancellationToken.None));
-        Assert.Empty(await repository.ListAsync(organizationB, 50, 0, null, CancellationToken.None));
-        Assert.Equal(0, await repository.CountAsync(organizationB, null, CancellationToken.None));
+        Assert.True(await repository.ExistsAsync(organizationA, created.Id, CancellationToken.None));
+        Assert.False(await repository.ExistsAsync(organizationB, created.Id, CancellationToken.None));
+
+        var organizationBPage = await repository.ListAsync(organizationB, 50, 0, null, CancellationToken.None);
+        Assert.Empty(organizationBPage.Items);
+        Assert.Equal(0, organizationBPage.TotalCount);
+
+        var organizationAPage = await repository.ListAsync(organizationA, 50, 0, "Drift", CancellationToken.None);
+        Assert.Single(organizationAPage.Items);
+        Assert.Equal(1, organizationAPage.TotalCount);
 
         var attachmentId = Guid.NewGuid();
         var attachment = await attachmentRepository.CreateAsync(

@@ -22,6 +22,26 @@ public sealed class DocumentServiceTests
     }
 
     [Fact]
+    public async Task List_returns_repository_page_with_total_count()
+    {
+        var organizationId = Guid.NewGuid();
+        var repository = new RecordingRepository { ListTotalCount = 123 };
+        var service = CreateService(
+            repository,
+            new RecordingAttachmentStorage(),
+            new TestCurrentUserContext(Guid.NewGuid(), organizationId, "Admin"));
+
+        var result = await service.ListAsync(50, 50, " drift ", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(123, result.Value.TotalCount);
+        Assert.Equal(organizationId, repository.LastOrganizationId);
+        Assert.Equal(50, repository.LastLimit);
+        Assert.Equal(50, repository.LastOffset);
+        Assert.Equal("drift", repository.LastSearch);
+    }
+
+    [Fact]
     public async Task Create_uses_current_tenant_and_normalizes_tags()
     {
         var organizationId = Guid.NewGuid();
@@ -100,18 +120,25 @@ public sealed class DocumentServiceTests
         public Guid? LastOrganizationId { get; private set; }
         public Guid? LastActorUserId { get; private set; }
         public DocumentWriteData? LastWrite { get; private set; }
+        public int? LastLimit { get; private set; }
+        public int? LastOffset { get; private set; }
+        public string? LastSearch { get; private set; }
+        public int ListTotalCount { get; init; }
         public bool ThrowRevisionConflict { get; init; }
 
-        public Task<IReadOnlyList<DocumentListItemResponse>> ListAsync(Guid organizationId, int limit, int offset, string? search, CancellationToken cancellationToken)
+        public Task<DocumentListResponse> ListAsync(Guid organizationId, int limit, int offset, string? search, CancellationToken cancellationToken)
         {
             LastOrganizationId = organizationId;
-            return Task.FromResult<IReadOnlyList<DocumentListItemResponse>>([]);
+            LastLimit = limit;
+            LastOffset = offset;
+            LastSearch = search;
+            return Task.FromResult(new DocumentListResponse([], ListTotalCount));
         }
 
-        public Task<int> CountAsync(Guid organizationId, string? search, CancellationToken cancellationToken)
+        public Task<bool> ExistsAsync(Guid organizationId, Guid id, CancellationToken cancellationToken)
         {
             LastOrganizationId = organizationId;
-            return Task.FromResult(0);
+            return Task.FromResult(false);
         }
 
         public Task<DocumentDetailResponse?> GetByIdAsync(Guid organizationId, Guid id, CancellationToken cancellationToken)
