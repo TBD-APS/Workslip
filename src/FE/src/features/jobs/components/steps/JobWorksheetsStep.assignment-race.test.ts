@@ -7,10 +7,11 @@ function readSource(relativePath: string) {
 }
 
 describe('worksheet admin assignment loading regression', () => {
-  it('backfills an initially empty worksheet assignee when async job assignments arrive', () => {
+  it('repairs an empty or stale worksheet assignee when current job assignments resolve', () => {
     const source = readSource('./JobWorksheetsStep.tsx');
 
-    expect(source).toContain("if (!defaultUserId || addDraft.userId) return;");
+    expect(source).toContain('const draftUserIsValid = !canPickUser || resolvedUsers.some((candidate) => candidate.id === addDraft.userId);');
+    expect(source).toContain('if (addDraft.userId && draftUserIsValid) return;');
     expect(source).toContain("dispatch({ type: 'setAddDraft', draft: { ...addDraft, userId: defaultUserId } });");
   });
 
