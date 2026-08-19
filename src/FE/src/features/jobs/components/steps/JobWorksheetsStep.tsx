@@ -202,16 +202,20 @@ export function JobWorksheetsStep({
 
   const saveDraft = async (draft: WorksheetDraft, worksheetId?: string) => {
     dispatch({ type: 'setFormError', error: null });
-    const hoursWorked = validateDraft(draft, worksheetId);
+    const addDraftUserIsCurrent = !canPickUser || resolvedUsers.some((candidate) => candidate.id === draft.userId);
+    const draftToSave = !worksheetId && defaultUserId && !addDraftUserIsCurrent
+      ? { ...draft, userId: defaultUserId }
+      : draft;
+    const hoursWorked = validateDraft(draftToSave, worksheetId);
     if (hoursWorked === null) return;
 
     if (localMode) {
       const entry: WorksheetDraft = {
         id: worksheetId ?? crypto.randomUUID(),
-        workDate: dateKey(draft.workDate),
-        userId: draft.userId,
+        workDate: dateKey(draftToSave.workDate),
+        userId: draftToSave.userId,
         hours: hoursWorked,
-        sleptOnJob: draft.sleptOnJob,
+        sleptOnJob: draftToSave.sleptOnJob,
       };
       setLocalDrafts(prev => worksheetId
         ? prev.map(ts => ts.id === worksheetId ? entry : ts)
@@ -222,11 +226,11 @@ export function JobWorksheetsStep({
         await rest.onUpsert({
           id: worksheetId,
           jobId: rest.jobId,
-          userId: draft.userId,
-          userDisplayName: displayNameFor(draft.userId),
-          workDate: dateKey(draft.workDate),
+          userId: draftToSave.userId,
+          userDisplayName: displayNameFor(draftToSave.userId),
+          workDate: dateKey(draftToSave.workDate),
           hoursWorked,
-          sleptOnJob: draft.sleptOnJob,
+          sleptOnJob: draftToSave.sleptOnJob,
         });
       } catch {
         return;
