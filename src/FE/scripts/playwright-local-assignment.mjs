@@ -247,14 +247,14 @@ async function main() {
       await creationDialog.waitFor({ state: 'hidden', timeout: UI_TIMEOUT });
     }
 
-    let accountMenuButton = page.getByRole('button', { name: 'Indstillinger og konto' });
+    let accountMenuButton = page.getByRole('button', { name: 'Profil og konto' });
     if (!await accountMenuButton.isVisible().catch(() => false)) {
       await page.goto(`${runtime.appUrl}/app`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
-      accountMenuButton = page.getByRole('button', { name: 'Indstillinger og konto' });
+      accountMenuButton = page.getByRole('button', { name: 'Profil og konto' });
     }
     await accountMenuButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await accountMenuButton.click();
-    const accountMenu = page.getByRole('menu', { name: 'Indstillinger og konto' });
+    const accountMenu = page.getByRole('menu', { name: 'Profil og konto' });
     await accountMenu.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await accountMenu.getByRole('menuitem', { name: 'Log ud' }).click();
     await page.waitForURL((url) => url.pathname === '/login', { timeout: UI_TIMEOUT });
