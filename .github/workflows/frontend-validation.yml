@@ -7,6 +7,7 @@ on:
       - rbj--622-playwright-coverage
       - 'release-*'
       - 'release/**'
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
     branches:
       - main
@@ -325,7 +326,9 @@ jobs:
   playwright:
     name: Playwright integration (ephemeral)
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' }}
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -360,7 +363,7 @@ jobs:
           retention-days: 7
 
   ci-gate:
-    name: CI Gate
+    name: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'Draft CI Gate' || 'CI Gate' }}
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -375,6 +378,8 @@ jobs:
       - name: Verify required checks
         shell: bash
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_DRAFT: ${{ github.event.pull_request.draft || false }}
           CODE_CHANGED: ${{ needs.changes.outputs.code }}
           BACKEND_RESULT: ${{ needs.backend.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
@@ -391,15 +396,30 @@ jobs:
           fi
 
           if [[ "${CODE_CHANGED}" == 'true' ]]; then
-            # Code changes require deterministic checks plus API and authenticated browser runtime evidence.
+            # Deterministic code/API checks run during implementation as well as review.
             if [[ "${BACKEND_RESULT}" != 'success' ||
                   "${FRONTEND_RESULT}" != 'success' ||
-                  "${POSTMAN_RESULT}" != 'success' ||
-                  "${PLAYWRIGHT_RESULT}" != 'success' ]]; then
-              echo "::error::One or more required CI jobs failed."
+                  "${POSTMAN_RESULT}" != 'success' ]]; then
+              echo "::error::One or more deterministic/API CI jobs failed."
               exit 1
             fi
-            echo "All required CI checks succeeded."
+
+            if [[ "${EVENT_NAME}" == 'pull_request' && "${PR_DRAFT}" == 'true' ]]; then
+              # Draft is the implementation lane. Expensive browser evidence is deliberately deferred
+              # until Ready for review, which acts as the browser-evidence code-freeze transition.
+              if [[ "${PLAYWRIGHT_RESULT}" != 'skipped' && "${PLAYWRIGHT_RESULT}" != 'success' ]]; then
+                echo "::error::Playwright job unexpectedly '${PLAYWRIGHT_RESULT}' on a draft PR."
+                exit 1
+              fi
+              echo "Draft implementation lane: deterministic/API checks succeeded; Playwright evidence deferred until Ready for review."
+            else
+              # Ready PRs and branch pushes require exact-revision authenticated browser evidence.
+              if [[ "${PLAYWRIGHT_RESULT}" != 'success' ]]; then
+                echo "::error::Playwright integration must succeed for this exact ready/push revision."
+                exit 1
+              fi
+              echo "All required CI checks, including exact-revision Playwright evidence, succeeded."
+            fi
           else
             # Documentation-only changes skip code/runtime jobs by design.
             if [[ "${BACKEND_RESULT}" != 'skipped' && "${BACKEND_RESULT}" != 'success' ]]; then

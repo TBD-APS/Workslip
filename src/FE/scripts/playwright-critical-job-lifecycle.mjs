@@ -71,6 +71,10 @@ async function createLifecycleSession({ email, role, suffix }) {
       body: JSON.stringify(DAWA_RESPONSE),
     });
   });
+  await context.route(
+    (url) => !['127.0.0.1', 'localhost'].includes(url.hostname) && url.hostname !== 'dawa.aws.dk',
+    (route) => route.fulfill({ status: 204, contentType: 'application/javascript', body: '' }),
+  );
 
   const bootstrap = await seedLocalBrowserSession(context, {
     appUrl: APP_URL,
@@ -295,7 +299,16 @@ async function verifyRejectionCorrectionLifecycle() {
 
     await userHarness.session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
     await contractHelpers.waitForWizardStep(userHarness.session.page, 'Sagsdetaljer');
+    const commentTrigger = userHarness.session.page
+      .locator('button.collapsible-section-trigger')
+      .filter({ has: userHarness.session.page.getByRole('heading', { name: 'Skriv en kommentar til sagen', exact: true }) })
+      .first();
+    await commentTrigger.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    if ((await commentTrigger.getAttribute('aria-expanded')) !== 'true') {
+      await commentTrigger.click();
+    }
     const technical = userHarness.session.page.getByPlaceholder('Skriv en kommentar til sagen...');
+    await technical.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await technical.fill(userHarness.session.data.correctedObservation);
     const correctionSave = contractHelpers.waitForApiResponse(userHarness.session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
     await domain.navigateToAttestation(userHarness.session, userHarness.session.referenceData);
@@ -315,8 +328,8 @@ async function verifyRejectionCorrectionLifecycle() {
 
     const history = await adminHarness.session.apiExpect('GET', `/api/jobs/${job.id}/history`, undefined, [200]);
     const historyText = JSON.stringify(history).toLowerCase();
-    for (const expected of ['rejected', 'inreview', 'approved']) {
-      assert.ok(historyText.includes(expected), `Job history must include ${expected}.`);
+    for (const expected of ['afvist', 'til gennemsyn', 'godkendt']) {
+      assert.ok(historyText.includes(expected), `Job history must include status "${expected}".`);
     }
 
     adminHarness.assertCleanBrowser();
