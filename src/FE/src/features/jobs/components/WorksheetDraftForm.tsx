@@ -85,7 +85,7 @@ export function WorksheetDraftForm({
         </div>
       </div>
 
-      {error && <p className="form-error-text">{error}</p>}
+      {error && <p id="worksheet-form-error" className="form-error-text">{error}</p>}
 
       <div className="worksheet-form-actions worksheet-form-actions--compact">
         <button
