@@ -39,7 +39,13 @@ export function WorksheetDraftForm({
   const updateDraft = (patch: Partial<WorksheetDraft>) => onDraftChange({ ...draft, ...patch });
 
   return (
-    <div className="worksheet-form worksheet-form--compact">
+    <form
+      className="worksheet-form worksheet-form--compact"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
       <h4>{title}</h4>
       <div className="worksheet-form-grid worksheet-form-grid-main">
         <CalendarPicker value={draft.workDate} onChange={(workDate) => updateDraft({ workDate })} />
@@ -92,9 +98,8 @@ export function WorksheetDraftForm({
       <div className="worksheet-form-actions worksheet-form-actions--compact">
         <button
           id={submitId}
-          type="button"
+          type="submit"
           className="btn btn-primary"
-          onClick={onSubmit}
           disabled={isSaving}
         >
           {isSaving && <Loader2 className="animate-spin" size={16} />}
@@ -111,6 +116,6 @@ export function WorksheetDraftForm({
           </button>
         )}
       </div>
-    </div>
+    </form>
   );
 }
