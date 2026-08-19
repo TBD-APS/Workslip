@@ -69,10 +69,17 @@ async function getDevIdentity(runtime, role) {
     signal: AbortSignal.timeout(API_TIMEOUT),
   });
   const payload = await response.json().catch(() => null);
-  if (!response.ok || !payload?.token || !payload?.user?.id) {
-    throw new Error(`Could not resolve synthetic ${role} identity (HTTP ${response.status}).`);
+  if (!response.ok || !payload?.token || !payload?.user?.email) {
+    throw new Error(`Could not issue synthetic ${role} token (HTTP ${response.status}).`);
   }
-  return { token: payload.token, user: payload.user, email };
+
+  const identity = { token: payload.token, user: payload.user, email };
+  const me = await apiRequest(runtime, identity, 'GET', '/api/auth/me', undefined, [200]);
+  if (!me?.id || String(me.role ?? '').toLowerCase() !== role.toLowerCase()) {
+    throw new Error(`Could not resolve synthetic ${role} identity through /api/auth/me.`);
+  }
+
+  return { ...identity, user: me };
 }
 
 async function apiRequest(runtime, identity, method, pathname, body, expectedStatuses, extraHeaders = {}) {
