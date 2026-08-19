@@ -124,6 +124,36 @@
   gap: 0.65rem;
 }
 
+.job-images-expand {
+  min-height: 44px;
+  margin: 0.75rem auto 0;
+  padding: 0.45rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.job-images-expand--collapse {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .job-images-expand:hover {
+    background: var(--surface-elevated, var(--surface));
+    color: var(--text-primary);
+  }
+}
+
 .job-image-tile {
   position: relative;
   overflow: hidden;
@@ -195,6 +225,7 @@
   }
 }
 
+.job-images-expand:focus-visible,
 .job-image-delete:focus-visible,
 .job-image-preview-trigger:focus-visible {
   outline: 3px solid var(--focus-ring);
@@ -326,6 +357,10 @@
 
   .job-images-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .job-images-expand {
+    width: 100%;
   }
 
   .job-image-preview-content {
