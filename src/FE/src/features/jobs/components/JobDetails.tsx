@@ -152,7 +152,6 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
     isValidClosureFlags(details.form.work.closureFlags),
   ];
   const handleStepChange = (nextStep: number) => {
-    // Prevent jumping to any step if previous steps are incomplete
     if (nextStep > details.currentStep) {
       for (let i = details.currentStep; i < nextStep; i++) {
         if (!canAdvanceStep(details, i, isAdmin)) {
@@ -221,6 +220,7 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
             onCategoriesChange={details.updateWorkCategories}
             onWorkKindChange={details.updateWorkKind}
             onCustomWorkKindChange={details.updateCustomWorkKind}
+            onRemarksChange={details.updateAllIrrelevantReason}
           />
         )}
         {details.currentStep === 2 && (
@@ -229,7 +229,6 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
             referenceData={details.referenceData}
             onToggleControlPoint={details.toggleControlPoint}
             onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
-            onAllIrrelevantReasonChange={details.updateAllIrrelevantReason}
           />
         )}
         {details.currentStep === 3 && (
@@ -314,7 +313,6 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
 }
 
 function canAdvanceCurrentStep(details: JobDetailsState, isAdmin?: boolean): boolean {
-  // Check if CURRENT step is completed
   if (details.currentStep === 0) {
     return isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly, requireDestinationAddress: isAdmin });
   }
