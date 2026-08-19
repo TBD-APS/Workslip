@@ -182,12 +182,23 @@ export WORKSLIP_PLAYWRIGHT_ADMIN_EMAIL='admin@17v3ygzs.mailosaur.net'
 export WORKSLIP_PLAYWRIGHT_USER_EMAIL='user@17v3ygzs.mailosaur.net'
 export WORKSLIP_PLAYWRIGHT_AUDITOR_EMAIL='auditor@17v3ygzs.mailosaur.net'
 
+# The focused local admin-scenario entrypoints use the same disposable stack and
+# synthetic Development identities as this runner. Keep their environment aliases
+# explicit here so they cannot accidentally point at staging/production.
+export WORKSLIP_ALLOW_LOCAL_DEV_TOKEN=true
+export WORKSLIP_LOCAL_APP_URL="${APP_URL}"
+export WORKSLIP_LOCAL_API_URL="${API_URL}"
+export WORKSLIP_SYNTHETIC_ADMIN_EMAIL="${WORKSLIP_PLAYWRIGHT_ADMIN_EMAIL}"
+export WORKSLIP_SYNTHETIC_USER_EMAIL="${WORKSLIP_PLAYWRIGHT_USER_EMAIL}"
+
 run_scenario 'authenticated smoke' scripts/playwright-ephemeral-smoke.mjs
 run_scenario 'auth brand and login transition evidence' scripts/playwright-auth-brand.mjs
 run_scenario 'PDF performance evidence' scripts/playwright-pdf-performance.mjs
 run_scenario 'job image gallery evidence' scripts/playwright-job-images.mjs
 run_scenario 'rare critical auth/role flows' scripts/playwright-critical-rare-flows.mjs
 run_scenario 'critical job lifecycle flows' scripts/playwright-critical-job-lifecycle.mjs
+run_scenario 'customer lifecycle evidence' scripts/playwright-customer-lifecycle.mjs
+run_scenario 'worksheet integrity evidence' scripts/playwright-worksheet-integrity.mjs
 run_scenario 'shared state semantics evidence' scripts/playwright-shared-state-semantics.mjs
 run_scenario 'overview status navigation evidence' scripts/playwright-overview-status-navigation.mjs
 
