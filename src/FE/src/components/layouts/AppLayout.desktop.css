@@ -4,15 +4,15 @@
  * how already-responsive surfaces use wide desktop viewports here.
  */
 
+.desktop-rail-toggle-wrap {
+  display: none;
+}
+
 /* Search is a persistent primary navigation action on tablet/desktop as well as mobile.
    QuickNavigator.css still owns the dialog; AppLayout owns whether its nav trigger is visible. */
 @media (min-width: 768px) {
   .bottom-nav .quick-nav-mobile-trigger {
     display: flex;
-  }
-
-  .desktop-rail-toggle-wrap {
-    display: none;
   }
 }
 
@@ -222,7 +222,6 @@
     background: var(--color-primary);
   }
 
-  /* Keep the identity at the top of the rail. */
   .logo-header {
     position: fixed;
     z-index: 121;
@@ -235,8 +234,8 @@
     transition: width 160ms ease;
   }
 
-  /* Notifications and account controls stay fully functional but live at the
-     bottom of the rail where they are easiest to reach. */
+  /* Existing notification/account controls are moved into the bottom of the
+     rail, preserving unread badge, profile menu, settings, theme and logout. */
   .app-header-actions {
     position: fixed;
     z-index: 122;
@@ -335,21 +334,17 @@
   }
 
   .app-shell:has(.desktop-rail-toggle-input:checked) .desktop-rail-toggle-label--expand {
-    display: inline;
-  }
-
-  .app-shell:has(.desktop-rail-toggle-input:checked) .desktop-rail-toggle {
-    justify-content: center;
-    padding-inline: 0.55rem;
-  }
-
-  .app-shell:has(.desktop-rail-toggle-input:checked) .desktop-rail-toggle-label--expand {
     position: absolute;
     width: 1px;
     height: 1px;
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+
+  .app-shell:has(.desktop-rail-toggle-input:checked) .desktop-rail-toggle {
+    justify-content: center;
+    padding-inline: 0.55rem;
   }
 
   .app-shell:has(.desktop-rail-toggle-input:checked) .desktop-rail-toggle-icon::before {
