@@ -51,6 +51,7 @@ export function WorksheetDraftForm({
             options={userOptions}
             selectedIds={draft.userId ? [draft.userId] : []}
             isLoading={isLoadingUsers}
+            triggerId="worksheet-assignee-trigger"
             onChange={(ids) => updateDraft({ userId: ids.at(-1) ?? '' })}
           />
         ) : (
