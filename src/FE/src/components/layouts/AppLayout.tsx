@@ -28,6 +28,17 @@ import {
   useAppRouteScrollManager,
 } from '../../hooks/useAppRouteScroll';
 
+const DESKTOP_RAIL_COLLAPSED_KEY = 'workslip.desktopRailCollapsed';
+
+const readDesktopRailCollapsed = () => {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(DESKTOP_RAIL_COLLAPSED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+};
+
 export const AppLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -57,6 +68,7 @@ export const AppLayout = () => {
   const [quickNavigatorOpen, setQuickNavigatorOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [desktopRailCollapsed, setDesktopRailCollapsed] = useState(readDesktopRailCollapsed);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
 
@@ -89,6 +101,15 @@ export const AppLayout = () => {
   const scrollToTopIfActive = (path: string) => {
     if (location.pathname === path) {
       scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleDesktopRailToggle = (collapsed: boolean) => {
+    setDesktopRailCollapsed(collapsed);
+    try {
+      window.localStorage.setItem(DESKTOP_RAIL_COLLAPSED_KEY, String(collapsed));
+    } catch {
+      // Keep the in-memory preference when storage is unavailable.
     }
   };
 
@@ -135,6 +156,7 @@ export const AppLayout = () => {
         <div className="app-header-actions">
           {canUseNotifications && (
             <button
+              id="app-notifications-button"
               type="button"
               onClick={() => setNotificationsOpen(true)}
               className="user-avatar notification-bell"
@@ -151,6 +173,7 @@ export const AppLayout = () => {
           )}
           <div ref={settingsMenuRef} className="app-header-settings">
             <button
+              id="account-menu-button"
               type="button"
               data-testid="account-menu-button"
               onClick={() => setSettingsMenuOpen((open) => !open)}
@@ -164,7 +187,7 @@ export const AppLayout = () => {
               <span aria-hidden="true">{profileInitial}</span>
             </button>
             {settingsMenuOpen && (
-              <div className="app-header-settings-menu" role="menu" aria-label="Profil og konto" data-testid="account-menu">
+              <div id="account-menu" className="app-header-settings-menu" role="menu" aria-label="Profil og konto" data-testid="account-menu">
                 {!isSuperadmin && (
                   <button
                     type="button"
@@ -233,6 +256,7 @@ export const AppLayout = () => {
                   </button>
                 )}
                 <button
+                  id="logout-button"
                   type="button"
                   data-testid="logout-button"
                   className="app-header-settings-item app-header-settings-item--danger"
@@ -326,6 +350,8 @@ export const AppLayout = () => {
             id="desktop-rail-toggle"
             className="desktop-rail-toggle-input"
             type="checkbox"
+            checked={desktopRailCollapsed}
+            onChange={(event) => handleDesktopRailToggle(event.currentTarget.checked)}
             aria-label="Skjul eller vis navigation"
           />
           <label htmlFor="desktop-rail-toggle" className="desktop-rail-toggle">
