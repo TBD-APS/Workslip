@@ -10,6 +10,7 @@ type WorkCategoryStepProps = {
   onCategoriesChange: (categoryIds: string[]) => void;
   onWorkKindChange: (workKind: string) => void;
   onCustomWorkKindChange: (customWorkKind: string) => void;
+  onRemarksChange: (value: string) => void;
   mode?: 'full' | 'categories' | 'work-kind';
 };
 
@@ -21,6 +22,7 @@ export function WorkCategoryStep(
   onCategoriesChange,
   onWorkKindChange,
   onCustomWorkKindChange,
+  onRemarksChange,
   mode = 'full',
 }: WorkCategoryStepProps) {
   const customWorkKindRef = useRef<HTMLLabelElement | null>(null);
@@ -73,6 +75,18 @@ export function WorkCategoryStep(
       {form.work.categoryIds.length === 0 && (
         <span className="form-help-error">Vælg mindst én anlægstype.</span>
       )}
+
+      <label className="work-field-group" htmlFor="installation-type-remarks">
+        <span className="work-field-label">Kommentar til anlægstyper</span>
+        <textarea
+          id="installation-type-remarks"
+          className="form-input form-textarea"
+          value={form.work.allIrrelevantReason}
+          onChange={(event) => onRemarksChange(event.target.value)}
+          placeholder="Tilføj evt. en kommentar til arbejdet eller anlægstyperne"
+          rows={3}
+        />
+      </label>
     </div>
   );
 
