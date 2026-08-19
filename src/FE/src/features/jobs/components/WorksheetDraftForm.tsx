@@ -13,6 +13,7 @@ type WorksheetDraftFormProps = {
   currentUserName: string;
   isLoadingUsers: boolean;
   isSaving: boolean;
+  hoursInputId?: string;
   submitId?: string;
   submitLabel: string;
   error?: string | null;
@@ -29,6 +30,7 @@ export function WorksheetDraftForm({
   currentUserName,
   isLoadingUsers,
   isSaving,
+  hoursInputId,
   submitId,
   submitLabel,
   error,
@@ -37,6 +39,7 @@ export function WorksheetDraftForm({
   onCancel,
 }: WorksheetDraftFormProps) {
   const updateDraft = (patch: Partial<WorksheetDraft>) => onDraftChange({ ...draft, ...patch });
+  const resolvedHoursInputId = hoursInputId ?? `${title}-worksheet-hours`;
 
   return (
     <form
@@ -72,9 +75,9 @@ export function WorksheetDraftForm({
 
       <div className="worksheet-form-grid worksheet-form-grid-hours">
         <div className="form-group">
-          <label className="form-label" htmlFor={`${title}-worksheet-hours`}>Timer</label>
+          <label className="form-label" htmlFor={resolvedHoursInputId}>Timer</label>
           <NumericInput
-            id={`${title}-worksheet-hours`}
+            id={resolvedHoursInputId}
             kind="decimal"
             min={0}
             max={24}
