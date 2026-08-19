@@ -152,6 +152,18 @@
     transition: margin-left 160ms ease;
   }
 
+  /* The rail is a fixed overlay in the left gutter, so the offset surfaces keep
+     width:100% (from farvelab-refinement, which forbids a horizontal scroll
+     container). Without shedding the rail's width they run margin-left + 100%
+     past the right edge, where overflow-x: clip hides the overrun — e.g. the
+     completed-job report's sticky sidebar. Match that rule's specificity so the
+     cap wins, and follow the same collapse variable so it animates in step. */
+  body:has(.app-shell) .app-header,
+  body:has(.app-shell) .organization-session-banner,
+  body:has(.app-shell) .app-content {
+    max-width: calc(100% - var(--desktop-nav-rail-current-width));
+  }
+
   .app-content {
     padding-bottom: 2rem;
   }

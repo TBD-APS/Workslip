@@ -313,8 +313,12 @@ export function AdminCompletedJobReport() {
               <InfoRow icon={<Users size={18} />} label="Kunde" value={job.customerSnapshot.name || 'Ikke angivet'} />
               <InfoRow icon={<MapPin size={18} />} label="Adresse" value={address} />
               <InfoRow icon={<User size={18} />} label="Sagsansvarlig" value={assigneeLabel} />
-              <InfoRow icon={<CalendarDays size={18} />} label="Oprettet" value={createdAt ? (formatDateLong(createdAt) ?? 'Ikke registreret') : 'Ikke registreret'} />
-              <InfoRow icon={<Clock3 size={18} />} label="Senest opdateret" value={updatedAt ? (formatDateTime(updatedAt) ?? 'Ikke registreret') : 'Ikke registreret'} />
+              {createdAt && (
+                <InfoRow icon={<CalendarDays size={18} />} label="Oprettet" value={formatDateLong(createdAt) ?? 'Ukendt dato'} />
+              )}
+              {updatedAt && (
+                <InfoRow icon={<Clock3 size={18} />} label="Senest opdateret" value={formatDateTime(updatedAt) ?? 'Ukendt dato'} />
+              )}
             </dl>
           </section>
 
