@@ -65,15 +65,13 @@ export function parseEvidence(body) {
   return {
     evidence: (fields.get('evidence') ?? '').toLowerCase(),
     scenarios: splitCsv(fields.get('scenarios')),
-    result: (fields.get('result') ?? '').toLowerCase(),
     viewports: splitCsv(fields.get('viewports')),
+    // Legacy mutable fields remain parseable so old PR bodies stay harmlessly readable,
+    // but they are not merge-gating state. Exact-head CI owns runtime truth.
+    result: (fields.get('result') ?? '').toLowerCase(),
     pageErrors: fields.get('page-errors') ?? '',
     consoleErrors: fields.get('console-errors') ?? '',
   };
-}
-
-function isZero(value) {
-  return /^0$/.test(String(value).trim());
 }
 
 export function validateBrowserEvidence({ changedPaths, body }) {
@@ -87,15 +85,9 @@ export function validateBrowserEvidence({ changedPaths, body }) {
     return { required, requiredFlows, uiPaths, evidence, errors };
   }
 
-  // Browser evidence is unconditionally blocking. A UI runtime change either has a
-  // passing browser scenario for every inferred flow, or this guard stays red.
   if (evidence.evidence !== 'required') {
     errors.push('UI runtime changes require Browser-Evidence: required. There is no exemption path.');
     return { required, requiredFlows, uiPaths, evidence, errors };
-  }
-
-  if (evidence.result !== 'passed') {
-    errors.push('Required browser evidence must declare Browser-Result: passed before merge-readiness.');
   }
 
   const scenarioSet = new Set(evidence.scenarios.map((scenario) => scenario.toLowerCase()));
@@ -107,12 +99,6 @@ export function validateBrowserEvidence({ changedPaths, body }) {
 
   if (evidence.viewports.length === 0) {
     errors.push('Required browser evidence must declare Browser-Viewports.');
-  }
-  if (!isZero(evidence.pageErrors)) {
-    errors.push('Required browser evidence must declare Browser-Page-Errors: 0.');
-  }
-  if (!isZero(evidence.consoleErrors)) {
-    errors.push('Required browser evidence must declare Browser-Console-Errors: 0.');
   }
 
   return { required, requiredFlows, uiPaths, evidence, errors };
@@ -152,7 +138,7 @@ function report(result) {
     console.error('\nBROWSER_EVIDENCE_BLOCKED');
     for (const error of result.errors) console.error(`- ${error}`);
   } else if (result.required) {
-    console.log(`\nBrowser evidence accepted (${result.evidence.evidence}).`);
+    console.log('\nBrowser intent accepted. Exact-head runtime pass/failure is owned by CI Gate.');
   } else {
     console.log('\nNo browser evidence declaration required for this diff.');
   }
