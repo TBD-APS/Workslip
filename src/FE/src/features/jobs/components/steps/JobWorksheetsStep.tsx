@@ -108,6 +108,14 @@ export function JobWorksheetsStep({
   const { addDraft, editDraft, editingWorksheetId, openActionMenu, isAddOpen, formError } = uiState;
   const [pendingDelete, setPendingDelete] = useState<WorksheetResponse | null>(null);
 
+  // Admin assignment data arrives asynchronously. The reducer initializer only runs once,
+  // so a first render with no assigned users can leave the add draft with an empty userId.
+  // Backfill only an empty draft so we never overwrite a deliberate user selection.
+  useEffect(() => {
+    if (!defaultUserId || addDraft.userId) return;
+    dispatch({ type: 'setAddDraft', draft: { ...addDraft, userId: defaultUserId } });
+  }, [defaultUserId, addDraft]);
+
   const [localDrafts, setLocalDrafts] = useState<WorksheetDraft[]>([]);
   const localWorksheets = useMemo(() => localDrafts.map(draftToResponse), [localDrafts]);
   const localTotalHours = useMemo(() => localDrafts.reduce((sum, d) => {
