@@ -13,6 +13,7 @@ type AddressAutocompleteProps = {
   placeholder?: string;
   readOnly?: boolean;
   showAddressActions?: boolean;
+  inputId?: string;
 };
 
 export function AddressAutocomplete({
@@ -25,6 +26,7 @@ export function AddressAutocomplete({
   placeholder,
   readOnly,
   showAddressActions = true,
+  inputId,
 }: AddressAutocompleteProps) {
   const { suggestions, isLoading, search, clear } = useAddressAutocomplete();
   const [isOpen, setIsOpen] = useState(false);
@@ -153,6 +155,7 @@ export function AddressAutocomplete({
     <div className="form-group address-autocomplete" ref={wrapperRef}>
       <div className={`address-input-wrapper${showReadOnlyActions ? ' has-address-actions' : ''}`}>
         <input
+          id={inputId}
           ref={inputRef}
           className={`form-input${error ? ' form-input-invalid' : ''}`}
           value={value}
