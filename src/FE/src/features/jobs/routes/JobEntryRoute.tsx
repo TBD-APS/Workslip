@@ -5,23 +5,35 @@ import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { ErrorState } from '../../../components/ErrorState';
 import { notify } from '../../../lib/toast';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
-import { CompletedJobReport } from './CompletedJobReport';
+import { AdminCompletedJobReport } from './AdminCompletedJobReport';
 import { JobDetail } from './JobDetail';
 
 type JobEntryLocationState = {
   from?: string;
   readOnly?: boolean;
+  forceEdit?: boolean;
 };
+
+// States whose canonical entry point is the read/overview report rather than the
+// editing wizard. Draft stays on the wizard; everything post-submission opens the
+// completed-job overview for every viewer (WOR-701).
+const REPORT_STATES = new Set<JobStatus>([
+  JobStatus.InReview,
+  JobStatus.Approved,
+  JobStatus.Rejected,
+  JobStatus.Reopened,
+]);
 
 function shouldOpenReport(
   status: JobStatus,
   jobType: string | null | undefined,
-  isAdmin: boolean,
   readOnly: boolean,
+  allowForceEdit: boolean,
 ): boolean {
+  // An admin can drop an editable (non-approved) case into the wizard from the overview.
+  if (allowForceEdit) return false;
   if (readOnly || jobType === 'Diverse') return true;
-  if (status === JobStatus.InReview || status === JobStatus.Approved) return true;
-  return isAdmin && status === JobStatus.Rejected;
+  return REPORT_STATES.has(status);
 }
 
 export function JobEntryRoute() {
@@ -69,11 +81,16 @@ export function JobEntryRoute() {
     );
   }
 
+  const readOnly = Boolean(state?.readOnly);
+  const allowForceEdit = Boolean(state?.forceEdit)
+    && isAdmin
+    && !readOnly
+    && query.data.status !== JobStatus.Approved;
   const reportMode = shouldOpenReport(
     query.data.status,
     query.data.jobType,
-    isAdmin,
-    Boolean(state?.readOnly),
+    readOnly,
+    allowForceEdit,
   );
   const currentMode = location.pathname.includes('/completed/') ? 'report' : 'edit';
   const targetMode = reportMode ? 'report' : 'edit';
@@ -88,5 +105,7 @@ export function JobEntryRoute() {
     );
   }
 
-  return reportMode ? <CompletedJobReport /> : <JobDetail />;
+  // The completed-job overview is the single read/decision surface for every report-mode
+  // state and every viewer. Editing continues through the wizard (JobDetail).
+  return reportMode ? <AdminCompletedJobReport /> : <JobDetail />;
 }
