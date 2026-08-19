@@ -92,6 +92,7 @@ export function WorksheetsSection({
           currentUserName={currentUserName}
           isLoadingUsers={isLoadingUsers}
           isSaving={isSaving}
+          submitId="worksheet-add-submit"
           submitLabel="Tilføj"
           error={formError}
           onDraftChange={onAddDraftChange}
