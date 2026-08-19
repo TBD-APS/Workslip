@@ -82,9 +82,12 @@ if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($sqlConnection)) 
     if ($sqlConnection -match '(?i)Password=') { Fail 'SQL runtime connection unexpectedly contains a password' }
 }
 
-$powerBiEnabled = (Get-AppConfigValue 'PowerBiExport:Enabled').ToLowerInvariant()
-$expectedPowerBi = if ($ExpectPowerBiEnabled) { 'true' } else { 'false' }
-if ($powerBiEnabled -ne $expectedPowerBi) { Fail "Power BI enabled state is '$powerBiEnabled', expected '$expectedPowerBi'" }
+$powerBiValue = Get-AppConfigValue 'PowerBiExport:Enabled'
+if (-not [string]::IsNullOrWhiteSpace($powerBiValue)) {
+    $powerBiEnabled = $powerBiValue.ToLowerInvariant()
+    $expectedPowerBi = if ($ExpectPowerBiEnabled) { 'true' } else { 'false' }
+    if ($powerBiEnabled -ne $expectedPowerBi) { Fail "Power BI enabled state is '$powerBiEnabled', expected '$expectedPowerBi'" }
+}
 
 if ($failures.Count -gt 0) {
     Write-Host 'POST-DEPLOY CONFIG AUDIT: FAILED' -ForegroundColor Red
