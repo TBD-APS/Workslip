@@ -152,6 +152,28 @@
     transition: margin-left 160ms ease;
   }
 
+  /* The account/logout controls are position:fixed to the rail's bottom but live
+     inside .app-header. On desktop the header's backdrop-filter forms a
+     containing block (so `bottom` anchored them to the short header, off the top
+     of the screen) and its z-index forms a stacking context below the rail (so
+     even on-screen they rendered behind .bottom-nav and could not be clicked).
+     Move the frost to a pseudo-element — which no longer contains the fixed
+     children — and lift the header above the rail so the controls stay clickable.
+     Kept above the rail (100) yet below every app overlay (150+). */
+  .app-header {
+    backdrop-filter: none;
+    z-index: 130;
+  }
+
+  .app-header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    backdrop-filter: blur(20px);
+    z-index: -1;
+    pointer-events: none;
+  }
+
   /* The rail is a fixed overlay in the left gutter, so the offset surfaces keep
      width:100% (from farvelab-refinement, which forbids a horizontal scroll
      container). Without shedding the rail's width they run margin-left + 100%
