@@ -1,25 +1,28 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-
-function readSource(relativePath: string) {
-  return readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8');
-}
+import { initialWorksheetUiState, worksheetUiReducer } from '../worksheetUtils';
 
 describe('worksheet admin assignment loading regression', () => {
-  it('repairs an empty or stale worksheet assignee when current job assignments resolve', () => {
-    const source = readSource('./JobWorksheetsStep.tsx');
+  it('uses the resolved current-job assignee whenever the add form opens', () => {
+    const staleState = initialWorksheetUiState('stale-user');
 
-    expect(source).toContain('const draftUserIsValid = !canPickUser || resolvedUsers.some((candidate) => candidate.id === addDraft.userId);');
-    expect(source).toContain('if (addDraft.userId && draftUserIsValid) return;');
-    expect(source).toContain("dispatch({ type: 'setAddDraft', draft: { ...addDraft, userId: defaultUserId } });");
+    const opened = worksheetUiReducer(staleState, {
+      type: 'openAdd',
+      defaultUserId: 'current-job-admin',
+    });
+
+    expect(opened.isAddOpen).toBe(true);
+    expect(opened.addDraft.userId).toBe('current-job-admin');
   });
 
-  it('does not allow opening the add form while admin assignees are still loading', () => {
-    const source = readSource('../WorksheetsSection.tsx');
+  it('keeps an empty assignee only when no resolved default exists yet', () => {
+    const state = initialWorksheetUiState('');
 
-    expect(source).toContain('const addDisabled = canPickUser && isLoadingUsers;');
-    expect(source).toContain('disabled={addDisabled}');
-    expect(source).toContain("addDisabled ? 'Henter montører...' : 'Tilføj timeseddel'");
+    const opened = worksheetUiReducer(state, {
+      type: 'openAdd',
+      defaultUserId: '',
+    });
+
+    expect(opened.isAddOpen).toBe(true);
+    expect(opened.addDraft.userId).toBe('');
   });
 });
