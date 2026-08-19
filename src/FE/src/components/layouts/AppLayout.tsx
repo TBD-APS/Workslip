@@ -321,6 +321,19 @@ export const AppLayout = () => {
           <Search size={24} />
           <span>Søg</span>
         </button>
+        <div className="desktop-rail-toggle-wrap">
+          <input
+            id="desktop-rail-toggle"
+            className="desktop-rail-toggle-input"
+            type="checkbox"
+            aria-label="Skjul eller vis navigation"
+          />
+          <label htmlFor="desktop-rail-toggle" className="desktop-rail-toggle">
+            <span className="desktop-rail-toggle-icon" aria-hidden="true" />
+            <span className="desktop-rail-toggle-label desktop-rail-toggle-label--collapse">Skjul</span>
+            <span className="desktop-rail-toggle-label desktop-rail-toggle-label--expand">Vis</span>
+          </label>
+        </div>
       </nav>
 
       {location.pathname === '/app' && (
