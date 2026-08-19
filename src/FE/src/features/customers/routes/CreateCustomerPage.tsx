@@ -178,7 +178,7 @@ export const CreateCustomerPage = () => {
       </div>
 
       <div className="modal-actions">
-        <button type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={isSaving}>
+        <button id="create-customer-submit" type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={isSaving}>
           {isSaving && <Loader2 className="animate-spin" size={16} aria-hidden="true" />}
           <span>{isSaving ? 'Opretter...' : 'Opret'}</span>
         </button>
@@ -211,7 +211,7 @@ function CreateCustomerSuccessDialog({ onCreateAnother, onGoToCustomerList }: { 
         <h3 id="create-customer-success-title">Kunden er oprettet</h3>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onCreateAnother}>Opret en mere</button>
-          <button ref={primaryButtonRef} type="button" className="btn btn-primary" onClick={onGoToCustomerList}>Til kundelisten</button>
+          <button id="create-customer-success-list" ref={primaryButtonRef} type="button" className="btn btn-primary" onClick={onGoToCustomerList}>Til kundelisten</button>
         </div>
       </div>
     </div>,
