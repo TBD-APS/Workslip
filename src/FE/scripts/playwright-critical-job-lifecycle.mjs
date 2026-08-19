@@ -267,7 +267,7 @@ async function verifyKlsSubmitApproveLifecycle() {
     contractHelpers.assertStatus(approved, ['Approved', 'Godkendt']);
 
     await adminHarness.session.page.goto(`${APP_URL}/app/completed/${job.id}`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
-    await adminHarness.session.page.getByRole('heading', { name: 'Sagsoverblik', exact: true })
+    await adminHarness.session.page.locator('#admin-case-information-title')
       .waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
     adminHarness.assertCleanBrowser();
