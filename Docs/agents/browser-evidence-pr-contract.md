@@ -22,7 +22,7 @@ The guard infers named critical flows where paths make the risk clear. Current f
 - `documents`
 - `shared-ui` for visible UI changes that do not map to one of the named flows
 
-A generic browser scenario does not satisfy a named flow declaration automatically. The PR declares which changed flows and viewports must be covered; the exact-head CI run is the source of truth for whether runtime browser evidence passed.
+A generic green browser suite does not satisfy a named flow automatically. Every inferred flow must be declared and bound to a concrete Playwright script that is actually registered in the exact-head authenticated runner.
 
 ## Required evidence form
 
@@ -31,12 +31,24 @@ For a user-visible runtime change, the PR body contains only stable intent field
 ```text
 Browser-Evidence: required
 Browser-Scenarios: <comma-separated inferred flow names>
+Browser-Scripts: <flow=playwright-script.mjs mappings>
 Browser-Viewports: <required viewports>
 ```
 
+Example:
+
+```text
+Browser-Evidence: required
+Browser-Scenarios: job-wizard, notifications
+Browser-Scripts: job-wizard=playwright-critical-job-lifecycle.mjs, notifications=playwright-shared-state-semantics.mjs
+Browser-Viewports: desktop-1280, mobile-390
+```
+
+`Browser-Scripts` is not a free-form run note. `Feature change guard` verifies that every inferred flow has a mapping, each target has a safe `playwright-*.mjs` basename, and each target is registered through `run_scenario` in the checked-out `src/FE/scripts/run-playwright-ephemeral.sh`. If the focused scenario is not part of that exact-head runner, add/register it before declaring the browser flow covered.
+
 These fields describe what must be proven and should normally remain unchanged while the PR moves from implementation to review. Do not maintain `Browser-Result`, `Browser-Page-Errors` or `Browser-Console-Errors` as merge-gating state in the PR body. Runtime pass/failure belongs to the exact-head CI run so a new commit cannot inherit stale evidence from an older SHA.
 
-For responsive/mobile-sensitive changes, list the narrow viewport that must be exercised (for example `mobile-390`) together with the relevant desktop viewport. The evidence should also cover keyboard/focus/safe-area behavior when that is part of the changed risk.
+For responsive/mobile-sensitive changes, list the narrow viewport that must be exercised (for example `mobile-390`) together with the relevant desktop viewport. The declared script is responsible for exercising those viewports; the guard binds flow to executable runner coverage but does not infer viewport behavior from source text.
 
 ## Draft and code-freeze behavior
 
@@ -48,10 +60,10 @@ This sequencing prevents repeated full browser runs during active implementation
 
 ## Merge-readiness behavior
 
-`Feature change guard` validates the static declaration: UI runtime changes must say `Browser-Evidence: required`, include every inferred flow in `Browser-Scenarios`, and declare `Browser-Viewports`.
+`Feature change guard` validates the static declaration: UI runtime changes must say `Browser-Evidence: required`, include every inferred flow in `Browser-Scenarios`, map every inferred flow to a registered runner script in `Browser-Scripts`, and declare `Browser-Viewports`.
 
 `CI Gate` owns runtime truth. For a ready PR with code changes it requires the authenticated Playwright job to succeed on that exact workflow revision. Draft PRs may have Playwright skipped because GitHub draft state already prevents merge readiness. Main/release pushes always require the browser job when code changed.
 
-There is no browser waiver or promise-based merge path for user-visible runtime changes. If a required flow has no runnable scenario yet, the flow has to be implemented and exercised before the PR becomes merge-ready.
+There is no browser waiver or promise-based merge path for user-visible runtime changes. If a required flow has no runnable registered scenario yet, that scenario has to be implemented, registered and exercised before the PR becomes merge-ready.
 
 This contract does not weaken deterministic CI, authorization/tenant evidence, Postman/API evidence, or production release gates.
