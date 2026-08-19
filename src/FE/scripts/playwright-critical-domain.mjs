@@ -323,6 +323,11 @@ async function addWorksheetViaUi(session, user, hours) {
   { timeout: API_TIMEOUT })
     .then((request) => ({ kind: 'request', request }))
     .catch((error) => ({ kind: 'request-timeout', error }));
+  const responseOutcome = page.waitForResponse((response) =>
+    response.request().method() === 'POST' && new URL(response.url()).pathname.startsWith(worksheetPath),
+  { timeout: API_TIMEOUT })
+    .then((response) => ({ kind: 'response', response }))
+    .catch((error) => ({ kind: 'response-timeout', error }));
   const formErrorOutcome = formError.waitFor({ state: 'visible', timeout: API_TIMEOUT - 1000 })
     .then(async () => ({ kind: 'form-error', message: (await formError.innerText()).trim() }))
     .catch(() => new Promise(() => {}));
@@ -346,10 +351,14 @@ async function addWorksheetViaUi(session, user, hours) {
     throw new Error(`Worksheet submit produced no POST request. State: ${JSON.stringify(diagnostics)}`);
   }
 
-  const response = await page.waitForResponse((candidate) =>
-    candidate.request() === firstOutcome.request,
-  { timeout: API_TIMEOUT });
-  if (!response.ok()) throw new Error(`Worksheet creation returned HTTP ${response.status()}.`);
+  const responseResult = await responseOutcome;
+  if (responseResult.kind !== 'response') {
+    throw new Error(`Worksheet submit produced a request but no response within ${API_TIMEOUT}ms.`);
+  }
+  if (responseResult.response.request() !== firstOutcome.request) {
+    throw new Error('Worksheet response did not correspond to the observed submit request.');
+  }
+  if (!responseResult.response.ok()) throw new Error(`Worksheet creation returned HTTP ${responseResult.response.status()}.`);
   await form.waitFor({ state: 'hidden', timeout: API_TIMEOUT });
 }
 
