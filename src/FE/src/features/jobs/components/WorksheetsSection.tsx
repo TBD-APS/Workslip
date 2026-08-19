@@ -61,6 +61,8 @@ export function WorksheetsSection({
   onSaveAdd,
   onCancelAdd,
 }: WorksheetsSectionProps) {
+  const addDisabled = canPickUser && isLoadingUsers;
+
   return (
     <section className="detail-section worksheet-list-section">
       <div className="section-header-row attestation-compact-header">
@@ -73,9 +75,11 @@ export function WorksheetsSection({
           type="button"
           className={'btn btn-secondary worksheet-add-trigger worksheet-add-trigger-cta'}
           onClick={onOpenAddForm}
+          disabled={addDisabled}
+          aria-busy={addDisabled || undefined}
         >
           <Plus size={16} />
-          <span>Tilføj timeseddel</span>
+          <span>{addDisabled ? 'Henter montører...' : 'Tilføj timeseddel'}</span>
         </button>
       )}
 
