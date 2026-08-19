@@ -21,6 +21,10 @@ function stableIdSelector(selector) {
   return value.startsWith('#') || /^\[id(?:[\^$*|~]?=|\])/.test(value);
 }
 
+function literalMatches(source, patterns) {
+  return patterns.flatMap((pattern) => [...source.matchAll(pattern)].map((match) => match[1]));
+}
+
 export function inspectAddedPlaywrightSelectors(diff) {
   const findings = [];
   let file = null;
@@ -63,24 +67,34 @@ export function inspectAddedPlaywrightSelectors(diff) {
         });
       }
 
-      for (const match of sourceLine.matchAll(/\.locator\(\s*(['"`])([^'"`]+)\1/g)) {
-        if (!stableIdSelector(match[2])) {
+      const locatorSelectors = literalMatches(sourceLine, [
+        /\.locator\(\s*'([^']+)'/g,
+        /\.locator\(\s*"([^"]+)"/g,
+        /\.locator\(\s*`([^`]+)`/g,
+      ]);
+      for (const selector of locatorSelectors) {
+        if (!stableIdSelector(selector)) {
           findings.push({
             file,
             line: newLine,
             rule: 'non-id-locator',
-            message: `New Playwright locator '${match[2]}' must target a stable DOM id.`,
+            message: `New Playwright locator '${selector}' must target a stable DOM id.`,
           });
         }
       }
 
-      for (const match of sourceLine.matchAll(/\bpage\.(?:click|fill|check|uncheck|hover|focus|press|selectOption|setInputFiles|waitForSelector)\(\s*(['"`])([^'"`]+)\1/g)) {
-        if (!stableIdSelector(match[2])) {
+      const directSelectors = literalMatches(sourceLine, [
+        /\bpage\.(?:click|fill|check|uncheck|hover|focus|press|selectOption|setInputFiles|waitForSelector)\(\s*'([^']+)'/g,
+        /\bpage\.(?:click|fill|check|uncheck|hover|focus|press|selectOption|setInputFiles|waitForSelector)\(\s*"([^"]+)"/g,
+        /\bpage\.(?:click|fill|check|uncheck|hover|focus|press|selectOption|setInputFiles|waitForSelector)\(\s*`([^`]+)`/g,
+      ]);
+      for (const selector of directSelectors) {
+        if (!stableIdSelector(selector)) {
           findings.push({
             file,
             line: newLine,
             rule: 'non-id-direct-selector',
-            message: `New direct Playwright selector '${match[2]}' must target a stable DOM id.`,
+            message: `New direct Playwright selector '${selector}' must target a stable DOM id.`,
           });
         }
       }
