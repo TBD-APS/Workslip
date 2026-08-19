@@ -303,6 +303,15 @@ async function addWorksheetViaUi(session, user, hours) {
   const submit = page.locator('#worksheet-add-submit');
   await submit.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await waitForEnabled(submit, 'worksheet add submit');
+  await submit.evaluate((button) => {
+    window.__workslipWorksheetSubmitDiagnostics = { buttonClicks: 0, formSubmits: 0 };
+    button.addEventListener('click', () => {
+      window.__workslipWorksheetSubmitDiagnostics.buttonClicks += 1;
+    });
+    button.closest('form')?.addEventListener('submit', () => {
+      window.__workslipWorksheetSubmitDiagnostics.formSubmits += 1;
+    });
+  });
   const formError = page.locator('#worksheet-form-error');
   const worksheetPath = '/api/worksheets/jobs/';
   const requestOutcome = page.waitForRequest((request) =>
@@ -328,6 +337,7 @@ async function addWorksheetViaUi(session, user, hours) {
       assigneeText: await trigger.isVisible().catch(() => false) ? (await trigger.innerText()).trim() : null,
       assigneeExpanded: await trigger.isVisible().catch(() => false) ? await trigger.getAttribute('aria-expanded') : null,
       formError: await formError.isVisible().catch(() => false) ? (await formError.innerText()).trim() : null,
+      events: await page.evaluate(() => window.__workslipWorksheetSubmitDiagnostics ?? null),
     };
     throw new Error(`Worksheet submit produced no POST request. State: ${JSON.stringify(diagnostics)}`);
   }
