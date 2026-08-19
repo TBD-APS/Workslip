@@ -81,9 +81,6 @@ export function JobWorksheetsStep({
       }));
     }
 
-    // The job's assignment list is the authority for who may receive a worksheet on
-    // this job. Do not intersect it with the separate organization-wide user query:
-    // that creates two competing server-state sources and can hide a valid assignee.
     return (jobQuery.data?.assignedUsers ?? []).map((assignedUser) => ({
       id: assignedUser.id,
       displayName: assignedUser.displayName,
@@ -108,6 +105,13 @@ export function JobWorksheetsStep({
   const { addDraft, editDraft, editingWorksheetId, openActionMenu, isAddOpen, formError } = uiState;
   const [pendingDelete, setPendingDelete] = useState<WorksheetResponse | null>(null);
 
+  useEffect(() => {
+    if (!defaultUserId) return;
+    const draftUserIsValid = !canPickUser || resolvedUsers.some((candidate) => candidate.id === addDraft.userId);
+    if (addDraft.userId && draftUserIsValid) return;
+    dispatch({ type: 'setAddDraft', draft: { ...addDraft, userId: defaultUserId } });
+  }, [defaultUserId, addDraft, canPickUser, resolvedUsers]);
+
   const [localDrafts, setLocalDrafts] = useState<WorksheetDraft[]>([]);
   const localWorksheets = useMemo(() => localDrafts.map(draftToResponse), [localDrafts]);
   const localTotalHours = useMemo(() => localDrafts.reduce((sum, d) => {
@@ -123,7 +127,7 @@ export function JobWorksheetsStep({
   const isDeleting = localMode ? false : rest.isDeleting;
   const worksheetUsersLoading = localMode
     ? isLoadingUsers
-    : canPickUser && jobQuery.isLoading;
+    : canPickUser && (jobQuery.isFetching || resolvedUsers.length === 0);
 
   const isDetailList = variant === 'list';
   const sortedWorksheets = useMemo(
@@ -191,16 +195,20 @@ export function JobWorksheetsStep({
 
   const saveDraft = async (draft: WorksheetDraft, worksheetId?: string) => {
     dispatch({ type: 'setFormError', error: null });
-    const hoursWorked = validateDraft(draft, worksheetId);
+    const addDraftUserIsCurrent = !canPickUser || resolvedUsers.some((candidate) => candidate.id === draft.userId);
+    const draftToSave = !worksheetId && defaultUserId && !addDraftUserIsCurrent
+      ? { ...draft, userId: defaultUserId }
+      : draft;
+    const hoursWorked = validateDraft(draftToSave, worksheetId);
     if (hoursWorked === null) return;
 
     if (localMode) {
       const entry: WorksheetDraft = {
         id: worksheetId ?? crypto.randomUUID(),
-        workDate: dateKey(draft.workDate),
-        userId: draft.userId,
+        workDate: dateKey(draftToSave.workDate),
+        userId: draftToSave.userId,
         hours: hoursWorked,
-        sleptOnJob: draft.sleptOnJob,
+        sleptOnJob: draftToSave.sleptOnJob,
       };
       setLocalDrafts(prev => worksheetId
         ? prev.map(ts => ts.id === worksheetId ? entry : ts)
@@ -211,13 +219,14 @@ export function JobWorksheetsStep({
         await rest.onUpsert({
           id: worksheetId,
           jobId: rest.jobId,
-          userId: draft.userId,
-          userDisplayName: displayNameFor(draft.userId),
-          workDate: dateKey(draft.workDate),
+          userId: draftToSave.userId,
+          userDisplayName: displayNameFor(draftToSave.userId),
+          workDate: dateKey(draftToSave.workDate),
           hoursWorked,
-          sleptOnJob: draft.sleptOnJob,
+          sleptOnJob: draftToSave.sleptOnJob,
         });
       } catch {
+        dispatch({ type: 'setFormError', error: 'Kunne ikke gemme arbejdssedlen.' });
         return;
       }
     }

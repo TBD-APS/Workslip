@@ -5,6 +5,7 @@ param(
     [string]$COMPANY_NAME = 'mrsoftwareinc',
     [string]$ExpectedTenantId = '',
     [string]$ExpectedSubscriptionId = '',
+    [switch]$DeploySql,
     [switch]$WhatIf
 )
 
@@ -23,13 +24,16 @@ if ($ExpectedSubscriptionId -and $account.subscriptionId -ne $ExpectedSubscripti
 
 $normalizedEnvironment = $Environment.ToLowerInvariant()
 $deploymentName = "$COMPANY_NAME-$normalizedEnvironment-base-$(Get-Date -Format 'yyyyMMddHHmmss')"
-$sqlAdminPassword = $env:WORKSLIP_SQL_ADMIN_PASSWORD
+$sqlAdminPassword = ''
 
-if ([string]::IsNullOrWhiteSpace($sqlAdminPassword)) {
-    if (-not $WhatIf) { throw 'Set WORKSLIP_SQL_ADMIN_PASSWORD before the base deployment.' }
-    $bytes = New-Object byte[] 36
-    [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
-    $sqlAdminPassword = "Aa1!$([Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_'))"
+if ($DeploySql) {
+    $sqlAdminPassword = $env:WORKSLIP_SQL_ADMIN_PASSWORD
+    if ([string]::IsNullOrWhiteSpace($sqlAdminPassword)) {
+        if (-not $WhatIf) { throw 'Set WORKSLIP_SQL_ADMIN_PASSWORD before deploying SQL.' }
+        $bytes = New-Object byte[] 36
+        [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+        $sqlAdminPassword = "Aa1!$([Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_'))"
+    }
 }
 
 $arguments = @(
@@ -42,6 +46,7 @@ $arguments = @(
     "companyName=$COMPANY_NAME",
     "environment=$Environment",
     "location=$Location",
+    "deploySql=$($DeploySql.IsPresent.ToString().ToLowerInvariant())",
     "sqlAdminPassword=$sqlAdminPassword",
     '--only-show-errors'
 )
