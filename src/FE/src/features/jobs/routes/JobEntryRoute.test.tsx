@@ -65,8 +65,31 @@ describe('JobEntryRoute', () => {
     expect(await screen.findByText('edit:/app/job/job-1:from=/app/timer')).toBeInTheDocument();
   });
 
+  // The completed view route is the read surface for every post-authoring state and viewer.
   it.each([JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected, JobStatus.Reopened])(
-    'routes %s jobs to the report for normal users',
+    'shows the report for %s jobs on the completed view route',
+    async (status) => {
+      mocks.job = { status, jobType: 'KLS' };
+      renderRoute('/app/completed/job-1', { from: '/app' });
+
+      expect(await screen.findByText('report:/app/completed/job-1:from=/app')).toBeInTheDocument();
+    },
+  );
+
+  it.each([JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected, JobStatus.Reopened])(
+    'shows the report for %s jobs for admins on the view route',
+    async (status) => {
+      mocks.isAdmin = true;
+      mocks.job = { status, jobType: 'KLS' };
+      renderRoute('/app/completed/job-1', { from: '/app' });
+
+      expect(await screen.findByText('report:/app/completed/job-1:from=/app')).toBeInTheDocument();
+    },
+  );
+
+  // Locked states cannot be edited, so the edit route falls back to the report.
+  it.each([JobStatus.InReview, JobStatus.Approved])(
+    'redirects locked %s jobs from the edit route to the report',
     async (status) => {
       mocks.job = { status, jobType: 'KLS' };
       renderRoute('/app/job/job-1', { from: '/app' });
@@ -75,14 +98,15 @@ describe('JobEntryRoute', () => {
     },
   );
 
-  it.each([JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected, JobStatus.Reopened])(
-    'routes %s jobs to the report for admins',
+  // Editable states (a case handed back for correction) open the wizard on the edit route,
+  // so the assignee — admin or not — can correct and resubmit it.
+  it.each([JobStatus.Rejected, JobStatus.Reopened])(
+    'opens the wizard for editable %s jobs on the edit route',
     async (status) => {
-      mocks.isAdmin = true;
       mocks.job = { status, jobType: 'KLS' };
       renderRoute('/app/job/job-1', { from: '/app' });
 
-      expect(await screen.findByText('report:/app/completed/job-1:from=/app')).toBeInTheDocument();
+      expect(await screen.findByText('edit:/app/job/job-1:from=/app')).toBeInTheDocument();
     },
   );
 

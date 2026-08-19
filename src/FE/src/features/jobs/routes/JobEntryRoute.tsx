@@ -14,26 +14,37 @@ type JobEntryLocationState = {
   forceEdit?: boolean;
 };
 
-// States whose canonical entry point is the read/overview report rather than the
-// editing wizard. Draft stays on the wizard; everything post-submission opens the
-// completed-job overview for every viewer (WOR-701).
-const REPORT_STATES = new Set<JobStatus>([
-  JobStatus.InReview,
-  JobStatus.Approved,
+// States a viewer can still take through the editing wizard. Draft is the initial
+// authoring state; Rejected and Reopened are handed back for correction (the
+// assignee fixes the case and resubmits — see the rejection-correction lifecycle).
+// InReview and Approved are locked: they only ever open the read/overview report.
+const EDITABLE_STATES = new Set<JobStatus>([
+  JobStatus.Draft,
   JobStatus.Rejected,
   JobStatus.Reopened,
 ]);
 
+// The completed-job overview (WOR-701) is the read surface for every state and
+// viewer, reached through the /app/completed view route. The wizard stays reachable
+// through the /app/job edit route for states that can still be edited, so a rejected
+// case can be corrected and resubmitted. Routing therefore follows the URL's intent
+// and only redirects when a state is incompatible with the requested surface.
 function shouldOpenReport(
   status: JobStatus,
   jobType: string | null | undefined,
   readOnly: boolean,
   allowForceEdit: boolean,
+  isEditRoute: boolean,
 ): boolean {
   // An admin can drop an editable (non-approved) case into the wizard from the overview.
   if (allowForceEdit) return false;
   if (readOnly || jobType === 'Diverse') return true;
-  return REPORT_STATES.has(status);
+  if (isEditRoute) {
+    // Edit intent: keep editable states in the wizard; locked states fall back to the report.
+    return !EDITABLE_STATES.has(status);
+  }
+  // View intent: everything reads as the report except a Draft, which has no report yet.
+  return status !== JobStatus.Draft;
 }
 
 export function JobEntryRoute() {
@@ -86,13 +97,14 @@ export function JobEntryRoute() {
     && isAdmin
     && !readOnly
     && query.data.status !== JobStatus.Approved;
+  const currentMode = location.pathname.includes('/completed/') ? 'report' : 'edit';
   const reportMode = shouldOpenReport(
     query.data.status,
     query.data.jobType,
     readOnly,
     allowForceEdit,
+    currentMode === 'edit',
   );
-  const currentMode = location.pathname.includes('/completed/') ? 'report' : 'edit';
   const targetMode = reportMode ? 'report' : 'edit';
 
   if (currentMode !== targetMode) {
