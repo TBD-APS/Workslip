@@ -151,6 +151,7 @@ export const AppLayout = () => {
           )}
           <div ref={settingsMenuRef} className="app-header-settings">
             <button
+              id="account-menu-button"
               type="button"
               data-testid="account-menu-button"
               onClick={() => setSettingsMenuOpen((open) => !open)}
@@ -164,7 +165,7 @@ export const AppLayout = () => {
               <span aria-hidden="true">{profileInitial}</span>
             </button>
             {settingsMenuOpen && (
-              <div className="app-header-settings-menu" role="menu" aria-label="Profil og konto" data-testid="account-menu">
+              <div id="account-menu" className="app-header-settings-menu" role="menu" aria-label="Profil og konto" data-testid="account-menu">
                 {!isSuperadmin && (
                   <button
                     type="button"
@@ -233,6 +234,7 @@ export const AppLayout = () => {
                   </button>
                 )}
                 <button
+                  id="logout-button"
                   type="button"
                   data-testid="logout-button"
                   className="app-header-settings-item app-header-settings-item--danger"
