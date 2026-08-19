@@ -56,6 +56,10 @@ function currentMonthInCopenhagen() {
   };
 }
 
+function readCustomerName(job) {
+  return job?.customer?.name ?? job?.customerSnapshot?.name ?? job?.customerName ?? null;
+}
+
 async function getDevIdentity(runtime, role) {
   const email = role === 'Admin' ? runtime.adminEmail : runtime.userEmail;
   const response = await fetch(`${runtime.apiUrl}/api/dev/token`, {
@@ -132,7 +136,7 @@ function captureBrowserFailures(page) {
   page.on('response', (response) => {
     if (!response.url().includes('/api/') || response.status() < 400) return;
     const key = `${response.request().method()} ${new URL(response.url()).pathname} ${response.status()}`;
-    if (!expectedApiFailures.delete(key)) failedApiResponses.push(key);
+    if (!expectedApiFailures.has(key)) failedApiResponses.push(key);
   });
 
   return {
@@ -178,35 +182,111 @@ export async function runCustomerWave1Acceptance(viewportName) {
   const { browser, context, page } = await createBrowser(viewportName);
   const diagnostics = captureBrowserFailures(page);
   const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const customerName = `Wave 1 kunde ${unique}`;
+  const updatedCustomerName = `Wave 1 kunde opdateret ${unique}`;
   let customerId = null;
+  let jobId = null;
 
   try {
-    const customer = await apiRequest(runtime, admin, 'POST', '/api/customers/', {
-      name: `Wave 1 kunde ${unique}`,
-      customerNumber: `W1-${unique.slice(-8)}`,
-      address: 'Testvej 1',
-      zipCode: '8000',
-      city: 'Aarhus C',
-      country: 'Danmark',
-      email: `wave1-${unique}@example.test`,
-      contactPerson: 'Wave 1 kontakt',
-      phone: '12345678',
-    }, [200], { 'Idempotency-Key': `wave1-customer-${unique}` });
-    customerId = customer?.id;
-    if (!customerId) throw new Error('Customer create did not return an id.');
-
     await authenticatePage(page, runtime, admin);
-    await page.goto(`${runtime.appUrl}/app/customers/${customerId}`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+    await page.goto(`${runtime.appUrl}/app/customers/new`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+    await page.locator('#create-customer-name').fill(customerName);
+    await page.locator('#create-customer-email').fill(`wave1-${unique}@example.test`);
+    await page.locator('#create-customer-contact').fill('Wave 1 kontakt');
+    await page.locator('#create-customer-phone').fill('12345678');
+
+    const createResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return response.request().method() === 'POST'
+        && url.pathname.replace(/\/$/, '') === '/api/customers';
+    }, { timeout: API_TIMEOUT });
+    await page.locator('#create-customer-submit').click();
+    const createResponse = await createResponsePromise;
+    if (createResponse.status() !== 200) {
+      throw new Error(`UI customer create returned HTTP ${createResponse.status()}.`);
+    }
+    const customer = await createResponse.json();
+    customerId = customer?.id ?? null;
+    if (!customerId) throw new Error('UI customer create did not return an id.');
+
+    await page.locator('#create-customer-success-list').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await page.locator('#create-customer-success-list').click();
+    await page.locator('#customer-search-input').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+    const searchResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return response.request().method() === 'GET'
+        && url.pathname === '/api/customers'
+        && url.searchParams.get('search') === customerName
+        && response.status() === 200;
+    }, { timeout: API_TIMEOUT });
+    await page.locator('#customer-search-input').fill(customerName);
+    await searchResponsePromise;
+    const customerResult = page.locator(`#customer-list-item-${customerId}`);
+    await customerResult.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await customerResult.click();
     await page.locator('#customer-detail-page').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+    const favoriteResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return response.request().method() === 'PATCH'
+        && url.pathname === `/api/customers/${customerId}/favorite`;
+    }, { timeout: API_TIMEOUT });
+    await page.locator('#customer-favorite-button').click();
+    const favoriteResponse = await favoriteResponsePromise;
+    if (![200, 204].includes(favoriteResponse.status())) {
+      throw new Error(`Favorite mutation returned HTTP ${favoriteResponse.status()}.`);
+    }
+    const favorited = await apiRequest(runtime, admin, 'GET', `/api/customers/${customerId}`, undefined, [200]);
+    if (favorited?.isFavorite !== true) throw new Error('Customer favorite mutation did not persist.');
+
+    await page.goto(`${runtime.appUrl}/app/customers/${customerId}/edit`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+    await page.locator('#edit-customer-name').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await page.locator('#edit-customer-name').fill(updatedCustomerName);
+    const editResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return response.request().method() === 'PUT'
+        && url.pathname === `/api/customers/${customerId}`;
+    }, { timeout: API_TIMEOUT });
+    await page.locator('#edit-customer-save').click();
+    const editResponse = await editResponsePromise;
+    if (editResponse.status() !== 200) {
+      throw new Error(`UI customer edit returned HTTP ${editResponse.status()}.`);
+    }
+    await page.locator('#customer-detail-page').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    const updatedCustomer = await apiRequest(runtime, admin, 'GET', `/api/customers/${customerId}`, undefined, [200]);
+    if (updatedCustomer?.name !== updatedCustomerName) throw new Error('Customer edit did not persist the updated name.');
+
     await page.locator('#customer-create-job-button').click();
     await page.waitForURL((url) => url.pathname === '/app/job/new', { timeout: UI_TIMEOUT });
     const routeState = await page.evaluate(() => window.history.state?.usr ?? null);
     if (
       routeState?.fromCustomer !== true
       || routeState?.customerId !== customerId
-      || routeState?.customerSnapshot?.name !== customer.name
+      || routeState?.customerSnapshot?.name !== updatedCustomerName
     ) {
       throw new Error('Create-job-from-customer navigation did not preserve the expected customer snapshot state.');
+    }
+
+    const job = await apiRequest(runtime, admin, 'POST', '/api/jobs/', {
+      customerSnapshot: {
+        name: updatedCustomerName,
+        address: updatedCustomer?.address ?? null,
+        email: updatedCustomer?.email ?? null,
+        phone: updatedCustomer?.phone ?? null,
+        contactPerson: updatedCustomer?.contactPerson ?? null,
+      },
+      destinationAddress: updatedCustomer?.address ?? 'Testvej 1',
+      destinationZipCode: updatedCustomer?.zipCode ?? '8000',
+      destinationCity: updatedCustomer?.city ?? 'Aarhus C',
+      jobType: 'KLS',
+      assignedUserIds: [admin.user.id],
+    }, [200], { 'Idempotency-Key': `wave1-customer-job-${unique}` });
+    jobId = job?.id ?? null;
+    if (!jobId) throw new Error('Customer snapshot verification job did not return an id.');
+    const jobBeforeDelete = await apiRequest(runtime, admin, 'GET', `/api/jobs/${jobId}`, undefined, [200]);
+    if (readCustomerName(jobBeforeDelete) !== updatedCustomerName) {
+      throw new Error('Created job did not persist the updated customer snapshot.');
     }
 
     await authenticatePage(page, runtime, user);
@@ -221,6 +301,11 @@ export async function runCustomerWave1Acceptance(viewportName) {
     await page.locator('#customer-create-job-button').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
     await apiRequest(runtime, admin, 'DELETE', `/api/customers/${customerId}`, undefined, [204]);
+    const jobAfterDelete = await apiRequest(runtime, admin, 'GET', `/api/jobs/${jobId}`, undefined, [200]);
+    if (readCustomerName(jobAfterDelete) !== updatedCustomerName) {
+      throw new Error('Deleting the customer changed the persisted job customer snapshot.');
+    }
+
     diagnostics.expectApiFailure('GET', `/api/customers/${customerId}`, 404);
     diagnostics.setExpected404Console(true);
     await authenticatePage(page, runtime, admin);
@@ -229,8 +314,14 @@ export async function runCustomerWave1Acceptance(viewportName) {
     diagnostics.setExpected404Console(false);
     customerId = null;
 
+    await apiRequest(runtime, admin, 'DELETE', `/api/jobs/${jobId}`, undefined, [200, 204, 404]);
+    jobId = null;
+
     diagnostics.assertClean();
   } finally {
+    if (jobId) {
+      await apiRequest(runtime, admin, 'DELETE', `/api/jobs/${jobId}`, undefined, [200, 204, 404]).catch(() => {});
+    }
     if (customerId) {
       await apiRequest(runtime, admin, 'DELETE', `/api/customers/${customerId}`, undefined, [204, 404]).catch(() => {});
     }
