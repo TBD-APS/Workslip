@@ -196,6 +196,7 @@ export async function runCustomerWave1Acceptance(viewportName) {
   const diagnostics = captureBrowserFailures(page);
   const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const customerName = `Wave 1 kunde ${unique}`;
+  const customerEmail = `wave1-${unique}@example.test`;
   const updatedCustomerName = `Wave 1 kunde opdateret ${unique}`;
   let customerId = null;
   let jobId = null;
@@ -203,18 +204,58 @@ export async function runCustomerWave1Acceptance(viewportName) {
   try {
     await authenticatePage(page, runtime, admin);
     await page.goto(`${runtime.appUrl}/app/customers/new`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
-    await page.locator('#create-customer-name').fill(customerName);
-    await page.locator('#create-customer-email').fill(`wave1-${unique}@example.test`);
-    await page.locator('#create-customer-contact').fill('Wave 1 kontakt');
-    await page.locator('#create-customer-phone').fill('12345678');
+    const nameInput = page.locator('#create-customer-name');
+    const emailInput = page.locator('#create-customer-email');
+    const contactInput = page.locator('#create-customer-contact');
+    const phoneInput = page.locator('#create-customer-phone');
+    const submit = page.locator('#create-customer-submit');
 
+    await nameInput.fill(customerName);
+    await emailInput.fill(customerEmail);
+    await contactInput.fill('Wave 1 kontakt');
+    await phoneInput.fill('12345678');
+
+    const formValues = {
+      name: await nameInput.inputValue(),
+      email: await emailInput.inputValue(),
+      contact: await contactInput.inputValue(),
+      phone: await phoneInput.inputValue(),
+    };
+    if (
+      formValues.name !== customerName
+      || formValues.email !== customerEmail
+      || formValues.contact !== 'Wave 1 kontakt'
+      || formValues.phone !== '12345678'
+    ) {
+      throw new Error(`${viewportName}: customer create form did not retain the expected values: ${JSON.stringify(formValues)}.`);
+    }
+
+    await submit.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    if (await submit.isDisabled()) throw new Error(`${viewportName}: customer create submit is unexpectedly disabled before submission.`);
+    // Move focus away from the final controlled input before triggering save. This
+    // mirrors real touch/keyboard completion and prevents the mobile run from
+    // racing the final input-state commit against the button action.
+    await submit.focus();
+
+    const createRequestPromise = page.waitForRequest((request) => {
+      const url = new URL(request.url());
+      return request.method() === 'POST'
+        && url.pathname.replace(/\/$/, '') === '/api/customers';
+    }, { timeout: API_TIMEOUT });
     const createResponsePromise = page.waitForResponse((response) => {
       const url = new URL(response.url());
       return response.request().method() === 'POST'
         && url.pathname.replace(/\/$/, '') === '/api/customers';
     }, { timeout: API_TIMEOUT });
-    await page.locator('#create-customer-submit').click();
+
+    if (viewportName === 'mobile') await submit.tap();
+    else await submit.click();
+
+    const createRequest = await createRequestPromise;
     const createResponse = await createResponsePromise;
+    if (createResponse.request() !== createRequest) {
+      throw new Error(`${viewportName}: customer create response did not correspond to the observed submit request.`);
+    }
     if (createResponse.status() !== 200) {
       throw new Error(`UI customer create returned HTTP ${createResponse.status()}.`);
     }
