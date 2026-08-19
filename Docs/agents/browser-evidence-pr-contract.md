@@ -52,17 +52,17 @@ For responsive/mobile-sensitive changes, list the narrow viewport that must be e
 
 ## Draft and code-freeze behavior
 
-A draft PR is the implementation lane. Deterministic build/test/API checks may run while code changes, but the expensive authenticated Playwright job is deferred for draft pull requests.
+A draft PR is the implementation lane. Deterministic build/test/API checks may run while code changes, but the expensive authenticated Playwright job is deferred for draft pull requests. Successful draft validation is reported under the separate `Draft CI Gate` check context; it is intentionally not the merge-required `CI Gate` context.
 
-Marking the PR **Ready for review** is the browser-evidence code-freeze point. That transition triggers CI and requires authenticated Playwright against the current PR head. A later commit to a ready PR triggers a fresh run for the new head. If implementation needs to resume after browser evidence has started, normally convert the PR back to draft before editing and mark it ready again when the implementation/testability review is complete.
+Marking the PR **Ready for review** is the browser-evidence code-freeze point. That transition triggers CI and requires authenticated Playwright against the current PR head. The ready run reports the merge-required `CI Gate` context. A later commit to a ready PR triggers a fresh run for the new head. If implementation needs to resume after browser evidence has started, normally convert the PR back to draft before editing and mark it ready again when the implementation/testability review is complete.
 
-This sequencing prevents repeated full browser runs during active implementation while keeping merge evidence bound to the exact code being reviewed.
+Using distinct draft/ready check contexts prevents a green implementation-lane result on the same SHA from being reused as merge evidence during the Ready transition. This sequencing avoids repeated full browser runs during active implementation while keeping merge evidence bound to the exact code being reviewed.
 
 ## Merge-readiness behavior
 
 `Feature change guard` validates the static declaration: UI runtime changes must say `Browser-Evidence: required`, include every inferred flow in `Browser-Scenarios`, map every inferred flow to a registered runner script in `Browser-Scripts`, and declare `Browser-Viewports`.
 
-`CI Gate` owns runtime truth. For a ready PR with code changes it requires the authenticated Playwright job to succeed on that exact workflow revision. Draft PRs may have Playwright skipped because GitHub draft state already prevents merge readiness. Main/release pushes always require the browser job when code changed.
+`CI Gate` owns runtime truth only after code-freeze. For a ready PR with code changes it requires the authenticated Playwright job to succeed on that exact workflow revision. Draft PRs use `Draft CI Gate` and may have Playwright skipped; that check is not merge evidence. Main/release pushes always require the browser job when code changed.
 
 There is no browser waiver or promise-based merge path for user-visible runtime changes. If a required flow has no runnable registered scenario yet, that scenario has to be implemented, registered and exercised before the PR becomes merge-ready.
 
