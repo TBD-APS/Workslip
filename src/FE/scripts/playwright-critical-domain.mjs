@@ -278,16 +278,16 @@ async function addWorksheetViaUi(session, user, hours) {
   const page = session.page;
   const add = page.getByRole('button', { name: 'Tilføj timeseddel', exact: true });
   await add.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await waitForEnabled(add, 'Tilføj timeseddel');
   await add.click();
   const form = page.locator('.worksheet-form');
-  const assigneeField = form.locator('.multi-select-field').filter({ has: form.locator('.multi-select-label', { hasText: 'Montør' }) }).first();
-  const trigger = assigneeField.locator('button.multi-select-trigger');
+  const trigger = page.locator('#worksheet-assignee-trigger');
   if (await trigger.isVisible().catch(() => false)) {
     await waitForEnabled(trigger, 'worksheet assignee selector');
     const triggerText = (await trigger.innerText()).trim();
     if (!triggerText.includes(user.displayName)) {
       await trigger.click();
-      const option = page.getByRole('option').filter({ hasText: user.displayName }).first();
+      const option = page.locator(`#worksheet-assignee-trigger-option-${user.id}`);
       await option.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
       if ((await option.getAttribute('aria-selected')) !== 'true') {
         await option.click();
@@ -297,13 +297,58 @@ async function addWorksheetViaUi(session, user, hours) {
       }
     }
   }
-  await page.getByLabel('Timer', { exact: true }).fill(hours);
-  const responsePromise = page.waitForResponse((response) =>
-    response.request().method() === 'POST'
-      && new URL(response.url()).pathname.startsWith('/api/worksheets/jobs/'),
+
+  const hoursInput = page.locator('#worksheet-add-hours');
+  await hoursInput.fill(hours);
+  const submit = page.locator('#worksheet-add-submit');
+  await submit.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await waitForEnabled(submit, 'worksheet add submit');
+  // Move focus away from the controlled hours field before the mouse click. If the
+  // focus transition causes a React render, the locator will resolve the current
+  // submit node again instead of clicking a node that was replaced mid-gesture.
+  await submit.focus();
+  await submit.evaluate((button) => {
+    window.__workslipWorksheetSubmitDiagnostics = { buttonClicks: 0, formSubmits: 0 };
+    button.addEventListener('click', () => {
+      window.__workslipWorksheetSubmitDiagnostics.buttonClicks += 1;
+    });
+    button.closest('form')?.addEventListener('submit', () => {
+      window.__workslipWorksheetSubmitDiagnostics.formSubmits += 1;
+    });
+  });
+  const formError = page.locator('#worksheet-form-error');
+  const worksheetPath = '/api/worksheets/jobs/';
+  const requestOutcome = page.waitForRequest((request) =>
+    request.method() === 'POST' && new URL(request.url()).pathname.startsWith(worksheetPath),
+  { timeout: API_TIMEOUT })
+    .then((request) => ({ kind: 'request', request }))
+    .catch((error) => ({ kind: 'request-timeout', error }));
+  const formErrorOutcome = formError.waitFor({ state: 'visible', timeout: API_TIMEOUT - 1000 })
+    .then(async () => ({ kind: 'form-error', message: (await formError.innerText()).trim() }))
+    .catch(() => new Promise(() => {}));
+
+  await submit.click();
+  const firstOutcome = await Promise.race([requestOutcome, formErrorOutcome]);
+  if (firstOutcome.kind === 'form-error') {
+    throw new Error(`Worksheet form blocked submit: ${firstOutcome.message}`);
+  }
+  if (firstOutcome.kind !== 'request') {
+    const diagnostics = {
+      url: page.url(),
+      submitDisabled: await submit.isDisabled().catch(() => null),
+      hours: await hoursInput.inputValue().catch(() => null),
+      assigneeVisible: await trigger.isVisible().catch(() => false),
+      assigneeText: await trigger.isVisible().catch(() => false) ? (await trigger.innerText()).trim() : null,
+      assigneeExpanded: await trigger.isVisible().catch(() => false) ? await trigger.getAttribute('aria-expanded') : null,
+      formError: await formError.isVisible().catch(() => false) ? (await formError.innerText()).trim() : null,
+      events: await page.evaluate(() => window.__workslipWorksheetSubmitDiagnostics ?? null),
+    };
+    throw new Error(`Worksheet submit produced no POST request. State: ${JSON.stringify(diagnostics)}`);
+  }
+
+  const response = await page.waitForResponse((candidate) =>
+    candidate.request() === firstOutcome.request,
   { timeout: API_TIMEOUT });
-  await page.getByRole('button', { name: 'Tilføj', exact: true }).click();
-  const response = await responsePromise;
   if (!response.ok()) throw new Error(`Worksheet creation returned HTTP ${response.status()}.`);
   await form.waitFor({ state: 'hidden', timeout: API_TIMEOUT });
 }

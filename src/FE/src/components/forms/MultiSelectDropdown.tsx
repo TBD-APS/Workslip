@@ -21,6 +21,7 @@ type MultiSelectDropdownProps = {
   commitOnClose?: boolean;
   hideSearch?: boolean;
   className?: string;
+  triggerId?: string;
   onChange: (selectedIds: string[]) => void;
 };
 
@@ -35,6 +36,7 @@ export function MultiSelectDropdown({
   commitOnClose = false,
   hideSearch = false,
   className,
+  triggerId,
   onChange,
 }: MultiSelectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -149,11 +151,12 @@ export function MultiSelectDropdown({
   return (
     <div className={className ? `multi-select-field ${className}` : 'multi-select-field'}>
       <div className="multi-select-field-header">
-        <label className="form-label">{label}</label>
+        <label className="form-label" htmlFor={triggerId}>{label}</label>
       </div>
 
       <div className="multi-select-dropdown" ref={dropdownRef}>
         <button
+          id={triggerId}
           className="multi-select-trigger"
           type="button"
           disabled={isLoading}
@@ -189,6 +192,7 @@ export function MultiSelectDropdown({
               const isSelected = activeSelectedIds.includes(option.id);
               return (
                 <button
+                  id={triggerId ? `${triggerId}-option-${option.id}` : undefined}
                   key={option.id}
                   className={isSelected ? 'multi-select-option selection-row selected' : 'multi-select-option selection-row'}
                   type="button"

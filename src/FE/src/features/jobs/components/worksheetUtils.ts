@@ -156,9 +156,9 @@ export function worksheetUiReducer(state: WorksheetUiState, action: WorksheetUiA
         editingWorksheetId: null,
         editDraft: null,
         openActionMenu: null,
-        addDraft: state.addDraft.userId || !action.defaultUserId
-          ? state.addDraft
-          : { ...state.addDraft, userId: action.defaultUserId },
+        addDraft: action.defaultUserId
+          ? { ...state.addDraft, userId: action.defaultUserId }
+          : state.addDraft,
         isAddOpen: true,
         formError: null,
       };

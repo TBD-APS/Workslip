@@ -72,7 +72,9 @@ jobs:
             --no-audit \
             --no-fund \
             "playwright@${PLAYWRIGHT_VERSION}"
-          node scripts/node_modules/playwright/cli.js install --with-deps chromium
+          # GitHub's hosted Ubuntu image already contains the Chromium system libraries
+          # used by this isolated flow. Avoid a redundant apt/font install on every retry.
+          node scripts/node_modules/playwright/cli.js install chromium
 
       - name: Validate focused Playwright sources
         working-directory: src/FE
@@ -118,7 +120,7 @@ jobs:
           done
 
           if [ "${ready}" != true ]; then
-            docker logs workslip-actions-sql
+            docker logs "${SQL_CONTAINER:-workslip-actions-sql}" >/dev/null 2>&1 || docker logs workslip-actions-sql
             echo "::error::Ephemeral SQL Server did not become ready."
             exit 1
           fi
