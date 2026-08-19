@@ -83,6 +83,12 @@ export function JobAttestationStep({
 
   const handleSubmit = async () => {
     try {
+      // The previous wizard step autosaves asynchronously. Persist and await the
+      // latest draft here as the final write barrier so status validation can never
+      // race an in-flight closure-flag PATCH.
+      const saved = await details.saveAllChanges();
+      if (!saved) return;
+
       await details.submitJob();
       triggerCompletionCelebration();
       onSubmitted();
