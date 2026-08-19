@@ -10,6 +10,7 @@ APP_URL="http://127.0.0.1:5270"
 SQL_CONTAINER="workslip-playwright-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}-$$"
 BACKEND_LOG="${RUNNER_TEMP:-/tmp}/workslip-playwright-backend.log"
 FRONTEND_LOG="${RUNNER_TEMP:-/tmp}/workslip-playwright-frontend.log"
+SCENARIO_TIMEOUT_SECONDS="${WORKSLIP_PLAYWRIGHT_SCENARIO_TIMEOUT_SECONDS:-180}"
 BACKEND_PID=""
 FRONTEND_PID=""
 
@@ -26,12 +27,40 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for command in docker dotnet node npm curl openssl; do
+for command in docker dotnet node npm curl openssl timeout; do
   if ! command -v "${command}" >/dev/null 2>&1; then
     echo "ERROR: Required command '${command}' is unavailable." >&2
     exit 70
   fi
 done
+
+if ! [[ "${SCENARIO_TIMEOUT_SECONDS}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "ERROR: WORKSLIP_PLAYWRIGHT_SCENARIO_TIMEOUT_SECONDS must be a positive integer." >&2
+  exit 70
+fi
+
+run_scenario() {
+  local label="$1"
+  local script="$2"
+  echo "[playwright] running ${label} (hard timeout ${SCENARIO_TIMEOUT_SECONDS}s)"
+  set +e
+  timeout --foreground --signal=TERM --kill-after=10s "${SCENARIO_TIMEOUT_SECONDS}s" node "${script}"
+  local status=$?
+  set -e
+  if [[ "${status}" -eq 124 || "${status}" -eq 137 ]]; then
+    echo "ERROR: Playwright scenario '${label}' exceeded ${SCENARIO_TIMEOUT_SECONDS}s and was terminated." >&2
+    return 124
+  fi
+  if [[ "${status}" -ne 0 ]]; then
+    echo "ERROR: Playwright scenario '${label}' failed with exit code ${status}." >&2
+    return "${status}"
+  fi
+}
+
+echo "[playwright] validating suite stability policy before expensive runtime setup"
+cd "${FE_ROOT}"
+node --test scripts/playwright-stability-policy.test.mjs
+node scripts/playwright-stability-policy.mjs
 
 sql_password="Workslip$(openssl rand -hex 16)!A1"
 jwt_key="$(openssl rand -hex 32)"
@@ -108,7 +137,6 @@ if [[ "${api_ready}" != "true" ]]; then
 fi
 
 echo "Installing frontend dependencies and Chromium runtime."
-cd "${FE_ROOT}"
 npm ci --prefer-offline --no-audit --no-fund
 npm install \
   --prefix scripts \
@@ -154,23 +182,12 @@ export WORKSLIP_PLAYWRIGHT_ADMIN_EMAIL='admin@17v3ygzs.mailosaur.net'
 export WORKSLIP_PLAYWRIGHT_USER_EMAIL='user@17v3ygzs.mailosaur.net'
 export WORKSLIP_PLAYWRIGHT_AUDITOR_EMAIL='auditor@17v3ygzs.mailosaur.net'
 
-echo "[playwright] validating suite stability policy"
-node --test scripts/playwright-stability-policy.test.mjs
-node scripts/playwright-stability-policy.mjs
-
-echo "[playwright] running authenticated smoke"
-node scripts/playwright-ephemeral-smoke.mjs
-echo "[playwright] running auth brand and login transition evidence"
-node scripts/playwright-auth-brand.mjs
-echo "[playwright] running PDF performance evidence"
-node scripts/playwright-pdf-performance.mjs
-echo "[playwright] running rare critical auth/role flows"
-node scripts/playwright-critical-rare-flows.mjs
-echo "[playwright] running critical job lifecycle flows"
-node scripts/playwright-critical-job-lifecycle.mjs
-echo "[playwright] running shared state semantics evidence"
-node scripts/playwright-shared-state-semantics.mjs
-echo "[playwright] running overview status navigation evidence"
-node scripts/playwright-overview-status-navigation.mjs
+run_scenario 'authenticated smoke' scripts/playwright-ephemeral-smoke.mjs
+run_scenario 'auth brand and login transition evidence' scripts/playwright-auth-brand.mjs
+run_scenario 'PDF performance evidence' scripts/playwright-pdf-performance.mjs
+run_scenario 'rare critical auth/role flows' scripts/playwright-critical-rare-flows.mjs
+run_scenario 'critical job lifecycle flows' scripts/playwright-critical-job-lifecycle.mjs
+run_scenario 'shared state semantics evidence' scripts/playwright-shared-state-semantics.mjs
+run_scenario 'overview status navigation evidence' scripts/playwright-overview-status-navigation.mjs
 
 echo "Authenticated ephemeral Playwright suite completed successfully."
