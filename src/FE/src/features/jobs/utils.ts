@@ -198,9 +198,7 @@ export function toWorkRequest(
     workKind: form.work.workKind || null,
     customWorkKind: form.work.customWorkKind.trim() || null,
     closureFlags: form.work.closureFlags || [],
-    remarks: areAllSelectedCategoriesIrrelevant(form, referenceData)
-      ? form.work.allIrrelevantReason.trim() || null
-      : null,
+    remarks: form.work.allIrrelevantReason.trim() || null,
   };
 }
 
