@@ -35,7 +35,6 @@ import { formatDateLong, formatDateTime } from '../../../lib/formatDate';
 import { notify } from '../../../lib/toast';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { useAuth } from '../../../providers/useAuth';
-import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { compactPairs, formatNumber, formatUnit, parseNullableNumber } from '../../../lib/formatUtils';
 import { ConfirmActionDialog } from '../components/ConfirmActionDialog';
 import { JobConversationLauncher } from '../components/JobConversationLauncher';
@@ -344,30 +343,30 @@ export function AdminCompletedJobReport() {
           </section>
 
           {detailPairs.length > 0 && (
-            <section className="admin-case-reference-card" aria-labelledby="admin-case-detail-title">
+            <section className="admin-case-reference-card admin-case-reference-section" aria-labelledby="admin-case-detail-title">
               <h2 id="admin-case-detail-title">Sagsdetaljer</h2>
               <DetailGrid items={detailPairs} />
             </section>
           )}
 
           {!isDiverseInReview && (
-            <section className="admin-case-reference-card" aria-labelledby="admin-case-controlpoints-title">
-              <h2 id="admin-case-controlpoints-title">Kontrolpunkter</h2>
-              <CollapsibleSection icon={<CheckCircle2 size={18} />} title="Kontrolpunkter" className="kontrolpunkter-section">
-                <div className="attestation-control-section compact">
-                  <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
-                  {job.work.remarks?.trim() && (
-                    <div className="attestation-data-pair observation">
-                      <dt>Begrundelse for irrelevante kontrolpunkter</dt>
-                      <dd>{job.work.remarks.trim()}</dd>
-                    </div>
-                  )}
-                </div>
-              </CollapsibleSection>
+            <section className="admin-case-reference-card admin-case-reference-section" aria-labelledby="admin-case-controlpoints-title">
+              <h2 id="admin-case-controlpoints-title">
+                <CheckCircle2 size={18} aria-hidden="true" /> Kontrolpunkter
+              </h2>
+              <div className="attestation-control-section compact">
+                <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
+                {job.work.remarks?.trim() && (
+                  <div className="attestation-data-pair observation">
+                    <dt>Begrundelse for irrelevante kontrolpunkter</dt>
+                    <dd>{job.work.remarks.trim()}</dd>
+                  </div>
+                )}
+              </div>
             </section>
           )}
 
-          <section className="admin-case-reference-card" aria-labelledby="admin-case-worksheets-title">
+          <section className="admin-case-reference-card admin-case-reference-section" aria-labelledby="admin-case-worksheets-title">
             <h2 id="admin-case-worksheets-title">
               <Timer size={18} aria-hidden="true" /> Timesedler ({visibleWorksheets.length})
             </h2>
@@ -381,7 +380,7 @@ export function AdminCompletedJobReport() {
           </section>
 
           {!isDiverseInReview && (
-            <section className="admin-case-reference-card" aria-labelledby="admin-case-links-title">
+            <section className="admin-case-reference-card admin-case-reference-section" aria-labelledby="admin-case-links-title">
               <h2 id="admin-case-links-title">
                 <Link2 size={18} aria-hidden="true" /> Tilknyttede sager
               </h2>
@@ -389,7 +388,7 @@ export function AdminCompletedJobReport() {
             </section>
           )}
 
-          <section className="admin-case-reference-card" aria-labelledby="admin-case-files-title">
+          <section className="admin-case-reference-card admin-case-reference-section" aria-labelledby="admin-case-files-title">
             <h2 id="admin-case-files-title">
               <FileCheck2 size={18} aria-hidden="true" /> Billeder og dokumentation
             </h2>

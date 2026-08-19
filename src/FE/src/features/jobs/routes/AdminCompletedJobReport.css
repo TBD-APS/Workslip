@@ -193,6 +193,21 @@
   margin: 0;
 }
 
+/* Padding wrapper for the composed detail cards (control points, worksheets, linked
+   cases, images) so they match the reference cards that carry bespoke padding. */
+.admin-case-reference-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem 1.1rem;
+}
+
+.admin-case-reference-section > h2 {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
 .admin-case-reference-information {
   padding: 1rem 1rem 0.55rem;
 }
