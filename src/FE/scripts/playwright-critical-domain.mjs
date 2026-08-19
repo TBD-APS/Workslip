@@ -280,14 +280,13 @@ async function addWorksheetViaUi(session, user, hours) {
   await add.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await add.click();
   const form = page.locator('.worksheet-form');
-  const assigneeField = form.locator('.multi-select-field').filter({ has: form.locator('.multi-select-label', { hasText: 'Montør' }) }).first();
-  const trigger = assigneeField.locator('button.multi-select-trigger');
+  const trigger = page.locator('#worksheet-assignee-trigger');
   if (await trigger.isVisible().catch(() => false)) {
     await waitForEnabled(trigger, 'worksheet assignee selector');
     const triggerText = (await trigger.innerText()).trim();
     if (!triggerText.includes(user.displayName)) {
       await trigger.click();
-      const option = page.getByRole('option').filter({ hasText: user.displayName }).first();
+      const option = page.locator(`#worksheet-assignee-trigger-option-${user.id}`);
       await option.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
       if ((await option.getAttribute('aria-selected')) !== 'true') {
         await option.click();
@@ -302,8 +301,14 @@ async function addWorksheetViaUi(session, user, hours) {
     response.request().method() === 'POST'
       && new URL(response.url()).pathname.startsWith('/api/worksheets/jobs/'),
   { timeout: API_TIMEOUT });
+  const formError = form.locator('.form-error-text');
   await page.getByRole('button', { name: 'Tilføj', exact: true }).click();
-  const response = await responsePromise;
+  const outcome = await Promise.race([
+    responsePromise.then((response) => ({ response })),
+    formError.waitFor({ state: 'visible', timeout: API_TIMEOUT }).then(async () => ({ formError: (await formError.innerText()).trim() })),
+  ]);
+  if ('formError' in outcome) throw new Error(`Worksheet form blocked submit: ${outcome.formError}`);
+  const response = outcome.response;
   if (!response.ok()) throw new Error(`Worksheet creation returned HTTP ${response.status()}.`);
   await form.waitFor({ state: 'hidden', timeout: API_TIMEOUT });
 }
