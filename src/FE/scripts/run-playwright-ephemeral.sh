@@ -154,6 +154,10 @@ export WORKSLIP_PLAYWRIGHT_ADMIN_EMAIL='admin@17v3ygzs.mailosaur.net'
 export WORKSLIP_PLAYWRIGHT_USER_EMAIL='user@17v3ygzs.mailosaur.net'
 export WORKSLIP_PLAYWRIGHT_AUDITOR_EMAIL='auditor@17v3ygzs.mailosaur.net'
 
+echo "[playwright] validating suite stability policy"
+node --test scripts/playwright-stability-policy.test.mjs
+node scripts/playwright-stability-policy.mjs
+
 echo "[playwright] running authenticated smoke"
 node scripts/playwright-ephemeral-smoke.mjs
 echo "[playwright] running auth brand and login transition evidence"
