@@ -208,6 +208,13 @@
   gap: 0.5rem;
 }
 
+/* Case images lead the evidence above the text detail, so give them larger,
+   more prominent tiles than the default gallery (which is sized for dense lists). */
+.admin-case-reference-media .job-images-grid {
+  grid-template-columns: repeat(auto-fill, minmax(clamp(150px, 22vw, 220px), 1fr));
+  gap: 0.85rem;
+}
+
 .admin-case-reference-information {
   padding: 1rem 1rem 0.55rem;
 }

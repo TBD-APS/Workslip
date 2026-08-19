@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   Clock3,
   Download,
-  FileCheck2,
   FileText,
   History,
   Link2,
@@ -342,6 +341,15 @@ export function AdminCompletedJobReport() {
 
           </section>
 
+          {/* Images lead the case evidence — they read faster than the text detail below. */}
+          <section className="admin-case-reference-card admin-case-reference-section admin-case-reference-media" aria-label="Sagsbilleder">
+            <JobImagesSection jobId={job.id} allowManage={canEdit} />
+            <div className="admin-case-reference-document-note">
+              <FileText size={18} aria-hidden="true" />
+              <span>Øvrige sagsfiler bevares i Workslips eksisterende dokumentationsflow.</span>
+            </div>
+          </section>
+
           {detailPairs.length > 0 && (
             <section className="admin-case-reference-card admin-case-reference-section" aria-labelledby="admin-case-detail-title">
               <h2 id="admin-case-detail-title">Sagsdetaljer</h2>
@@ -388,16 +396,6 @@ export function AdminCompletedJobReport() {
             </section>
           )}
 
-          <section className="admin-case-reference-card admin-case-reference-section" aria-labelledby="admin-case-files-title">
-            <h2 id="admin-case-files-title">
-              <FileCheck2 size={18} aria-hidden="true" /> Billeder og dokumentation
-            </h2>
-            <JobImagesSection jobId={job.id} allowManage={canEdit} />
-            <div className="admin-case-reference-document-note">
-              <FileText size={18} aria-hidden="true" />
-              <span>Øvrige sagsfiler bevares i Workslips eksisterende dokumentationsflow.</span>
-            </div>
-          </section>
         </main>
 
         <aside className="admin-case-reference-sidebar" aria-label="Sagshistorik og lederkommentar">
