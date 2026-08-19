@@ -56,7 +56,8 @@ Preserve accessibility, responsive/mobile behaviour, loading/disabled/empty/erro
 - Treat `Ready for review` as the browser-evidence code-freeze point. Expensive authenticated Playwright evidence belongs after the implementation/testability review, not during every implementation iteration.
 - If implementation must change after browser evidence has started, normally convert the PR back to draft before editing. When it becomes ready again, CI reruns browser evidence on the new exact head.
 - Do not manually treat an older browser run as evidence for a newer SHA. The exact-head `CI Gate` is the runtime source of truth for merge readiness.
-- PR bodies declare stable browser intent (`Browser-Evidence`, `Browser-Scenarios`, `Browser-Viewports`); mutable pass/pending/error bookkeeping comes from CI rather than repeated manual PR-body edits.
+- PR bodies declare stable browser intent with `Browser-Evidence`, `Browser-Scenarios`, `Browser-Scripts` and `Browser-Viewports`; mutable pass/pending/error bookkeeping comes from CI rather than repeated manual PR-body edits.
+- `Browser-Scripts` maps every inferred flow to a concrete `playwright-*.mjs` script registered in `scripts/run-playwright-ephemeral.sh` (for example `job-wizard=playwright-critical-job-lifecycle.mjs`). If the relevant scenario is not in that exact-head runner, add/register the focused scenario before claiming browser coverage.
 
 ## Generated API and performance
 
