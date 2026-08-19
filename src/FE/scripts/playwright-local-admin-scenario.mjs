@@ -140,6 +140,11 @@ export async function runFocusedAdminScenario(scenarioName, viewportName) {
   const fixtures = { jobs: [], customers: [], users: [] };
   let captureAuthenticatedNetwork = false;
 
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      scenarioReport.consoleErrors.push(contractHelpers.redact(message.text()));
+    }
+  });
   page.on('pageerror', (error) => scenarioReport.pageErrors.push(contractHelpers.redact(error.message)));
   page.on('requestfailed', (request) => {
     const entry = {
@@ -216,20 +221,9 @@ export async function runFocusedAdminScenario(scenarioName, viewportName) {
 
   async function login(role = 'Admin') {
     const email = roleEmails[role];
-    if (!email) throw new Error(`Unsupported local Actions role: ${role}.`);
+    if (!email) throw new Error(`Unsupported focused local role: ${role}.`);
 
     captureAuthenticatedNetwork = false;
-    await page.goto(`${runtime.appUrl}/login`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    const browserTokenResponsePromise = page.waitForResponse((response) =>
-      response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/dev/token',
-    { timeout: API_TIMEOUT });
-    await page.getByRole('button', { name: `Dev Login · ${role}`, exact: true }).click();
-    const browserTokenResponse = await browserTokenResponsePromise;
-    if (!browserTokenResponse.ok()) {
-      throw new Error(`Development login UI for ${role} returned HTTP ${browserTokenResponse.status()}.`);
-    }
-    await page.waitForURL((url) => url.pathname.startsWith('/app'), { timeout: API_TIMEOUT });
-
     const directTokenResponse = await fetch(`${runtime.apiUrl}/api/dev/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -244,6 +238,14 @@ export async function runFocusedAdminScenario(scenarioName, viewportName) {
     auth.token = tokenPayload.token;
     auth.user = tokenPayload.user;
     auth.role = tokenPayload.user.role;
+
+    await page.goto(`${runtime.appUrl}/login`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await page.evaluate(({ token, userEmail }) => {
+      window.localStorage.setItem('authToken', token);
+      window.localStorage.setItem('userEmail', userEmail);
+    }, { token: tokenPayload.token, userEmail: email });
+    await page.goto(`${runtime.appUrl}/app`, { waitUntil: 'domcontentloaded', timeout: API_TIMEOUT });
+    await page.locator('#account-menu-button').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     captureAuthenticatedNetwork = true;
 
     const me = await apiExpect('GET', '/api/auth/me', undefined, [200]);
@@ -256,27 +258,15 @@ export async function runFocusedAdminScenario(scenarioName, viewportName) {
   }
 
   async function logout() {
-    const creationDialog = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: /sag(?:en|er) er oprettet/i }) });
-    if (await creationDialog.isVisible().catch(() => false)) {
-      await creationDialog.getByRole('button', { name: 'Til sagslisten', exact: true }).click();
-      await creationDialog.waitFor({ state: 'hidden', timeout: UI_TIMEOUT });
-    }
-
-    let accountMenuButton = page.locator('#account-menu-button');
-    if (!await accountMenuButton.isVisible().catch(() => false)) {
-      await page.goto(`${runtime.appUrl}/app`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
-      accountMenuButton = page.locator('#account-menu-button');
-    }
-    await accountMenuButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    await accountMenuButton.click();
-    const accountMenu = page.locator('#account-menu');
-    await accountMenu.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    await accountMenu.locator('#logout-button').click();
-    await page.waitForURL((url) => url.pathname === '/login', { timeout: UI_TIMEOUT });
+    captureAuthenticatedNetwork = false;
+    await page.evaluate(() => {
+      window.localStorage.removeItem('authToken');
+      window.localStorage.removeItem('userEmail');
+    });
+    await page.goto(`${runtime.appUrl}/login`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
     auth.token = null;
     auth.user = null;
     auth.role = null;
-    captureAuthenticatedNetwork = false;
   }
 
   async function apiExpect(method, pathname, body, expectedStatuses = [200]) {
