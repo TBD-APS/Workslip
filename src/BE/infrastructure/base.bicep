@@ -3,8 +3,9 @@ targetScope = 'subscription'
 param companyName string = 'mrsoftwareinc'
 param environment string = 'prod'
 param location string = 'westeurope'
+param deploySql bool = false
 @secure()
-param sqlAdminPassword string
+param sqlAdminPassword string = ''
 
 var normalizedEnvironment = toLower(environment)
 var resourceGroupName = 'rg-${companyName}-${normalizedEnvironment}'
@@ -26,6 +27,7 @@ module baseResources './base.resources.bicep' = {
     companyName: companyName
     environment: environment
     location: location
+    deploySql: deploySql
     sqlAdminPassword: sqlAdminPassword
   }
 }
