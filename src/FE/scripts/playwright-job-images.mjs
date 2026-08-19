@@ -100,6 +100,10 @@ async function verifyGallery({ name, viewport }) {
     }, [200, 201]);
     assert.ok(created?.id, `${name}: image gallery fixture creation returned no job id.`);
     const jobId = created.id;
+    const sectionId = `job-images-section-${jobId}`;
+    const gridId = `job-images-grid-${jobId}`;
+    const toggleId = `job-images-toggle-${jobId}`;
+    const libraryInputId = `job-images-library-input-${jobId}`;
 
     const page = await context.newPage();
     const pageErrors = [];
@@ -121,11 +125,11 @@ async function verifyGallery({ name, viewport }) {
     });
     assert.ok(navigation?.ok(), `${name}: job navigation returned HTTP ${navigation?.status() ?? 'unknown'}.`);
 
-    const section = page.locator('.job-images-section');
+    const section = page.locator(`#${sectionId}`);
     await section.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await section.scrollIntoViewIfNeeded();
 
-    const libraryInput = section.locator('input[type="file"][multiple]');
+    const libraryInput = page.locator(`#${libraryInputId}`);
     await libraryInput.waitFor({ state: 'attached', timeout: UI_TIMEOUT });
     const files = Array.from({ length: 6 }, (_, index) => ({
       name: `gallery-${index + 1}.png`,
@@ -134,36 +138,50 @@ async function verifyGallery({ name, viewport }) {
     }));
     await libraryInput.setInputFiles(files, { timeout: UI_TIMEOUT });
 
-    const expandButton = section.getByRole('button', { name: 'Se flere billeder (2)', exact: true });
-    await expandButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    const toggleButton = page.locator(`#${toggleId}`);
+    await toggleButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    const listedImages = await apiJson('GET', `/api/jobs/${jobId}/images`);
+    assert.ok(Array.isArray(listedImages), `${name}: job image list must be an array.`);
+    assert.equal(listedImages.length, 6, `${name}: fixture must contain exactly six images.`);
+
     await waitUntil(
       () => uniqueImageGetCount(imageGetPaths) >= 4,
       `${name}: first four image requests did not complete their lazy-start boundary.`,
     );
 
-    assert.equal(await section.locator('.job-image-tile').count(), 4, `${name}: collapsed gallery must mount exactly four tiles.`);
+    for (const image of listedImages.slice(0, 4)) {
+      assert.equal(await page.locator(`#job-image-tile-${image.id}`).count(), 1, `${name}: collapsed gallery must mount image ${image.id}.`);
+    }
+    for (const image of listedImages.slice(4)) {
+      assert.equal(await page.locator(`#job-image-tile-${image.id}`).count(), 0, `${name}: collapsed gallery must not mount image ${image.id}.`);
+    }
     assert.equal(uniqueImageGetCount(imageGetPaths), 4, `${name}: collapsed gallery must request exactly four image blobs before expansion.`);
-    assert.equal(await expandButton.getAttribute('aria-expanded'), 'false', `${name}: collapsed gallery must expose aria-expanded=false.`);
+    assert.equal(await toggleButton.getAttribute('aria-expanded'), 'false', `${name}: collapsed gallery must expose aria-expanded=false.`);
 
-    await expandButton.click();
-    await section.getByRole('button', { name: 'Vis færre billeder', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await toggleButton.click();
     await waitUntil(
-      async () => await section.locator('.job-image-tile').count() === 6,
-      `${name}: expanded gallery did not mount all six tiles.`,
+      async () => (await toggleButton.getAttribute('aria-expanded')) === 'true',
+      `${name}: gallery toggle did not enter expanded state.`,
     );
+    for (const image of listedImages) {
+      await page.locator(`#job-image-tile-${image.id}`).waitFor({ state: 'attached', timeout: UI_TIMEOUT });
+    }
     await waitUntil(
       () => uniqueImageGetCount(imageGetPaths) >= 6,
       `${name}: expanded gallery did not start the remaining image requests.`,
     );
 
     assert.equal(uniqueImageGetCount(imageGetPaths), 6, `${name}: expansion must request each of the six images once.`);
-    const collapseButton = section.getByRole('button', { name: 'Vis færre billeder', exact: true });
-    assert.equal(await collapseButton.getAttribute('aria-expanded'), 'true', `${name}: expanded gallery must expose aria-expanded=true.`);
-    await collapseButton.click();
+    assert.equal(await toggleButton.getAttribute('aria-expanded'), 'true', `${name}: expanded gallery must expose aria-expanded=true.`);
+    await toggleButton.click();
     await waitUntil(
-      async () => await section.locator('.job-image-tile').count() === 4,
-      `${name}: gallery did not collapse back to four tiles.`,
+      async () => (await toggleButton.getAttribute('aria-expanded')) === 'false',
+      `${name}: gallery did not return to collapsed state.`,
     );
+    for (const image of listedImages.slice(4)) {
+      assert.equal(await page.locator(`#job-image-tile-${image.id}`).count(), 0, `${name}: collapsed gallery must unmount image ${image.id}.`);
+    }
+    await page.locator(`#${gridId}`).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
     assert.deepEqual(pageErrors, [], `${name}: browser page errors: ${pageErrors.join(' | ')}`);
     assert.deepEqual(consoleErrors, [], `${name}: browser console errors: ${consoleErrors.join(' | ')}`);
