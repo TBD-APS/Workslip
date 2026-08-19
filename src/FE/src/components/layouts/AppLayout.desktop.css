@@ -55,9 +55,7 @@
     grid-column: 1 / -1;
   }
 
-  /* Refine the same AppLayout navigation markup instead of introducing a second navigation model. */
-  .app-header,
-  .bottom-nav {
+  .app-header {
     padding-inline: clamp(2rem, 3vw, 3rem);
   }
 
@@ -67,11 +65,6 @@
 
   .app-header-user {
     max-width: 18rem;
-  }
-
-  .bottom-nav {
-    gap: 0.25rem;
-    background: var(--nav-bg);
   }
 
   .nav-item {
@@ -140,6 +133,96 @@
   .page-container > .error-state {
     width: min(100%, 36rem);
     margin-inline: auto;
+  }
+}
+
+/* WOR-716 — the reference used by WOR-701 includes a persistent left desktop rail.
+   Reuse the existing permission-aware bottom-nav markup so mobile/tablet behaviour,
+   active-route semantics and QuickNavigator access stay identical. The rail only
+   takes over on genuinely wide viewports; 200% zoom naturally falls back below
+   this breakpoint instead of compressing the content beside a fixed sidebar. */
+@media (min-width: 1120px) {
+  .app-shell {
+    --desktop-nav-rail-width: 13.5rem;
+  }
+
+  .app-header,
+  .organization-session-banner,
+  .app-content {
+    margin-left: var(--desktop-nav-rail-width);
+  }
+
+  .app-content {
+    padding-bottom: 2rem;
+  }
+
+  .bottom-nav {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--desktop-nav-rail-width);
+    height: 100dvh;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 0.35rem;
+    padding: calc(5rem + env(safe-area-inset-top, 0px)) 0.8rem max(1rem, env(safe-area-inset-bottom, 0px));
+    border-top: 0;
+    border-right: 1px solid var(--border);
+    background: var(--nav-bg);
+    box-shadow: 12px 0 36px var(--overlay-subtle);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .bottom-nav .nav-item {
+    position: relative;
+    width: 100%;
+    flex: 0 0 auto;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 3rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    font-size: var(--fs-sm);
+    text-align: left;
+  }
+
+  .bottom-nav .nav-item svg {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex: 0 0 auto;
+  }
+
+  .bottom-nav .nav-item > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bottom-nav .nav-item.active {
+    color: var(--text);
+    background: var(--surface-selected);
+    border-color: color-mix(in srgb, var(--color-primary) 24%, var(--border));
+  }
+
+  .bottom-nav .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: -0.8rem;
+    top: 0.6rem;
+    bottom: 0.6rem;
+    width: 3px;
+    border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+    background: var(--color-primary);
+  }
+
+  .fab-create {
+    bottom: 2rem;
   }
 }
 
