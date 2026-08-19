@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { ReferenceDataResponse } from '../../api/generated/models';
 import { emptyForm, toWorkRequest } from './utils';
 
-describe('WOR-339 work request', () => {
-  it('persists the shared all-irrelevant reason as the job remarks', () => {
+describe('WOR-676 work remarks', () => {
+  it('persists remarks when all selected categories are irrelevant', () => {
     const typeId = '00000000-0000-0000-0000-000000000001';
     const categoryId = '00000000-0000-0000-0000-000000000002';
     const form = {
@@ -31,13 +31,13 @@ describe('WOR-339 work request', () => {
       .toBe('Ikke relevant for opgaven');
   });
 
-  it('does not persist a stale reason when a category is relevant', () => {
+  it('persists remarks even when selected categories are relevant', () => {
     const form = {
       ...emptyForm,
       work: {
         ...emptyForm.work,
         categoryIds: ['type-1'],
-        allIrrelevantReason: 'Gammel begrundelse',
+        allIrrelevantReason: '  Kommentar til anlægstyper  ',
       },
     };
     const referenceData = {
@@ -51,6 +51,6 @@ describe('WOR-339 work request', () => {
       closureFlags: [],
     } as ReferenceDataResponse;
 
-    expect(toWorkRequest(form, referenceData).remarks).toBeNull();
+    expect(toWorkRequest(form, referenceData).remarks).toBe('Kommentar til anlægstyper');
   });
 });
