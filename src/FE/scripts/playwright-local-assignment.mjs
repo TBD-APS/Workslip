@@ -7,15 +7,9 @@ import { createDomainHelpers } from './playwright-critical-domain.mjs';
 import { createAdminScenarioHandlers } from './playwright-scenarios-admin.mjs';
 
 const scriptPath = fileURLToPath(import.meta.url);
-const MOBILE_DEVICE_NAME = 'iPhone 13';
+const VIEWPORT_NAME = 'iPhone 13';
 const API_TIMEOUT = 30_000;
 const UI_TIMEOUT = 25_000;
-const SUPPORTED_LOCAL_ADMIN_SCENARIOS = new Set([
-  'assignment-lifecycle',
-  'customer-lifecycle',
-  'worksheet-integrity',
-]);
-const SUPPORTED_VIEWPORTS = new Set(['mobile', 'desktop']);
 
 export function validateLocalActionsEnvironment(env = process.env) {
   if (env.WORKSLIP_ALLOW_LOCAL_DEV_TOKEN !== 'true') {
@@ -60,17 +54,10 @@ function requireValue(value, name) {
   return normalized;
 }
 
-export async function runLocalAdminScenario(scenarioName = 'assignment-lifecycle', viewportName = 'mobile') {
-  if (!SUPPORTED_LOCAL_ADMIN_SCENARIOS.has(scenarioName)) {
-    throw new Error(`Unsupported isolated local admin scenario '${scenarioName}'. Expected one of: ${[...SUPPORTED_LOCAL_ADMIN_SCENARIOS].join(', ')}.`);
-  }
-  if (!SUPPORTED_VIEWPORTS.has(viewportName)) {
-    throw new Error(`Unsupported isolated local viewport '${viewportName}'. Expected desktop or mobile.`);
-  }
-
+async function main() {
   const runtime = validateLocalActionsEnvironment();
   const frontendRoot = path.resolve(path.dirname(scriptPath), '..');
-  const artifactDir = path.resolve(frontendRoot, `../../artifacts/playwright-local-${scenarioName}-${viewportName}`);
+  const artifactDir = path.resolve(frontendRoot, '../../artifacts/playwright-local-assignment');
   const postmanPath = path.resolve(frontendRoot, '../BE/WorkslipApi/Postman/postman_collection.json');
   const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -80,18 +67,13 @@ export async function runLocalAdminScenario(scenarioName = 'assignment-lifecycle
   const postman = JSON.parse(await readFile(postmanPath, 'utf8'));
   const { chromium, devices } = await import('playwright');
   const browser = await chromium.launch({ headless: true });
-  const contextOptions = viewportName === 'desktop'
-    ? { viewport: { width: 1280, height: 800 } }
-    : devices[MOBILE_DEVICE_NAME];
-  const viewport = contextOptions.viewport ?? devices[MOBILE_DEVICE_NAME].viewport;
   const report = {
-    scenario: scenarioName,
+    scenario: 'assignment-lifecycle',
     target: 'isolated-local-actions',
     appUrl: runtime.appUrl,
     startedAt: new Date().toISOString(),
     browser: 'chromium',
-    viewportName,
-    viewport,
+    viewport: devices[VIEWPORT_NAME].viewport,
     dataPolicy: 'Ephemeral SQL Server + synthetic Development identities. No Entra, inbox, ACS, staging, production, or customer data.',
     scenarios: [],
     retainedFixtures: [],
@@ -102,7 +84,7 @@ export async function runLocalAdminScenario(scenarioName = 'assignment-lifecycle
     APP_URL: runtime.appUrl,
     API_TIMEOUT,
     UI_TIMEOUT,
-    VIEWPORT_NAME: viewportName === 'desktop' ? 'desktop-1280' : MOBILE_DEVICE_NAME,
+    VIEWPORT_NAME,
     ARTIFACT_DIR: artifactDir,
     postman,
     browser,
@@ -113,13 +95,12 @@ export async function runLocalAdminScenario(scenarioName = 'assignment-lifecycle
   const domainHelpers = createDomainHelpers(helperEnv, contractHelpers);
   const helpers = { ...contractHelpers, ...domainHelpers };
   const handlers = createAdminScenarioHandlers(
-    { APP_URL: runtime.appUrl, API_TIMEOUT, UI_TIMEOUT, VIEWPORT_NAME: helperEnv.VIEWPORT_NAME, browser, devices, report },
+    { APP_URL: runtime.appUrl, API_TIMEOUT, UI_TIMEOUT, VIEWPORT_NAME, browser, devices, report },
     helpers,
   );
   const dataFactory = contractHelpers.buildDataFactory(postman, runId);
   const scenarioReport = {
-    name: scenarioName,
-    viewport: viewportName,
+    name: 'assignment-lifecycle',
     startedAt: new Date().toISOString(),
     status: 'running',
     steps: [],
@@ -135,7 +116,7 @@ export async function runLocalAdminScenario(scenarioName = 'assignment-lifecycle
 
   let failure = null;
   const context = await browser.newContext({
-    ...contextOptions,
+    ...devices[VIEWPORT_NAME],
     locale: 'da-DK',
     timezoneId: 'Europe/Copenhagen',
   });
@@ -165,13 +146,13 @@ export async function runLocalAdminScenario(scenarioName = 'assignment-lifecycle
 
   const roleEmails = { User: runtime.userEmail, Admin: runtime.adminEmail };
   const session = {
-    name: scenarioName,
+    name: 'assignment-lifecycle',
     context,
     page,
     auth,
     fixtures,
     scenarioReport,
-    data: dataFactory.forScenario(scenarioName),
+    data: dataFactory.forScenario('assignment-lifecycle'),
     step,
     login,
     logout,
@@ -183,7 +164,7 @@ export async function runLocalAdminScenario(scenarioName = 'assignment-lifecycle
   };
 
   try {
-    await handlers[scenarioName](session);
+    await handlers['assignment-lifecycle'](session);
     contractHelpers.assertNoBrowserErrors(session);
     scenarioReport.status = 'passed';
   } catch (error) {
@@ -346,5 +327,5 @@ export async function runLocalAdminScenario(scenarioName = 'assignment-lifecycle
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === scriptPath) {
-  await runLocalAdminScenario();
+  await main();
 }
