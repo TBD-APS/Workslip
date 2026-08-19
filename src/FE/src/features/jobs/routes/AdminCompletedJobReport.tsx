@@ -8,12 +8,15 @@ import {
   CheckCircle2,
   Clock3,
   Download,
+  FileCheck2,
   FileText,
   History,
+  Link2,
   Loader2,
   MapPin,
   Pencil,
   RotateCcw,
+  Timer,
   User,
   Users,
   X,
@@ -31,13 +34,26 @@ import { ErrorState } from '../../../components/ErrorState';
 import { formatDateLong, formatDateTime } from '../../../lib/formatDate';
 import { notify } from '../../../lib/toast';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
+import { useAuth } from '../../../providers/useAuth';
+import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
+import { compactPairs, formatNumber, formatUnit, parseNullableNumber } from '../../../lib/formatUtils';
 import { ConfirmActionDialog } from '../components/ConfirmActionDialog';
 import { JobConversationLauncher } from '../components/JobConversationLauncher';
 import { JobStatusDots } from '../components/JobStatusDots';
+import { DetailGrid } from '../components/DetailGrid';
+import { LinkedJobs } from '../components/LinkedJobs';
+import { WorksheetDetailList } from '../components/WorksheetDetailList';
+import { ControlPointOverview, getSelectedControlPoints, getIrrelevantCategories } from '../components/ControlPointOverview';
+import { JobImagesSection } from '../../images/JobImagesSection';
 import { formatJobStatus } from '../statusLabels';
 import { COMPLETED_JOB_VIEW_TYPE, markJobAsSeen } from '../utils/markJobSeen';
 import { downloadJobReportPdf } from '../utils/downloadJobReportPdf';
-import { formatInstallationTypeNames, formatReportNumber } from '../utils/completedJobFormatters';
+import {
+  formatClosureFlags,
+  formatInstallationTypeNames,
+  formatReportNumber,
+  formatWorkKind,
+} from '../utils/completedJobFormatters';
 import './AdminCompletedJobReport.css';
 
 type JobEntryLocationState = {
@@ -61,6 +77,7 @@ export function AdminCompletedJobReport() {
   const [confirmAction, setConfirmAction] = useState<JobAction | null>(null);
   const [completedAction, setCompletedAction] = useState<JobAction | null>(null);
   const isAdmin = useIsAdmin();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const statusMutation = usePostApiJobsIdStatus();
 
@@ -76,6 +93,12 @@ export function AdminCompletedJobReport() {
   const history = useMemo(
     () => [...(historyQuery.data ?? [])].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
     [historyQuery.data],
+  );
+  const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
+  const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
+  const visibleWorksheets = useMemo(
+    () => (isAdmin ? (job?.worksheets ?? []) : (job?.worksheets ?? []).filter((ws) => ws.userId === user?.id)),
+    [job?.worksheets, isAdmin, user?.id],
   );
 
   const createdAt = history.length > 0 ? history[history.length - 1]?.createdAt : undefined;
@@ -111,6 +134,16 @@ export function AdminCompletedJobReport() {
   // every other viewer gets the same overview but without the lifecycle controls.
   const canDecide = isAdmin && !readOnly;
   const canEdit = isAdmin && !readOnly && job.status !== JobStatus.Approved;
+  // A "Diverse" case still under review has no installation/control-point/linked-case detail.
+  const isDiverseInReview = job.jobType === 'Diverse' && job.status === JobStatus.InReview;
+  const detailPairs = compactPairs([
+    { label: 'Anlægstyper', value: formatInstallationTypeNames(job.work.installationTypes) },
+    { label: 'Opgavetype', value: formatWorkKind(job) },
+    { label: 'Destination', value: job.destinationAddress },
+    { label: 'Afslutning', value: formatClosureFlags(job) },
+  ]);
+  const totalOutlay = parseNullableNumber(job.totalOutlay);
+  const totalHours = parseNullableNumber(job.totalHours);
 
   const handleDownload = async () => {
     setIsDownloading(true);
@@ -308,9 +341,62 @@ export function AdminCompletedJobReport() {
               </div>
             )}
 
+          </section>
+
+          {detailPairs.length > 0 && (
+            <section className="admin-case-reference-card" aria-labelledby="admin-case-detail-title">
+              <h2 id="admin-case-detail-title">Sagsdetaljer</h2>
+              <DetailGrid items={detailPairs} />
+            </section>
+          )}
+
+          {!isDiverseInReview && (
+            <section className="admin-case-reference-card" aria-labelledby="admin-case-controlpoints-title">
+              <h2 id="admin-case-controlpoints-title">Kontrolpunkter</h2>
+              <CollapsibleSection icon={<CheckCircle2 size={18} />} title="Kontrolpunkter" className="kontrolpunkter-section">
+                <div className="attestation-control-section compact">
+                  <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
+                  {job.work.remarks?.trim() && (
+                    <div className="attestation-data-pair observation">
+                      <dt>Begrundelse for irrelevante kontrolpunkter</dt>
+                      <dd>{job.work.remarks.trim()}</dd>
+                    </div>
+                  )}
+                </div>
+              </CollapsibleSection>
+            </section>
+          )}
+
+          <section className="admin-case-reference-card" aria-labelledby="admin-case-worksheets-title">
+            <h2 id="admin-case-worksheets-title">
+              <Timer size={18} aria-hidden="true" /> Timesedler ({visibleWorksheets.length})
+            </h2>
+            <WorksheetDetailList worksheets={visibleWorksheets} className="report-overview-timesheet-list" />
+            <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
+              {totalOutlay > 0 && (
+                <span><strong>{formatNumber(job.totalOutlay)}</strong> {formatUnit(totalOutlay, 'udlæg', 'udlæg')}</span>
+              )}
+              <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(totalHours, 'time', 'timer')}</span>
+            </div>
+          </section>
+
+          {!isDiverseInReview && (
+            <section className="admin-case-reference-card" aria-labelledby="admin-case-links-title">
+              <h2 id="admin-case-links-title">
+                <Link2 size={18} aria-hidden="true" /> Tilknyttede sager
+              </h2>
+              <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`, { state: { from } })} />
+            </section>
+          )}
+
+          <section className="admin-case-reference-card" aria-labelledby="admin-case-files-title">
+            <h2 id="admin-case-files-title">
+              <FileCheck2 size={18} aria-hidden="true" /> Billeder og dokumentation
+            </h2>
+            <JobImagesSection jobId={job.id} allowManage={canEdit} />
             <div className="admin-case-reference-document-note">
               <FileText size={18} aria-hidden="true" />
-              <span>Dokumentation og sagsfiler bevares i Workslips eksisterende dokumentationsflow.</span>
+              <span>Øvrige sagsfiler bevares i Workslips eksisterende dokumentationsflow.</span>
             </div>
           </section>
         </main>
