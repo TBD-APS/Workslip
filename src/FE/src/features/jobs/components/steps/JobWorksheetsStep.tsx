@@ -81,9 +81,6 @@ export function JobWorksheetsStep({
       }));
     }
 
-    // The job's assignment list is the authority for who may receive a worksheet on
-    // this job. Do not intersect it with the separate organization-wide user query:
-    // that creates two competing server-state sources and can hide a valid assignee.
     return (jobQuery.data?.assignedUsers ?? []).map((assignedUser) => ({
       id: assignedUser.id,
       displayName: assignedUser.displayName,
@@ -108,10 +105,6 @@ export function JobWorksheetsStep({
   const { addDraft, editDraft, editingWorksheetId, openActionMenu, isAddOpen, formError } = uiState;
   const [pendingDelete, setPendingDelete] = useState<WorksheetResponse | null>(null);
 
-  // Assignment data can arrive after the reducer has initialized, and the worksheet
-  // component can also survive a job/identity transition. Keep a deliberate assignee
-  // only while it is valid for the current job; otherwise repair the draft to the
-  // current job's default assignee before submission.
   useEffect(() => {
     if (!defaultUserId) return;
     const draftUserIsValid = !canPickUser || resolvedUsers.some((candidate) => candidate.id === addDraft.userId);
@@ -233,6 +226,7 @@ export function JobWorksheetsStep({
           sleptOnJob: draftToSave.sleptOnJob,
         });
       } catch {
+        dispatch({ type: 'setFormError', error: 'Kunne ikke gemme arbejdssedlen.' });
         return;
       }
     }
