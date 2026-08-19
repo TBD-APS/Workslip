@@ -17,11 +17,12 @@ resource acsConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01
   }
 }
 
-// These secrets are reconciled by deploy-infrastructure.ps1. Versionless URIs
-// keep App Configuration references stable across secure rotations.
+// Keep every App Configuration Key Vault reference versionless so secret
+// rotations do not require App Configuration changes.
+var acsConnectionStringSecretUri = 'https://${keyVaultName}.vault.azure.net/secrets/Azure--Acs--ConnectionString'
 var sqlConnectionStringSecretUri = 'https://${keyVaultName}.vault.azure.net/secrets/Azure--Sql--ConnectionString'
 var jwtSigningKeySecretUri = 'https://${keyVaultName}.vault.azure.net/secrets/Jwt--SigningKey'
 
-output acsConnectionStringSecretUri string = acsConnectionStringSecret.properties.secretUri
+output acsConnectionStringSecretUri string = acsConnectionStringSecretUri
 output sqlConnectionstring string = sqlConnectionStringSecretUri
 output jwtSigninKey string = jwtSigningKeySecretUri
