@@ -106,6 +106,7 @@ export function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJob
               onCategoriesChange={details.updateWorkCategories}
               onWorkKindChange={details.updateWorkKind}
               onCustomWorkKindChange={details.updateCustomWorkKind}
+              onRemarksChange={details.updateAllIrrelevantReason}
               mode="work-kind"
             />
           </section>
@@ -123,6 +124,7 @@ export function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJob
                 onCategoriesChange={details.updateWorkCategories}
                 onWorkKindChange={details.updateWorkKind}
                 onCustomWorkKindChange={details.updateCustomWorkKind}
+                onRemarksChange={details.updateAllIrrelevantReason}
                 mode="categories"
               />
             </div>
@@ -131,7 +133,6 @@ export function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJob
               referenceData={details.referenceData}
               onToggleControlPoint={details.toggleControlPoint}
               onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
-              onAllIrrelevantReasonChange={details.updateAllIrrelevantReason}
             />
           </section>
         </>
