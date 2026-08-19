@@ -32,6 +32,15 @@ Use `NumericInput` instead of raw `<input type="number">` where numeric entry is
 
 Preserve accessibility, responsive/mobile behaviour, loading/disabled/empty/error/recovery states, duplicate-submit protection, browser navigation and PWA safe-area behaviour.
 
+## Playwright selector contract
+
+- Playwright must use stable DOM `id` attributes as the interaction and assertion contract for product UI elements.
+- Do not locate or validate product controls through user-facing copy, translated text, placeholders, labels, accessible names or button text (`getByText`, `getByPlaceholder`, text-based `getByRole`, etc.). Product copy is allowed to change without breaking browser automation.
+- When a changed browser journey needs a control that has no stable `id`, add a meaningful stable `id` to the production component in the same cohesive change and target that ID from Playwright.
+- IDs may include stable domain identifiers such as job/document/image IDs when needed to disambiguate repeated controls. Do not use array positions, generated CSS classes or transient text as the selector contract.
+- Visible-copy correctness belongs in focused component/unit/accessibility validation when it is itself the changed requirement; it must not be used as Playwright navigation/synchronization plumbing.
+- Existing Playwright flows that still depend on UI copy are test debt. Do not copy that pattern into new tests; migrate affected selectors to IDs when touching those flows.
+
 ## Generated API and performance
 
 - Endpoint source/OpenAPI define the API contract; do not hand-edit generated clients or models.
