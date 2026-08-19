@@ -295,15 +295,36 @@ export async function runCustomerWave1Acceptance(viewportName) {
     if (favorited?.isFavorite !== true) throw new Error('Customer favorite mutation did not persist.');
 
     await page.goto(`${runtime.appUrl}/app/customers/${customerId}/edit`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
-    await page.locator('#edit-customer-name').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    await page.locator('#edit-customer-name').fill(updatedCustomerName);
+    const editNameInput = page.locator('#edit-customer-name');
+    const editSave = page.locator('#edit-customer-save');
+    await editNameInput.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await editNameInput.fill(updatedCustomerName);
+    if ((await editNameInput.inputValue()) !== updatedCustomerName) {
+      throw new Error(`${viewportName}: customer edit form did not retain the updated name.`);
+    }
+    await editSave.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    if (await editSave.isDisabled()) throw new Error(`${viewportName}: customer edit save is unexpectedly disabled before submission.`);
+    await editSave.focus();
+
+    const editRequestPromise = page.waitForRequest((request) => {
+      const url = new URL(request.url());
+      return request.method() === 'PUT'
+        && url.pathname === `/api/customers/${customerId}`;
+    }, { timeout: API_TIMEOUT });
     const editResponsePromise = page.waitForResponse((response) => {
       const url = new URL(response.url());
       return response.request().method() === 'PUT'
         && url.pathname === `/api/customers/${customerId}`;
     }, { timeout: API_TIMEOUT });
-    await page.locator('#edit-customer-save').click();
+
+    if (viewportName === 'mobile') await editSave.tap();
+    else await editSave.click();
+
+    const editRequest = await editRequestPromise;
     const editResponse = await editResponsePromise;
+    if (editResponse.request() !== editRequest) {
+      throw new Error(`${viewportName}: customer edit response did not correspond to the observed save request.`);
+    }
     if (editResponse.status() !== 200) {
       throw new Error(`UI customer edit returned HTTP ${editResponse.status()}.`);
     }
