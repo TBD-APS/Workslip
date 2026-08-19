@@ -301,7 +301,7 @@ async function addWorksheetViaUi(session, user, hours) {
     response.request().method() === 'POST'
       && new URL(response.url()).pathname.startsWith('/api/worksheets/jobs/'),
   { timeout: API_TIMEOUT });
-  const formError = form.locator('.form-error-text');
+  const formError = page.locator('#worksheet-form-error');
   await page.getByRole('button', { name: 'Tilføj', exact: true }).click();
   const outcome = await Promise.race([
     responsePromise.then((response) => ({ response })),
