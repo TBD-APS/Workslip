@@ -123,7 +123,7 @@ async function completeAndSubmitKlsViaUi(session, job) {
     await session.page.getByRole('button', { name: 'Attestér og indsend', exact: true }).click();
     await response;
     await session.page.waitForURL((url) => url.pathname === `/app/completed/${job.id}`, { timeout: UI_TIMEOUT });
-    await session.page.getByRole('heading', { name: 'Sagsinformation', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await session.page.locator('#admin-case-information-title').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   });
 }
 
@@ -178,7 +178,7 @@ async function waitForPersistedJobStatus(session, jobId, expectedStatuses) {
 
 async function approveJobViaUi(session, jobId) {
   await session.page.goto(`${APP_URL}/app/completed/${jobId}`, { waitUntil: 'domcontentloaded' });
-  await session.page.getByRole('heading', { name: 'Sagsinformation', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await session.page.locator('#admin-case-information-title').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   const approve = session.page.locator('button:visible').filter({ hasText: /^Godkend$/ }).last();
   await approve.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await approve.click();
@@ -191,7 +191,7 @@ async function approveJobViaUi(session, jobId) {
 
 async function rejectJobViaUi(session, jobId, rejectionNote = 'Mangler dokumentation for udført arbejde.') {
   await session.page.goto(`${APP_URL}/app/completed/${jobId}`, { waitUntil: 'domcontentloaded' });
-  await session.page.getByRole('heading', { name: 'Sagsinformation', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await session.page.locator('#admin-case-information-title').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await session.page.locator('button:visible').filter({ hasText: /^Afvis$/ }).last().click();
   const dialog = session.page.getByRole('dialog', { name: 'Afvis sag' });
   await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
