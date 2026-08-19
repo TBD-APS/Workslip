@@ -328,7 +328,32 @@
     padding-inline: 0.55rem;
   }
 
-  .app-shell:has(.desktop-rail-toggle-input:checked) .bottom-nav .nav-item > span,
+  /* Keep text available to assistive tech and surface it as a tooltip on hover/
+     focus instead of removing the accessible name in collapsed mode. */
+  .app-shell:has(.desktop-rail-toggle-input:checked) .bottom-nav .nav-item > span {
+    position: absolute;
+    left: calc(100% + 0.55rem);
+    z-index: 130;
+    width: max-content;
+    max-width: 12rem;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-actions-menu);
+    color: var(--text);
+    box-shadow: var(--shadow-sm-raw);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-0.25rem);
+    transition: opacity 100ms ease, transform 100ms ease;
+  }
+
+  .app-shell:has(.desktop-rail-toggle-input:checked) .bottom-nav .nav-item:hover > span,
+  .app-shell:has(.desktop-rail-toggle-input:checked) .bottom-nav .nav-item:focus-visible > span {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
   .app-shell:has(.desktop-rail-toggle-input:checked) .desktop-rail-toggle-label--collapse {
     display: none;
   }
