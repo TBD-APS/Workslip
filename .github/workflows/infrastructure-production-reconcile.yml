@@ -9,7 +9,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: workslip-production
+  group: workslip-live
   cancel-in-progress: false
 
 jobs:
@@ -17,12 +17,12 @@ jobs:
     name: Infrastructure · Reconcile production
     runs-on: windows-2022
     timeout-minutes: 75
-    environment: prod
+    environment: live
     env:
-      AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
-      AZURE_WEBAPP_NAME: api-mrsoftware-prod
-      API_IDENTITY_NAME: id-mrsoftware-prod
-      LOG_ANALYTICS_WORKSPACE_NAME: logAnal-mrsoftware-prod
+      AZURE_RESOURCE_GROUP: rg-mrsoftwarev2-live
+      AZURE_WEBAPP_NAME: api-mrsoftwarev2-live
+      API_IDENTITY_NAME: id-mrsoftwarev2-live
+      LOG_ANALYTICS_WORKSPACE_NAME: logAnal-mrsoftwarev2-live
       INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID }}
     steps:
       - name: Verify operator selected main
@@ -58,7 +58,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           if ([string]::IsNullOrWhiteSpace($env:INFRA_CLIENT_ID)) {
-            throw 'GitHub environment prod is missing AZURE_INFRA_CLIENT_ID for the privileged infrastructure OIDC identity.'
+            throw 'GitHub environment live is missing AZURE_INFRA_CLIENT_ID for the privileged infrastructure OIDC identity.'
           }
 
       - name: Azure login
@@ -84,15 +84,18 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          & .\src\BE\infrastructure\deploy-infrastructure.ps1 prod
+          & .\src\BE\infrastructure\deploy-infrastructure.ps1 `
+            -Environment live `
+            -Location swedencentral `
+            -COMPANY_NAME mrsoftwarev2
 
       - name: Reconcile database migration identity
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           & .\src\BE\infrastructure\reconcile-database-migration-identity.ps1 `
-            -Environment prod `
-            -CompanyName mrsoftware
+            -Environment live `
+            -CompanyName mrsoftwarev2
 
       - name: Verify diagnostics configuration and API health
         shell: pwsh
@@ -166,7 +169,7 @@ jobs:
               ## Infrastructure production reconcile
 
               - SHA: ``$env:GITHUB_SHA``
-              - Target: ``prod`` / ``$env:AZURE_RESOURCE_GROUP``
+              - Target: ``live`` / ``$env:AZURE_RESOURCE_GROUP``
               - API health: passed at ``$healthUrl``
               "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
               break
