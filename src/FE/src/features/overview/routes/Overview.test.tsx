@@ -4,17 +4,14 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from '../../../lib/axios';
 import { useHasRole } from '../../../providers/permissions/usePermissions';
+import { listDocuments } from '../../docs/docsApi';
+import { getApiCustomersFavorite } from '../../jobs/customerApi';
 import { Overview } from './Overview';
 
-vi.mock('../../../lib/axios', () => ({
-  apiClient: {
-    get: vi.fn(),
-  },
-}));
-
-vi.mock('../../../providers/permissions/usePermissions', () => ({
-  useHasRole: vi.fn(),
-}));
+vi.mock('../../../lib/axios', () => ({ apiClient: { get: vi.fn() } }));
+vi.mock('../../../providers/permissions/usePermissions', () => ({ useHasRole: vi.fn() }));
+vi.mock('../../jobs/customerApi', () => ({ getApiCustomersFavorite: vi.fn() }));
+vi.mock('../../docs/docsApi', () => ({ listDocuments: vi.fn() }));
 
 function LocationProbe() {
   const location = useLocation();
@@ -22,28 +19,22 @@ function LocationProbe() {
 }
 
 function renderOverview() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-    },
-  });
-
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/app/overblik']}>
-        <Overview />
-        <LocationProbe />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={queryClient}><MemoryRouter initialEntries={['/app/overblik']}><Overview /><LocationProbe /></MemoryRouter></QueryClientProvider>);
 }
 
-const overviewResponse = {
-  activeCount: 7,
-  inReviewCount: 3,
-  approvedCount: 11,
-  rejectedCount: 2,
-  recentJobs: [],
+const overviewResponse = { activeCount: 7, inReviewCount: 3, approvedCount: 11, rejectedCount: 2, recentJobs: [] };
+const analyticsResponse = {
+  generatedAtUtc: '2026-08-20T17:00:00Z',
+  employees: [{ userId: 'u1', employee: 'Ada', role: 'User' }],
+  workHours: [{ userId: 'u1', hours: 8, billableAmount: 6400 }],
+  jobs: [
+    ...Array.from({ length: 4 }, () => ({ status: 'Draft' })),
+    ...Array.from({ length: 2 }, () => ({ status: 'InReview' })),
+    ...Array.from({ length: 3 }, () => ({ status: 'Approved' })),
+    { status: 'Rejected' },
+  ],
+  customers: [{ customerId: 'c1', customer: 'Aarhus VVS', createdDate: '2026-08-01' }],
 };
 
 describe('Overview', () => {
@@ -51,103 +42,61 @@ describe('Overview', () => {
     vi.clearAllMocks();
     sessionStorage.clear();
     vi.mocked(useHasRole).mockReturnValue(false);
+    vi.mocked(getApiCustomersFavorite).mockResolvedValue([]);
+    vi.mocked(listDocuments).mockResolvedValue({ items: [], totalCount: 0 });
   });
 
-  it('loads the overview once and renders the backend status counts', async () => {
+  it('renders all four live status counts', async () => {
     vi.mocked(apiClient.get).mockResolvedValue(overviewResponse);
-
     renderOverview();
-
-    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(1));
-    expect(apiClient.get).toHaveBeenCalledWith('/api/jobs/overview');
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith('/api/jobs/overview'));
     await waitFor(() => {
       expect(screen.getByText('Aktive sager').previousElementSibling).toHaveTextContent('7');
       expect(screen.getByText('Til gennemsyn').previousElementSibling).toHaveTextContent('3');
       expect(screen.getByText('Godkendte sager').previousElementSibling).toHaveTextContent('11');
-      expect(screen.getByRole('button', { name: /2 afviste/i })).toBeInTheDocument();
+      expect(screen.getByText('Afviste sager').previousElementSibling).toHaveTextContent('2');
     });
   });
 
-  it('does not fetch or render Power BI analytics for non-admin users', async () => {
+  it('does not fetch Admin dashboard data for non-admin users', async () => {
     vi.mocked(apiClient.get).mockResolvedValue(overviewResponse);
-
     renderOverview();
-
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith('/api/jobs/overview'));
-    expect(apiClient.get).not.toHaveBeenCalledWith(
-      '/api/power-bi/overview/job-status',
-      expect.anything(),
-    );
+    expect(apiClient.get).not.toHaveBeenCalledWith('/api/worksheets/all/report/power-bi/data?historyMonths=24', expect.anything());
+    expect(getApiCustomersFavorite).not.toHaveBeenCalled();
+    expect(listDocuments).not.toHaveBeenCalled();
     expect(screen.queryByTestId('admin-power-bi-job-status')).not.toBeInTheDocument();
   });
 
-  it('renders the Power BI donut and fetches its summary only for Admin', async () => {
+  it('renders analytics tabs, favorite customers and latest documents for Admin', async () => {
     vi.mocked(useHasRole).mockReturnValue(true);
+    vi.mocked(getApiCustomersFavorite).mockResolvedValue([{ id: 'c1', customerNumber: '1', name: 'Aarhus VVS', email: null, phone: null, address: null, zipCode: null, city: 'Aarhus', country: null, contactPerson: null, isFavorite: true }]);
+    vi.mocked(listDocuments).mockResolvedValue({ items: [{ id: 'd1', title: 'KLS skabelon', preview: '', tags: [], updatedAt: '2026-08-20T10:00:00Z', updatedByDisplayName: 'Admin', revision: 1 }], totalCount: 1 });
     vi.mocked(apiClient.get).mockImplementation(async (url) => {
       if (url === '/api/jobs/overview') return overviewResponse;
-      if (url === '/api/power-bi/overview/job-status') {
-        return {
-          total: 10,
-          draft: 4,
-          inReview: 2,
-          approved: 3,
-          rejected: 1,
-          other: 0,
-          generatedAtUtc: '2026-08-20T17:00:00Z',
-        };
-      }
+      if (url === '/api/worksheets/all/report/power-bi/data?historyMonths=24') return analyticsResponse;
       throw new Error(`Unexpected URL: ${url}`);
     });
-
     renderOverview();
 
     expect(await screen.findByTestId('admin-power-bi-job-status')).toBeInTheDocument();
-    const donut = await screen.findByRole('img', { name: /Sagsfordeling/i });
-    expect(donut).toHaveAccessibleName(
-      /Aktive: 4, Til gennemsyn: 2, Godkendte: 3, Afviste: 1/i,
-    );
-    expect(screen.getByText('10')).toBeInTheDocument();
-    expect(apiClient.get).toHaveBeenCalledWith(
-      '/api/power-bi/overview/job-status',
-      { skipGlobalErrorToast: true },
-    );
+    expect(await screen.findByRole('img', { name: /Sagsfordeling/i })).toHaveAccessibleName(/Aktive: 4, Til gennemsyn: 2, Godkendte: 3, Afviste: 1/i);
+    expect(await screen.findByText('Aarhus VVS')).toBeInTheDocument();
+    expect(await screen.findByText('KLS skabelon')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Medarbejderøkonomi/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Nye kunder/i })).toBeInTheDocument();
   });
 
   it.each([
     ['Aktive sager', 'Draft'],
     ['Til gennemsyn', 'InReview'],
     ['Godkendte sager', 'Approved'],
+    ['Afviste sager', 'Rejected'],
   ])('navigates %s to its explicit status filter', async (label, status) => {
-    vi.mocked(apiClient.get).mockResolvedValue({
-      activeCount: 1,
-      inReviewCount: 1,
-      approvedCount: 1,
-      rejectedCount: 1,
-      recentJobs: [],
-    });
-
+    vi.mocked(apiClient.get).mockResolvedValue({ ...overviewResponse, activeCount: 1, inReviewCount: 1, approvedCount: 1, rejectedCount: 1 });
     renderOverview();
-
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(label, 'i') }));
-
     expect(screen.getByTestId('location')).toHaveTextContent(`/app?status=${status}`);
     expect(sessionStorage.getItem('statusFilter:mine-jobs')).toBe(JSON.stringify([status]));
-  });
-
-  it('routes rejected cases to the rejected filter', async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({
-      activeCount: 0,
-      inReviewCount: 0,
-      approvedCount: 0,
-      rejectedCount: 4,
-      recentJobs: [],
-    });
-
-    renderOverview();
-
-    fireEvent.click(await screen.findByRole('button', { name: /4 afviste/i }));
-
-    expect(screen.getByTestId('location')).toHaveTextContent('/app?status=Rejected');
-    expect(sessionStorage.getItem('statusFilter:mine-jobs')).toBe(JSON.stringify(['Rejected']));
   });
 });
