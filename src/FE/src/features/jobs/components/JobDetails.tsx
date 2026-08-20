@@ -176,7 +176,7 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
         ? target as HTMLElement
         : target.querySelector<HTMLElement>('input, textarea, button, select, [tabindex]');
       focusable?.focus({ preventScroll: true });
-      window.setTimeout(() => target.classList.remove('validation-focus-target'), 1000);
+      window.setTimeout(() => target.classList.remove('validation-focus-target'), 1500);
     }, 80);
   };
 
@@ -316,6 +316,7 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
         }}
         onNext={() => details.navigateToStep(details.currentStep + 1)}
         onNextBlocked={currentStepIssue ? () => goToValidationIssue(currentStepIssue) : undefined}
+        nextBlockedLabel={currentStepIssue?.actionLabel}
         disableNext={disableNext}
         nextDisabledReason={nextDisabledReason}
         statusSlot={<SaveStatusIndicator saveStatus={globalSaveStatus} />}
