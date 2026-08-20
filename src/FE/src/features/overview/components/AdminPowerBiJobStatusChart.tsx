@@ -18,6 +18,11 @@ type Segment = {
   count: number;
 };
 
+type ChartSegment = Segment & {
+  percentage: number;
+  offset: number;
+};
+
 const fetchJobStatus = async () => (await apiClient.get(
   '/api/power-bi/overview/job-status',
   { skipGlobalErrorToast: true },
@@ -31,6 +36,16 @@ const buildSegments = (data: PowerBiJobStatusResponse): Segment[] => [
   { key: 'other', label: 'Øvrige', count: data.other },
 ].filter((segment) => segment.count > 0);
 
+const buildChartSegments = (segments: Segment[], total: number): ChartSegment[] =>
+  segments.map((segment, index) => {
+    const percentage = total > 0 ? (segment.count / total) * 100 : 0;
+    const offset = segments
+      .slice(0, index)
+      .reduce((sum, previous) => sum + (total > 0 ? (previous.count / total) * 100 : 0), 0);
+
+    return { ...segment, percentage, offset };
+  });
+
 export function AdminPowerBiJobStatusChart() {
   const statusQuery = useQuery({
     queryKey: ['power-bi', 'overview', 'job-status'],
@@ -42,7 +57,7 @@ export function AdminPowerBiJobStatusChart() {
   const data = statusQuery.data;
   const segments = data ? buildSegments(data) : [];
   const total = data?.total ?? 0;
-  let offset = 0;
+  const chartSegments = buildChartSegments(segments, total);
 
   return (
     <section
@@ -87,22 +102,17 @@ export function AdminPowerBiJobStatusChart() {
               aria-label={`Sagsfordeling. ${segments.map((segment) => `${segment.label}: ${segment.count}`).join(', ') || 'Ingen sager'}`}
             >
               <circle className="overview-power-bi-donut__track" cx="21" cy="21" r="15.9155" />
-              {segments.map((segment) => {
-                const percentage = total > 0 ? (segment.count / total) * 100 : 0;
-                const segmentOffset = offset;
-                offset += percentage;
-                return (
-                  <circle
-                    key={segment.key}
-                    className={`overview-power-bi-donut__segment overview-power-bi-donut__segment--${segment.key}`}
-                    cx="21"
-                    cy="21"
-                    r="15.9155"
-                    strokeDasharray={`${percentage} ${100 - percentage}`}
-                    strokeDashoffset={-segmentOffset}
-                  />
-                );
-              })}
+              {chartSegments.map((segment) => (
+                <circle
+                  key={segment.key}
+                  className={`overview-power-bi-donut__segment overview-power-bi-donut__segment--${segment.key}`}
+                  cx="21"
+                  cy="21"
+                  r="15.9155"
+                  strokeDasharray={`${segment.percentage} ${100 - segment.percentage}`}
+                  strokeDashoffset={-segment.offset}
+                />
+              ))}
             </svg>
             <div className="overview-power-bi-donut__center" aria-hidden="true">
               <strong>{total}</strong>
