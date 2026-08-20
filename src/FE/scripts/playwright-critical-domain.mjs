@@ -260,10 +260,20 @@ async function createMinimalJobFixtureViaApi(session, customer) {
     work: {
       installationTypes: [{
         id: selection.installation.id,
-        categories: selection.installation.categories?.slice(0, 1).map((category) => ({
-          id: category.id,
-          controlPoints: category.controlPoints?.slice(0, 1).map((controlPoint) => ({ id: controlPoint.id })) ?? [],
-        })) ?? [],
+        // Kontrolpunkter (step 2) is only complete when every category of the selected
+        // installation type is either checked or marked irrelevant. Check one control
+        // point in the first category and mark the remaining categories irrelevant so
+        // the wizard's step gating lets the flow reach the Timesedler step.
+        categories: selection.installation.categories?.map((category, index) => index === 0
+          ? {
+              id: category.id,
+              controlPoints: category.controlPoints?.slice(0, 1).map((controlPoint) => ({ id: controlPoint.id, isChecked: true })) ?? [],
+            }
+          : {
+              id: category.id,
+              isIrrelevant: true,
+              controlPoints: [],
+            }) ?? [],
       }],
       workKind: valueOf(selection.workKind),
       closureFlags: [valueOf(selection.closureFlag)],

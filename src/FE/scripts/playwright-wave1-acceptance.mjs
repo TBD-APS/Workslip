@@ -140,8 +140,11 @@ function captureBrowserFailures(page) {
   page.on('requestfailed', (request) => {
     const url = new URL(request.url());
     const errorText = request.failure()?.errorText ?? 'unknown';
+    // React Query cancels in-flight GET queries (including /api data fetches such as
+    // the Power BI report link) when a view unmounts on navigation, surfacing as
+    // net::ERR_ABORTED. That is expected teardown, not a failure — matching the abort
+    // allowance used by the assignment lifecycle diagnostics.
     const isExpectedNavigationAbort = request.method() === 'GET'
-      && !url.pathname.startsWith('/api/')
       && errorText === 'net::ERR_ABORTED';
     if (isExpectedNavigationAbort) return;
     failedRequests.push(`${request.method()} ${url.pathname}: ${errorText}`);
