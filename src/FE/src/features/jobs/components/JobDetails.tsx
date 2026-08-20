@@ -163,7 +163,8 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
 
     details.setCurrentStep(validationIssue.step);
     window.setTimeout(() => {
-      const target = document.getElementById(validationIssue.targetId);
+      const target = document.getElementById(validationIssue.targetId)
+        ?? document.querySelector<HTMLElement>(`[data-field-error="${validationIssue.targetId}"]`);
       if (!target) {
         document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
         return;
