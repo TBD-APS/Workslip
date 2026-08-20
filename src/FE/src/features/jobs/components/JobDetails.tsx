@@ -316,7 +316,7 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
         }}
         onNext={() => details.navigateToStep(details.currentStep + 1)}
         onNextBlocked={currentStepIssue ? () => goToValidationIssue(currentStepIssue) : undefined}
-        nextBlockedLabel={currentStepIssue?.actionLabel}
+        blockedNextLabel={currentStepIssue?.actionLabel}
         disableNext={disableNext}
         nextDisabledReason={nextDisabledReason}
         statusSlot={<SaveStatusIndicator saveStatus={globalSaveStatus} />}
