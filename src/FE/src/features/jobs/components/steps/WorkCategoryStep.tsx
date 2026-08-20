@@ -52,7 +52,7 @@ export function WorkCategoryStep(
   };
 
   const renderCategories = () => (
-    <div className="work-field-group">
+    <div id="job-installation-types" className="work-field-group">
       <div className="category-choice-grid">
         {categories.map((category) => {
           const isSelected = form.work.categoryIds.includes(category.id);
@@ -78,7 +78,7 @@ export function WorkCategoryStep(
 
   const renderWorkKind = () => (
     <>
-      <div className="work-field-group">
+      <div id="job-work-kind" className="work-field-group">
         <span className="work-field-label">Opgavetype</span>
         <div className="work-kind-list">
           {workKinds.map((workKind) => {
@@ -104,7 +104,7 @@ export function WorkCategoryStep(
       </div>
 
       {requiresCustomWorkKind && (
-        <label className="work-field-group" ref={customWorkKindRef}>
+        <label id="job-custom-work-kind" className="work-field-group" ref={customWorkKindRef}>
           <span className="work-field-label">Beskriv anden opgavetype</span>
           <input
             className="form-input"

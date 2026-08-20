@@ -1,0 +1,23 @@
+.validation-focus-target {
+  border-radius: var(--radius);
+  animation: validation-focus-pulse 1.4s ease-out;
+}
+
+@keyframes validation-focus-pulse {
+  0%, 100% {
+    box-shadow: none;
+    background-color: transparent;
+  }
+  20%, 60% {
+    box-shadow: 0 0 0 4px var(--status-red-bg), 0 0 0 5px var(--danger);
+    background-color: var(--status-red-bg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .validation-focus-target {
+    animation: none;
+    box-shadow: 0 0 0 3px var(--danger);
+    background-color: var(--status-red-bg);
+  }
+}

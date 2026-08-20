@@ -1,10 +1,16 @@
-import { AlertCircle, CheckCircle2, Clock, EyeOff, FileText, Info, ListChecks, Send, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, Clock, EyeOff, FileText, Info, ListChecks, Send, ShieldCheck } from 'lucide-react';
 import { CollapsibleSection } from '../../../../components/forms/CollapsibleSection';
 import { triggerCompletionCelebration } from '../../../../lib/completionCelebration';
 import { JobStatus } from '../../../../api/generated/models/jobStatus';
 import type { useJobDetails } from '../../hooks/useJobDetails';
 import { formatNumber, formatUnit, parseNullableNumber, capitalize } from '../../../../lib/formatUtils';
 import { WorksheetDetailList } from '../WorksheetDetailList';
+import { ActionableValidationSummary } from '../../validation/ActionableValidationSummary';
+import {
+  getJobValidationIssues,
+  mapBackendValidationIssues,
+  type JobValidationIssue,
+} from '../../validation/jobValidation';
 
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
@@ -13,6 +19,7 @@ type JobAttestationStepProps = {
   details: JobDetailsState;
   confirmed: boolean;
   onConfirmedChange: (confirmed: boolean) => void;
+  onValidationAction: (issue: JobValidationIssue) => void;
   onSubmitted: () => void;
 };
 
@@ -23,6 +30,7 @@ export function JobAttestationStep({
   details,
   confirmed,
   onConfirmedChange,
+  onValidationAction,
   onSubmitted,
 }: JobAttestationStepProps) {
   const job = details.job;
@@ -80,8 +88,25 @@ export function JobAttestationStep({
     <span><strong>{formatNumber(totalOutlayValue)}</strong> {formatUnit(totalOutlayValue, 'udlæg', 'udlæg')}</span>
   ) : null;
   const selectedClosureFlags = job.work.closureFlags ?? [];
+  const clientValidationIssues = getJobValidationIssues({
+    form: details.form,
+    referenceData: details.referenceData ?? null,
+    worksheetCount: details.worksheets.length,
+    reportNumberReadOnly: details.reportNumberReadOnly,
+  });
+  const backendValidationIssues = mapBackendValidationIssues(details.submitJobFieldErrors);
+  const validationIssues = dedupeValidationIssues([
+    ...clientValidationIssues,
+    ...backendValidationIssues,
+  ]);
 
   const handleSubmit = async () => {
+    const firstIssue = clientValidationIssues[0];
+    if (firstIssue) {
+      onValidationAction(firstIssue);
+      return;
+    }
+
     try {
       // The previous wizard step autosaves asynchronously. Persist and await the
       // latest draft here as the final write barrier so status validation can never
@@ -233,19 +258,11 @@ export function JobAttestationStep({
           <h3>Indsendelse</h3>
         </div>
 
-        {details.submitJobFieldErrors.length > 0 && (
-          <div className="validation-error attestation-validation-error">
-            <AlertCircle size={18} />
-            <div>
-              <span className="attestation-validation-title">Sagen mangler oplysninger før attestering:</span>
-              <ul>
-                {details.submitJobFieldErrors.map((error) => (
-                  <li key={`${error.field}-${error.message}`}>{error.message}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        )}
+        <ActionableValidationSummary
+          id="job-attestation-validation"
+          issues={validationIssues}
+          onAction={onValidationAction}
+        />
 
         <label className={`attestation-confirm-row${confirmed || isInReview ? ' confirmed' : ''}${confirmationDisabled ? ' disabled' : ''}`}>
           <span className="attestation-confirm-copy">
@@ -292,6 +309,16 @@ export function JobAttestationStep({
       </section>
     </>
   );
+}
+
+function dedupeValidationIssues(issues: JobValidationIssue[]): JobValidationIssue[] {
+  const seen = new Set<string>();
+  return issues.filter((issue) => {
+    const key = `${issue.step}:${issue.targetId}:${issue.message}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function compactSummaryItems(items: Array<{ label: string; value: string | null | undefined }>): SummaryItemViewModel[] {

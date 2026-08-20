@@ -72,7 +72,7 @@ export function JobCompletionStep({
 
       {!isLoading && (
         <div className="work-category-form">
-          <div className="work-field-group">
+          <div id="job-closure-flags" className="work-field-group">
             <span className="work-field-label">Vælg status for sagens afslutning</span>
             <div className="work-kind-list">
               {closureFlags.map((flag) => {
