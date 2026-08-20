@@ -44,6 +44,23 @@ public sealed class WorksheetReportEndpointAuthorizationTests
         AssertRequiresAdmin(endpoint);
     }
 
+    [Fact]
+    public async Task PowerBiAnalyticsDataEndpoint_DoesNotAcceptOrganizationIdFromRouteOrQueryContract()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSingleton<IWorksheetService, StubWorksheetService>();
+        await using var app = builder.Build();
+        app.MapWorkSheetEndpoints();
+
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(route => route.RoutePattern.RawText == "/api/worksheets/all/report/power-bi/data");
+
+        var rawText = endpoint.RoutePattern.RawText ?? string.Empty;
+        Assert.DoesNotContain("organization", rawText, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static void AssertRequiresAdmin(RouteEndpoint endpoint)
     {
         var policies = endpoint.Metadata
