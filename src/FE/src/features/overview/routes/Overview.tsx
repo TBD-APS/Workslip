@@ -11,6 +11,7 @@ import { useHasRole } from '../../../providers/permissions/usePermissions';
 import { formatJobStatus } from '../../jobs/statusLabels';
 import { AdminPowerBiJobStatusChart } from '../components/AdminPowerBiJobStatusChart';
 import './Overview.css';
+import './Overview.dashboard-inspiration.css';
 
 type JobOverviewResponse = {
   activeCount: number;
