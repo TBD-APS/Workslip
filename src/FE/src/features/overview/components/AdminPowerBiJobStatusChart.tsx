@@ -28,13 +28,17 @@ const fetchJobStatus = async () => (await apiClient.get(
   { skipGlobalErrorToast: true },
 )) as PowerBiJobStatusResponse;
 
-const buildSegments = (data: PowerBiJobStatusResponse): Segment[] => [
-  { key: 'draft', label: 'Aktive', count: data.draft },
-  { key: 'inReview', label: 'Til gennemsyn', count: data.inReview },
-  { key: 'approved', label: 'Godkendte', count: data.approved },
-  { key: 'rejected', label: 'Afviste', count: data.rejected },
-  { key: 'other', label: 'Øvrige', count: data.other },
-].filter((segment) => segment.count > 0);
+const buildSegments = (data: PowerBiJobStatusResponse): Segment[] => {
+  const segments: Segment[] = [
+    { key: 'draft', label: 'Aktive', count: data.draft },
+    { key: 'inReview', label: 'Til gennemsyn', count: data.inReview },
+    { key: 'approved', label: 'Godkendte', count: data.approved },
+    { key: 'rejected', label: 'Afviste', count: data.rejected },
+    { key: 'other', label: 'Øvrige', count: data.other },
+  ];
+
+  return segments.filter((segment) => segment.count > 0);
+};
 
 const buildChartSegments = (segments: Segment[], total: number): ChartSegment[] =>
   segments.map((segment, index) => {
