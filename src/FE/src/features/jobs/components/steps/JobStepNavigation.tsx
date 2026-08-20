@@ -58,6 +58,7 @@ type StepNavigationProps = {
   onNext: () => void;
   onDone: () => void;
   onNextBlocked?: () => void;
+  blockedNextLabel?: string;
   doneLabel?: string;
   doneIcon?: ReactNode;
   disableNext?: boolean;
@@ -75,6 +76,7 @@ export function StepNavigation({
   onNext,
   onDone,
   onNextBlocked,
+  blockedNextLabel,
   doneLabel = 'Færdig',
   doneIcon = <CheckCircle2 size={18} />,
   disableNext = false,
@@ -134,6 +136,9 @@ export function StepNavigation({
     };
   }, []);
 
+  const actionableBlockedNext = disableNext && Boolean(onNextBlocked);
+  const nextLabel = actionableBlockedNext ? blockedNextLabel ?? 'Ret oplysninger' : 'Næste';
+
   const bar = (
     <div className="step-nav">
       <button
@@ -151,8 +156,8 @@ export function StepNavigation({
         <button
           className="step-nav-btn step-nav-btn-next"
           onClick={() => {
-            if (disableNext && onNextBlocked) {
-              onNextBlocked();
+            if (actionableBlockedNext) {
+              onNextBlocked?.();
               return;
             }
             onNext();
@@ -160,9 +165,9 @@ export function StepNavigation({
           disabled={disableNext && !onNextBlocked}
           aria-disabled={disableNext || undefined}
           title={disableNext ? nextDisabledReason : undefined}
-          aria-label={disableNext ? `Næste — ${nextDisabledReason ?? 'ret manglende oplysninger'}` : 'Næste'}
+          aria-label={disableNext ? `${nextLabel} — ${nextDisabledReason ?? 'ret manglende oplysninger'}` : 'Næste'}
         >
-          <span>Næste</span>
+          <span>{nextLabel}</span>
           <ChevronRight size={18} />
         </button>
       ) : !hideDoneButton ? (
