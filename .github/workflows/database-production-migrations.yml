@@ -14,7 +14,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: workslip-production
+  group: workslip-live
   cancel-in-progress: false
 
 jobs:
@@ -22,10 +22,10 @@ jobs:
     name: Database · Apply production migrations
     runs-on: windows-2022
     timeout-minutes: 45
-    environment: prod
+    environment: live
     env:
-      AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
-      AZURE_MIGRATION_IDENTITY_NAME: id-mrsoftware-prod-migration
+      AZURE_RESOURCE_GROUP: rg-mrsoftwarev2-live
+      AZURE_MIGRATION_IDENTITY_NAME: id-mrsoftwarev2-live-migration
     steps:
       - name: Verify operator intent
         shell: pwsh
@@ -97,7 +97,7 @@ jobs:
         shell: pwsh
         run: |
           if ([string]::IsNullOrWhiteSpace('${{ vars.AZURE_INFRA_CLIENT_ID }}')) {
-            throw 'GitHub environment prod is missing AZURE_INFRA_CLIENT_ID; migration identity bootstrap is blocked.'
+            throw 'GitHub environment live is missing AZURE_INFRA_CLIENT_ID; migration identity bootstrap is blocked.'
           }
 
       - name: Azure login as infrastructure identity
@@ -125,8 +125,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & .\src\BE\infrastructure\reconcile-database-migration-identity.ps1 `
-            -Environment prod `
-            -CompanyName mrsoftware
+            -Environment live `
+            -CompanyName mrsoftwarev2
 
       - name: Logout infrastructure identity
         if: ${{ steps.identity-check.outputs.missing == 'true' }}
@@ -184,8 +184,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & .\src\BE\infrastructure\run-database-migrations.ps1 `
-            -Environment prod `
-            -CompanyName mrsoftware
+            -Environment live `
+            -CompanyName mrsoftwarev2
 
       - name: Logout database migration identity
         if: ${{ always() }}
@@ -200,6 +200,6 @@ jobs:
           ## Database production migration
 
           - SHA: ``$env:GITHUB_SHA``
-          - Target: ``prod`` / ``rg-mrsoftware-prod``
+          - Target: ``live`` / ``rg-mrsoftwarev2-live``
           - Result: reviewed migrations applied successfully
           "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
