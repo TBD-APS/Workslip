@@ -26,6 +26,7 @@ public static class EndpointConfiguration
         app.MapDocumentEndpoints();
         app.MapJobLinkEndpoints();
         app.MapWorkSheetEndpoints();
+        app.MapPowerBiEmbedEndpoints();
         app.MapReferenceDataEndpoints();
         app.MapPushNotificationEndpoints();
         app.MapCacheEndpoints();
