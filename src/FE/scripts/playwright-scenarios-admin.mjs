@@ -4,8 +4,7 @@ export function createAdminScenarioHandlers(env, h) {
     createKlsDraftViaUi, completeAndSubmitKlsViaUi, approveJobViaUi, rejectJobViaUi, navigateToAttestation,
     waitForWizardStep, waitForApiResponse, unwrapCollection, createCustomerFixtureViaApi, createMinimalJobFixtureViaApi,
     sectionByHeading, createCustomerViaUi, assignedIds, readCustomerName, addWorksheetViaUi,
-    assertStatus, readDestinationAddress, assertEqual, clickWizardStep, clickNext, pickReferenceSelection, candidates,
-    clickByTextCandidates, checkRadioByCandidates, fillOverviewFields, waitForEnabled, extractInviteToken
+    assertStatus, readDestinationAddress, assertEqual, clickWizardStep, fillOverviewFields, waitForEnabled, extractInviteToken
   } = h;
 
   // Match the Microsoft login host exactly (apex or a real subdomain) instead of a
@@ -199,32 +198,8 @@ async function worksheetIntegrityFlow(session) {
   await session.step('add worksheet with Danish decimal comma', async () => {
     await session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded' });
     await waitForWizardStep(session.page, 'Sagsdetaljer');
-
-    // Respect the real wizard prerequisites instead of assuming the Timesedler
-    // step is already unlocked on a fresh KLS draft.
-    const selection = pickReferenceSelection(session.referenceData);
-    await clickNext(session.page, 'Anlægstyper');
-    await clickByTextCandidates(
-      session.page.locator('button.choice-card.selection-card'),
-      candidates(selection.installation),
-      'installation type',
-    );
-    await checkRadioByCandidates(session.page, candidates(selection.workKind), 'work kind');
-    const customWorkKind = session.page.getByPlaceholder('Skriv hvilken opgavetype der udføres');
-    if (await customWorkKind.isVisible().catch(() => false)) {
-      await customWorkKind.fill(session.data.customWorkKind);
-    }
-
-    await clickNext(session.page, 'Kontrolpunkter');
-    const irrelevant = session.page.locator('button[title="Marker som ikke relevant"]');
-    let guard = 0;
-    while (await irrelevant.count()) {
-      if (guard++ > 100) throw new Error('Worksheet setup control-point processing exceeded safety limit.');
-      await irrelevant.first().click();
-      await session.page.waitForTimeout(75);
-    }
-    await clickNext(session.page, 'Timesedler');
-
+    await navigateToAttestation(session, session.referenceData);
+    await clickWizardStep(session.page, 'Timesedler');
     await addWorksheetViaUi(session, session.worksheetUser, '1,5');
     const persisted = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
     const worksheet = persisted.worksheets?.find((item) => item.userId === session.worksheetUser.id);
