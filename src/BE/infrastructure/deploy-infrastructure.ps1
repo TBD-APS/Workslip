@@ -233,6 +233,24 @@ function Get-AppConfigurationValue {
 function Get-KeyVaultSecretValue {
     param([Parameter(Mandatory = $true)][string]$SecretName)
 
+    # A fresh deployment has no Key Vault yet.
+    # Check the ARM resource before calling the Key Vault data plane.
+    $vaultResult = Invoke-AzureCli `
+        -Arguments @(
+            'keyvault', 'show',
+            '--resource-group', $ResourceGroup,
+            '--name', $KeyVaultName,
+            '--query', 'id',
+            '--only-show-errors',
+            '-o', 'tsv'
+        ) `
+        -AllowFailure
+
+    if ($vaultResult.ExitCode -ne 0 -or
+        [string]::IsNullOrWhiteSpace($vaultResult.Output)) {
+        return $null
+    }
+
     $result = Invoke-AzureCli `
         -Arguments @(
             'keyvault', 'secret', 'show',

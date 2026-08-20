@@ -98,7 +98,7 @@ var tags = {
 var appInsightsConnectionString = appInsights.properties.ConnectionString
 var appInsightsInstrumentationKey = appInsights.properties.InstrumentationKey
 var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)
-var isProduction = toLower(environment) == 'prod'
+var isProduction = toLower(environment) == 'live'
 var acsSenderAddress = isProduction
   ? '${customEmailSenderUsername}@${customEmailDomainName}'
   : 'DoNotReply@${azureManagedEmailDomain.properties.mailFromSenderDomain}'
