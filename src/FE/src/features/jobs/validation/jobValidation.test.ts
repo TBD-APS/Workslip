@@ -85,9 +85,9 @@ describe('actionable job validation', () => {
     }, 0);
 
     expect(issues.map((entry) => entry.targetId)).toEqual([
-      'job-customer-name',
-      'job-customer-email',
-      'job-customer-phone',
+      'customerName',
+      'email',
+      'phone',
     ]);
     expect(issues[0]).toMatchObject({ step: 0, actionLabel: 'Udfyld kundenavn' });
   });
@@ -145,7 +145,7 @@ describe('actionable job validation', () => {
     ]);
 
     expect(issues.map((entry) => [entry.step, entry.targetId])).toEqual([
-      [0, 'job-customer-email'],
+      [0, 'email'],
       [2, 'job-control-points'],
       [3, 'job-worksheet-add-trigger'],
       [4, 'job-closure-flags'],
