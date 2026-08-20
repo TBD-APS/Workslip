@@ -78,6 +78,70 @@ export const Overview = () => {
     },
   ];
 
+  const recentJobsSection = (
+    <section className="overview-recent-card" aria-labelledby="recent-jobs-heading">
+      <div className="overview-section-header">
+        <div>
+          <h3 id="recent-jobs-heading">Seneste sager</h3>
+          <p>De senest opdaterede sager.</p>
+        </div>
+        {(overview?.rejectedCount ?? 0) > 0 && (
+          <button type="button" className="overview-rejected-link" onClick={() => navigateToStatus(JobStatus.Rejected)}>
+            <XCircle size={16} aria-hidden="true" />
+            {overview?.rejectedCount} afvist{overview?.rejectedCount === 1 ? '' : 'e'}
+          </button>
+        )}
+      </div>
+
+      {overviewQuery.isPending ? (
+        <div className="overview-recent-list" aria-label="Indlæser seneste sager">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div className="overview-recent-row overview-recent-row--skeleton" key={index} aria-hidden="true">
+              <span className="skeleton" />
+              <span className="skeleton" />
+              <span className="skeleton" />
+            </div>
+          ))}
+        </div>
+      ) : overview?.recentJobs.length ? (
+        <div className="overview-recent-list">
+          {overview.recentJobs.map((job) => {
+            const customerName = job.customer?.name || 'Kunde ikke angivet';
+            const address = job.destinationAddress || job.customer?.address;
+            return (
+              <button
+                type="button"
+                className="overview-recent-row"
+                key={job.id}
+                onClick={() => navigate(getJobPath(job), { state: { from: '/app/overblik' } })}
+              >
+                <span className="overview-recent-row__main">
+                  <strong>SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</strong>
+                  <span>{customerName}</span>
+                  {address && <small>{address}</small>}
+                </span>
+                <span className={`status-badge status-${job.status.toLowerCase()}`}>
+                  {formatJobStatus(job.status)}
+                </span>
+                <span className="overview-recent-row__updated">
+                  {job.updatedAt ? formatDateTimeShort(job.updatedAt) : '–'}
+                </span>
+                <ArrowRight size={17} aria-hidden="true" />
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="overview-empty-state">
+          <p>Der er ingen sager endnu.</p>
+          <button type="button" className="btn btn-secondary" onClick={() => navigate('/app')}>
+            Gå til sager
+          </button>
+        </div>
+      )}
+    </section>
+  );
+
   return (
     <div className="page-container overview-page">
       <div className="page-header overview-header">
@@ -110,69 +174,12 @@ export const Overview = () => {
         ))}
       </section>
 
-      {isAdmin && <AdminPowerBiJobStatusChart />}
-
-      <section className="overview-recent-card" aria-labelledby="recent-jobs-heading">
-        <div className="overview-section-header">
-          <div>
-            <h3 id="recent-jobs-heading">Seneste sager</h3>
-            <p>De senest opdaterede sager.</p>
-          </div>
-          {(overview?.rejectedCount ?? 0) > 0 && (
-            <button type="button" className="overview-rejected-link" onClick={() => navigateToStatus(JobStatus.Rejected)}>
-              <XCircle size={16} aria-hidden="true" />
-              {overview?.rejectedCount} afvist{overview?.rejectedCount === 1 ? '' : 'e'}
-            </button>
-          )}
+      {isAdmin ? (
+        <div className="overview-admin-grid">
+          <AdminPowerBiJobStatusChart />
+          {recentJobsSection}
         </div>
-
-        {overviewQuery.isPending ? (
-          <div className="overview-recent-list" aria-label="Indlæser seneste sager">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <div className="overview-recent-row overview-recent-row--skeleton" key={index} aria-hidden="true">
-                <span className="skeleton" />
-                <span className="skeleton" />
-                <span className="skeleton" />
-              </div>
-            ))}
-          </div>
-        ) : overview?.recentJobs.length ? (
-          <div className="overview-recent-list">
-            {overview.recentJobs.map((job) => {
-              const customerName = job.customer?.name || 'Kunde ikke angivet';
-              const address = job.destinationAddress || job.customer?.address;
-              return (
-                <button
-                  type="button"
-                  className="overview-recent-row"
-                  key={job.id}
-                  onClick={() => navigate(getJobPath(job), { state: { from: '/app/overblik' } })}
-                >
-                  <span className="overview-recent-row__main">
-                    <strong>SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</strong>
-                    <span>{customerName}</span>
-                    {address && <small>{address}</small>}
-                  </span>
-                  <span className={`status-badge status-${job.status.toLowerCase()}`}>
-                    {formatJobStatus(job.status)}
-                  </span>
-                  <span className="overview-recent-row__updated">
-                    {job.updatedAt ? formatDateTimeShort(job.updatedAt) : '–'}
-                  </span>
-                  <ArrowRight size={17} aria-hidden="true" />
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="overview-empty-state">
-            <p>Der er ingen sager endnu.</p>
-            <button type="button" className="btn btn-secondary" onClick={() => navigate('/app')}>
-              Gå til sager
-            </button>
-          </div>
-        )}
-      </section>
+      ) : recentJobsSection}
     </div>
   );
 };
