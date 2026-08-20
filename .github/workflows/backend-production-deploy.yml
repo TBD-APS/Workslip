@@ -12,9 +12,9 @@ env:
   API_PROJECT: src/BE/WorkslipApi/Workslip.Api.csproj
   PUBLISH_DIR: ${{ github.workspace }}/publish/api
   DEPLOY_PACKAGE: ${{ github.workspace }}/publish/workslip-api.zip
-  AZURE_WEBAPP_NAME: api-mrsoftware-prod
-  AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
-  AZURE_MIGRATION_IDENTITY_NAME: id-mrsoftware-prod-migration
+  AZURE_WEBAPP_NAME: api-mrsoftwarev2-live
+  AZURE_RESOURCE_GROUP: rg-mrsoftwarev2-live
+  AZURE_MIGRATION_IDENTITY_NAME: id-mrsoftwarev2-live-migration
   RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
   CI_RUN_ID: ${{ github.event.workflow_run.id }}
 
@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: workslip-production
+  group: workslip-live
   cancel-in-progress: false
 
 jobs:
@@ -122,7 +122,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: build
-    environment: prod
+    environment: live
     permissions:
       id-token: write
       contents: read
@@ -200,8 +200,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & ./src/BE/infrastructure/run-database-migrations.ps1 `
-            -Environment prod `
-            -CompanyName mrsoftware
+            -Environment live `
+            -CompanyName mrsoftwarev2
 
       - name: Logout database migration identity
         run: az logout
