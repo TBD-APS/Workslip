@@ -8,6 +8,7 @@ import {
   Heart,
   XCircle,
 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { JobStatus, type JobListItemViewModel } from '../../../api/generated/models';
 import { ErrorState } from '../../../components/ErrorState';
@@ -35,7 +36,7 @@ type StatusCard = {
   status: JobStatus;
   label: string;
   count: number | undefined;
-  icon: React.ReactNode;
+  icon: ReactNode;
   className: string;
 };
 
