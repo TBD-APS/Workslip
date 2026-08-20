@@ -228,7 +228,7 @@ export function getJobValidationIssues(
 export function mapBackendValidationIssues(errors: BackendFieldError[]): JobValidationIssue[] {
   return errors.map((error, index) => {
     const normalized = normalizeFieldKey(error.field);
-    const mapped = mapBackendField(normalized);
+    const mapped = mapBackendField(error.field, normalized);
     return {
       code: `server.${normalized || 'validation'}.${index}`,
       field: error.field,
@@ -240,38 +240,53 @@ export function mapBackendValidationIssues(errors: BackendFieldError[]): JobVali
   });
 }
 
-function mapBackendField(field: string): Pick<JobValidationIssue, 'step' | 'targetId' | 'actionLabel'> {
-  if (field.includes('reportnumber')) {
+function mapBackendField(
+  originalField: string,
+  normalizedField: string,
+): Pick<JobValidationIssue, 'step' | 'targetId' | 'actionLabel'> {
+  const controlPointPath = originalField.match(
+    /^InstallationTypes\.([^.]+)\.Categories\.([^.]+)\.ControlPoints$/i,
+  );
+  if (controlPointPath) {
+    const [, installationTypeId, categoryId] = controlPointPath;
+    return {
+      step: 2,
+      targetId: `job-control-category-${installationTypeId}-${categoryId}`,
+      actionLabel: 'Ret kontrolpunkt',
+    };
+  }
+
+  if (normalizedField.includes('reportnumber')) {
     return { step: 0, targetId: 'job-report-number', actionLabel: 'Ret sagsnummer' };
   }
-  if (field.includes('destinationaddress')) {
+  if (normalizedField.includes('destinationaddress')) {
     return { step: 0, targetId: 'job-destination-address', actionLabel: 'Ret destination' };
   }
-  if (field.includes('customersnapshotname') || field === 'customername' || field.endsWith('customername')) {
+  if (normalizedField.includes('customersnapshotname') || normalizedField === 'customername' || normalizedField.endsWith('customername')) {
     return { step: 0, targetId: 'customerName', actionLabel: 'Ret kundenavn' };
   }
-  if (field.includes('email')) {
+  if (normalizedField.includes('email')) {
     return { step: 0, targetId: 'email', actionLabel: 'Ret e-mail' };
   }
-  if (field.includes('phone')) {
+  if (normalizedField.includes('phone')) {
     return { step: 0, targetId: 'phone', actionLabel: 'Ret telefonnummer' };
   }
-  if (field.includes('installationtype') || field.includes('categoryid') || field.includes('categoryids')) {
-    return { step: 1, targetId: 'job-installation-types', actionLabel: 'Vælg anlægstype' };
-  }
-  if (field.includes('customworkkind')) {
+  if (normalizedField.includes('customworkkind')) {
     return { step: 1, targetId: 'job-custom-work-kind', actionLabel: 'Beskriv opgavetype' };
   }
-  if (field.includes('workkind')) {
+  if (normalizedField.includes('workkind')) {
     return { step: 1, targetId: 'job-work-kind', actionLabel: 'Vælg opgavetype' };
   }
-  if (field.includes('controlpoint') || field.includes('irrelevant') || field.includes('remarks')) {
+  if (normalizedField.includes('controlpoint') || normalizedField.includes('irrelevant') || normalizedField.includes('remarks')) {
     return { step: 2, targetId: 'job-control-points', actionLabel: 'Ret kontrolpunkter' };
   }
-  if (field.includes('worksheet') || field.includes('timesheet')) {
+  if (normalizedField.includes('installationtype') || normalizedField.includes('categoryid') || normalizedField.includes('categoryids')) {
+    return { step: 1, targetId: 'job-installation-types', actionLabel: 'Vælg anlægstype' };
+  }
+  if (normalizedField.includes('worksheet') || normalizedField.includes('timesheet')) {
     return { step: 3, targetId: 'job-worksheet-add-trigger', actionLabel: 'Tilføj timeseddel' };
   }
-  if (field.includes('closureflag') || field.includes('closure')) {
+  if (normalizedField.includes('closureflag') || normalizedField.includes('closure')) {
     return { step: 4, targetId: 'job-closure-flags', actionLabel: 'Ret afslutningsstatus' };
   }
 
