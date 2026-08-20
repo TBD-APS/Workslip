@@ -65,7 +65,7 @@ export function getJobStepValidationIssues(
         'customerSnapshot.name',
         'Kundenavn mangler.',
         0,
-        'job-customer-name',
+        'customerName',
         'Udfyld kundenavn',
       ));
     }
@@ -77,7 +77,7 @@ export function getJobStepValidationIssues(
         'customerSnapshot.email',
         emailError,
         0,
-        'job-customer-email',
+        'email',
         'Ret e-mail',
       ));
     }
@@ -89,7 +89,7 @@ export function getJobStepValidationIssues(
         'customerSnapshot.phone',
         phoneError,
         0,
-        'job-customer-phone',
+        'phone',
         'Ret telefonnummer',
       ));
     }
@@ -248,13 +248,13 @@ function mapBackendField(field: string): Pick<JobValidationIssue, 'step' | 'targ
     return { step: 0, targetId: 'job-destination-address', actionLabel: 'Ret destination' };
   }
   if (field.includes('customersnapshotname') || field === 'customername' || field.endsWith('customername')) {
-    return { step: 0, targetId: 'job-customer-name', actionLabel: 'Ret kundenavn' };
+    return { step: 0, targetId: 'customerName', actionLabel: 'Ret kundenavn' };
   }
   if (field.includes('email')) {
-    return { step: 0, targetId: 'job-customer-email', actionLabel: 'Ret e-mail' };
+    return { step: 0, targetId: 'email', actionLabel: 'Ret e-mail' };
   }
   if (field.includes('phone')) {
-    return { step: 0, targetId: 'job-customer-phone', actionLabel: 'Ret telefonnummer' };
+    return { step: 0, targetId: 'phone', actionLabel: 'Ret telefonnummer' };
   }
   if (field.includes('installationtype') || field.includes('categoryid') || field.includes('categoryids')) {
     return { step: 1, targetId: 'job-installation-types', actionLabel: 'Vælg anlægstype' };
