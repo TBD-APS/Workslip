@@ -102,7 +102,8 @@ describe('Overview', () => {
     renderOverview();
 
     expect(await screen.findByTestId('admin-power-bi-job-status')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: /Sagsfordeling/i })).toHaveAccessibleName(
+    const donut = await screen.findByRole('img', { name: /Sagsfordeling/i });
+    expect(donut).toHaveAccessibleName(
       /Aktive: 4, Til gennemsyn: 2, Godkendte: 3, Afviste: 1/i,
     );
     expect(screen.getByText('10')).toBeInTheDocument();
