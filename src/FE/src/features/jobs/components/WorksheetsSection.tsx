@@ -72,6 +72,7 @@ export function WorksheetsSection({
 
       {(!editingWorksheetId || sortedWorksheets.length === 0) && !isAddOpen && (
         <button
+          id="job-worksheet-add-trigger"
           type="button"
           className={'btn btn-secondary worksheet-add-trigger worksheet-add-trigger-cta'}
           onClick={onOpenAddForm}
