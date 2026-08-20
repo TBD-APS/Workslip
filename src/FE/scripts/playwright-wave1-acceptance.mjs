@@ -290,15 +290,36 @@ export async function runCustomerWave1Acceptance(viewportName) {
     if (favorited?.isFavorite !== true) throw new Error('Customer favorite mutation did not persist.');
 
     await page.goto(`${runtime.appUrl}/app/customers/${customerId}/edit`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
-    await page.locator('#edit-customer-name').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    await page.locator('#edit-customer-name').fill(updatedCustomerName);
+    const editNameInput = page.locator('#edit-customer-name');
+    await editNameInput.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await editNameInput.fill(updatedCustomerName);
+    if (await editNameInput.inputValue() !== updatedCustomerName) {
+      throw new Error(`Customer edit name field did not retain its value on ${viewportName}.`);
+    }
+    const editSave = page.locator('#edit-customer-save');
+    await editSave.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await editSave.focus();
+    await editSave.evaluate((button) => {
+      window.__workslipCustomerEditClicks = 0;
+      button.addEventListener('click', () => {
+        window.__workslipCustomerEditClicks += 1;
+      }, { once: true });
+    });
     const editResponsePromise = page.waitForResponse((response) => {
       const url = new URL(response.url());
       return response.request().method() === 'PUT'
         && url.pathname === `/api/customers/${customerId}`;
     }, { timeout: API_TIMEOUT });
-    await page.locator('#edit-customer-save').click();
-    const editResponse = await editResponsePromise;
+    await editSave.click();
+    const editResponse = await editResponsePromise.catch(async () => {
+      const state = {
+        viewportName,
+        name: await editNameInput.inputValue().catch(() => null),
+        submitDisabled: await editSave.isDisabled().catch(() => null),
+        clickCount: await page.evaluate(() => window.__workslipCustomerEditClicks ?? null).catch(() => null),
+      };
+      throw new Error(`Customer edit produced no PUT response. State: ${JSON.stringify(state)}`);
+    });
     if (editResponse.status() !== 200) {
       throw new Error(`UI customer edit returned HTTP ${editResponse.status()}.`);
     }
