@@ -129,11 +129,15 @@ async function main() {
   page.on('requestfailed', (request) => {
     const requestUrl = new URL(request.url());
     const errorText = request.failure()?.errorText ?? 'unknown';
+    const expectedNavigationAbort = request.method() === 'GET' && errorText === 'net::ERR_ABORTED';
+    const expectedSeenAbort = request.method() === 'POST'
+      && errorText === 'net::ERR_ABORTED'
+      && /^\/api\/jobs\/[^/]+\/seen$/.test(requestUrl.pathname);
     const entry = {
       method: request.method(),
       url: contractHelpers.safeUrl(request.url()),
       error: contractHelpers.redact(errorText),
-      expected: request.method() === 'GET' && errorText === 'net::ERR_ABORTED',
+      expected: expectedNavigationAbort || expectedSeenAbort,
     };
     scenarioReport.failedRequests.push(entry);
     if (captureAuthenticatedNetwork && requestUrl.pathname.startsWith('/api/')) {
