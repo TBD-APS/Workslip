@@ -138,15 +138,18 @@ describe('actionable job validation', () => {
 
   it('maps structured backend fields to the corresponding wizard target without message matching', () => {
     const issues = mapBackendValidationIssues([
-      { field: 'CustomerSnapshot.Email', message: 'E-mail er ugyldig.' },
-      { field: 'Work.InstallationTypes[0].Categories[0].ControlPoints', message: 'Kontrolpunkt mangler.' },
+      { field: 'Customer.Name', message: 'Kundenavn er påkrævet.' },
+      {
+        field: 'InstallationTypes.installation-1.Categories.category-1.ControlPoints',
+        message: 'Mindst et kontrolpunkt skal vælges.',
+      },
       { field: 'Worksheets', message: 'Timeseddel mangler.' },
-      { field: 'Work.ClosureFlags', message: 'Afslutningsstatus mangler.' },
+      { field: 'ClosureFlags', message: 'Afslutningsstatus mangler.' },
     ]);
 
     expect(issues.map((entry) => [entry.step, entry.targetId])).toEqual([
-      [0, 'email'],
-      [2, 'job-control-points'],
+      [0, 'customerName'],
+      [2, 'job-control-category-installation-1-category-1'],
       [3, 'job-worksheet-add-trigger'],
       [4, 'job-closure-flags'],
     ]);
