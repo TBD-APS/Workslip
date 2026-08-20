@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Auth;
 using Workslip.Infrastructure.Schema;
@@ -10,8 +11,8 @@ public static class PowerBiOverviewEndpoints
     {
         app.MapGet("/api/power-bi/overview/job-status", async (
             HttpContext httpContext,
-            ICurrentUserContext currentUser,
-            SqlDbContext db,
+            [FromServices] ICurrentUserContext currentUser,
+            [FromServices] SqlDbContext db,
             CancellationToken cancellationToken) =>
         {
             HttpCacheHeaders.SetNoStore(httpContext);
@@ -57,7 +58,8 @@ public static class PowerBiOverviewEndpoints
         .WithTags("power-bi")
         .Produces(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status401Unauthorized)
-        .RequireAuthorization(AuthPolicies.RequireAdmin);
+        .RequireAuthorization(AuthPolicies.RequireAdmin)
+        .ExcludeFromDescription();
 
         return app;
     }
