@@ -52,9 +52,9 @@ namespace Workslip.Api.Endpoints
             group.MapGet("/all/report/power-bi/data", async (
                 [FromQuery] int? historyMonths,
                 HttpContext httpContext,
-                ICurrentUserContext currentUser,
-                IWorksheetRepository worksheets,
-                SqlDbContext db,
+                [FromServices] ICurrentUserContext currentUser,
+                [FromServices] IWorksheetRepository worksheets,
+                [FromServices] SqlDbContext db,
                 CancellationToken cancellationToken) =>
             {
                 HttpCacheHeaders.SetNoStore(httpContext);
@@ -160,7 +160,8 @@ namespace Workslip.Api.Endpoints
             })
             .Produces(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized)
-            .RequireAuthorization(AuthPolicies.RequireAdmin);
+            .RequireAuthorization(AuthPolicies.RequireAdmin)
+            .ExcludeFromDescription();
 
             group.MapGet("/all/report/pdf", async (
                 [FromQuery] int? year,
