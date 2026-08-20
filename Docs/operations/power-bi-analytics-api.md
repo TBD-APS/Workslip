@@ -4,17 +4,17 @@
 
 ## Purpose
 
-The Workslip analytics report must read production analytics through the Workslip HTTPS API rather than connect directly to Azure SQL.
+The Workslip analytics report reads production analytics through the Workslip HTTPS API rather than connecting directly to Azure SQL.
 
-This is the source contract used by the validated Workslip Analytics PBIP project.
+The Power BI-derived visualization exposed inside Workslip is intentionally limited to one Admin-only circular job-status chart on the Overview page. Power BI data/report UI must not be rendered on Timer or other Workslip pages.
 
-## Production source
+## Production report source
 
 Base URL:
 
 `https://app.mrsoftware.dk`
 
-Endpoint:
+Endpoint used by the PBIP semantic model:
 
 `GET /api/worksheets/all/report/power-bi/data?historyMonths=24`
 
@@ -57,17 +57,35 @@ Parameters:
 
 Do not add `Sql.Database` or `Value.NativeQuery` to the report. No SQL credentials, API keys, bearer tokens, or passwords may be hardcoded in the PBIP project.
 
-## Report publishing and Workslip embed
+## Workslip placement contract
 
-1. Open the validated Workslip Analytics PBIP project in Power BI Desktop.
-2. Authenticate the Workslip web data source with the intended Microsoft organizational identity that has Workslip Admin access.
-3. Refresh and validate the `employees`, `workHours`, `jobs`, and `customers` tables.
-4. Publish the report to the intended authenticated Power BI workspace.
-5. Configure `PowerBiReport:Url` with the published normal `https://app.powerbi.com/...` report URL.
-6. Workslip displays the secure authenticated report in the Admin Timer UI. Publish-to-web is not allowed.
+The only Power BI analytics visualization inside Workslip is the circular **Sagsfordeling** chart on `/app/overblik`, and it is rendered only for the exact `Admin` frontend role.
 
-The frontend does not duplicate analytics data. Its responsibility is embedding the already-published Power BI report. The PBIP report itself owns the API data connection.
+The chart does not download the full analytics payload. It reads a dedicated, tenant-scoped summary endpoint:
+
+`GET /api/power-bi/overview/job-status`
+
+The summary returns only:
+
+- total jobs
+- Draft count
+- InReview count
+- Approved count
+- Rejected count
+- other/unknown status count
+- generated timestamp
+
+The summary endpoint requires the backend `RequireAdmin` policy and derives the organization from the authenticated user context. There is no organization id route/query input.
+
+Timer keeps only its CSV/PDF worksheet export controls. No Power BI report link, iframe, report data, or Power BI-specific UI is rendered there.
 
 ## Validation boundary
 
-Static validation verifies PBIP/PBIR/TMDL structure and model references. A full production refresh requires this API endpoint to be merged/deployed and Power BI authentication to succeed.
+Static validation verifies PBIP/PBIR/TMDL structure and model references. A full production report refresh still requires the analytics API to be deployed and Power BI authentication to succeed.
+
+Workslip acceptance additionally verifies:
+
+1. Admin Overview renders the circular job-status chart.
+2. non-Admin Overview does not render or request the Power BI summary.
+3. Timer contains no Power BI UI.
+4. both Power BI endpoints remain tenant-scoped and Admin-protected on the backend.
