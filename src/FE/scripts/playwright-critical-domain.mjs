@@ -117,6 +117,7 @@ async function completeAndSubmitKlsViaUi(session, job) {
 
     await clickNext(session.page, 'Afslutning');
     await clickByTextCandidates(session.page.locator('button'), candidates(selection.closureFlag), 'closure flag');
+
     await clickNext(session.page, 'Attestering');
     await session.page.getByRole('checkbox', { name: /Jeg bekræfter, at sagen er gennemgået/ }).check();
     const response = waitForApiResponse(session.page, 'POST', `/api/jobs/${job.id}/status`, [200]);
@@ -323,6 +324,12 @@ async function addWorksheetViaUi(session, user, hours) {
   { timeout: API_TIMEOUT })
     .then((request) => ({ kind: 'request', request }))
     .catch((error) => ({ kind: 'request-timeout', error }));
+  const responseOutcome = page.waitForResponse((candidate) =>
+    candidate.request().method() === 'POST'
+      && new URL(candidate.url()).pathname.startsWith(worksheetPath),
+  { timeout: API_TIMEOUT })
+    .then((response) => ({ kind: 'response', response }))
+    .catch((error) => ({ kind: 'response-timeout', error }));
   const formErrorOutcome = formError.waitFor({ state: 'visible', timeout: API_TIMEOUT - 1000 })
     .then(async () => ({ kind: 'form-error', message: (await formError.innerText()).trim() }))
     .catch(() => new Promise(() => {}));
@@ -346,10 +353,13 @@ async function addWorksheetViaUi(session, user, hours) {
     throw new Error(`Worksheet submit produced no POST request. State: ${JSON.stringify(diagnostics)}`);
   }
 
-  const response = await page.waitForResponse((candidate) =>
-    candidate.request() === firstOutcome.request,
-  { timeout: API_TIMEOUT });
-  if (!response.ok()) throw new Error(`Worksheet creation returned HTTP ${response.status()}.`);
+  const completedResponse = await responseOutcome;
+  if (completedResponse.kind !== 'response') {
+    throw new Error('Worksheet POST did not produce a response before timeout.');
+  }
+  if (!completedResponse.response.ok()) {
+    throw new Error(`Worksheet creation returned HTTP ${completedResponse.response.status()}.`);
+  }
   await form.waitFor({ state: 'hidden', timeout: API_TIMEOUT });
 }
 
