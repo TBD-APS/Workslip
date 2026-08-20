@@ -6,7 +6,10 @@ import { ErrorState } from '../../../components/ErrorState';
 import { saveStatusFilter } from '../../../components/filters/StatusFilter';
 import { apiClient } from '../../../lib/axios';
 import { formatDateTimeShort } from '../../../lib/formatDate';
+import { ROLES } from '../../../providers/permissions/roles';
+import { useHasRole } from '../../../providers/permissions/usePermissions';
 import { formatJobStatus } from '../../jobs/statusLabels';
+import { AdminPowerBiJobStatusChart } from '../components/AdminPowerBiJobStatusChart';
 import './Overview.css';
 
 type JobOverviewResponse = {
@@ -31,6 +34,7 @@ const getStatusListPath = (status: JobStatus) => `/app?status=${encodeURICompone
 
 export const Overview = () => {
   const navigate = useNavigate();
+  const isAdmin = useHasRole(ROLES.Admin);
   const overviewQuery = useQuery({
     queryKey: ['/api/jobs/overview'],
     queryFn: fetchOverview,
@@ -105,6 +109,8 @@ export const Overview = () => {
           </button>
         ))}
       </section>
+
+      {isAdmin && <AdminPowerBiJobStatusChart />}
 
       <section className="overview-recent-card" aria-labelledby="recent-jobs-heading">
         <div className="overview-section-header">

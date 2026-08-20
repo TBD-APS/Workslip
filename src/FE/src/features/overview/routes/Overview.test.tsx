@@ -3,12 +3,17 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from '../../../lib/axios';
+import { useHasRole } from '../../../providers/permissions/usePermissions';
 import { Overview } from './Overview';
 
 vi.mock('../../../lib/axios', () => ({
   apiClient: {
     get: vi.fn(),
   },
+}));
+
+vi.mock('../../../providers/permissions/usePermissions', () => ({
+  useHasRole: vi.fn(),
 }));
 
 function LocationProbe() {
@@ -33,20 +38,23 @@ function renderOverview() {
   );
 }
 
+const overviewResponse = {
+  activeCount: 7,
+  inReviewCount: 3,
+  approvedCount: 11,
+  rejectedCount: 2,
+  recentJobs: [],
+};
+
 describe('Overview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sessionStorage.clear();
+    vi.mocked(useHasRole).mockReturnValue(false);
   });
 
   it('loads the overview once and renders the backend status counts', async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({
-      activeCount: 7,
-      inReviewCount: 3,
-      approvedCount: 11,
-      rejectedCount: 2,
-      recentJobs: [],
-    });
+    vi.mocked(apiClient.get).mockResolvedValue(overviewResponse);
 
     renderOverview();
 
@@ -58,6 +66,51 @@ describe('Overview', () => {
       expect(screen.getByText('Godkendte sager').previousElementSibling).toHaveTextContent('11');
       expect(screen.getByRole('button', { name: /2 afviste/i })).toBeInTheDocument();
     });
+  });
+
+  it('does not fetch or render Power BI analytics for non-admin users', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(overviewResponse);
+
+    renderOverview();
+
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith('/api/jobs/overview'));
+    expect(apiClient.get).not.toHaveBeenCalledWith(
+      '/api/power-bi/overview/job-status',
+      expect.anything(),
+    );
+    expect(screen.queryByTestId('admin-power-bi-job-status')).not.toBeInTheDocument();
+  });
+
+  it('renders the Power BI donut and fetches its summary only for Admin', async () => {
+    vi.mocked(useHasRole).mockReturnValue(true);
+    vi.mocked(apiClient.get).mockImplementation(async (url) => {
+      if (url === '/api/jobs/overview') return overviewResponse;
+      if (url === '/api/power-bi/overview/job-status') {
+        return {
+          total: 10,
+          draft: 4,
+          inReview: 2,
+          approved: 3,
+          rejected: 1,
+          other: 0,
+          generatedAtUtc: '2026-08-20T17:00:00Z',
+        };
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    renderOverview();
+
+    expect(await screen.findByTestId('admin-power-bi-job-status')).toBeInTheDocument();
+    const donut = await screen.findByRole('img', { name: /Sagsfordeling/i });
+    expect(donut).toHaveAccessibleName(
+      /Aktive: 4, Til gennemsyn: 2, Godkendte: 3, Afviste: 1/i,
+    );
+    expect(screen.getByText('10')).toBeInTheDocument();
+    expect(apiClient.get).toHaveBeenCalledWith(
+      '/api/power-bi/overview/job-status',
+      { skipGlobalErrorToast: true },
+    );
   });
 
   it.each([
