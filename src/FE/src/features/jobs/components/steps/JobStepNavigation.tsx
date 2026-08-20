@@ -137,7 +137,7 @@ export function StepNavigation({
   }, []);
 
   const actionableBlockedNext = disableNext && Boolean(onNextBlocked);
-  const nextLabel = actionableBlockedNext ? blockedNextLabel ?? 'Ret oplysninger' : 'Næste';
+  const nextLabel = disableNext ? blockedNextLabel ?? 'Ret oplysninger' : 'Næste';
 
   const bar = (
     <div className="step-nav">
