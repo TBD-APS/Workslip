@@ -45,19 +45,42 @@ async function exerciseAdmin(contextOptions, label) {
   const page = await context.newPage();
   const verifyErrors = await assertNoBrowserErrors(page, label);
 
-  const overviewResponse = page.waitForResponse((response) =>
-    response.request().method() === 'GET'
-      && new URL(response.url()).pathname === '/api/power-bi/overview/job-status',
-  { timeout: UI_TIMEOUT });
+  const analyticsResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return response.request().method() === 'GET'
+      && url.pathname === '/api/worksheets/all/report/power-bi/data';
+  }, { timeout: UI_TIMEOUT });
 
   const navigation = await page.goto(`${APP_URL}/app/overblik`, {
     waitUntil: 'domcontentloaded',
     timeout: UI_TIMEOUT,
   });
   assert.ok(navigation?.ok(), `${label} Overview returned HTTP ${navigation?.status() ?? 'unknown'}.`);
-  assert.equal((await overviewResponse).status(), 200, `${label} Power BI summary endpoint must return 200 for Admin.`);
+  assert.equal((await analyticsResponse).status(), 200, `${label} analytics endpoint must return 200 for Admin.`);
+
   await page.getByTestId('admin-power-bi-job-status').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await page.getByRole('heading', { name: 'Sagsfordeling' }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.getByRole('heading', { name: 'Virksomhedsstatistik' }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.getByRole('heading', { name: 'Seneste sager' }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.getByRole('heading', { name: 'Favoritkunder' }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.getByRole('heading', { name: 'Nyeste dokumenter' }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+  const rejectedCard = page.getByRole('button', { name: /Afviste sager/i });
+  await rejectedCard.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+  const employeeTab = page.getByRole('tab', { name: /Medarbejderøkonomi/i });
+  await employeeTab.click();
+  await page.getByText(/fakturerbar værdi/i).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+  const customersTab = page.getByRole('tab', { name: /Nye kunder/i });
+  await customersTab.click();
+  await page.getByRole('tabpanel', { name: 'Nye kunder pr. måned' }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+  if (label === 'admin-mobile') {
+    const viewport = page.viewportSize();
+    assert.ok(viewport && viewport.width <= 430, `${label} must run at a phone-sized viewport.`);
+    const bodyWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    assert.ok(bodyWidth <= viewport.width + 2, `${label} must not introduce horizontal page overflow.`);
+  }
 
   await page.goto(`${APP_URL}/app/timer`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
   await page.waitForLoadState('networkidle', { timeout: UI_TIMEOUT });
@@ -81,10 +104,11 @@ async function exerciseNormalUser() {
 
   const page = await context.newPage();
   const verifyErrors = await assertNoBrowserErrors(page, 'normal-user');
-  let powerBiSummaryRequests = 0;
+  let analyticsRequests = 0;
   page.on('request', (request) => {
-    if (new URL(request.url()).pathname === '/api/power-bi/overview/job-status') {
-      powerBiSummaryRequests += 1;
+    const url = new URL(request.url());
+    if (url.pathname === '/api/worksheets/all/report/power-bi/data') {
+      analyticsRequests += 1;
     }
   });
 
@@ -95,8 +119,10 @@ async function exerciseNormalUser() {
   assert.ok(navigation?.ok(), `Normal-user Overview returned HTTP ${navigation?.status() ?? 'unknown'}.`);
   await page.getByRole('heading', { name: 'Overblik' }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await page.waitForTimeout(500);
-  assert.equal(await page.getByTestId('admin-power-bi-job-status').count(), 0, 'Normal user must not render the Power BI chart.');
-  assert.equal(powerBiSummaryRequests, 0, 'Normal user must not request the Power BI summary endpoint.');
+  assert.equal(await page.getByTestId('admin-power-bi-job-status').count(), 0, 'Normal user must not render the Admin analytics dashboard.');
+  assert.equal(await page.getByRole('heading', { name: 'Favoritkunder' }).count(), 0, 'Normal user must not render Admin favorite customers.');
+  assert.equal(await page.getByRole('heading', { name: 'Nyeste dokumenter' }).count(), 0, 'Normal user must not render Admin latest documents.');
+  assert.equal(analyticsRequests, 0, 'Normal user must not request the Admin analytics endpoint.');
 
   verifyErrors();
   await context.close();
@@ -106,7 +132,7 @@ try {
   await exerciseAdmin({ viewport: { width: 1280, height: 800 } }, 'admin-desktop');
   await exerciseAdmin(devices['iPhone 13'], 'admin-mobile');
   await exerciseNormalUser();
-  console.log('[playwright] Power BI Admin Overview + Timer isolation passed on desktop/mobile.');
+  console.log('[playwright] Live Admin Overview dashboard + Timer isolation passed on desktop/mobile.');
 } finally {
   await browser.close();
 }
