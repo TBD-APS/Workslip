@@ -23,10 +23,18 @@ const issues: JobValidationIssue[] = [
 ];
 
 describe('ActionableValidationSummary', () => {
+  it('uses the existing in-app notification presentation contract', () => {
+    const { container } = render(<ActionableValidationSummary issues={issues} onAction={vi.fn()} />);
+
+    expect(screen.getByRole('alert')).toHaveClass('notifications-list', 'activity-feed');
+    expect(container.querySelectorAll('.activity-row.notification-item')).toHaveLength(2);
+    expect(container.querySelectorAll('.activity-avatar.activity-avatar-danger')).toHaveLength(2);
+    expect(container.querySelectorAll('.activity-action.notification-action-primary')).toHaveLength(2);
+  });
+
   it('shows every concrete validation message with its corrective action and wizard location', () => {
     render(<ActionableValidationSummary issues={issues} onAction={vi.fn()} />);
 
-    expect(screen.getByRole('alert')).toBeInTheDocument();
     expect(screen.getByText('2 ting skal rettes')).toBeInTheDocument();
     expect(screen.getByText('Trin 1 · Stamdata')).toBeInTheDocument();
     expect(screen.getByText('Kundenavn mangler.')).toBeInTheDocument();
