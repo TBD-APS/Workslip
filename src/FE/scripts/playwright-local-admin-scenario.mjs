@@ -274,7 +274,7 @@ export async function runFocusedAdminScenario(scenarioName, viewportName) {
     const headers = { Accept: 'application/json' };
     if (auth.token) headers.Authorization = `Bearer ${auth.token}`;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
-    if (method === 'POST' && pathname === '/api/customers/') {
+    if (method === 'POST' && ['/api/customers/', '/api/jobs/'].includes(pathname)) {
       headers['Idempotency-Key'] = randomUUID();
     }
     const response = await fetch(`${runtime.apiUrl}${pathname}`, {
