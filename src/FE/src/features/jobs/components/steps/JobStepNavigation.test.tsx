@@ -11,7 +11,7 @@ vi.mock('../JobWizardTutorial', () => ({
 }));
 
 describe('StepNavigation actionable validation', () => {
-  it('keeps a blocked next action operable when a corrective action exists', () => {
+  it('keeps a blocked next action operable and labels the corrective action', () => {
     const onNext = vi.fn();
     const onNextBlocked = vi.fn();
 
@@ -22,13 +22,15 @@ describe('StepNavigation actionable validation', () => {
         onBack={vi.fn()}
         onNext={onNext}
         onNextBlocked={onNextBlocked}
+        blockedNextLabel="Udfyld kundenavn"
         onDone={vi.fn()}
         disableNext
         nextDisabledReason="Kundenavn mangler."
       />,
     );
 
-    const next = screen.getByRole('button', { name: /næste — kundenavn mangler/i });
+    const next = screen.getByRole('button', { name: /udfyld kundenavn — kundenavn mangler/i });
+    expect(next).toHaveTextContent('Udfyld kundenavn');
     expect(next).toHaveAttribute('aria-disabled', 'true');
     expect(next).not.toBeDisabled();
 
@@ -51,6 +53,6 @@ describe('StepNavigation actionable validation', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: /næste — mangler oplysninger/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /ret oplysninger — mangler oplysninger/i })).toBeDisabled();
   });
 });
