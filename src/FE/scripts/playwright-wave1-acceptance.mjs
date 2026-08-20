@@ -196,6 +196,8 @@ export async function runCustomerWave1Acceptance(viewportName) {
   const diagnostics = captureBrowserFailures(page);
   const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const customerName = `Wave 1 kunde ${unique}`;
+  const customerEmail = `wave1-${unique}@example.test`;
+  const customerPhone = '12345678';
   const updatedCustomerName = `Wave 1 kunde opdateret ${unique}`;
   let customerId = null;
   let jobId = null;
@@ -203,18 +205,52 @@ export async function runCustomerWave1Acceptance(viewportName) {
   try {
     await authenticatePage(page, runtime, admin);
     await page.goto(`${runtime.appUrl}/app/customers/new`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
-    await page.locator('#create-customer-name').fill(customerName);
-    await page.locator('#create-customer-email').fill(`wave1-${unique}@example.test`);
+    const nameInput = page.locator('#create-customer-name');
+    const emailInput = page.locator('#create-customer-email');
+    const phoneInput = page.locator('#create-customer-phone');
+    await nameInput.fill(customerName);
+    await emailInput.fill(customerEmail);
     await page.locator('#create-customer-contact').fill('Wave 1 kontakt');
-    await page.locator('#create-customer-phone').fill('12345678');
+    await phoneInput.fill(customerPhone);
 
+    const retainedValues = [
+      [nameInput, customerName, 'name'],
+      [emailInput, customerEmail, 'email'],
+      [phoneInput, customerPhone, 'phone'],
+    ];
+    for (const [field, expected, label] of retainedValues) {
+      const actual = await field.inputValue();
+      if (actual !== expected) {
+        throw new Error(`Customer create ${label} field did not retain its value on ${viewportName}.`);
+      }
+    }
+
+    const createSubmit = page.locator('#create-customer-submit');
+    await createSubmit.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await createSubmit.focus();
+    await createSubmit.evaluate((button) => {
+      window.__workslipCustomerCreateClicks = 0;
+      button.addEventListener('click', () => {
+        window.__workslipCustomerCreateClicks += 1;
+      }, { once: true });
+    });
     const createResponsePromise = page.waitForResponse((response) => {
       const url = new URL(response.url());
       return response.request().method() === 'POST'
         && url.pathname.replace(/\/$/, '') === '/api/customers';
     }, { timeout: API_TIMEOUT });
-    await page.locator('#create-customer-submit').click();
-    const createResponse = await createResponsePromise;
+    await createSubmit.click();
+    const createResponse = await createResponsePromise.catch(async () => {
+      const state = {
+        viewportName,
+        name: await nameInput.inputValue().catch(() => null),
+        email: await emailInput.inputValue().catch(() => null),
+        phone: await phoneInput.inputValue().catch(() => null),
+        submitDisabled: await createSubmit.isDisabled().catch(() => null),
+        clickCount: await page.evaluate(() => window.__workslipCustomerCreateClicks ?? null).catch(() => null),
+      };
+      throw new Error(`Customer create produced no POST response. State: ${JSON.stringify(state)}`);
+    });
     if (createResponse.status() !== 200) {
       throw new Error(`UI customer create returned HTTP ${createResponse.status()}.`);
     }
@@ -254,15 +290,36 @@ export async function runCustomerWave1Acceptance(viewportName) {
     if (favorited?.isFavorite !== true) throw new Error('Customer favorite mutation did not persist.');
 
     await page.goto(`${runtime.appUrl}/app/customers/${customerId}/edit`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
-    await page.locator('#edit-customer-name').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    await page.locator('#edit-customer-name').fill(updatedCustomerName);
+    const editNameInput = page.locator('#edit-customer-name');
+    await editNameInput.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await editNameInput.fill(updatedCustomerName);
+    if (await editNameInput.inputValue() !== updatedCustomerName) {
+      throw new Error(`Customer edit name field did not retain its value on ${viewportName}.`);
+    }
+    const editSave = page.locator('#edit-customer-save');
+    await editSave.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await editSave.focus();
+    await editSave.evaluate((button) => {
+      window.__workslipCustomerEditClicks = 0;
+      button.addEventListener('click', () => {
+        window.__workslipCustomerEditClicks += 1;
+      }, { once: true });
+    });
     const editResponsePromise = page.waitForResponse((response) => {
       const url = new URL(response.url());
       return response.request().method() === 'PUT'
         && url.pathname === `/api/customers/${customerId}`;
     }, { timeout: API_TIMEOUT });
-    await page.locator('#edit-customer-save').click();
-    const editResponse = await editResponsePromise;
+    await editSave.click();
+    const editResponse = await editResponsePromise.catch(async () => {
+      const state = {
+        viewportName,
+        name: await editNameInput.inputValue().catch(() => null),
+        submitDisabled: await editSave.isDisabled().catch(() => null),
+        clickCount: await page.evaluate(() => window.__workslipCustomerEditClicks ?? null).catch(() => null),
+      };
+      throw new Error(`Customer edit produced no PUT response. State: ${JSON.stringify(state)}`);
+    });
     if (editResponse.status() !== 200) {
       throw new Error(`UI customer edit returned HTTP ${editResponse.status()}.`);
     }

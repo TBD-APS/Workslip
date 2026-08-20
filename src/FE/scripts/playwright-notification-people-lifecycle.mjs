@@ -123,24 +123,153 @@ async function waitForBodyText(page, expected) {
   );
 }
 
-async function verifyPeopleLifecycle(runtime, admin, user, viewportName, expectedName) {
+async function openPeopleDetail(page, runtime, userId) {
+  const detailResponse = page.waitForResponse((response) =>
+    response.request().method() === 'GET'
+      && new URL(response.url()).pathname === `/api/users/${userId}`
+      && response.status() === 200,
+  { timeout: API_TIMEOUT });
+  await page.goto(`${runtime.appUrl}/app/users/${userId}`, {
+    waitUntil: 'domcontentloaded',
+    timeout: UI_TIMEOUT,
+  });
+  await detailResponse;
+  await page.locator('#user-detail-page').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+}
+
+async function ensureAssignedJobsOpen(page) {
+  const trigger = page.locator('#user-assigned-jobs-trigger');
+  await trigger.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  if (await trigger.getAttribute('aria-expanded') !== 'true') {
+    await trigger.click();
+  }
+}
+
+function assignedUserIds(job) {
+  return Array.isArray(job?.assignedUsers)
+    ? job.assignedUsers.map((candidate) => candidate?.id).filter(Boolean).sort()
+    : [];
+}
+
+async function assertJobAssignees(runtime, admin, jobId, expectedIds, label) {
+  const job = await api(runtime, admin, 'GET', `/api/jobs/${jobId}`, undefined, [200]);
+  const actual = assignedUserIds(job);
+  const expected = [...expectedIds].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(`${label}: expected assignees ${expected.join(', ')}, received ${actual.join(', ')}.`);
+  }
+  return job;
+}
+
+async function verifyPeopleLifecycle(runtime, admin, user, viewportName, expectedName, assignmentJob) {
   const session = await browserFor(viewportName);
+  const userId = user.user.id;
+  const jobId = assignmentJob.id;
+  const jobPath = `/api/jobs/${jobId}/assign`;
   try {
     await authenticate(session.page, runtime, admin);
-    const detailResponse = session.page.waitForResponse((response) =>
-      response.request().method() === 'GET'
-        && new URL(response.url()).pathname === `/api/users/${user.user.id}`
-        && response.status() === 200,
+    await openPeopleDetail(session.page, runtime, userId);
+
+    const name = session.page.locator('#user-detail-name');
+    const email = session.page.locator('#user-detail-email');
+    if (await name.textContent() !== expectedName) {
+      throw new Error(`People detail did not show the persisted display name for ${viewportName}.`);
+    }
+    if (await email.textContent() !== user.user.email) {
+      throw new Error(`People detail did not show the expected email for ${viewportName}.`);
+    }
+
+    await ensureAssignedJobsOpen(session.page);
+    if (await session.page.locator(`#user-assigned-job-${jobId}`).count() !== 0) {
+      throw new Error(`People assignment fixture was already assigned before the ${viewportName} UI action.`);
+    }
+
+    const search = session.page.locator('#user-job-search');
+    await search.fill(assignmentJob.reportNumber);
+    await session.page.locator(`#user-assignable-job-${jobId}`).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+    const assignResponse = session.page.waitForResponse((response) =>
+      response.request().method() === 'POST'
+        && new URL(response.url()).pathname === jobPath
+        && response.status() >= 200
+        && response.status() < 300,
     { timeout: API_TIMEOUT });
+    await session.page.locator(`#user-job-assignment-action-${jobId}`).click();
+    await assignResponse;
+
+    await assertJobAssignees(
+      runtime,
+      admin,
+      jobId,
+      [admin.user.id, userId],
+      `${viewportName} assign from people detail`,
+    );
+
+    await ensureAssignedJobsOpen(session.page);
+    const assignedCard = session.page.locator(`#user-assigned-job-${jobId}`);
+    await assignedCard.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+    await session.page.reload({ waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+    await session.page.locator('#user-detail-page').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await ensureAssignedJobsOpen(session.page);
+    await session.page.locator(`#user-assigned-job-${jobId}`).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+    await session.page.locator(`#user-assigned-job-${jobId}`).click();
+    await session.page.waitForURL((url) => url.pathname === `/app/job/${jobId}`, { timeout: UI_TIMEOUT });
+
+    await openPeopleDetail(session.page, runtime, userId);
+    await session.page.locator('#user-job-search').fill(assignmentJob.reportNumber);
+    await session.page.locator(`#user-assignable-job-${jobId}`).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+    const removeResponse = session.page.waitForResponse((response) =>
+      response.request().method() === 'POST'
+        && new URL(response.url()).pathname === jobPath
+        && response.status() >= 200
+        && response.status() < 300,
+    { timeout: API_TIMEOUT });
+    await session.page.locator(`#user-job-assignment-action-${jobId}`).click();
+    await removeResponse;
+
+    await assertJobAssignees(
+      runtime,
+      admin,
+      jobId,
+      [admin.user.id],
+      `${viewportName} unassign from people detail`,
+    );
+
+    await ensureAssignedJobsOpen(session.page);
+    await session.page.locator(`#user-assigned-job-${jobId}`).waitFor({ state: 'detached', timeout: UI_TIMEOUT });
+
+    await session.page.reload({ waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+    await session.page.locator('#user-detail-page').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await ensureAssignedJobsOpen(session.page);
+    if (await session.page.locator(`#user-assigned-job-${jobId}`).count() !== 0) {
+      throw new Error(`People unassignment did not persist after ${viewportName} reload.`);
+    }
+
+    session.assertClean();
+  } finally {
+    await session.context.close();
+    await session.browser.close();
+  }
+}
+
+async function verifyPeoplePermissionBoundary(runtime, user, viewportName) {
+  const session = await browserFor(viewportName);
+  try {
+    await authenticate(session.page, runtime, user);
     await session.page.goto(`${runtime.appUrl}/app/users/${user.user.id}`, {
       waitUntil: 'domcontentloaded',
       timeout: UI_TIMEOUT,
     });
-    await detailResponse;
-    await waitForBodyText(session.page, expectedName);
-    await waitForBodyText(session.page, user.user.email);
-    if (new URL(session.page.url()).pathname !== `/app/users/${user.user.id}`) {
-      throw new Error(`People detail route did not remain on the expected user for ${viewportName}.`);
+    await session.page.waitForFunction(
+      (userId) => window.location.pathname !== `/app/users/${userId}`,
+      user.user.id,
+      { timeout: UI_TIMEOUT },
+    );
+    if (await session.page.locator('#user-job-search').count() !== 0) {
+      throw new Error(`Regular User exposed Admin people-assignment controls on ${viewportName}.`);
     }
     session.assertClean();
   } finally {
@@ -201,13 +330,36 @@ async function verifyNotificationLifecycle(runtime, user, viewportName, reportNu
   }
 }
 
+async function createJob(runtime, admin, unique, label, assignedUserIds) {
+  const job = await api(runtime, admin, 'POST', '/api/jobs/', {
+    customerSnapshot: {
+      name: `${label} ${unique}`,
+      address: 'Testvej 3, 8000 Aarhus C',
+      email: `${label.toLowerCase().replace(/\s+/g, '-')}-${unique}@example.test`,
+      phone: '12345678',
+      contactPerson: 'Browser coverage',
+    },
+    destinationAddress: 'Testvej 3',
+    destinationZipCode: '8000',
+    destinationCity: 'Aarhus C',
+    jobType: 'KLS',
+    assignedUserIds,
+  }, [200]);
+  const id = job?.id ?? null;
+  const reportNumber = String(job?.reportNumber ?? '').trim();
+  if (!id || !reportNumber) throw new Error(`${label} fixture job did not return id/reportNumber.`);
+  return { ...job, id, reportNumber };
+}
+
 async function main() {
   const runtime = requireRuntime();
   const admin = await identity(runtime, runtime.adminEmail, 'Admin');
   const user = await identity(runtime, runtime.userEmail, 'User');
   const originalUser = await api(runtime, admin, 'GET', `/api/users/${user.user.id}`, undefined, [200]);
   const updatedName = `${originalUser.displayName} browser coverage`;
-  let jobId = null;
+  const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  let assignmentJobId = null;
+  let notificationJobId = null;
 
   try {
     await api(runtime, admin, 'PATCH', `/api/users/${user.user.id}`, {
@@ -220,40 +372,45 @@ async function main() {
       throw new Error('People lifecycle update did not persist.');
     }
 
-    await verifyPeopleLifecycle(runtime, admin, user, 'desktop', updatedName);
-    await verifyPeopleLifecycle(runtime, admin, user, 'mobile', updatedName);
+    const assignmentJob = await createJob(
+      runtime,
+      admin,
+      unique,
+      'People assignment coverage',
+      [admin.user.id],
+    );
+    assignmentJobId = assignmentJob.id;
+    await assertJobAssignees(runtime, admin, assignmentJob.id, [admin.user.id], 'Initial people assignment fixture');
 
-    const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const job = await api(runtime, admin, 'POST', '/api/jobs/', {
-      customerSnapshot: {
-        name: `Notification coverage ${unique}`,
-        address: 'Testvej 3, 8000 Aarhus C',
-        email: `notification-${unique}@example.test`,
-        phone: '12345678',
-        contactPerson: 'Browser coverage',
-      },
-      destinationAddress: 'Testvej 3',
-      destinationZipCode: '8000',
-      destinationCity: 'Aarhus C',
-      jobType: 'KLS',
-      assignedUserIds: [user.user.id],
-    }, [200]);
-    jobId = job?.id ?? null;
-    const reportNumber = String(job?.reportNumber ?? '').trim();
-    if (!jobId || !reportNumber) throw new Error('Notification fixture job did not return id/reportNumber.');
+    await verifyPeopleLifecycle(runtime, admin, user, 'desktop', updatedName, assignmentJob);
+    await verifyPeopleLifecycle(runtime, admin, user, 'mobile', updatedName, assignmentJob);
+    await verifyPeoplePermissionBoundary(runtime, user, 'desktop');
+    await verifyPeoplePermissionBoundary(runtime, user, 'mobile');
 
-    await verifyNotificationLifecycle(runtime, user, 'desktop', reportNumber, true);
-    await verifyNotificationLifecycle(runtime, user, 'mobile', reportNumber, false);
+    const notificationJob = await createJob(
+      runtime,
+      admin,
+      `${unique}-notification`,
+      'Notification coverage',
+      [user.user.id],
+    );
+    notificationJobId = notificationJob.id;
 
-    console.log('Notification + people lifecycle browser coverage passed on desktop and mobile.');
+    await verifyNotificationLifecycle(runtime, user, 'desktop', notificationJob.reportNumber, true);
+    await verifyNotificationLifecycle(runtime, user, 'mobile', notificationJob.reportNumber, false);
+
+    console.log('Notification + people lifecycle browser coverage passed on desktop and mobile, including people-page assignment/unassignment.');
   } finally {
     await api(runtime, admin, 'PATCH', `/api/users/${user.user.id}`, {
       displayName: originalUser.displayName ?? null,
       phone: originalUser.phone ?? null,
       role: originalUser.role ?? 'User',
     }, [200]).catch(() => {});
-    if (jobId) {
-      await api(runtime, admin, 'DELETE', `/api/jobs/${jobId}`, undefined, [200, 204, 404]).catch(() => {});
+    if (assignmentJobId) {
+      await api(runtime, admin, 'DELETE', `/api/jobs/${assignmentJobId}`, undefined, [200, 204, 404]).catch(() => {});
+    }
+    if (notificationJobId) {
+      await api(runtime, admin, 'DELETE', `/api/jobs/${notificationJobId}`, undefined, [200, 204, 404]).catch(() => {});
     }
   }
 }
