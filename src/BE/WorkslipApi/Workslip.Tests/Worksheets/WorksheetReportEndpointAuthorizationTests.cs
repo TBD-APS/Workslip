@@ -25,6 +25,27 @@ public sealed class WorksheetReportEndpointAuthorizationTests
             .OfType<RouteEndpoint>()
             .Single(route => route.RoutePattern.RawText == "/api/worksheets/all/report/power-bi");
 
+        AssertRequiresAdmin(endpoint);
+    }
+
+    [Fact]
+    public async Task PowerBiAnalyticsDataEndpoint_RequiresAdminPolicy()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSingleton<IWorksheetService, StubWorksheetService>();
+        await using var app = builder.Build();
+        app.MapWorkSheetEndpoints();
+
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(route => route.RoutePattern.RawText == "/api/worksheets/all/report/power-bi/data");
+
+        AssertRequiresAdmin(endpoint);
+    }
+
+    private static void AssertRequiresAdmin(RouteEndpoint endpoint)
+    {
         var policies = endpoint.Metadata
             .GetOrderedMetadata<IAuthorizeData>()
             .Select(metadata => metadata.Policy)
