@@ -23,11 +23,15 @@ const issues: JobValidationIssue[] = [
 ];
 
 describe('ActionableValidationSummary', () => {
-  it('shows every concrete validation message with its corrective action', () => {
+  it('shows every concrete validation message with its corrective action and wizard location', () => {
     render(<ActionableValidationSummary issues={issues} onAction={vi.fn()} />);
 
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByText('2 ting skal rettes')).toBeInTheDocument();
+    expect(screen.getByText('Trin 1 · Stamdata')).toBeInTheDocument();
     expect(screen.getByText('Kundenavn mangler.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /udfyld kundenavn/i })).toBeInTheDocument();
+    expect(screen.getByText('Trin 4 · Timesedler')).toBeInTheDocument();
     expect(screen.getByText('Der mangler en timeseddel.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /tilføj timeseddel/i })).toBeInTheDocument();
   });
@@ -40,6 +44,11 @@ describe('ActionableValidationSummary', () => {
 
     expect(onAction).toHaveBeenCalledTimes(1);
     expect(onAction).toHaveBeenCalledWith(issues[1]);
+  });
+
+  it('uses singular copy for one problem', () => {
+    render(<ActionableValidationSummary issues={[issues[0]]} onAction={vi.fn()} />);
+    expect(screen.getByText('1 ting skal rettes')).toBeInTheDocument();
   });
 
   it('renders nothing when there are no validation issues', () => {
