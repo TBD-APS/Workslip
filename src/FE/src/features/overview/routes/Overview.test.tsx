@@ -50,10 +50,12 @@ describe('Overview', () => {
     vi.mocked(apiClient.get).mockResolvedValue(overviewResponse);
     renderOverview();
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith('/api/jobs/overview'));
-    expect(screen.getByText('Aktive sager').previousElementSibling).toHaveTextContent('7');
-    expect(screen.getByText('Til gennemsyn').previousElementSibling).toHaveTextContent('3');
-    expect(screen.getByText('Godkendte sager').previousElementSibling).toHaveTextContent('11');
-    expect(screen.getByText('Afviste sager').previousElementSibling).toHaveTextContent('2');
+    await waitFor(() => {
+      expect(screen.getByText('Aktive sager').previousElementSibling).toHaveTextContent('7');
+      expect(screen.getByText('Til gennemsyn').previousElementSibling).toHaveTextContent('3');
+      expect(screen.getByText('Godkendte sager').previousElementSibling).toHaveTextContent('11');
+      expect(screen.getByText('Afviste sager').previousElementSibling).toHaveTextContent('2');
+    });
   });
 
   it('does not fetch Admin dashboard data for non-admin users', async () => {
