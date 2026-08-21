@@ -9,7 +9,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: workslip-live
+  group: workslip-production
   cancel-in-progress: false
 
 jobs:
@@ -17,7 +17,7 @@ jobs:
     name: Infrastructure · Reconcile production
     runs-on: windows-2022
     timeout-minutes: 75
-    environment: live
+    environment: prod
     env:
       AZURE_RESOURCE_GROUP: rg-mrsoftwarev2-live
       AZURE_WEBAPP_NAME: api-mrsoftwarev2-live

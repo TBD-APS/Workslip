@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: workslip-live
+  group: workslip-production
   cancel-in-progress: false
 
 jobs:
@@ -122,7 +122,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: build
-    environment: live
+    environment: prod
     permissions:
       id-token: write
       contents: read
