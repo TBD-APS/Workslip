@@ -13,14 +13,16 @@ public static class CustomerEndpoints
     {
         var searchGroup = app.MapUserGroup("/api/customers", "customers");
 
-        searchGroup.MapGet("/search", async (string? query, int? limit, ICustomerService service, CancellationToken cancellationToken) =>
+        searchGroup.MapGet("/search", async (string? query, int? limit, HttpContext httpContext, ICustomerService service, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.SearchAsync(query, limit, cancellationToken);
             return ResultExtensions.ToHttpResult(result, customers => customers.Select(CustomerViewModelBuilder.ToSearch).ToArray());
         }).Produces<List<CustomerSearchViewModel>>();
 
-        searchGroup.MapGet("/favorite", async (int? limit, ICustomerService service, CancellationToken cancellationToken) =>
+        searchGroup.MapGet("/favorite", async (int? limit, HttpContext httpContext, ICustomerService service, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.GetFavoriteAsync(limit ?? 3, cancellationToken);
             return ResultExtensions.ToHttpResult(result, customers => customers.Select(CustomerViewModelBuilder.ToSearch).ToArray());
         }).Produces<List<CustomerSearchViewModel>>();
