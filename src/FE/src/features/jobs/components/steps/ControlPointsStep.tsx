@@ -32,10 +32,9 @@ export function ControlPointsStep({
 }: ControlPointsStepProps) {
   const [validationError] = useState<string | null>(null);
 
-  // Show loading state if reference data is not ready yet
   if (!referenceData) {
     return (
-      <section className="detail-section">
+      <section id="job-control-points" className="detail-section">
         <div className="section-header-row">
           <ClipboardList size={18} />
           <h3>Kontrolpunkter</h3>
@@ -50,7 +49,7 @@ export function ControlPointsStep({
 
   if (selectedTypes.length === 0) {
     return (
-      <section className="detail-section">
+      <section id="job-control-points" className="detail-section">
         <div className="section-header-row">
           <ClipboardList size={18} />
           <h3>Kontrolpunkter</h3>
@@ -61,7 +60,7 @@ export function ControlPointsStep({
   }
 
   return (
-    <section className="detail-section">
+    <section id="job-control-points" className="detail-section">
       <div className="section-header-row">
         <ClipboardList size={18} />
         <h3>Kontrolpunkter</h3>
@@ -84,7 +83,11 @@ export function ControlPointsStep({
             const isIrrelevant = form.work.irrelevantCategoryIds.includes(compositeId);
 
             return (
-              <div key={cat.id} className={`control-point-category-group${isIrrelevant ? ' irrelevant' : ''}`}>
+              <div
+                id={`job-control-category-${compositeId}`}
+                key={cat.id}
+                className={`control-point-category-group${isIrrelevant ? ' irrelevant' : ''}`}
+              >
                 <div className="control-point-category-header">
                   <span className="control-point-category-label">{capitalizeFirstLetter(cat.name)}</span>
                 </div>

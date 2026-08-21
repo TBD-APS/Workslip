@@ -1,16 +1,20 @@
-const DATE_FORMATTER_LONG = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'short', year: 'numeric' });
-const DATE_TIME_FORMATTER_SHORT = new Intl.DateTimeFormat('da-DK', { dateStyle: 'short', timeStyle: 'short' });
+import { formatDate, formatDateTime } from './presentation/date';
 
+export { formatDate };
+
+/** @deprecated Use formatDate for all user-visible date-only values. */
 export function formatDateLong(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return DATE_FORMATTER_LONG.format(date);
+  return formatDate(value);
 }
 
-export function formatDateTimeShort(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return DATE_TIME_FORMATTER_SHORT.format(date);
+/** @deprecated Use formatDate for all user-visible date-only values. */
+export function formatDateShort(value: string | null | undefined): string | null {
+  return formatDate(value);
 }
+
+/** @deprecated Use formatDateTime for user-visible timestamps. */
+export function formatDateTimeShort(value: string | null | undefined): string | null {
+  return formatDateTime(value);
+}
+
+export { formatDateTime };

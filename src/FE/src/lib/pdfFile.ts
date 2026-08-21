@@ -1,4 +1,5 @@
 import { AXIOS_INSTANCE } from '../api/fetcherOrval';
+import { AUTH_TOKEN_KEY, AuthStorage } from '../providers/authContextValue';
 
 export type PdfFilePreview = {
   url: string;
@@ -9,9 +10,19 @@ export type PdfFilePreview = {
 type PdfFileRequest = {
   url: string;
   fallbackFileName: string;
+  reuseKey?: string;
+};
+
+type ReusablePdfFile = {
+  reuseKey: string;
+  authToken: string | null;
+  blob: Blob;
+  fileName: string;
+  timeoutId: number;
 };
 
 const OBJECT_URL_LIFETIME_MS = 60_000;
+let reusablePdfFile: ReusablePdfFile | null = null;
 
 async function fetchPdfFile(request: PdfFileRequest) {
   const response = await AXIOS_INSTANCE.get<Blob>(request.url, {
@@ -26,11 +37,12 @@ async function fetchPdfFile(request: PdfFileRequest) {
 }
 
 export async function createPdfFilePreview(request: PdfFileRequest): Promise<PdfFilePreview> {
-  const { blob, fileName } = await fetchPdfFile(request);
+  const requestAuthToken = AuthStorage.getItem(AUTH_TOKEN_KEY);
+  const pdfFile = await fetchPdfFile(request);
+  rememberPdfFileForDownload(request, pdfFile, requestAuthToken);
   return {
-    blob,
-    fileName,
-    url: window.URL.createObjectURL(blob),
+    ...pdfFile,
+    url: window.URL.createObjectURL(pdfFile.blob),
   };
 }
 
@@ -67,8 +79,57 @@ export async function openPdfFilePreview(request: PdfFileRequest): Promise<PdfFi
 }
 
 export async function downloadPdfFile(request: PdfFileRequest): Promise<void> {
-  const { blob, fileName } = await fetchPdfFile(request);
+  const { blob, fileName } = takeReusablePdfFile(request) ?? await fetchPdfFile(request);
   triggerBrowserDownload(blob, fileName);
+}
+
+function rememberPdfFileForDownload(
+  request: PdfFileRequest,
+  pdfFile: Pick<PdfFilePreview, 'blob' | 'fileName'>,
+  authToken: string | null,
+) {
+  clearReusablePdfFile();
+  if (!request.reuseKey || AuthStorage.getItem(AUTH_TOKEN_KEY) !== authToken) return;
+
+  const reuseKey = request.reuseKey;
+  const timeoutId = window.setTimeout(() => {
+    if (reusablePdfFile?.reuseKey === reuseKey && reusablePdfFile.authToken === authToken) {
+      reusablePdfFile = null;
+    }
+  }, OBJECT_URL_LIFETIME_MS);
+
+  reusablePdfFile = {
+    reuseKey,
+    authToken,
+    blob: pdfFile.blob,
+    fileName: pdfFile.fileName,
+    timeoutId,
+  };
+}
+
+function takeReusablePdfFile(request: PdfFileRequest) {
+  const currentAuthToken = AuthStorage.getItem(AUTH_TOKEN_KEY);
+  if (
+    !request.reuseKey
+    || reusablePdfFile?.reuseKey !== request.reuseKey
+    || reusablePdfFile.authToken !== currentAuthToken
+  ) {
+    clearReusablePdfFile();
+    return null;
+  }
+
+  const pdfFile = {
+    blob: reusablePdfFile.blob,
+    fileName: reusablePdfFile.fileName,
+  };
+  clearReusablePdfFile();
+  return pdfFile;
+}
+
+function clearReusablePdfFile() {
+  if (!reusablePdfFile) return;
+  window.clearTimeout(reusablePdfFile.timeoutId);
+  reusablePdfFile = null;
 }
 
 function triggerBrowserDownload(blob: Blob, fileName: string) {

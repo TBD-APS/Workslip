@@ -22,11 +22,23 @@ import '../../authenticated-base.css';
 import '../../App.css';
 import '../../features/jobs/jobWizardTheme.css';
 import './AppLayout.focus.css';
+import './AppLayout.desktop.css';
 import '../../farvelab-theme.css';
 import {
   AppScrollRestoreBoundary,
   useAppRouteScrollManager,
 } from '../../hooks/useAppRouteScroll';
+
+const DESKTOP_RAIL_COLLAPSED_KEY = 'workslip.desktopRailCollapsed';
+
+const readDesktopRailCollapsed = () => {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(DESKTOP_RAIL_COLLAPSED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+};
 
 export const AppLayout = () => {
   const navigate = useNavigate();
@@ -57,6 +69,7 @@ export const AppLayout = () => {
   const [quickNavigatorOpen, setQuickNavigatorOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [desktopRailCollapsed, setDesktopRailCollapsed] = useState(readDesktopRailCollapsed);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
 
@@ -92,6 +105,15 @@ export const AppLayout = () => {
     }
   };
 
+  const handleDesktopRailToggle = (collapsed: boolean) => {
+    setDesktopRailCollapsed(collapsed);
+    try {
+      window.localStorage.setItem(DESKTOP_RAIL_COLLAPSED_KEY, String(collapsed));
+    } catch {
+      // Keep the in-memory preference when storage is unavailable.
+    }
+  };
+
   const handleLogout = () => {
     clearOrganizationSession();
     logout();
@@ -122,7 +144,7 @@ export const AppLayout = () => {
   return (
     <AppScrollRestoreBoundary restoreKey={restoreScrollKey}>
     <DropdownProvider>
-      <div ref={scrollContainerRef} className="app-shell">
+      <div id="app-shell" ref={scrollContainerRef} className="app-shell">
       <header className="app-header">
         <button className="logo logo-header" onClick={() => navigate(isSuperadmin && !organizationSession ? '/superadmin' : appHomePath)}>
           <svg className="logo-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -135,6 +157,7 @@ export const AppLayout = () => {
         <div className="app-header-actions">
           {canUseNotifications && (
             <button
+              id="app-notifications-button"
               type="button"
               onClick={() => setNotificationsOpen(true)}
               className="user-avatar notification-bell"
@@ -151,7 +174,9 @@ export const AppLayout = () => {
           )}
           <div ref={settingsMenuRef} className="app-header-settings">
             <button
+              id="account-menu-button"
               type="button"
+              data-testid="account-menu-button"
               onClick={() => setSettingsMenuOpen((open) => !open)}
               className="user-avatar"
               aria-label="Profil og konto"
@@ -163,9 +188,10 @@ export const AppLayout = () => {
               <span aria-hidden="true">{profileInitial}</span>
             </button>
             {settingsMenuOpen && (
-              <div className="app-header-settings-menu" role="menu" aria-label="Profil og konto">
+              <div id="account-menu" className="app-header-settings-menu" role="menu" aria-label="Profil og konto" data-testid="account-menu">
                 {!isSuperadmin && (
                   <button
+                    id="account-menu-profile"
                     type="button"
                     className="app-header-settings-item"
                     role="menuitem"
@@ -194,6 +220,7 @@ export const AppLayout = () => {
                 )}
                 {canViewDocs && canUseAppCommands && (
                   <button
+                    id="account-menu-docs"
                     type="button"
                     className="app-header-settings-item"
                     role="menuitem"
@@ -207,6 +234,7 @@ export const AppLayout = () => {
                   </button>
                 )}
                 <button
+                  id="account-menu-theme"
                   type="button"
                   className="app-header-settings-item"
                   role="menuitem"
@@ -219,6 +247,7 @@ export const AppLayout = () => {
                 </button>
                 {canManageUsers && (
                   <button
+                    id="account-menu-settings"
                     type="button"
                     className="app-header-settings-item"
                     role="menuitem"
@@ -232,7 +261,9 @@ export const AppLayout = () => {
                   </button>
                 )}
                 <button
+                  id="logout-button"
                   type="button"
+                  data-testid="logout-button"
                   className="app-header-settings-item app-header-settings-item--danger"
                   role="menuitem"
                   onClick={() => {
@@ -285,30 +316,31 @@ export const AppLayout = () => {
         <Outlet />
       </main>
 
-      <nav className="bottom-nav">
-        <NavLink to={appHomePath} end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive(appHomePath)}>
+      <nav id="bottom-nav" className="bottom-nav">
+        <NavLink id="bottom-nav-home" to={appHomePath} end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive(appHomePath)}>
           <ClipboardList size={24} />
           <span>{isAuditorSession ? 'Rapporter' : 'Overblik'}</span>
         </NavLink>
         <Can permission="worksheet:view">
-          <NavLink to="/app/timer" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/timer')}>
+          <NavLink id="bottom-nav-timer" to="/app/timer" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/timer')}>
             <CalendarDays size={24} />
             <span>Timer</span>
           </NavLink>
         </Can>
         <Can permission="user:manage">
-          <NavLink to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/users')}>
+          <NavLink id="bottom-nav-people" to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/users')}>
             <Users size={24} />
             <span>Folk</span>
           </NavLink>
         </Can>
         <Can permission="customer:view">
-          <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/customers')}>
+          <NavLink id="bottom-nav-customers" to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/customers')}>
             <Building2 size={24} />
             <span>Kunder</span>
           </NavLink>
         </Can>
         <button
+          id="bottom-nav-search"
           type="button"
           className={`nav-item quick-nav-mobile-trigger ${quickNavigatorOpen ? 'active' : ''}`}
           onClick={() => setQuickNavigatorOpen(true)}
@@ -319,6 +351,21 @@ export const AppLayout = () => {
           <Search size={24} />
           <span>Søg</span>
         </button>
+        <div className="desktop-rail-toggle-wrap">
+          <input
+            id="desktop-rail-toggle"
+            className="desktop-rail-toggle-input"
+            type="checkbox"
+            checked={desktopRailCollapsed}
+            onChange={(event) => handleDesktopRailToggle(event.currentTarget.checked)}
+            aria-label="Skjul eller vis navigation"
+          />
+          <label htmlFor="desktop-rail-toggle" className="desktop-rail-toggle">
+            <span className="desktop-rail-toggle-icon" aria-hidden="true" />
+            <span className="desktop-rail-toggle-label desktop-rail-toggle-label--collapse">Skjul</span>
+            <span className="desktop-rail-toggle-label desktop-rail-toggle-label--expand">Vis</span>
+          </label>
+        </div>
       </nav>
 
       {location.pathname === '/app' && (

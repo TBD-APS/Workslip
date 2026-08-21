@@ -64,13 +64,24 @@ async function fillOverviewFields(session, { customerName, address }) {
   if (await customerPicker.isVisible().catch(() => false)) {
     await customerPicker.click();
     const createOption = page.getByRole('option', { name: /Opret ny kunde/ });
-    if (await createOption.isVisible().catch(() => false)) await createOption.click();
+    await createOption.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await createOption.click();
   }
 
-  await fillIfVisible(page.getByPlaceholder('Kundenavn', { exact: true }), customerName);
+  const requiredCustomerFields = [
+    [page.locator('#job-customer-name'), customerName, 'Kundenavn'],
+    [page.locator('#job-customer-email'), session.data.customerEmail, 'Email'],
+    [page.locator('#job-customer-phone'), session.data.phone, 'Telefon'],
+  ];
+  for (const [field, value, label] of requiredCustomerFields) {
+    await field.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await field.fill(String(value));
+    if ((await field.inputValue()).trim() !== String(value).trim()) {
+      throw new Error(`Required KLS create field ${label} did not retain its value.`);
+    }
+  }
+
   await fillIfVisible(page.getByPlaceholder('Adresse', { exact: true }), address.text);
-  await fillIfVisible(page.getByPlaceholder('Email', { exact: true }), session.data.customerEmail);
-  await fillIfVisible(page.getByPlaceholder('Telefon', { exact: true }), session.data.phone);
   await fillIfVisible(page.getByPlaceholder('Kontaktperson', { exact: true }), session.data.contactPerson);
   await fillIfVisible(page.getByPlaceholder('Beskriv opgaven...'), session.data.taskDescription);
 }
@@ -106,13 +117,14 @@ async function completeAndSubmitKlsViaUi(session, job) {
 
     await clickNext(session.page, 'Afslutning');
     await clickByTextCandidates(session.page.locator('button'), candidates(selection.closureFlag), 'closure flag');
+
     await clickNext(session.page, 'Attestering');
     await session.page.getByRole('checkbox', { name: /Jeg bekræfter, at sagen er gennemgået/ }).check();
     const response = waitForApiResponse(session.page, 'POST', `/api/jobs/${job.id}/status`, [200]);
     await session.page.getByRole('button', { name: 'Attestér og indsend', exact: true }).click();
     await response;
     await session.page.waitForURL((url) => url.pathname === `/app/completed/${job.id}`, { timeout: UI_TIMEOUT });
-    await session.page.getByRole('heading', { name: 'Sagsoverblik', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await session.page.locator('#admin-case-information-title').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   });
 }
 
@@ -150,29 +162,44 @@ async function navigateToAttestation(session, referenceData) {
   }
 }
 
+async function waitForPersistedJobStatus(session, jobId, expectedStatuses) {
+  const expected = expectedStatuses.map((status) => String(status).toLowerCase());
+  const deadline = Date.now() + API_TIMEOUT;
+  let lastStatus = null;
+
+  while (Date.now() < deadline) {
+    const job = await session.apiExpect('GET', `/api/jobs/${jobId}`, undefined, [200]);
+    lastStatus = job?.status ?? null;
+    if (expected.includes(String(lastStatus).toLowerCase())) return job;
+    await session.page.waitForTimeout(200);
+  }
+
+  throw new Error(`Job ${jobId} did not reach ${expectedStatuses.join('/')} within ${API_TIMEOUT}ms; last status was ${lastStatus ?? 'unknown'}.`);
+}
+
 async function approveJobViaUi(session, jobId) {
   await session.page.goto(`${APP_URL}/app/completed/${jobId}`, { waitUntil: 'domcontentloaded' });
-  await session.page.getByRole('heading', { name: 'Sagsoverblik', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await session.page.locator('#admin-case-information-title').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   const approve = session.page.locator('button:visible').filter({ hasText: /^Godkend$/ }).last();
   await approve.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await approve.click();
   const dialog = session.page.getByRole('dialog', { name: 'Godkend sag' });
   await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  const response = waitForApiResponse(session.page, 'POST', `/api/jobs/${jobId}/status`, [200]);
   await dialog.getByRole('button', { name: 'Godkend', exact: true }).click();
-  await response;
+  await waitForPersistedJobStatus(session, jobId, ['Approved', 'Godkendt']);
+  await dialog.waitFor({ state: 'hidden', timeout: UI_TIMEOUT }).catch(() => {});
 }
 
 async function rejectJobViaUi(session, jobId, rejectionNote = 'Mangler dokumentation for udført arbejde.') {
   await session.page.goto(`${APP_URL}/app/completed/${jobId}`, { waitUntil: 'domcontentloaded' });
-  await session.page.getByRole('heading', { name: 'Sagsoverblik', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await session.page.locator('#admin-case-information-title').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await session.page.locator('button:visible').filter({ hasText: /^Afvis$/ }).last().click();
   const dialog = session.page.getByRole('dialog', { name: 'Afvis sag' });
   await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await dialog.locator('#rejection-note').fill(rejectionNote);
-  const response = waitForApiResponse(session.page, 'POST', `/api/jobs/${jobId}/status`, [200]);
+  await dialog.locator('#status-reason').fill(rejectionNote);
   await dialog.getByRole('button', { name: 'Afvis', exact: true }).click();
-  await response;
+  await waitForPersistedJobStatus(session, jobId, ['Rejected', 'Afvist']);
+  await dialog.waitFor({ state: 'hidden', timeout: UI_TIMEOUT }).catch(() => {});
 }
 
 async function createCustomerViaUi(session) {
@@ -233,10 +260,20 @@ async function createMinimalJobFixtureViaApi(session, customer) {
     work: {
       installationTypes: [{
         id: selection.installation.id,
-        categories: selection.installation.categories?.slice(0, 1).map((category) => ({
-          id: category.id,
-          controlPoints: category.controlPoints?.slice(0, 1).map((controlPoint) => ({ id: controlPoint.id })) ?? [],
-        })) ?? [],
+        // Kontrolpunkter (step 2) is only complete when every category of the selected
+        // installation type is either checked or marked irrelevant. Check one control
+        // point in the first category and mark the remaining categories irrelevant so
+        // the wizard's step gating lets the flow reach the Timesedler step.
+        categories: selection.installation.categories?.map((category, index) => index === 0
+          ? {
+              id: category.id,
+              controlPoints: category.controlPoints?.slice(0, 1).map((controlPoint) => ({ id: controlPoint.id, isChecked: true })) ?? [],
+            }
+          : {
+              id: category.id,
+              isIrrelevant: true,
+              controlPoints: [],
+            }) ?? [],
       }],
       workKind: valueOf(selection.workKind),
       closureFlags: [valueOf(selection.closureFlag)],
@@ -252,16 +289,16 @@ async function addWorksheetViaUi(session, user, hours) {
   const page = session.page;
   const add = page.getByRole('button', { name: 'Tilføj timeseddel', exact: true });
   await add.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await waitForEnabled(add, 'Tilføj timeseddel');
   await add.click();
   const form = page.locator('.worksheet-form');
-  const assigneeField = form.locator('.multi-select-field').filter({ has: form.locator('.multi-select-label', { hasText: 'Montør' }) }).first();
-  const trigger = assigneeField.locator('button.multi-select-trigger');
+  const trigger = page.locator('#worksheet-assignee-trigger');
   if (await trigger.isVisible().catch(() => false)) {
     await waitForEnabled(trigger, 'worksheet assignee selector');
     const triggerText = (await trigger.innerText()).trim();
     if (!triggerText.includes(user.displayName)) {
       await trigger.click();
-      const option = page.getByRole('option').filter({ hasText: user.displayName }).first();
+      const option = page.locator(`#worksheet-assignee-trigger-option-${user.id}`);
       await option.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
       if ((await option.getAttribute('aria-selected')) !== 'true') {
         await option.click();
@@ -271,14 +308,68 @@ async function addWorksheetViaUi(session, user, hours) {
       }
     }
   }
-  await page.getByLabel('Timer', { exact: true }).fill(hours);
-  const responsePromise = page.waitForResponse((response) =>
-    response.request().method() === 'POST'
-      && new URL(response.url()).pathname.startsWith('/api/worksheets/jobs/'),
-  { timeout: API_TIMEOUT });
-  await page.getByRole('button', { name: 'Tilføj', exact: true }).click();
-  const response = await responsePromise;
-  if (!response.ok()) throw new Error(`Worksheet creation returned HTTP ${response.status()}.`);
+
+  const hoursInput = page.locator('#worksheet-add-hours');
+  await hoursInput.fill(hours);
+  const submit = page.locator('#worksheet-add-submit');
+  await submit.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await waitForEnabled(submit, 'worksheet add submit');
+  // Move focus away from the controlled hours field before the mouse click. If the
+  // focus transition causes a React render, the locator will resolve the current
+  // submit node again instead of clicking a node that was replaced mid-gesture.
+  await submit.focus();
+  await submit.evaluate((button) => {
+    window.__workslipWorksheetSubmitDiagnostics = { buttonClicks: 0, formSubmits: 0 };
+    button.addEventListener('click', () => {
+      window.__workslipWorksheetSubmitDiagnostics.buttonClicks += 1;
+    });
+    button.closest('form')?.addEventListener('submit', () => {
+      window.__workslipWorksheetSubmitDiagnostics.formSubmits += 1;
+    });
+  });
+  const formError = page.locator('#worksheet-form-error');
+  const worksheetPath = '/api/worksheets/jobs/';
+  const requestOutcome = page.waitForRequest((request) =>
+    request.method() === 'POST' && new URL(request.url()).pathname.startsWith(worksheetPath),
+  { timeout: API_TIMEOUT })
+    .then((request) => ({ kind: 'request', request }))
+    .catch((error) => ({ kind: 'request-timeout', error }));
+  const responseOutcome = page.waitForResponse((candidate) =>
+    candidate.request().method() === 'POST'
+      && new URL(candidate.url()).pathname.startsWith(worksheetPath),
+  { timeout: API_TIMEOUT })
+    .then((response) => ({ kind: 'response', response }))
+    .catch((error) => ({ kind: 'response-timeout', error }));
+  const formErrorOutcome = formError.waitFor({ state: 'visible', timeout: API_TIMEOUT - 1000 })
+    .then(async () => ({ kind: 'form-error', message: (await formError.innerText()).trim() }))
+    .catch(() => new Promise(() => {}));
+
+  await submit.click();
+  const firstOutcome = await Promise.race([requestOutcome, formErrorOutcome]);
+  if (firstOutcome.kind === 'form-error') {
+    throw new Error(`Worksheet form blocked submit: ${firstOutcome.message}`);
+  }
+  if (firstOutcome.kind !== 'request') {
+    const diagnostics = {
+      url: page.url(),
+      submitDisabled: await submit.isDisabled().catch(() => null),
+      hours: await hoursInput.inputValue().catch(() => null),
+      assigneeVisible: await trigger.isVisible().catch(() => false),
+      assigneeText: await trigger.isVisible().catch(() => false) ? (await trigger.innerText()).trim() : null,
+      assigneeExpanded: await trigger.isVisible().catch(() => false) ? await trigger.getAttribute('aria-expanded') : null,
+      formError: await formError.isVisible().catch(() => false) ? (await formError.innerText()).trim() : null,
+      events: await page.evaluate(() => window.__workslipWorksheetSubmitDiagnostics ?? null),
+    };
+    throw new Error(`Worksheet submit produced no POST request. State: ${JSON.stringify(diagnostics)}`);
+  }
+
+  const completedResponse = await responseOutcome;
+  if (completedResponse.kind !== 'response') {
+    throw new Error('Worksheet POST did not produce a response before timeout.');
+  }
+  if (!completedResponse.response.ok()) {
+    throw new Error(`Worksheet creation returned HTTP ${completedResponse.response.status()}.`);
+  }
   await form.waitFor({ state: 'hidden', timeout: API_TIMEOUT });
 }
 

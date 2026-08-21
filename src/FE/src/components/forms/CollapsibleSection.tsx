@@ -10,6 +10,7 @@ type CollapsibleSectionProps = {
   open?: boolean;
   onToggle?: (open: boolean) => void;
   scrollOnOpen?: boolean;
+  triggerId?: string;
 };
 
 type CollapsibleHistoryState = {
@@ -38,7 +39,7 @@ function persistOpenState(key: string, open: boolean) {
   );
 }
 
-export function CollapsibleSection({ icon, title, children, className, defaultOpen = true, open, onToggle, scrollOnOpen = true }: CollapsibleSectionProps) {
+export function CollapsibleSection({ icon, title, children, className, defaultOpen = true, open, onToggle, scrollOnOpen = true, triggerId }: CollapsibleSectionProps) {
   const persistenceKey = className ?? title;
   const [internalOpen, setInternalOpen] = useState(() => getPersistedOpenState(persistenceKey, defaultOpen));
   const isOpen = open ?? internalOpen;
@@ -72,6 +73,7 @@ export function CollapsibleSection({ icon, title, children, className, defaultOp
   return (
     <section className={`detail-section collapsible-section${className ? ` ${className}` : ''}`}>
       <button
+        id={triggerId}
         className="collapsible-section-trigger"
         type="button"
         onClick={handleToggle}

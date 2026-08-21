@@ -72,6 +72,62 @@ public sealed class CreateJobServiceTests
                 .OrderBy(pair => pair.JobId));
     }
 
+    [Fact]
+    public async Task CreateAsync_notifies_assignees_when_not_duplicating_per_assignee()
+    {
+        var organizationId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var firstUserId = Guid.NewGuid();
+        var secondUserId = Guid.NewGuid();
+        var linkedJobId = Guid.NewGuid();
+        var repository = new RecordingCreateJobRepository(
+            organizationId,
+            linkedJobId,
+            [
+                new AssignedUserResponse(firstUserId, "Employee 1"),
+                new AssignedUserResponse(secondUserId, "Employee 2")
+            ]);
+        var notifications = new RecordingNotificationService();
+        var currentUser = new TestCurrentUserContext(adminId, organizationId, Roles.Admin);
+        var worksheets = new EmptyWorksheetRepository();
+
+        using var services = CreateCacheServices();
+        var service = new JobService(
+            repository,
+            null!,
+            null!,
+            null!,
+            new EmptyReferenceDataRepository(),
+            worksheets,
+            services.GetRequiredService<HybridCache>(),
+            new CreateJobRequestValidator(new AllowAssignmentValidator(), worksheets, currentUser),
+            null!,
+            null!,
+            currentUser,
+            NullLogger<JobService>.Instance,
+            null!,
+            notifications,
+            null!);
+        // No DuplicatePerAssignedUser: a normal create with inline assignees must
+        // still notify those assignees (regression guard for the notification that
+        // was previously only sent on the duplicate-per-assignee path).
+        var request = new CreateJobRequest(
+            JobType: JobType.Diverse.ToString(),
+            AssignedUserIds: [firstUserId, secondUserId]);
+
+        var result = await service.CreateAsync(request, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotEmpty(notifications.Assigned);
+        Assert.Equal(
+            repository.CreatedJobs
+                .SelectMany(job => job.AssignedUsers.Select(user => (JobId: job.Id, UserId: user.Id)))
+                .OrderBy(pair => pair.JobId),
+            notifications.Assigned
+                .Select(call => (call.JobId, call.UserId))
+                .OrderBy(pair => pair.JobId));
+    }
+
     private static ServiceProvider CreateCacheServices()
     {
         var services = new ServiceCollection();

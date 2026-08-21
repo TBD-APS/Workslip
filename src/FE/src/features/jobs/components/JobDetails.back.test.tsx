@@ -73,8 +73,17 @@ vi.mock('../../../components/common/DeleteButton', () => ({
 function createDetailsStub() {
   return {
     job: { id: 'job-1', reportNumber: '1234', jobType: 'KLS', status: JobStatus.Draft },
-    form: { work: { closureFlags: [] } },
-    referenceData: {},
+    form: {
+      work: {
+        categoryIds: [],
+        workKind: '',
+        customWorkKind: '',
+        controlPointSelections: {},
+        irrelevantCategoryIds: [],
+        closureFlags: [],
+      },
+    },
+    referenceData: { installationTypes: [], workKinds: [] },
     currentStep: 0,
     setCurrentStep: vi.fn(),
     isLoading: false,

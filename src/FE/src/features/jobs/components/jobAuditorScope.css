@@ -29,7 +29,7 @@
   flex: 0 0 auto;
   place-items: center;
   border-radius: 999px;
-  background: var(--surface-muted, #f2f4f7);
+  background: var(--surface-raised);
 }
 
 .auditor-scope-card__body {

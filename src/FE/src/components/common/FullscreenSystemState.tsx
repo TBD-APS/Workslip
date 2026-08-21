@@ -25,6 +25,7 @@ export function FullscreenSystemState({
 
   return (
     <div
+      id="fullscreen-system-state"
       className="app-container app-container-center system-state"
       role={role}
       aria-live={role === 'alert' ? 'assertive' : 'polite'}
@@ -59,7 +60,7 @@ export function FullscreenSystemState({
         )}
 
         <div className="system-state-copy">
-          <h1>{title}</h1>
+          <h1 id="fullscreen-system-state-title">{title}</h1>
           <p>{message}</p>
         </div>
 

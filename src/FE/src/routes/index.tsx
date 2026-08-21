@@ -99,6 +99,7 @@ const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupReco
     actions={(
       <>
         <button
+          id="startup-retry-button"
           type="button"
           className="btn btn-primary"
           onClick={onRetry}
@@ -250,7 +251,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <JobList /> },
           { path: 'overblik', element: <Overview /> },
-          { path: 'timer', element: <MyWorksheets /> },
+          { path: 'timer', element: <RoleGuard permission="worksheet:view"><MyWorksheets /></RoleGuard> },
           { path: 'create', element: <Create /> },
           { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
           { path: 'job/simple/new', element: <RoleGuard permission="job:create"><SimpleJobCreate /></RoleGuard> },

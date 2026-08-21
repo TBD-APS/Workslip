@@ -6,7 +6,7 @@ on:
       - main
       - 'release-*'
       - 'release/**'
-    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+    types: [opened, synchronize, reopened, edited, ready_for_review, converted_to_draft, labeled, unlabeled]
   pull_request_review:
     types: [submitted, dismissed]
 
@@ -46,6 +46,9 @@ jobs:
       - name: Test browser-evidence guard
         run: node --test tools/release/validate-pr-browser-evidence.test.mjs
 
+      - name: Test Playwright selector contract
+        run: node --test tools/release/validate-playwright-selector-contract.test.mjs
+
       - name: Validate ruleset reconciler syntax
         shell: pwsh
         run: >-
@@ -69,7 +72,7 @@ jobs:
           echo '::error::Feature change classifier failed before producing a valid risk decision.'
           exit 1
 
-      - name: Validate flow-level browser evidence
+      - name: Validate flow-level browser intent
         id: browser
         shell: bash
         env:
@@ -85,6 +88,13 @@ jobs:
             --base "$BASE_SHA" \
             --head "$HEAD_SHA" \
             --body-file "$body_file"
+
+      - name: Reject new non-ID Playwright selectors
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node tools/release/validate-playwright-selector-contract.mjs --base "$BASE_SHA" --head "$HEAD_SHA"
 
       - name: Require explicit approval for high-risk feature change
         if: steps.risk.outputs.high_risk == 'true'
@@ -118,4 +128,4 @@ jobs:
 
       - name: Guard passed
         if: steps.risk.outputs.high_risk != 'true'
-        run: echo 'Feature-change and browser-evidence guards passed.'
+        run: echo 'Feature-change, browser-intent and Playwright-selector guards passed.'

@@ -1,7 +1,11 @@
 param(
     [Parameter(Position = 0)]
     [string]$Environment = 'prod',
-    [string]$StatePath = ''
+    [string]$StatePath = '',
+    # Report the Graph upserts this run would perform, without sending any of
+    # them. Microsoft Graph has no what-if equivalent, so the preview lists the
+    # intended writes rather than a server-computed diff.
+    [switch]$WhatIf
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,6 +20,7 @@ $OAuthUniqueName = "workslip-oauth-server-$NormalizedEnvironment"
 $ClientUniqueName = "workslip-client-$NormalizedEnvironment"
 $ApiScopeId = 'c2e2bf46-f94d-4c3e-86d7-ca425e4c6e2a'
 $ManagedRoleValues = @('Superadmin', 'Admin', 'User', 'Auditor')
+$script:PlannedGraphWrites = @()
 
 function Initialize-AzureCliInvocation {
     $azureCliCommand = Get-Command az -CommandType Application -ErrorAction Stop |
@@ -184,6 +189,33 @@ function Get-GraphApplication {
     throw "Microsoft Graph did not expose application '$UniqueName' after $MaxAttempts attempts.`n$lastDiagnostic"
 }
 
+function Get-ApplicationAfterUpsert {
+    <#
+        After a real upsert the registration may take a moment to appear, hence the
+        18 attempts. In preview nothing was written, so waiting would only stall for
+        90 seconds before failing. Look once instead: in a tenant that already holds
+        the registration the preview continues normally, and in a fresh tenant it is
+        absent and the caller stops.
+    #>
+    param([Parameter(Mandatory = $true)][string]$UniqueName)
+
+    if ($WhatIf) {
+        return Get-GraphApplication -UniqueName $UniqueName -MaxAttempts 1 -AllowMissing
+    }
+
+    return Get-GraphApplication -UniqueName $UniqueName -MaxAttempts 18
+}
+
+function Write-PreviewSummary {
+    Write-Host ''
+    Write-Host "Planned Microsoft Graph writes: $($script:PlannedGraphWrites.Count)" -ForegroundColor Yellow
+    foreach ($write in $script:PlannedGraphWrites) {
+        Write-Host "  - $write" -ForegroundColor DarkGray
+    }
+    Write-Host "State file not written (would be: $StatePath)" -ForegroundColor DarkGray
+    Write-Host 'Preview complete. Nothing in Microsoft Entra was changed.' -ForegroundColor Green
+}
+
 function Get-ExistingRoleId {
     param(
         [object]$Application,
@@ -295,6 +327,14 @@ function Invoke-GraphUpsert {
         [Parameter(Mandatory = $true)]
         [string]$Description
     )
+
+    # Every Graph write in this script funnels through here, so gating the preview
+    # at this single point is what makes -WhatIf trustworthy.
+    if ($WhatIf) {
+        $script:PlannedGraphWrites += $Description
+        Write-Host "  would PATCH  $Description" -ForegroundColor Yellow
+        return
+    }
 
     $tempFile = New-TemporaryFile
     try {
@@ -471,7 +511,13 @@ Invoke-GraphUpsert `
     -Body $oauthBody `
     -Description "upserting OAuth application '$OAuthUniqueName'"
 
-$oauthApplication = Get-GraphApplication -UniqueName $OAuthUniqueName -MaxAttempts 18
+$oauthApplication = Get-ApplicationAfterUpsert -UniqueName $OAuthUniqueName
+if ($null -eq $oauthApplication) {
+    Write-Host "  would CREATE application '$OAuthUniqueName' — absent from this tenant" -ForegroundColor Yellow
+    Write-Host '  Later phases depend on its identifiers, so the preview stops here.' -ForegroundColor DarkGray
+    Write-PreviewSummary
+    return
+}
 
 $clientBody = [ordered]@{
     displayName = 'Workslip App'
@@ -524,7 +570,13 @@ Invoke-GraphUpsert `
     -Body $clientBody `
     -Description "upserting client application '$ClientUniqueName'"
 
-$clientApplication = Get-GraphApplication -UniqueName $ClientUniqueName -MaxAttempts 18
+$clientApplication = Get-ApplicationAfterUpsert -UniqueName $ClientUniqueName
+if ($null -eq $clientApplication) {
+    Write-Host "  would CREATE application '$ClientUniqueName' — absent from this tenant" -ForegroundColor Yellow
+    Write-Host '  Later phases depend on its identifiers, so the preview stops here.' -ForegroundColor DarkGray
+    Write-PreviewSummary
+    return
+}
 
 Write-Host 'Upserting service principals...' -ForegroundColor Cyan
 Invoke-GraphUpsert `
@@ -542,6 +594,15 @@ Invoke-GraphUpsert `
         tags = @('WindowsAzureActiveDirectoryIntegratedApp')
     }) `
     -Description "upserting client service principal '$($clientApplication.appId)'"
+
+if ($WhatIf) {
+    # Everything below waits for service principals the upserts would have created
+    # and writes the state file the infrastructure phase consumes. Neither is
+    # meaningful without the writes, so stop here rather than time out or emit a
+    # state file describing a tenant that was never touched.
+    Write-PreviewSummary
+    return
+}
 
 $oauthServicePrincipal = Wait-GraphServicePrincipal `
     -AppId ([string]$oauthApplication.appId) `

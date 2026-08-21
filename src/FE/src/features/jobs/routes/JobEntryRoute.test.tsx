@@ -32,11 +32,15 @@ vi.mock('./JobDetail', () => ({
   JobDetail: () => <RouteProbe mode="edit" />,
 }));
 
-vi.mock('./CompletedJobReport', () => ({
-  CompletedJobReport: () => <RouteProbe mode="report" />,
+// The completed-job overview is the single report surface for every state and viewer.
+vi.mock('./AdminCompletedJobReport', () => ({
+  AdminCompletedJobReport: () => <RouteProbe mode="report" />,
 }));
 
-function renderRoute(path: string, state?: { from?: string; readOnly?: boolean }) {
+function renderRoute(
+  path: string,
+  state?: { from?: string; readOnly?: boolean; forceEdit?: boolean },
+) {
   render(
     <MemoryRouter initialEntries={[{ pathname: path, state }]}>
       <Routes>
@@ -61,27 +65,73 @@ describe('JobEntryRoute', () => {
     expect(await screen.findByText('edit:/app/job/job-1:from=/app/timer')).toBeInTheDocument();
   });
 
-  it('redirects rejected jobs into the editor for normal users', async () => {
-    mocks.job = { status: JobStatus.Rejected, jobType: 'KLS' };
-    renderRoute('/app/completed/job-1', { from: '/app/customers/customer-1' });
+  // The completed view route is the read surface for every post-authoring state and viewer.
+  it.each([JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected, JobStatus.Reopened])(
+    'shows the report for %s jobs on the completed view route',
+    async (status) => {
+      mocks.job = { status, jobType: 'KLS' };
+      renderRoute('/app/completed/job-1', { from: '/app' });
 
-    expect(await screen.findByText('edit:/app/job/job-1:from=/app/customers/customer-1')).toBeInTheDocument();
-  });
+      expect(await screen.findByText('report:/app/completed/job-1:from=/app')).toBeInTheDocument();
+    },
+  );
 
-  it.each([JobStatus.InReview, JobStatus.Approved])('routes %s jobs to the report', async (status) => {
-    mocks.job = { status, jobType: 'KLS' };
-    renderRoute('/app/job/job-1', { from: '/app' });
+  it.each([JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected, JobStatus.Reopened])(
+    'shows the report for %s jobs for admins on the view route',
+    async (status) => {
+      mocks.isAdmin = true;
+      mocks.job = { status, jobType: 'KLS' };
+      renderRoute('/app/completed/job-1', { from: '/app' });
 
-    expect(await screen.findByText('report:/app/completed/job-1:from=/app')).toBeInTheDocument();
-  });
+      expect(await screen.findByText('report:/app/completed/job-1:from=/app')).toBeInTheDocument();
+    },
+  );
 
-  it('routes rejected jobs to the report for admins without injecting unrelated controls into the flow', async () => {
+  // Locked states cannot be edited, so the edit route falls back to the report.
+  it.each([JobStatus.InReview, JobStatus.Approved])(
+    'redirects locked %s jobs from the edit route to the report',
+    async (status) => {
+      mocks.job = { status, jobType: 'KLS' };
+      renderRoute('/app/job/job-1', { from: '/app' });
+
+      expect(await screen.findByText('report:/app/completed/job-1:from=/app')).toBeInTheDocument();
+    },
+  );
+
+  // Editable states (a case handed back for correction) open the wizard on the edit route,
+  // so the assignee — admin or not — can correct and resubmit it.
+  it.each([JobStatus.Rejected, JobStatus.Reopened])(
+    'opens the wizard for editable %s jobs on the edit route',
+    async (status) => {
+      mocks.job = { status, jobType: 'KLS' };
+      renderRoute('/app/job/job-1', { from: '/app' });
+
+      expect(await screen.findByText('edit:/app/job/job-1:from=/app')).toBeInTheDocument();
+    },
+  );
+
+  it('lets an admin force-edit a rejected case from the overview', async () => {
     mocks.isAdmin = true;
     mocks.job = { status: JobStatus.Rejected, jobType: 'KLS' };
-    renderRoute('/app/job/job-1', { from: '/app' });
+    renderRoute('/app/completed/job-1', { from: '/app', forceEdit: true });
+
+    expect(await screen.findByText('edit:/app/job/job-1:from=/app')).toBeInTheDocument();
+  });
+
+  it('ignores force-edit for non-admins and keeps them on the report', async () => {
+    mocks.isAdmin = false;
+    mocks.job = { status: JobStatus.Rejected, jobType: 'KLS' };
+    renderRoute('/app/completed/job-1', { from: '/app', forceEdit: true });
 
     expect(await screen.findByText('report:/app/completed/job-1:from=/app')).toBeInTheDocument();
-    expect(screen.queryByText(/auditøradgang/i)).not.toBeInTheDocument();
+  });
+
+  it('ignores force-edit for approved cases and keeps the report locked', async () => {
+    mocks.isAdmin = true;
+    mocks.job = { status: JobStatus.Approved, jobType: 'KLS' };
+    renderRoute('/app/completed/job-1', { from: '/app', forceEdit: true });
+
+    expect(await screen.findByText('report:/app/completed/job-1:from=/app')).toBeInTheDocument();
   });
 
   it('keeps auditor-style read-only entry in the report even for a draft status', () => {

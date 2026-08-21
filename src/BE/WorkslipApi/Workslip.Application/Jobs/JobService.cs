@@ -128,8 +128,11 @@ public sealed class JobService(
                 await InvalidateJobCachesAsync(affectedJobId, created.OrganizationId, cancellationToken);
             }
 
-            if (request.DuplicatePerAssignedUser == true)
-                await QueueDuplicatedJobAssignmentNotificationsAsync(created, createdJobIds, actorId, cancellationToken);
+            // Notify assignees for every create path (normal single-job creation as
+            // well as duplicate-per-assignee), not only the duplicate case. A job
+            // created with assignees inline must notify them just like the explicit
+            // assign endpoint does.
+            await QueueJobAssignmentNotificationsAsync(created, createdJobIds, actorId, cancellationToken);
 
             LogJobCreated(created);
 
@@ -729,7 +732,7 @@ public sealed class JobService(
 
         return null;
     }
-    private async Task QueueDuplicatedJobAssignmentNotificationsAsync(
+    private async Task QueueJobAssignmentNotificationsAsync(
         JobReportResponse primaryJob,
         IReadOnlyList<Guid> createdJobIds,
         Guid? actorId,
@@ -746,7 +749,7 @@ public sealed class JobService(
             if (job is null)
             {
                 logger.LogError(
-                    "Duplicated job lookup failed before assignment notification. JobId: {JobId}. OrganizationId: {OrganizationId}.",
+                    "Created job lookup failed before assignment notification. JobId: {JobId}. OrganizationId: {OrganizationId}.",
                     createdJobId,
                     primaryJob.OrganizationId);
                 continue;
@@ -775,7 +778,7 @@ public sealed class JobService(
                     // aborted because a secondary notification could not be queued.
                     logger.LogError(
                         exception,
-                        "Failed to queue duplicated job assignment notification. JobId: {JobId}. UserId: {UserId}.",
+                        "Failed to queue job assignment notification. JobId: {JobId}. UserId: {UserId}.",
                         job.Id,
                         assignedUser.Id);
                 }

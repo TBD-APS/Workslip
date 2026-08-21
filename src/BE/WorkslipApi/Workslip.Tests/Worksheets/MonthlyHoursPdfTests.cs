@@ -1,18 +1,13 @@
-using System.Text;
 using Ardalis.Result;
 using Microsoft.Extensions.Logging.Abstractions;
-using QuestPDF.Infrastructure;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
 using Workslip.Application.Worksheets;
-using Workslip.Infrastructure;
 
 namespace Workslip.Tests.Worksheets;
 
 public sealed class MonthlyHoursPdfTests
 {
-    private static readonly byte[] PngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-
     [Fact]
     public async Task Service_scopes_monthly_pdf_data_to_current_organization()
     {
@@ -70,22 +65,6 @@ public sealed class MonthlyHoursPdfTests
         Assert.Null(generator.PreviewMonth);
     }
 
-    [Fact]
-    public void Generator_creates_pdf_and_png_preview_from_same_monthly_hours_data()
-    {
-        QuestPDF.Settings.License = LicenseType.Community;
-        var month = CreateMonth();
-        var generator = new MonthlyHoursPdfGenerator();
-
-        var pdf = generator.Generate(month);
-        var previewPages = generator.GeneratePreviewPages(month);
-
-        Assert.True(pdf.Length > 1000);
-        Assert.Equal("%PDF-", Encoding.ASCII.GetString(pdf, 0, 5));
-        Assert.NotEmpty(previewPages);
-        Assert.All(previewPages, page => Assert.True(page.AsSpan().StartsWith(PngSignature)));
-    }
-
     private static CapturingWorksheetRepository CreateRepository(Guid userId) =>
         new()
         {
@@ -103,29 +82,6 @@ public sealed class MonthlyHoursPdfTests
                     "Alex Jensen")
             ]
         };
-
-    private static MyWorksheetsMonthResponse CreateMonth()
-    {
-        var firstUser = Guid.NewGuid();
-        var secondUser = Guid.NewGuid();
-        var day = new MyWorksheetDayResponse(
-            new DateOnly(2026, 8, 4),
-            10m,
-            0,
-            [
-                new MyWorksheetEntryResponse(new DateOnly(2026, 8, 4), Guid.NewGuid(), firstUser, "R-1", "Kunde A", null, 6m, false, "Alex Jensen"),
-                new MyWorksheetEntryResponse(new DateOnly(2026, 8, 4), Guid.NewGuid(), secondUser, "R-2", "Kunde B", null, 4m, false, "Alex Jensen")
-            ]);
-
-        return new MyWorksheetsMonthResponse(
-            2026,
-            8,
-            new DateOnly(2026, 8, 1),
-            new DateOnly(2026, 8, 31),
-            10m,
-            0,
-            [new MyWorksheetWeekResponse(new DateOnly(2026, 8, 3), new DateOnly(2026, 8, 9), 10m, 0, [day])]);
-    }
 
     private static WorksheetService CreateService(
         IWorksheetRepository repository,

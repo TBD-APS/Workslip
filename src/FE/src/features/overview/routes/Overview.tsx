@@ -18,8 +18,8 @@ import { formatDateTimeShort } from '../../../lib/formatDate';
 import { ROLES } from '../../../providers/permissions/roles';
 import { useHasRole } from '../../../providers/permissions/usePermissions';
 import { listDocuments } from '../../docs/docsApi';
-import { getApiCustomersFavorite } from '../../jobs/customerApi';
-import { formatJobStatus } from '../../jobs/statusLabels';
+import { JobCard } from '../../../components/JobCard';
+import { getApiCustomersFavorite } from '../../../api/generated/customers/customers';
 import { AdminPowerBiJobStatusChart } from '../components/AdminPowerBiJobStatusChart';
 import './Overview.css';
 import './Overview.dashboard-inspiration.css';
@@ -163,28 +163,26 @@ export const Overview = () => {
           ))}
         </div>
       ) : recentJobs.length ? (
-        <div className="overview-recent-list">
+        <div className="job-list overview-recent-list">
           {recentJobs.map((job) => (
-            <button
-              type="button"
-              className="overview-recent-row"
+            <JobCard
               key={job.id}
-              onClick={() => navigate(getJobPath(job), { state: { from: '/app/overblik' } })}
-            >
-              <span className="overview-recent-row__main">
-                <strong>
-                  SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}
-                </strong>
-                <span>{job.customer?.name || 'Kunde ikke angivet'}</span>
-              </span>
-              <span className={`status-badge status-${job.status.toLowerCase()}`}>
-                {formatJobStatus(job.status)}
-              </span>
-              <span className="overview-recent-row__updated">
-                {job.updatedAt ? formatDateTimeShort(job.updatedAt) : '–'}
-              </span>
-              <ArrowRight size={17} aria-hidden="true" />
-            </button>
+              id={job.id}
+              reportNumber={job.reportNumber}
+              status={job.status}
+              customerName={job.customer?.name}
+              taskDescription={job.taskDescription}
+              jobType={job.jobType}
+              address={job.destinationAddress || job.customer?.address}
+              installationTypes={job.installationTypes}
+              totalHours={job.totalHours}
+              assignedUsers={job.assignedUsers}
+              updatedAt={job.updatedAt}
+              isSeen={job.isSeen}
+              isNewRejection={job.isNewRejection}
+              showUnassigned
+              onOpen={() => navigate(getJobPath(job), { state: { from: '/app/overblik' } })}
+            />
           ))}
         </div>
       ) : (

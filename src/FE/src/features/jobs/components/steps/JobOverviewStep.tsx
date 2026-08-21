@@ -90,6 +90,8 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
         value={details.form.technicalObservations}
         onChange={details.updateTechnicalObservations}
         placeholder="Skriv en kommentar til sagen..."
+        triggerId="job-technical-observations-trigger"
+        textareaId="job-technical-observations"
       />
       {details.job?.id && (
         <JobImagesSection jobId={details.job.id} allowManage />

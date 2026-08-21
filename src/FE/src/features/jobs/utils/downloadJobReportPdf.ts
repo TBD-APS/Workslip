@@ -12,9 +12,13 @@ type JobReportPdfTarget = {
 export type JobReportPdfPreview = PdfFilePreview;
 
 function requestFor(job: JobReportPdfTarget) {
+  const url = `/api/jobs/${job.id}/report/pdf`;
   return {
-    url: `/api/jobs/${job.id}/report/pdf`,
+    url,
     fallbackFileName: `rapport-${(job.reportNumber || job.id.slice(0, 8)).toUpperCase()}.pdf`,
+    // The actual object contains the complete report view model. Binding reuse to
+    // that serialized snapshot prevents a preview Blob from surviving a report edit.
+    reuseKey: `${url}:${JSON.stringify(job)}`,
   };
 }
 

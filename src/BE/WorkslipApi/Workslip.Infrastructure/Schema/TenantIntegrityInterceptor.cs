@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Workslip.Domain;
 using Workslip.Domain.Models;
 
 namespace Workslip.Infrastructure.Schema;
@@ -34,8 +35,24 @@ public sealed class TenantIntegrityInterceptor : SaveChangesInterceptor
     private static async Task ApplyAsync(SqlDbContext context, CancellationToken cancellationToken)
     {
         context.ChangeTracker.DetectChanges();
+        NormalizeNewJobTypes(context);
         await EnsureFilialOwnershipAsync(context, cancellationToken);
         await EnsureInstallationSnapshotOwnershipAsync(context, cancellationToken);
+    }
+
+    private static void NormalizeNewJobTypes(SqlDbContext context)
+    {
+        var unknownNewJobs = context.ChangeTracker
+            .Entries<JobReportRow>()
+            .Where(entry => entry.State == EntityState.Added && entry.Entity.JobType == JobType.Unknown);
+
+        foreach (var entry in unknownNewJobs)
+        {
+            // CreateJob treats a missing/blank job type as KLS. Keep that same
+            // invariant at the persistence boundary so an accepted KLS request
+            // can never be stored as Unknown.
+            entry.Property(job => job.JobType).CurrentValue = JobType.KLS;
+        }
     }
 
     private static async Task EnsureFilialOwnershipAsync(

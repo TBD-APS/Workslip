@@ -7,14 +7,26 @@ All agent roles/providers must also load the provider-neutral [`Shared Agent Han
 ## Before changing code
 
 1. Inspect the current branch/worktree and read the Linear issue that owns the change.
-2. Read the closest applicable scoped `AGENTS.md` file.
-3. Inspect the current implementation, tests, configuration, schema and active ADRs before making assumptions.
-4. Read [`Docs/agents/VALIDATION.md`](Docs/agents/VALIDATION.md) when implementing or validating a change.
-5. Read [`Docs/agents/DELIVERY_HANDOFFS.md`](Docs/agents/DELIVERY_HANDOFFS.md) when work is handed between agents/sessions or when planning, reviewing or release-gating a change.
-6. Read [`Docs/compliance/GDPR_AI_ACT_BASELINE.md`](Docs/compliance/GDPR_AI_ACT_BASELINE.md) only when personal-data processing, an external processor, or an AI system is affected.
-7. Read [`Docs/strategy/WORKSLIP_STRATEGY.md`](Docs/strategy/WORKSLIP_STRATEGY.md) before cross-functional planning, broad feature prioritization, market-facing work or architecture work that requires product/strategy trade-offs.
+2. Resolve relevant shared ownership through [`Docs/architecture/owners.json`](Docs/architecture/owners.json) before inventing a new cross-feature helper, convention or platform boundary. Agents/runtimes may use `node tools/agents/resolve-architecture-owner.mjs <intent>` for machine-readable lookup.
+3. Read the closest applicable scoped `AGENTS.md` file and every instruction file returned by the architecture owner registry for the work being changed.
+4. Inspect the current implementation, tests, configuration, schema and active ADRs before making assumptions.
+5. Read [`Docs/agents/VALIDATION.md`](Docs/agents/VALIDATION.md) when implementing or validating a change.
+6. Read [`Docs/agents/DELIVERY_HANDOFFS.md`](Docs/agents/DELIVERY_HANDOFFS.md) when work is handed between agents/sessions or when planning, reviewing or release-gating a change.
+7. Read [`Docs/compliance/GDPR_AI_ACT_BASELINE.md`](Docs/compliance/GDPR_AI_ACT_BASELINE.md) only when personal-data processing, an external processor, or an AI system is affected.
+8. Read [`Docs/strategy/WORKSLIP_STRATEGY.md`](Docs/strategy/WORKSLIP_STRATEGY.md) before cross-functional planning, broad feature prioritization, market-facing work or architecture work that requires product/strategy trade-offs.
 
 Do not begin editing until the branch belongs to one cohesive issue and the affected implementation is understood.
+
+## Architecture owner discovery
+
+[`Docs/architecture/owners.json`](Docs/architecture/owners.json) is the machine-readable map for current shared repository boundaries. It complements scoped `AGENTS.md` files; it does not replace source code, ADRs or Linear.
+
+- Before creating a new shared helper, formatter, token, provider integration, cross-feature primitive or platform abstraction, resolve the relevant intent in the owner registry first.
+- If an owner exists, inspect its `path` and read its `instructions` before editing. Prefer extending that owner over creating a parallel implementation.
+- If no owner exists, do not guess a future architecture. Inspect current code/ADRs and create a new registry entry only when a real stable boundary is introduced in the same change.
+- Registry entries must point only to paths and instruction files that currently exist. Planned architecture belongs in ADRs/Linear until implemented.
+- Agent runtimes should load the registry during repository bootstrap so provider/model changes do not change architecture knowledge.
+- `node tools/agents/validate-architecture-owners.mjs` and Repository Data Hygiene enforce registry integrity and unambiguous intent ownership.
 
 ## Source of truth
 

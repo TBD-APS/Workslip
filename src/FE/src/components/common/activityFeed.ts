@@ -1,3 +1,6 @@
+import { formatDate } from '../../lib/formatDate';
+import { toUiUpperCase } from '../../lib/presentation/text';
+
 export function formatRelativeActivityTime(value: string) {
   const date = new Date(value);
   const timestamp = date.getTime();
@@ -16,10 +19,7 @@ export function formatRelativeActivityTime(value: string) {
   const diffDays = Math.round(diffHours / 24);
   if (diffDays < 7) return diffDays === 1 ? 'I går' : `${diffDays} dage`;
 
-  return date.toLocaleDateString('da-DK', {
-    day: 'numeric',
-    month: 'short',
-  });
+  return formatDate(value) ?? '';
 }
 
 export function formatActivityDateSection(value: string) {
@@ -36,11 +36,7 @@ export function formatActivityDateSection(value: string) {
   if (diffDays === 0) return 'I dag';
   if (diffDays === 1) return 'I går';
 
-  return date.toLocaleDateString('da-DK', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  });
+  return formatDate(value) ?? 'Tidligere';
 }
 
 export function getActivityInitials(name: string | null | undefined) {
@@ -48,7 +44,7 @@ export function getActivityInitials(name: string | null | undefined) {
   if (!normalized) return 'WS';
 
   const words = normalized.split(/\s+/).filter(Boolean);
-  if (words.length === 1) return words[0].slice(0, 2).toLocaleUpperCase('da-DK');
+  if (words.length === 1) return toUiUpperCase(words[0].slice(0, 2));
 
-  return `${words[0][0]}${words[words.length - 1][0]}`.toLocaleUpperCase('da-DK');
+  return toUiUpperCase(`${words[0][0]}${words[words.length - 1][0]}`);
 }

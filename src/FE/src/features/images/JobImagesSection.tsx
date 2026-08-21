@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera, ChevronLeft, ChevronRight, ImagePlus, Loader2, Trash2, X } from 'lucide-react';
+import {
+  Camera,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ImagePlus,
+  Loader2,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { ConfirmDeleteDialog } from '../../components/common/ConfirmDeleteDialog';
 import { useModalAccessibility } from '../../components/common/useModalAccessibility';
 import { notify } from '../../lib/toast';
@@ -17,22 +27,30 @@ import { jobImageBlobQueryKey, jobImagesQueryKey } from './imageQueryKeys';
 import { useObjectUrl } from './useObjectUrl';
 import './images.css';
 
+const COLLAPSED_IMAGE_COUNT = 4;
+
 type JobImagesSectionProps = {
   jobId: string;
   allowManage?: boolean;
 };
 
-export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectionProps) {
+export function JobImagesSection(props: JobImagesSectionProps) {
+  return <JobImagesSectionContent key={props.jobId} {...props} />;
+}
+
+function JobImagesSectionContent({ jobId, allowManage = false }: JobImagesSectionProps) {
   const queryClient = useQueryClient();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [imageToDelete, setImageToDelete] = useState<string | null>(null);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const imagesQuery = useQuery({
     queryKey: jobImagesQueryKey(jobId),
     queryFn: () => listJobImages(jobId),
+    staleTime: 30_000,
   });
 
   const deleteMutation = useMutation({
@@ -105,9 +123,15 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
   };
 
   const images = imagesQuery.data ?? [];
+  const hasCollapsedImages = images.length > COLLAPSED_IMAGE_COUNT;
+  const visibleImages = expanded ? images : images.slice(0, COLLAPSED_IMAGE_COUNT);
+  const hiddenImageCount = Math.max(images.length - COLLAPSED_IMAGE_COUNT, 0);
+  const sectionId = `job-images-section-${jobId}`;
+  const gridId = `job-images-grid-${jobId}`;
+  const toggleId = `job-images-toggle-${jobId}`;
 
   return (
-    <section className="job-images-section" aria-labelledby={`job-images-${jobId}`}>
+    <section id={sectionId} className="job-images-section" aria-labelledby={`job-images-${jobId}`}>
       <div className="job-images-heading">
         <div>
           <h3 id={`job-images-${jobId}`}>Billeder</h3>
@@ -116,6 +140,7 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
         {allowManage && (
           <div className="job-images-upload-actions">
             <input
+              id={`job-images-camera-input-${jobId}`}
               ref={cameraInputRef}
               className="sr-only"
               type="file"
@@ -125,6 +150,7 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
               disabled={Boolean(uploadProgress)}
             />
             <input
+              id={`job-images-library-input-${jobId}`}
               ref={libraryInputRef}
               className="sr-only"
               type="file"
@@ -134,6 +160,7 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
               disabled={Boolean(uploadProgress)}
             />
             <button
+              id={`job-images-camera-button-${jobId}`}
               className="btn btn-secondary job-images-upload job-images-camera-action"
               type="button"
               onClick={() => cameraInputRef.current?.click()}
@@ -143,6 +170,7 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
               Tag billede
             </button>
             <button
+              id={`job-images-library-button-${jobId}`}
               className="btn btn-secondary job-images-upload"
               type="button"
               onClick={() => libraryInputRef.current?.click()}
@@ -174,9 +202,23 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
         <p className="job-images-state">Der er ikke tilføjet billeder endnu.</p>
       )}
 
+      {hasCollapsedImages && expanded && (
+        <button
+          id={toggleId}
+          type="button"
+          className="job-images-expand job-images-expand--collapse"
+          aria-expanded="true"
+          aria-controls={gridId}
+          onClick={() => setExpanded(false)}
+        >
+          <ChevronUp size={17} aria-hidden="true" />
+          Vis færre billeder
+        </button>
+      )}
+
       {images.length > 0 && (
-        <div className="job-images-grid">
-          {images.map((image, index) => (
+        <div className="job-images-grid" id={gridId}>
+          {visibleImages.map((image, index) => (
             <JobImageTile
               key={image.id}
               jobId={jobId}
@@ -189,6 +231,20 @@ export function JobImagesSection({ jobId, allowManage = false }: JobImagesSectio
             />
           ))}
         </div>
+      )}
+
+      {hasCollapsedImages && !expanded && (
+        <button
+          id={toggleId}
+          type="button"
+          className="job-images-expand"
+          aria-expanded="false"
+          aria-controls={gridId}
+          onClick={() => setExpanded(true)}
+        >
+          <ChevronDown size={17} aria-hidden="true" />
+          Se flere billeder ({hiddenImageCount})
+        </button>
       )}
 
       {previewIndex !== null && images.length > 0 && (
@@ -247,7 +303,7 @@ function JobImageTile({ jobId, image, index, allowDelete, deleting, onPreview, o
 
   const imageQuery = useQuery({
     queryKey: jobImageBlobQueryKey(jobId, image.id),
-    queryFn: () => fetchJobImageBlob(jobId, image.id),
+    queryFn: ({ signal }) => fetchJobImageBlob(jobId, image.id, signal),
     enabled: visible,
     retry: false,
     staleTime: 5 * 60 * 1000,
@@ -255,8 +311,9 @@ function JobImageTile({ jobId, image, index, allowDelete, deleting, onPreview, o
   const objectUrl = useObjectUrl(imageQuery.data);
 
   return (
-    <div ref={tileRef} className="job-image-tile">
+    <div id={`job-image-tile-${image.id}`} ref={tileRef} className="job-image-tile">
       <button
+        id={`job-image-preview-${image.id}`}
         type="button"
         className="job-image-preview-trigger"
         aria-label={`Åbn sagsbillede ${index + 1} i stor visning`}
@@ -275,6 +332,7 @@ function JobImageTile({ jobId, image, index, allowDelete, deleting, onPreview, o
       </button>
       {allowDelete && (
         <button
+          id={`job-image-delete-${image.id}`}
           type="button"
           className="job-image-delete"
           aria-label={`Slet sagsbillede ${index + 1}`}
@@ -301,7 +359,7 @@ function JobImagePreview({ jobId, images, index, onClose, onPrevious, onNext }: 
   const image = images[index];
   const imageQuery = useQuery({
     queryKey: image ? jobImageBlobQueryKey(jobId, image.id) : ['job-image-preview-missing'],
-    queryFn: () => fetchJobImageBlob(jobId, image.id),
+    queryFn: ({ signal }) => fetchJobImageBlob(jobId, image.id, signal),
     enabled: Boolean(image),
     retry: false,
     staleTime: 5 * 60 * 1000,
@@ -340,6 +398,7 @@ function JobImagePreview({ jobId, images, index, onClose, onPrevious, onNext }: 
       }}
     >
       <div
+        id={`job-image-preview-dialog-${image.id}`}
         ref={dialogRef}
         className="job-image-preview-dialog"
         role="dialog"
@@ -350,6 +409,7 @@ function JobImagePreview({ jobId, images, index, onClose, onPrevious, onNext }: 
         <div className="job-image-preview-toolbar">
           <span>{index + 1} / {images.length}</span>
           <button
+            id={`job-image-preview-close-${image.id}`}
             ref={closeButtonRef}
             type="button"
             className="job-image-preview-control"
@@ -376,6 +436,7 @@ function JobImagePreview({ jobId, images, index, onClose, onPrevious, onNext }: 
         {images.length > 1 && (
           <>
             <button
+              id={`job-image-preview-previous-${image.id}`}
               type="button"
               className="job-image-preview-control job-image-preview-previous"
               aria-label="Forrige billede"
@@ -384,6 +445,7 @@ function JobImagePreview({ jobId, images, index, onClose, onPrevious, onNext }: 
               <ChevronLeft size={28} aria-hidden="true" />
             </button>
             <button
+              id={`job-image-preview-next-${image.id}`}
               type="button"
               className="job-image-preview-control job-image-preview-next"
               aria-label="Næste billede"

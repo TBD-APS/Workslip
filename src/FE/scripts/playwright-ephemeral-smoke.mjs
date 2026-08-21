@@ -122,14 +122,23 @@ async function verifyAuthenticatedBootstrapReloadAndLogout() {
     await page.reload({ waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
     const reloadMe = await reloadMeResponse;
     assert.equal(reloadMe.status(), 200, `Reloaded /api/auth/me returned HTTP ${reloadMe.status()}.`);
-    await page.locator('.app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await page.locator('#app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     assert.equal(new URL(page.url()).pathname, '/app/settings', 'Reload must preserve the protected deep-link.');
 
-    const accountMenuButton = page.getByRole('button', { name: 'Profil og konto' });
+    const accountMenuButton = page.locator('#account-menu-button');
+    await accountMenuButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal(await accountMenuButton.getAttribute('aria-haspopup'), 'menu', 'Account control must remain an accessible menu trigger.');
+    assert.ok((await accountMenuButton.getAttribute('aria-label'))?.trim(), 'Account control must retain an accessible name.');
     await accountMenuButton.click();
-    const accountMenu = page.getByRole('menu', { name: 'Profil og konto' });
+
+    const accountMenu = page.locator('#account-menu');
     await accountMenu.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    await accountMenu.getByRole('menuitem', { name: 'Log ud' }).click();
+    assert.equal(await accountMenu.getAttribute('role'), 'menu', 'Account surface must retain menu semantics.');
+
+    const logoutButton = page.locator('#logout-button');
+    await logoutButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal(await logoutButton.getAttribute('role'), 'menuitem', 'Logout control must retain menuitem semantics.');
+    await logoutButton.click();
     await page.waitForURL((url) => url.pathname === '/login', {
       waitUntil: 'domcontentloaded',
       timeout: UI_TIMEOUT,
@@ -304,17 +313,49 @@ async function verifyQuickNavigator() {
   await verifyDesktopQuickNavigator();
 }
 
+async function assertGlobalSearchSurface(page, dialog) {
+  await dialog.locator('#quick-nav-title').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+  const searchInput = dialog.locator('#quick-nav-search-input');
+  const searchWrap = dialog.locator('#quick-nav-search-wrap');
+  await searchInput.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  assert.equal(
+    await searchInput.getAttribute('placeholder'),
+    'Søg efter sag, kunde eller funktion…',
+    'Search placeholder must stay concise while describing the broad search scope.',
+  );
+
+  await dialog.locator('#quick-nav-close').focus();
+  const unfocusedBorder = await searchWrap.evaluate((element) => getComputedStyle(element).borderTopColor);
+  await searchInput.focus();
+  const focusedStyles = await searchWrap.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { border: style.borderTopColor, boxShadow: style.boxShadow };
+  });
+  assert.equal(focusedStyles.border, unfocusedBorder, 'Search focus must not replace the neutral border with a petrol/green border.');
+  assert.notEqual(focusedStyles.boxShadow, 'none', 'Search focus must retain a visible neutral focus affordance.');
+
+  return searchInput;
+}
+
 async function verifyMobileQuickNavigator() {
   const { context } = await authenticatedContext(devices['iPhone 13']);
   try {
     const session = await openAuthenticatedApp(context);
     const { page } = session;
-    await page.locator('.quick-nav-mobile-trigger').click();
-    const dialog = page.getByRole('dialog', { name: 'Hvor vil du hen?' });
-    await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    const consoleErrors = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
 
-    assert.equal(await dialog.locator('.quick-nav-search-wrap kbd').isVisible(), false, 'Esc key hint must be hidden on mobile.');
-    assert.equal(await dialog.locator('.quick-nav-footer').isVisible(), false, 'Keyboard shortcut footer must be hidden on mobile.');
+    await page.locator('#bottom-nav-search').click();
+    const dialog = page.locator('#quick-nav-dialog');
+    await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await assertGlobalSearchSurface(page, dialog);
+
+    assert.equal(await dialog.locator('#quick-nav-escape-hint').isVisible(), false, 'Esc key hint must be hidden on mobile.');
+    assert.equal(await dialog.locator('#quick-nav-footer').isVisible(), false, 'Keyboard shortcut footer must be hidden on mobile.');
+    assert.deepEqual(consoleErrors, [], `Quick Navigator mobile console errors: ${consoleErrors.join(' | ')}`);
     session.assertNoPageErrors();
   } finally {
     await context.close();
@@ -326,12 +367,35 @@ async function verifyDesktopQuickNavigator() {
   try {
     const session = await openAuthenticatedApp(context);
     const { page } = session;
-    await page.keyboard.press('Control+K');
-    const dialog = page.getByRole('dialog', { name: 'Hvor vil du hen?' });
-    await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    const consoleErrors = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
 
-    assert.equal(await dialog.locator('.quick-nav-search-wrap kbd').isVisible(), true, 'Esc key hint must remain visible on desktop.');
-    assert.equal(await dialog.locator('.quick-nav-footer').isVisible(), true, 'Keyboard shortcut footer must remain visible on desktop.');
+    await page.keyboard.press('Control+K');
+    const dialog = page.locator('#quick-nav-dialog');
+    await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    const searchInput = await assertGlobalSearchSurface(page, dialog);
+
+    assert.equal(await dialog.locator('#quick-nav-escape-hint').isVisible(), true, 'Esc key hint must remain visible on desktop.');
+    assert.equal(await dialog.locator('#quick-nav-footer').isVisible(), true, 'Keyboard shortcut footer must remain visible on desktop.');
+
+    const jobRequest = page.waitForRequest((request) => {
+      const url = new URL(request.url());
+      return request.method() === 'GET'
+        && url.pathname === '/api/jobs'
+        && url.searchParams.get('search') === 'Niels';
+    }, { timeout: UI_TIMEOUT });
+    const customerRequest = page.waitForRequest((request) => {
+      const url = new URL(request.url());
+      return request.method() === 'GET'
+        && url.pathname === '/api/customers/search'
+        && url.searchParams.get('query') === 'Niels';
+    }, { timeout: UI_TIMEOUT });
+
+    await searchInput.fill('Niels');
+    await Promise.all([jobRequest, customerRequest]);
+    assert.deepEqual(consoleErrors, [], `Quick Navigator desktop console errors: ${consoleErrors.join(' | ')}`);
     session.assertNoPageErrors();
   } finally {
     await context.close();

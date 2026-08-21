@@ -1,4 +1,4 @@
-import type { JobStatus } from '../../api/generated/models/jobStatus';
+import type { JobStatus } from '../api/generated/models/jobStatus';
 
 const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   Draft: 'Aktiv',
