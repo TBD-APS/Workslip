@@ -17,6 +17,7 @@ const DATE_TIME_FORMATTER = new Intl.DateTimeFormat(UI_LOCALE, {
 });
 
 const MONTH_YEAR_FORMATTER = new Intl.DateTimeFormat(UI_LOCALE, { month: 'short', year: 'numeric' });
+const MONTH_YEAR_SHORT_FORMATTER = new Intl.DateTimeFormat(UI_LOCALE, { month: 'short', year: '2-digit' });
 const WEEKDAY_DAY_FORMATTER = new Intl.DateTimeFormat(UI_LOCALE, { weekday: 'short', day: 'numeric' });
 const DAY_MONTH_FORMATTER = new Intl.DateTimeFormat(UI_LOCALE, { day: 'numeric', month: 'short' });
 
@@ -40,6 +41,11 @@ export function formatDateTime(value: DateInput): string | null {
 /** Calendar/header presentation. Example: aug. 2026. */
 export function formatMonthYear(value: DateInput): string | null {
   return formatWith(MONTH_YEAR_FORMATTER, value);
+}
+
+/** Compact analytics presentation. Example: aug. 26. */
+export function formatMonthYearShort(value: DateInput): string | null {
+  return formatWith(MONTH_YEAR_SHORT_FORMATTER, value);
 }
 
 /** Compact calendar day presentation. */
