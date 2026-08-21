@@ -14,7 +14,7 @@ import { DeleteButton } from '../../../components/common/DeleteButton';
 import { ConfirmDeleteDialog } from '../../../components/common/ConfirmDeleteDialog';
 import { useCan } from '../../../providers/permissions';
 import { formatDateLong } from '../../../lib/formatDate';
-import { formatJobType } from '../statusLabels';
+import { formatJobType } from '../../../lib/statusLabels';
 import { ControlPointsStep } from './steps/ControlPointsStep';
 import { JobAttestationStep } from './steps/JobAttestationStep';
 import { JobCompletionStep } from './steps/JobCompletionStep';

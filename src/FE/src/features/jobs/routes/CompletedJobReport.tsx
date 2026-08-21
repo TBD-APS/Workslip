@@ -17,7 +17,7 @@ import { useJobDetailsState } from '../hooks/useJobDetails';
 import { COMPLETED_JOB_VIEW_TYPE, markJobAsSeen } from '../utils/markJobSeen';
 import { useScrollRestore } from '../../../hooks/useScrollRestore';
 
-import { formatJobStatus } from '../statusLabels';
+import { formatJobStatus } from '../../../lib/statusLabels';
 import { createJobReportPdfPreview, downloadJobReportPdf } from '../utils/downloadJobReportPdf';
 import { JobHistoryDrawer } from '../components/JobHistoryDrawer';
 import { JobConversationLauncher } from '../components/JobConversationLauncher';

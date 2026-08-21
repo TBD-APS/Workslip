@@ -17,7 +17,7 @@ import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { useSearch } from '../../../hooks/useSearch';
 import { apiClient } from '../../../lib/axios';
 import { formatDateLong } from '../../../lib/formatDate';
-import { formatJobStatus } from '../../jobs/statusLabels';
+import { formatJobStatus } from '../../../lib/statusLabels';
 import { useAppScrollRestoreKey } from '../../../hooks/useAppRouteScroll';
 
 const SCROLL_CONTAINER_SELECTOR = '.app-shell';

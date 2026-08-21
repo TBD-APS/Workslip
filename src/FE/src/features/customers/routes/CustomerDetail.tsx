@@ -9,8 +9,8 @@ import {
   getGetApiCustomersQueryKey,
   useGetApiCustomersId,
 } from '../../../api/generated/customers/customers';
-import { patchApiCustomersIdFavorite } from '../../jobs/customerApi';
-import { JobCard } from '../../jobs/components/JobCard';
+import { patchApiCustomersIdFavorite } from '../../../api/generated/customers/customers';
+import { JobCard } from '../../../components/JobCard';
 import { useCustomerActions } from '../components/CustomerActions';
 import { useScrollRestore } from '../../../hooks/useScrollRestore';
 import type { CustomerListItemViewModel } from '../../../api/generated/models';

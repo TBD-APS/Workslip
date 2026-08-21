@@ -7,13 +7,13 @@ import { SingleSelectDropdown, type SingleSelectOption } from '../../../componen
 import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdown';
 import { useCan, useIsAdmin } from '../../../providers/permissions';
 import { useGetApiCustomersSearch } from '../../../api/generated/customers/customers';
-import { getApiCustomersFavorite } from '../customerApi';
+import { getApiCustomersFavorite } from '../../../api/generated/customers/customers';
 import type { CustomerSearchViewModel, CustomerSnapshotData, UserViewModel } from '../../../api/generated/models';
 import type { LinkableJob } from '../types';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
-import { type AddressSuggestion } from '../hooks/useAddressAutocomplete';
-import { AddressAutocomplete } from './AddressAutocomplete';
+import { type AddressSuggestion } from '../../../hooks/useAddressAutocomplete';
+import { AddressAutocomplete } from '../../../components/AddressAutocomplete';
 
 type CustomerBlockProps = {
   form: { customerId: string | null; customerSnapshot: CustomerSnapshotData | null; reportNumber: string };

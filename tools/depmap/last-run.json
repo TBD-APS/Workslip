@@ -7,11 +7,11 @@
       },
       "Api/Configuration": {
         "files": 15,
-        "loc": 1767
+        "loc": 1784
       },
       "Api/Endpoints": {
-        "files": 19,
-        "loc": 1859
+        "files": 22,
+        "loc": 2261
       },
       "Api/Helpers": {
         "files": 5,
@@ -22,8 +22,8 @@
         "loc": 70
       },
       "Api/Services": {
-        "files": 4,
-        "loc": 1010
+        "files": 5,
+        "loc": 1037
       },
       "Api/Telemetry": {
         "files": 2,
@@ -35,7 +35,7 @@
       },
       "Application/(root)": {
         "files": 3,
-        "loc": 72
+        "loc": 76
       },
       "Application/Auth": {
         "files": 5,
@@ -44,6 +44,10 @@
       "Application/Common": {
         "files": 3,
         "loc": 167
+      },
+      "Application/Conversations": {
+        "files": 3,
+        "loc": 742
       },
       "Application/Customers": {
         "files": 7,
@@ -55,23 +59,27 @@
       },
       "Application/Documents": {
         "files": 9,
-        "loc": 744
+        "loc": 745
       },
       "Application/Images": {
         "files": 4,
-        "loc": 443
+        "loc": 455
       },
       "Application/Invitations": {
         "files": 6,
         "loc": 726
       },
       "Application/Jobs": {
-        "files": 29,
-        "loc": 3270
+        "files": 32,
+        "loc": 3823
       },
       "Application/Notifications": {
         "files": 8,
-        "loc": 277
+        "loc": 485
+      },
+      "Application/Operations": {
+        "files": 3,
+        "loc": 383
       },
       "Application/Organizations": {
         "files": 7,
@@ -79,7 +87,7 @@
       },
       "Application/Users": {
         "files": 14,
-        "loc": 1671
+        "loc": 1673
       },
       "Application/Worksheets": {
         "files": 5,
@@ -87,11 +95,11 @@
       },
       "Domain/Domain": {
         "files": 38,
-        "loc": 680
+        "loc": 695
       },
       "Infrastructure/(root)": {
-        "files": 5,
-        "loc": 860
+        "files": 4,
+        "loc": 632
       },
       "Infrastructure/Configuration": {
         "files": 1,
@@ -115,27 +123,31 @@
       },
       "Infrastructure/Notifications": {
         "files": 4,
-        "loc": 596
+        "loc": 591
+      },
+      "Infrastructure/Operations": {
+        "files": 1,
+        "loc": 170
       },
       "Infrastructure/Reporting": {
         "files": 5,
         "loc": 327
       },
       "Infrastructure/Repositories": {
-        "files": 19,
-        "loc": 5229
+        "files": 20,
+        "loc": 5837
       },
       "Infrastructure/Resilience": {
         "files": 2,
         "loc": 97
       },
       "Infrastructure/Schema": {
-        "files": 22,
-        "loc": 5690
+        "files": 24,
+        "loc": 5894
       },
       "Infrastructure/Storage": {
         "files": 4,
-        "loc": 702
+        "loc": 749
       },
       "Infrastructure/Transactions": {
         "files": 2,
@@ -153,13 +165,15 @@
       "Api/Configuration -> Application/(root)": 1,
       "Api/Configuration -> Application/Auth": 1,
       "Api/Configuration -> Application/Common": 1,
+      "Api/Configuration -> Application/Operations": 1,
       "Api/Configuration -> Infrastructure/(root)": 2,
       "Api/Configuration -> Infrastructure/Schema": 5,
-      "Api/Endpoints -> Api/Helpers": 14,
-      "Api/Endpoints -> Api/Services": 3,
+      "Api/Endpoints -> Api/Helpers": 16,
+      "Api/Endpoints -> Api/Services": 4,
       "Api/Endpoints -> Api/ViewModels": 9,
-      "Api/Endpoints -> Application/Auth": 7,
+      "Api/Endpoints -> Application/Auth": 10,
       "Api/Endpoints -> Application/Common": 1,
+      "Api/Endpoints -> Application/Conversations": 1,
       "Api/Endpoints -> Application/Customers": 2,
       "Api/Endpoints -> Application/Diagnostics": 1,
       "Api/Endpoints -> Application/Documents": 1,
@@ -167,10 +181,12 @@
       "Api/Endpoints -> Application/Invitations": 2,
       "Api/Endpoints -> Application/Jobs": 6,
       "Api/Endpoints -> Application/Notifications": 1,
+      "Api/Endpoints -> Application/Operations": 1,
       "Api/Endpoints -> Application/Organizations": 1,
       "Api/Endpoints -> Application/Users": 4,
       "Api/Endpoints -> Application/Worksheets": 1,
       "Api/Endpoints -> Domain/Domain": 2,
+      "Api/Endpoints -> Infrastructure/Schema": 2,
       "Api/Helpers -> Api/Services": 1,
       "Api/Helpers -> Application/Auth": 3,
       "Api/Helpers -> Application/Common": 1,
@@ -179,6 +195,7 @@
       "Api/Services -> Api/Endpoints": 1,
       "Api/Services -> Application/Customers": 1,
       "Api/Services -> Application/Jobs": 1,
+      "Api/Services -> Application/Operations": 1,
       "Api/Services -> Application/Worksheets": 1,
       "Api/Services -> Domain/Domain": 2,
       "Api/Services -> Infrastructure/Schema": 1,
@@ -190,6 +207,7 @@
       "Api/ViewModels -> Application/Worksheets": 1,
       "Api/ViewModels -> Domain/Domain": 2,
       "Application/(root) -> Application/Auth": 1,
+      "Application/(root) -> Application/Conversations": 1,
       "Application/(root) -> Application/Customers": 1,
       "Application/(root) -> Application/Documents": 1,
       "Application/(root) -> Application/Images": 1,
@@ -201,20 +219,26 @@
       "Application/(root) -> Application/Worksheets": 1,
       "Application/Auth -> Application/Users": 2,
       "Application/Auth -> Domain/Domain": 1,
+      "Application/Conversations -> Application/Auth": 1,
+      "Application/Conversations -> Application/Common": 1,
+      "Application/Conversations -> Application/Jobs": 1,
+      "Application/Conversations -> Application/Notifications": 1,
+      "Application/Conversations -> Domain/Domain": 1,
       "Application/Customers -> Application/Auth": 1,
       "Application/Customers -> Application/Jobs": 1,
       "Application/Documents -> Application/Auth": 2,
       "Application/Images -> Application/Auth": 1,
       "Application/Images -> Application/Jobs": 1,
       "Application/Images -> Application/Users": 1,
+      "Application/Images -> Domain/Domain": 1,
       "Application/Invitations -> Application/Auth": 3,
       "Application/Invitations -> Application/Common": 1,
       "Application/Invitations -> Application/Users": 3,
       "Application/Invitations -> Domain/Domain": 2,
-      "Application/Jobs -> Application/Auth": 7,
-      "Application/Jobs -> Application/Notifications": 2,
-      "Application/Jobs -> Application/Worksheets": 4,
-      "Application/Jobs -> Domain/Domain": 17,
+      "Application/Jobs -> Application/Auth": 9,
+      "Application/Jobs -> Application/Notifications": 3,
+      "Application/Jobs -> Application/Worksheets": 6,
+      "Application/Jobs -> Domain/Domain": 21,
       "Application/Notifications -> Application/Jobs": 1,
       "Application/Notifications -> Domain/Domain": 4,
       "Application/Organizations -> Application/Auth": 2,
@@ -228,6 +252,7 @@
       "Application/Worksheets -> Domain/Domain": 1,
       "Infrastructure/(root) -> Application/(root)": 3,
       "Infrastructure/(root) -> Application/Common": 1,
+      "Infrastructure/(root) -> Application/Conversations": 1,
       "Infrastructure/(root) -> Application/Customers": 1,
       "Infrastructure/(root) -> Application/Diagnostics": 1,
       "Infrastructure/(root) -> Application/Documents": 1,
@@ -235,14 +260,16 @@
       "Infrastructure/(root) -> Application/Invitations": 1,
       "Infrastructure/(root) -> Application/Jobs": 1,
       "Infrastructure/(root) -> Application/Notifications": 1,
+      "Infrastructure/(root) -> Application/Operations": 1,
       "Infrastructure/(root) -> Application/Organizations": 1,
       "Infrastructure/(root) -> Application/Users": 1,
-      "Infrastructure/(root) -> Application/Worksheets": 3,
+      "Infrastructure/(root) -> Application/Worksheets": 2,
       "Infrastructure/(root) -> Infrastructure/Configuration": 1,
       "Infrastructure/(root) -> Infrastructure/Diagnostics": 1,
       "Infrastructure/(root) -> Infrastructure/Invitations": 1,
       "Infrastructure/(root) -> Infrastructure/Jobs": 1,
       "Infrastructure/(root) -> Infrastructure/Notifications": 1,
+      "Infrastructure/(root) -> Infrastructure/Operations": 1,
       "Infrastructure/(root) -> Infrastructure/Reporting": 1,
       "Infrastructure/(root) -> Infrastructure/Repositories": 1,
       "Infrastructure/(root) -> Infrastructure/Resilience": 2,
@@ -260,11 +287,13 @@
       "Infrastructure/Notifications -> Application/Notifications": 3,
       "Infrastructure/Notifications -> Domain/Domain": 2,
       "Infrastructure/Notifications -> Infrastructure/Configuration": 1,
+      "Infrastructure/Operations -> Application/Operations": 1,
       "Infrastructure/Reporting -> Application/Worksheets": 2,
       "Infrastructure/Reporting -> Domain/Domain": 1,
       "Infrastructure/Reporting -> Infrastructure/Schema": 1,
       "Infrastructure/Repositories -> Application/Auth": 5,
       "Infrastructure/Repositories -> Application/Common": 1,
+      "Infrastructure/Repositories -> Application/Conversations": 1,
       "Infrastructure/Repositories -> Application/Customers": 2,
       "Infrastructure/Repositories -> Application/Documents": 2,
       "Infrastructure/Repositories -> Application/Invitations": 1,
@@ -275,13 +304,13 @@
       "Infrastructure/Repositories -> Application/Worksheets": 3,
       "Infrastructure/Repositories -> Domain/Domain": 12,
       "Infrastructure/Repositories -> Infrastructure/Mappers": 4,
-      "Infrastructure/Repositories -> Infrastructure/Resilience": 12,
-      "Infrastructure/Repositories -> Infrastructure/Schema": 19,
+      "Infrastructure/Repositories -> Infrastructure/Resilience": 13,
+      "Infrastructure/Repositories -> Infrastructure/Schema": 20,
       "Infrastructure/Resilience -> Application/(root)": 1,
       "Infrastructure/Schema -> Application/Auth": 2,
       "Infrastructure/Schema -> Application/Users": 1,
       "Infrastructure/Schema -> Application/Worksheets": 1,
-      "Infrastructure/Schema -> Domain/Domain": 16,
+      "Infrastructure/Schema -> Domain/Domain": 17,
       "Infrastructure/Storage -> Application/Documents": 2,
       "Infrastructure/Storage -> Application/Images": 2,
       "Infrastructure/Transactions -> Application/Common": 2,
@@ -292,26 +321,26 @@
         "name": "Auth",
         "files": 5,
         "loc": 263,
-        "fanIn": 8,
+        "fanIn": 9,
         "fanOut": 1,
-        "inRefs": 20,
+        "inRefs": 23,
         "outRefs": 2,
-        "coupling": 9
+        "coupling": 10
       },
       {
         "name": "Jobs",
-        "files": 29,
-        "loc": 3270,
-        "fanIn": 4,
+        "files": 32,
+        "loc": 3823,
+        "fanIn": 5,
         "fanOut": 3,
-        "inRefs": 6,
-        "outRefs": 13,
-        "coupling": 7
+        "inRefs": 7,
+        "outRefs": 18,
+        "coupling": 8
       },
       {
         "name": "Users",
         "files": 14,
-        "loc": 1671,
+        "loc": 1673,
         "fanIn": 4,
         "fanOut": 2,
         "inRefs": 8,
@@ -319,9 +348,19 @@
         "coupling": 6
       },
       {
+        "name": "Conversations",
+        "files": 3,
+        "loc": 742,
+        "fanIn": 0,
+        "fanOut": 4,
+        "inRefs": 0,
+        "outRefs": 4,
+        "coupling": 4
+      },
+      {
         "name": "Images",
         "files": 4,
-        "loc": 443,
+        "loc": 455,
         "fanIn": 1,
         "fanOut": 3,
         "inRefs": 1,
@@ -339,14 +378,34 @@
         "coupling": 3
       },
       {
+        "name": "Notifications",
+        "files": 8,
+        "loc": 485,
+        "fanIn": 2,
+        "fanOut": 1,
+        "inRefs": 4,
+        "outRefs": 1,
+        "coupling": 3
+      },
+      {
         "name": "Worksheets",
         "files": 5,
         "loc": 515,
         "fanIn": 1,
         "fanOut": 2,
-        "inRefs": 4,
+        "inRefs": 6,
         "outRefs": 4,
         "coupling": 3
+      },
+      {
+        "name": "Common",
+        "files": 3,
+        "loc": 167,
+        "fanIn": 2,
+        "fanOut": 0,
+        "inRefs": 2,
+        "outRefs": 0,
+        "coupling": 2
       },
       {
         "name": "Customers",
@@ -356,16 +415,6 @@
         "fanOut": 2,
         "inRefs": 0,
         "outRefs": 2,
-        "coupling": 2
-      },
-      {
-        "name": "Notifications",
-        "files": 8,
-        "loc": 277,
-        "fanIn": 1,
-        "fanOut": 1,
-        "inRefs": 2,
-        "outRefs": 1,
         "coupling": 2
       },
       {
@@ -379,19 +428,9 @@
         "coupling": 2
       },
       {
-        "name": "Common",
-        "files": 3,
-        "loc": 167,
-        "fanIn": 1,
-        "fanOut": 0,
-        "inRefs": 1,
-        "outRefs": 0,
-        "coupling": 1
-      },
-      {
         "name": "Documents",
         "files": 9,
-        "loc": 744,
+        "loc": 745,
         "fanIn": 0,
         "fanOut": 1,
         "inRefs": 0,
@@ -402,6 +441,16 @@
         "name": "Diagnostics",
         "files": 1,
         "loc": 90,
+        "fanIn": 0,
+        "fanOut": 0,
+        "inRefs": 0,
+        "outRefs": 0,
+        "coupling": 0
+      },
+      {
+        "name": "Operations",
+        "files": 3,
+        "loc": 383,
         "fanIn": 0,
         "fanOut": 0,
         "inRefs": 0,
@@ -419,16 +468,16 @@
         "loc": 1077
       },
       {
-        "file": "src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs",
-        "loc": 1067
-      },
-      {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Schema/AuditPolicies.cs",
         "loc": 926
       },
       {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Diagnostics/ApplicationInsightsErrorDiagnosticsService.cs",
         "loc": 879
+      },
+      {
+        "file": "src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs",
+        "loc": 850
       },
       {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/JobReportPdfService.cs",
@@ -439,8 +488,16 @@
         "loc": 625
       },
       {
+        "file": "src/BE/WorkslipApi/Workslip.Application/Conversations/JobConversationService.cs",
+        "loc": 587
+      },
+      {
         "file": "src/BE/WorkslipApi/Workslip.Application/Invitations/InvitationService.cs",
         "loc": 548
+      },
+      {
+        "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/SqlJobConversationRepository.cs",
+        "loc": 473
       },
       {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Seeding/PlatformIdentityBootstrapper.cs",
@@ -461,59 +518,30 @@
       {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfCustomerRepository.cs",
         "loc": 430
-      },
-      {
-        "file": "src/BE/WorkslipApi/Workslip.Application/Jobs/AuthorizedJobService.cs",
-        "loc": 423
-      },
-      {
-        "file": "src/BE/WorkslipApi/Configuration/LocalDevelopmentDatabaseMigrationRunner.cs",
-        "loc": 420
       }
     ]
   },
   "frontend": {
     "features": [
       {
-        "name": "customers",
-        "files": 6,
-        "loc": 1551,
-        "sharedRefs": 35,
-        "crossRefs": 7
-      },
-      {
         "name": "settings",
-        "files": 3,
-        "loc": 671,
-        "sharedRefs": 8,
-        "crossRefs": 4
-      },
-      {
-        "name": "users",
-        "files": 8,
-        "loc": 1213,
-        "sharedRefs": 28,
-        "crossRefs": 2
-      },
-      {
-        "name": "auditor",
-        "files": 1,
-        "loc": 483,
-        "sharedRefs": 16,
-        "crossRefs": 1
+        "files": 4,
+        "loc": 947,
+        "sharedRefs": 9,
+        "crossRefs": 5
       },
       {
         "name": "jobs",
-        "files": 51,
-        "loc": 8288,
-        "sharedRefs": 156,
-        "crossRefs": 1
+        "files": 53,
+        "loc": 9902,
+        "sharedRefs": 186,
+        "crossRefs": 2
       },
       {
         "name": "overview",
-        "files": 1,
-        "loc": 165,
-        "sharedRefs": 4,
+        "files": 2,
+        "loc": 514,
+        "sharedRefs": 11,
         "crossRefs": 1
       },
       {
@@ -524,9 +552,23 @@
         "crossRefs": 1
       },
       {
+        "name": "users",
+        "files": 8,
+        "loc": 1218,
+        "sharedRefs": 30,
+        "crossRefs": 1
+      },
+      {
+        "name": "auditor",
+        "files": 1,
+        "loc": 483,
+        "sharedRefs": 17,
+        "crossRefs": 0
+      },
+      {
         "name": "auth",
         "files": 10,
-        "loc": 1439,
+        "loc": 1469,
         "sharedRefs": 18,
         "crossRefs": 0
       },
@@ -538,17 +580,24 @@
         "crossRefs": 0
       },
       {
+        "name": "customers",
+        "files": 6,
+        "loc": 1530,
+        "sharedRefs": 41,
+        "crossRefs": 0
+      },
+      {
         "name": "docs",
-        "files": 3,
-        "loc": 828,
-        "sharedRefs": 12,
+        "files": 5,
+        "loc": 877,
+        "sharedRefs": 19,
         "crossRefs": 0
       },
       {
         "name": "images",
-        "files": 6,
-        "loc": 532,
-        "sharedRefs": 4,
+        "files": 7,
+        "loc": 629,
+        "sharedRefs": 5,
         "crossRefs": 0
       },
       {
@@ -561,19 +610,16 @@
       {
         "name": "worksheets",
         "files": 6,
-        "loc": 933,
-        "sharedRefs": 11,
+        "loc": 912,
+        "sharedRefs": 10,
         "crossRefs": 0
       }
     ],
     "crossFeatureEdges": {
-      "auditor -> jobs": 1,
-      "customers -> jobs": 7,
-      "jobs -> images": 1,
-      "overview -> jobs": 1,
-      "settings -> images": 4,
+      "jobs -> images": 2,
+      "overview -> docs": 1,
+      "settings -> images": 5,
       "superadmin -> users": 1,
-      "users -> jobs": 1,
       "users -> superadmin": 1
     },
     "godFiles": [
@@ -582,24 +628,32 @@
         "loc": 800
       },
       {
+        "file": "src/FE/src/features/jobs/components/JobConversationDrawer.tsx",
+        "loc": 751
+      },
+      {
+        "file": "src/FE/src/features/jobs/routes/CompletedJobReport.tsx",
+        "loc": 680
+      },
+      {
         "file": "src/FE/src/features/superadmin/routes/CacheDiagnostics.tsx",
         "loc": 663
       },
       {
-        "file": "src/FE/src/features/jobs/routes/CompletedJobReport.tsx",
-        "loc": 625
+        "file": "src/FE/src/features/jobs/routes/AdminCompletedJobReport.tsx",
+        "loc": 645
       },
       {
-        "file": "src/FE/src/features/jobs/routes/JobList.tsx",
-        "loc": 554
+        "file": "src/FE/src/components/common/NotificationsDrawer.tsx",
+        "loc": 553
       },
       {
         "file": "src/FE/src/features/worksheets/routes/MyWorksheets.tsx",
         "loc": 532
       },
       {
-        "file": "src/FE/src/features/jobs/components/JobDetails.tsx",
-        "loc": 511
+        "file": "src/FE/src/features/docs/DocsPage.tsx",
+        "loc": 497
       },
       {
         "file": "src/FE/src/features/superadmin/diagnostics/ErrorDiagnosticsDashboard.tsx",
@@ -610,32 +664,24 @@
         "loc": 483
       },
       {
-        "file": "src/FE/src/features/docs/DocsPage.tsx",
-        "loc": 476
+        "file": "src/FE/src/features/jobs/components/JobDetails.tsx",
+        "loc": 483
+      },
+      {
+        "file": "src/FE/src/features/users/routes/UserDetail.tsx",
+        "loc": 478
       },
       {
         "file": "src/FE/src/features/jobs/components/JobDetailBlocks.tsx",
         "loc": 472
       },
       {
-        "file": "src/FE/src/features/users/routes/UserDetail.tsx",
-        "loc": 471
-      },
-      {
         "file": "src/FE/src/features/customers/routes/CustomerList.tsx",
-        "loc": 466
+        "loc": 467
       },
       {
-        "file": "src/FE/src/components/common/NotificationsDrawer.tsx",
-        "loc": 465
-      },
-      {
-        "file": "src/FE/src/features/superadmin/components/SuperAdminUsersPanel.tsx",
-        "loc": 453
-      },
-      {
-        "file": "src/FE/src/applicationInsights.ts",
-        "loc": 406
+        "file": "src/FE/src/features/images/JobImagesSection.tsx",
+        "loc": 461
       }
     ]
   }
