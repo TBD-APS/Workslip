@@ -190,6 +190,7 @@ export function CustomerDetailsBlock({
           <div className="form-group" data-field-error="customerName">
             <label className="form-label">Kundenavn<span className="required-asterisk">*</span></label>
             <input
+              id="job-customer-name"
               className={`form-input${fieldErrors.customerName ? ' form-input-invalid' : ''}`}
               value={displayValue('name')}
               onChange={(e) => handleFieldChange('name', e.target.value)}
@@ -211,6 +212,7 @@ export function CustomerDetailsBlock({
           <div className="form-group" data-field-error="email">
             <label className="form-label">Email<span className="required-asterisk">*</span></label>
             <input
+              id="job-customer-email"
               className={`form-input${emailError || fieldErrors.email ? ' form-input-invalid' : ''}`}
               value={displayValue('email')}
               onChange={(e) => { handleFieldChange('email', e.target.value); setEmailError(null); }}
@@ -223,6 +225,7 @@ export function CustomerDetailsBlock({
           <div className="form-group" data-field-error="phone">
             <label className="form-label">Telefon<span className="required-asterisk">*</span></label>
             <input
+              id="job-customer-phone"
               className={`form-input${phoneError || fieldErrors.phone ? ' form-input-invalid' : ''}`}
               value={displayValue('phone')}
               onChange={(e) => { handleFieldChange('phone', e.target.value); setPhoneError(null); }}
@@ -359,13 +362,22 @@ type TextAreaBlockProps = {
   value: string;
   placeholder: string;
   onChange: (value: string) => void;
+  triggerId?: string;
+  textareaId?: string;
 };
 
-export function TextAreaBlock({ icon, title, value, placeholder, onChange }: TextAreaBlockProps) {
+export function TextAreaBlock({ icon, title, value, placeholder, onChange, triggerId, textareaId }: TextAreaBlockProps) {
   return (
-    <CollapsibleSection icon={icon} title={title} defaultOpen={value.trim().length > 0} scrollOnOpen={false}>
+    <CollapsibleSection
+      icon={icon}
+      title={title}
+      defaultOpen={value.trim().length > 0}
+      scrollOnOpen={false}
+      triggerId={triggerId}
+    >
       <div className="form-group">
         <textarea
+          id={textareaId}
           className="form-input form-textarea"
           value={value}
           onChange={(event) => onChange(event.target.value)}

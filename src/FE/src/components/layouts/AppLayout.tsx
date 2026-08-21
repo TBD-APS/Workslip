@@ -144,7 +144,7 @@ export const AppLayout = () => {
   return (
     <AppScrollRestoreBoundary restoreKey={restoreScrollKey}>
     <DropdownProvider>
-      <div ref={scrollContainerRef} className="app-shell">
+      <div id="app-shell" ref={scrollContainerRef} className="app-shell">
       <header className="app-header">
         <button className="logo logo-header" onClick={() => navigate(isSuperadmin && !organizationSession ? '/superadmin' : appHomePath)}>
           <svg className="logo-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -191,6 +191,7 @@ export const AppLayout = () => {
               <div id="account-menu" className="app-header-settings-menu" role="menu" aria-label="Profil og konto" data-testid="account-menu">
                 {!isSuperadmin && (
                   <button
+                    id="account-menu-profile"
                     type="button"
                     className="app-header-settings-item"
                     role="menuitem"
@@ -219,6 +220,7 @@ export const AppLayout = () => {
                 )}
                 {canViewDocs && canUseAppCommands && (
                   <button
+                    id="account-menu-docs"
                     type="button"
                     className="app-header-settings-item"
                     role="menuitem"
@@ -232,6 +234,7 @@ export const AppLayout = () => {
                   </button>
                 )}
                 <button
+                  id="account-menu-theme"
                   type="button"
                   className="app-header-settings-item"
                   role="menuitem"
@@ -244,6 +247,7 @@ export const AppLayout = () => {
                 </button>
                 {canManageUsers && (
                   <button
+                    id="account-menu-settings"
                     type="button"
                     className="app-header-settings-item"
                     role="menuitem"
@@ -312,30 +316,31 @@ export const AppLayout = () => {
         <Outlet />
       </main>
 
-      <nav className="bottom-nav">
-        <NavLink to={appHomePath} end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive(appHomePath)}>
+      <nav id="bottom-nav" className="bottom-nav">
+        <NavLink id="bottom-nav-home" to={appHomePath} end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive(appHomePath)}>
           <ClipboardList size={24} />
           <span>{isAuditorSession ? 'Rapporter' : 'Overblik'}</span>
         </NavLink>
         <Can permission="worksheet:view">
-          <NavLink to="/app/timer" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/timer')}>
+          <NavLink id="bottom-nav-timer" to="/app/timer" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/timer')}>
             <CalendarDays size={24} />
             <span>Timer</span>
           </NavLink>
         </Can>
         <Can permission="user:manage">
-          <NavLink to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/users')}>
+          <NavLink id="bottom-nav-people" to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/users')}>
             <Users size={24} />
             <span>Folk</span>
           </NavLink>
         </Can>
         <Can permission="customer:view">
-          <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/customers')}>
+          <NavLink id="bottom-nav-customers" to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/customers')}>
             <Building2 size={24} />
             <span>Kunder</span>
           </NavLink>
         </Can>
         <button
+          id="bottom-nav-search"
           type="button"
           className={`nav-item quick-nav-mobile-trigger ${quickNavigatorOpen ? 'active' : ''}`}
           onClick={() => setQuickNavigatorOpen(true)}

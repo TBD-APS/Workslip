@@ -213,8 +213,10 @@ async function verifyStoredSessionTransition({ name, viewport }) {
     });
     assert.ok(navigation?.ok(), `${name}: /login returned HTTP ${navigation?.status() ?? 'unknown'}.`);
 
-    await page.locator('.system-state').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    await page.getByText('Tjekker login', { exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await page.locator('#fullscreen-system-state').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    const transitionTitle = page.locator('#fullscreen-system-state-title');
+    await transitionTitle.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal((await transitionTitle.textContent())?.trim(), 'Tjekker login', `${name}: stored-session transition title changed.`);
     await Promise.race([
       authMeStarted,
       new Promise((_, reject) => {
@@ -231,10 +233,10 @@ async function verifyStoredSessionTransition({ name, viewport }) {
       false,
       `${name}: login card must never mount while stored identity is pending.`,
     );
-    assert.equal(await page.locator('.login-card').count(), 0, `${name}: login card must stay absent while stored identity is pending.`);
-    assert.equal(await page.locator('.app-shell').count(), 0, `${name}: authenticated shell must wait for identity validation.`);
+    assert.equal(await page.locator('#login-card').count(), 0, `${name}: login card must stay absent while stored identity is pending.`);
+    assert.equal(await page.locator('#app-shell').count(), 0, `${name}: authenticated shell must wait for identity validation.`);
     assert.equal(
-      await page.locator('html').getAttribute('data-auth-transition'),
+      await page.evaluate(() => document.documentElement.getAttribute('data-auth-transition')),
       '',
       `${name}: auth transition marker must be present before the stored-session surface paints.`,
     );

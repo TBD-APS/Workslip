@@ -89,14 +89,14 @@ async function openAuthenticatedPage(context, path) {
   assert.ok(navigation?.ok(), `Navigation to ${path} returned HTTP ${navigation?.status() ?? 'unknown'}.`);
   const me = await meResponse;
   assert.equal(me.status(), 200, `${path}: /api/auth/me returned HTTP ${me.status()}.`);
-  await page.locator('.app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.locator('#app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   return { page, ...errors };
 }
 
 async function expectRoute(page, path) {
   await page.waitForURL((url) => url.pathname === path, { timeout: UI_TIMEOUT });
   assert.equal(new URL(page.url()).pathname, path);
-  await page.locator('.app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.locator('#app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 }
 
 async function navigateAndExpect(page, requestedPath, expectedPath) {
@@ -133,9 +133,10 @@ async function verifyTransientStartupRecovery() {
     });
     assert.ok(navigation?.ok(), `Startup-recovery navigation returned HTTP ${navigation?.status() ?? 'unknown'}.`);
 
-    await page.getByRole('heading', { name: 'Forbindelsen tager længere tid end normalt' })
-      .waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    assert.equal(await page.locator('.app-shell').count(), 0, 'Authenticated shell must not render while session verification is unavailable.');
+    const recoveryTitle = page.locator('#fullscreen-system-state-title');
+    await recoveryTitle.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal((await recoveryTitle.textContent())?.trim(), 'Forbindelsen tager længere tid end normalt');
+    assert.equal(await page.locator('#app-shell').count(), 0, 'Authenticated shell must not render while session verification is unavailable.');
 
     const beforeRetry = await page.evaluate(() => ({
       token: localStorage.getItem('authToken'),
@@ -150,9 +151,9 @@ async function verifyTransientStartupRecovery() {
         && new URL(response.url()).pathname === '/api/auth/me'
         && response.status() === 200,
     { timeout: UI_TIMEOUT });
-    await page.getByRole('button', { name: 'Prøv igen', exact: true }).click();
+    await page.locator('#startup-retry-button').click();
     await recoveredMe;
-    await page.locator('.app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await page.locator('#app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await expectRoute(page, '/app/settings');
 
     const afterRetry = await page.evaluate(() => ({
@@ -180,15 +181,14 @@ async function verifyUserPermissionBoundaries() {
     const { page, pageErrors, consoleErrors } = await openAuthenticatedPage(context, '/app/customers');
     await expectRoute(page, '/app/customers');
 
-    const bottomNav = page.locator('.bottom-nav');
-    await bottomNav.getByText('Kunder', { exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    assert.equal(await bottomNav.getByText('Folk', { exact: true }).count(), 0, 'User navigation must not expose user management.');
+    await page.locator('#bottom-nav-customers').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal(await page.locator('#bottom-nav-people').count(), 0, 'User navigation must not expose user management.');
 
-    await page.getByRole('button', { name: 'Profil og konto' }).click();
-    const menu = page.getByRole('menu', { name: 'Profil og konto' });
+    await page.locator('#account-menu-button').click();
+    const menu = page.locator('#account-menu');
     await menu.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    assert.equal(await menu.getByRole('menuitem', { name: 'Indstillinger', exact: true }).count(), 0, 'User account menu must not expose admin settings.');
-    await menu.getByRole('menuitem', { name: 'Docs', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal(await page.locator('#account-menu-settings').count(), 0, 'User account menu must not expose admin settings.');
+    await page.locator('#account-menu-docs').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await page.keyboard.press('Escape');
 
     await navigateAndExpect(page, '/app/timer', '/app/timer');
@@ -210,18 +210,17 @@ async function verifyAuditorPermissionBoundaries() {
     const { page, pageErrors, consoleErrors } = await openAuthenticatedPage(context, '/app/auditor');
     await expectRoute(page, '/app/auditor');
 
-    const bottomNav = page.locator('.bottom-nav');
-    await bottomNav.getByText('Rapporter', { exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    assert.equal(await bottomNav.getByText('Timer', { exact: true }).count(), 0, 'Auditor navigation must not expose worksheets.');
-    assert.equal(await bottomNav.getByText('Folk', { exact: true }).count(), 0, 'Auditor navigation must not expose user management.');
-    assert.equal(await bottomNav.getByText('Kunder', { exact: true }).count(), 0, 'Auditor navigation must not expose customers.');
-    assert.equal(await page.getByRole('button', { name: /Notifikationer/ }).count(), 0, 'Auditor shell must not expose notifications.');
+    await page.locator('#bottom-nav-home').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal(await page.locator('#bottom-nav-timer').count(), 0, 'Auditor navigation must not expose worksheets.');
+    assert.equal(await page.locator('#bottom-nav-people').count(), 0, 'Auditor navigation must not expose user management.');
+    assert.equal(await page.locator('#bottom-nav-customers').count(), 0, 'Auditor navigation must not expose customers.');
+    assert.equal(await page.locator('#app-notifications-button').count(), 0, 'Auditor shell must not expose notifications.');
 
-    await page.getByRole('button', { name: 'Profil og konto' }).click();
-    const menu = page.getByRole('menu', { name: 'Profil og konto' });
+    await page.locator('#account-menu-button').click();
+    const menu = page.locator('#account-menu');
     await menu.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    assert.equal(await menu.getByRole('menuitem', { name: 'Indstillinger', exact: true }).count(), 0, 'Auditor account menu must not expose admin settings.');
-    await menu.getByRole('menuitem', { name: 'Docs', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal(await page.locator('#account-menu-settings').count(), 0, 'Auditor account menu must not expose admin settings.');
+    await page.locator('#account-menu-docs').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await page.keyboard.press('Escape');
 
     await navigateAndExpect(page, '/app/timer', '/app/auditor');

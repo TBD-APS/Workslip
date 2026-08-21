@@ -115,6 +115,8 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
             value={create.form.technicalObservations}
             onChange={create.updateTechnicalObservations}
             placeholder="Skriv en kommentar til sagen..."
+            triggerId="job-technical-observations-trigger"
+            textareaId="job-technical-observations"
           />
         </>
       )}

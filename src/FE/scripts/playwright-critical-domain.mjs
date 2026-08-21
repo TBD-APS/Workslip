@@ -69,9 +69,9 @@ async function fillOverviewFields(session, { customerName, address }) {
   }
 
   const requiredCustomerFields = [
-    [page.getByPlaceholder('Kundenavn', { exact: true }), customerName, 'Kundenavn'],
-    [page.getByPlaceholder('Email', { exact: true }), session.data.customerEmail, 'Email'],
-    [page.getByPlaceholder('Telefon', { exact: true }), session.data.phone, 'Telefon'],
+    [page.locator('#job-customer-name'), customerName, 'Kundenavn'],
+    [page.locator('#job-customer-email'), session.data.customerEmail, 'Email'],
+    [page.locator('#job-customer-phone'), session.data.phone, 'Telefon'],
   ];
   for (const [field, value, label] of requiredCustomerFields) {
     await field.waitFor({ state: 'visible', timeout: UI_TIMEOUT });

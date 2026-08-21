@@ -364,6 +364,7 @@ export const CompletedJobReport = () => {
           </button>
           {isDesktop && (
             <button
+              id="job-report-preview-pdf"
               className="btn btn-secondary report-overview-icon-action"
               type="button"
               onClick={() => void handlePreviewPdf()}
@@ -375,6 +376,7 @@ export const CompletedJobReport = () => {
             </button>
           )}
           <button
+            id="job-report-download-pdf"
             className="btn btn-secondary report-overview-icon-action"
             type="button"
             onClick={() => void handleDownloadPdf()}

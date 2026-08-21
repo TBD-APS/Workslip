@@ -324,6 +324,7 @@ export function AdminCompletedJobReport() {
               <span>Historik</span>
             </button>
             <button
+              id="job-report-preview-pdf"
               type="button"
               className="admin-case-reference-action"
               onClick={() => void handlePreviewPdf()}
@@ -335,6 +336,7 @@ export function AdminCompletedJobReport() {
               <span>Forhåndsvis PDF</span>
             </button>
             <button
+              id="job-report-download-pdf"
               type="button"
               className="admin-case-reference-action"
               onClick={() => void handleDownload()}
