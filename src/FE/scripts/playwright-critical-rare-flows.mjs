@@ -135,6 +135,12 @@ async function verifyTransientStartupRecovery() {
 
     const recoveryTitle = page.locator('#fullscreen-system-state-title');
     await recoveryTitle.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await page.waitForFunction(
+      () => document.querySelector('#fullscreen-system-state-title')?.textContent?.trim()
+        === 'Forbindelsen tager længere tid end normalt',
+      undefined,
+      { timeout: UI_TIMEOUT },
+    );
     assert.equal((await recoveryTitle.textContent())?.trim(), 'Forbindelsen tager længere tid end normalt');
     assert.equal(await page.locator('#app-shell').count(), 0, 'Authenticated shell must not render while session verification is unavailable.');
 
