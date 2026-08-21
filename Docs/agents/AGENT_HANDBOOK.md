@@ -206,6 +206,26 @@ sourceRevision
 
 The canonical `sourceRevision` is the repository revision from which the manifest, this handbook and applicable agent rules were loaded. Control Center may warn or block according to policy when an active agent is materially stale relative to the current required handbook/contract revision.
 
+### HTML rendering of the agent instruction set
+
+The bootstrap instruction set (root and scoped `AGENTS.md` files plus this handbook and the Control Center operating model) is also rendered into one self-contained HTML page: [`agent-docs.html`](agent-docs.html). The page is a **Generated** consumption artifact for agents and humans; the markdown documents remain the only source of truth.
+
+Contract:
+
+- deterministic, stdlib-only generation with no timestamps, so identical inputs produce byte-identical output;
+- one `<article>` per source document with stable path-derived element ids, sequential heading levels and per-heading anchors;
+- an embedded JSON manifest (`id="agent-docs-manifest"`) listing every document with scope, state and SHA-256 content hash, plus every anchor;
+- no JavaScript, external assets or hidden normative content.
+
+Regenerate after changing any included document and commit the result in the same change:
+
+```bash
+python tools/docs/build_agent_docs_html.py          # regenerate
+python tools/docs/build_agent_docs_html.py --check  # fail on drift
+```
+
+The HTML template lives in [`tools/docs/template/agent_docs.template.html`](../../tools/docs/template/agent_docs.template.html) and is deliberately reusable for other structured documentation surfaces, such as internal model documentation and forms.
+
 ## 12. New-agent onboarding checklist
 
 A new provider/agent is plug-and-play only when:
