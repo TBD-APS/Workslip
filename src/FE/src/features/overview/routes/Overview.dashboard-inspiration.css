@@ -22,7 +22,7 @@
 .overview-admin-grid .overview-recent-list { flex: 1; }
 
 .overview-status-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.overview-status-card--rejected .overview-status-card__icon { color: var(--danger-color, #b42318); }
+.overview-status-card--rejected .overview-status-card__icon { color: var(--overview-status-rejected); }
 
 .overview-analytics-tabs {
   border-bottom: 1px solid var(--border-color);
@@ -48,9 +48,9 @@
   padding: 0.4rem 0.65rem;
 }
 .overview-analytics-tabs button[aria-selected='true'] {
-  background: color-mix(in srgb, var(--primary-color, #147a7e) 12%, transparent);
-  border-color: color-mix(in srgb, var(--primary-color, #147a7e) 28%, transparent);
-  color: var(--primary-color, #147a7e);
+  background: color-mix(in srgb, var(--brand-petrol) 12%, transparent);
+  border-color: color-mix(in srgb, var(--brand-petrol) 28%, transparent);
+  color: var(--brand-petrol);
   font-weight: 700;
 }
 .overview-analytics-list { display: grid; padding: 0.9rem 1.1rem 1rem; }
@@ -70,17 +70,17 @@
 }
 .overview-customer-growth__item { align-items: center; display: grid; gap: 0.35rem; grid-template-rows: auto 130px auto; justify-items: center; min-width: 0; }
 .overview-customer-growth__item > span { color: var(--text-secondary); font-size: 0.7rem; text-align: center; }
-.overview-customer-growth__bar { align-items: end; background: var(--surface-muted, rgba(0,0,0,.04)); border-radius: 8px; display: flex; height: 130px; overflow: hidden; width: min(32px, 75%); }
-.overview-customer-growth__bar span { background: var(--primary-color, #147a7e); border-radius: 8px 8px 0 0; display: block; min-height: 8px; width: 100%; }
+.overview-customer-growth__bar { align-items: end; background: var(--overview-surface-muted); border-radius: 8px; display: flex; height: 130px; overflow: hidden; width: min(32px, 75%); }
+.overview-customer-growth__bar span { background: var(--brand-petrol); border-radius: 8px 8px 0 0; display: block; min-height: 8px; width: 100%; }
 
 .overview-secondary-grid { display: grid; gap: 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.overview-list-card { background: var(--surface, #fff); border: 1px solid var(--border-color); border-radius: var(--radius-lg, 16px); min-width: 0; overflow: hidden; }
-.overview-text-link { appearance: none; background: transparent; border: 0; color: var(--primary-color, #147a7e); cursor: pointer; font: inherit; font-size: 0.86rem; font-weight: 700; padding: 0.35rem; }
+.overview-list-card { background: var(--surface); border: 1px solid var(--border-color); border-radius: var(--radius-lg, 16px); min-width: 0; overflow: hidden; }
+.overview-text-link { appearance: none; background: transparent; border: 0; color: var(--brand-petrol); cursor: pointer; font: inherit; font-size: 0.86rem; font-weight: 700; padding: 0.35rem; }
 .overview-simple-list { border-top: 1px solid var(--border-color); display: grid; }
 .overview-simple-row { align-items: center; appearance: none; background: transparent; border: 0; border-bottom: 1px solid var(--border-color); color: inherit; cursor: pointer; display: grid; gap: 0.75rem; grid-template-columns: auto minmax(0, 1fr) auto; min-height: 62px; padding: 0.7rem 1rem; text-align: left; width: 100%; }
 .overview-simple-row:last-child { border-bottom: 0; }
-.overview-simple-row:hover { background: var(--surface-muted, rgba(0,0,0,.03)); }
-.overview-simple-row__icon { align-items: center; background: var(--surface-muted, rgba(0,0,0,.04)); border-radius: 10px; color: var(--primary-color, #147a7e); display: inline-flex; height: 36px; justify-content: center; width: 36px; }
+.overview-simple-row:hover { background: var(--overview-surface-muted-hover); }
+.overview-simple-row__icon { align-items: center; background: var(--overview-surface-muted); border-radius: 10px; color: var(--brand-petrol); display: inline-flex; height: 36px; justify-content: center; width: 36px; }
 .overview-simple-row > span:nth-child(2) { display: grid; gap: 0.1rem; min-width: 0; }
 .overview-simple-row strong,
 .overview-simple-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

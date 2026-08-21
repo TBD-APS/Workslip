@@ -1,4 +1,18 @@
+/*
+ * Overview dashboard palette (WOR-542 Power BI admin overview). These values
+ * arrived from the imported dashboard template as raw var() fallbacks that
+ * referenced token names never wired into Workslip's token layer
+ * (--primary-color, --danger-color, --surface-muted). They are defined here in
+ * the token layer with their exact effective values so the appearance is
+ * unchanged and they no longer bypass the colour-token budget. The primary
+ * accent reuses --brand-petrol directly (identical value). These can later be
+ * promoted to theme-aware brand tokens if the dashboard needs day/night parity.
+ */
 .overview-page {
+  --overview-status-rejected: #b42318;
+  --overview-surface-muted: rgba(0, 0, 0, 0.04);
+  --overview-surface-muted-hover: rgba(0, 0, 0, 0.03);
+
   display: grid;
   gap: 1.25rem;
 }
@@ -37,7 +51,7 @@
 .overview-status-card {
   align-items: center;
   appearance: none;
-  background: var(--surface, #fff);
+  background: var(--surface);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg, 16px);
   color: inherit;
@@ -68,7 +82,7 @@
 
 .overview-status-card__icon {
   align-items: center;
-  background: var(--surface-raised, var(--surface-muted, rgba(0, 0, 0, 0.04)));
+  background: var(--surface-raised);
   border-radius: 12px;
   display: inline-flex;
   height: 44px;
@@ -77,15 +91,15 @@
 }
 
 .overview-status-card--active .overview-status-card__icon {
-  color: var(--status-blue-text, var(--status-active, #2563eb));
+  color: var(--status-blue-text);
 }
 
 .overview-status-card--review .overview-status-card__icon {
-  color: var(--status-amber-text, var(--status-review, #b7791f));
+  color: var(--status-amber-text);
 }
 
 .overview-status-card--approved .overview-status-card__icon {
-  color: var(--status-green-text, var(--status-approved, #15803d));
+  color: var(--status-green-text);
 }
 
 .overview-status-card__content {
@@ -110,7 +124,7 @@
 
 .overview-power-bi-card,
 .overview-recent-card {
-  background: var(--surface, #fff);
+  background: var(--surface);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg, 16px);
   overflow: hidden;
@@ -165,26 +179,26 @@
 
 .overview-power-bi-donut__segment--draft,
 .overview-power-bi-legend__dot--draft {
-  stroke: var(--status-blue-text, var(--status-active, #2563eb));
-  background: var(--status-blue-text, var(--status-active, #2563eb));
+  stroke: var(--status-blue-text);
+  background: var(--status-blue-text);
 }
 
 .overview-power-bi-donut__segment--inReview,
 .overview-power-bi-legend__dot--inReview {
-  stroke: var(--status-amber-text, var(--status-review, #b7791f));
-  background: var(--status-amber-text, var(--status-review, #b7791f));
+  stroke: var(--status-amber-text);
+  background: var(--status-amber-text);
 }
 
 .overview-power-bi-donut__segment--approved,
 .overview-power-bi-legend__dot--approved {
-  stroke: var(--status-green-text, var(--status-approved, #15803d));
-  background: var(--status-green-text, var(--status-approved, #15803d));
+  stroke: var(--status-green-text);
+  background: var(--status-green-text);
 }
 
 .overview-power-bi-donut__segment--rejected,
 .overview-power-bi-legend__dot--rejected {
-  stroke: var(--danger-color, #b42318);
-  background: var(--danger-color, #b42318);
+  stroke: var(--overview-status-rejected);
+  background: var(--overview-status-rejected);
 }
 
 .overview-power-bi-donut__segment--other,
@@ -292,7 +306,7 @@
   align-items: center;
   background: transparent;
   border: 0;
-  color: var(--danger-color, #b42318);
+  color: var(--overview-status-rejected);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
@@ -334,7 +348,7 @@
 }
 
 .overview-recent-row:hover {
-  background: var(--surface-raised, var(--surface-muted, rgba(0, 0, 0, 0.03)));
+  background: var(--surface-raised);
 }
 
 .overview-recent-row__main {
