@@ -7,6 +7,26 @@
  * unmount, or hand focus directly to another editable control.
  */
 @media (max-width: 767px) {
+  /*
+   * When a field blurs, the bottom nav springs back to visible. Because it is a
+   * fixed, full-width overlay it can reappear directly over a control the user
+   * is tapping straight from a focused field — e.g. "Gem" in the worksheet edit
+   * form — so the tap's pointerup lands on a nav link (which could even navigate
+   * the user away mid-edit) instead of the button. Hold the nav's *visibility*
+   * (which gates hit-testing; pointer-events transitions are not honoured for
+   * this) hidden for a beat longer than any tap when it returns, so the tap
+   * lands on the control beneath it. It still reappears effectively immediately.
+   *
+   * Scoped to .bottom-nav: it is the reproduced offender and has no other
+   * hide mechanism, so delaying its return is side-effect free. .step-nav-anchor
+   * is left on its own App.css transition (its scroll-hide reveal must stay
+   * snappy, and its own Tilbage/Næste buttons are the intended target when it
+   * returns, so it is not a cross-control tap-steal).
+   */
+  .app-shell .bottom-nav {
+    transition: visibility 0s linear 320ms !important;
+  }
+
   .app-shell:has(
     input:not([type='button']):not([type='checkbox']):not([type='color']):not([type='file']):not([type='hidden']):not([type='image']):not([type='radio']):not([type='range']):not([type='reset']):not([type='submit']):not([inputmode='none']):not([readonly]):not([disabled]):focus,
     textarea:not([readonly]):not([disabled]):focus,
@@ -15,5 +35,14 @@
     visibility: hidden;
     opacity: 0;
     pointer-events: none;
+  }
+
+  /* Hide the bottom nav immediately when a field gains focus (no return-delay). */
+  .app-shell:has(
+    input:not([type='button']):not([type='checkbox']):not([type='color']):not([type='file']):not([type='hidden']):not([type='image']):not([type='radio']):not([type='range']):not([type='reset']):not([type='submit']):not([inputmode='none']):not([readonly]):not([disabled]):focus,
+    textarea:not([readonly]):not([disabled]):focus,
+    [contenteditable]:not([contenteditable='false']):focus
+  ) .bottom-nav {
+    transition: visibility 0s linear 0s !important;
   }
 }
