@@ -27,7 +27,7 @@ jobs:
       KIMI_MAX_REPAIR_PASSES: 2
     steps:
       - name: Checkout isolated experiment orchestrator
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: true
