@@ -1,7 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { apiClient } from '../../../lib/axios';
 import type { MyWorksheetsMonthResponse } from '../worksheetOverviewTypes';
 
 const { getMonthlyHoursPdfPreviewMock, downloadPdfFileMock } = vi.hoisted(() => ({
@@ -15,12 +14,6 @@ vi.mock('../api/monthlyHoursPdfPreview', () => ({
 
 vi.mock('../../../lib/pdfFile', () => ({
   downloadPdfFile: downloadPdfFileMock,
-}));
-
-vi.mock('../../../lib/axios', () => ({
-  apiClient: {
-    get: vi.fn(),
-  },
 }));
 
 import { AdminHoursExport } from './AdminHoursExport';
@@ -86,7 +79,6 @@ describe('AdminHoursExport PDF preview', () => {
       contentType: 'image/png',
       pages: ['AQID', 'BAUG'],
     });
-    vi.mocked(apiClient.get).mockResolvedValue({ url: null });
   });
 
   it('renders server-generated preview pages inside Workslip without a native PDF iframe', async () => {
@@ -117,31 +109,11 @@ describe('AdminHoursExport PDF preview', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(open).not.toHaveBeenCalled();
   });
-});
 
-describe('AdminHoursExport Power BI link', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    getMonthlyHoursPdfPreviewMock.mockResolvedValue({
-      contentType: 'image/png',
-      pages: ['AQID'],
-    });
-  });
-
-  it('shows the configured report link', async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ url: 'https://app.powerbi.com/groups/me/reports/abc' });
+  it('does not expose Power BI anywhere on the Timer export surface', () => {
     renderExport();
 
-    const link = await screen.findByRole('link', { name: 'Åbn Power BI' });
-    expect(link).toHaveAttribute('href', 'https://app.powerbi.com/groups/me/reports/abc');
-    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
-  });
-
-  it('stays hidden when no report link is configured', async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ url: null });
-    renderExport();
-
-    await screen.findByRole('button', { name: 'CSV til Excel' });
-    expect(screen.queryByRole('link', { name: 'Åbn Power BI' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Power BI/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Power BI/i })).not.toBeInTheDocument();
   });
 });

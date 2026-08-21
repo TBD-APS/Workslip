@@ -54,10 +54,11 @@ async function identity(runtime, email, expectedRole) {
   return { ...partial, user };
 }
 
-async function api(runtime, actor, method, pathname, body, expectedStatuses) {
+async function api(runtime, actor, method, pathname, body, expectedStatuses, extraHeaders = {}) {
   const headers = {
     Accept: 'application/json',
     Authorization: `Bearer ${actor.token}`,
+    ...extraHeaders,
   };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const response = await fetch(`${runtime.apiUrl}${pathname}`, {
@@ -282,6 +283,16 @@ async function verifyNotificationLifecycle(runtime, user, viewportName, reportNu
   const session = await browserFor(viewportName);
   try {
     await authenticate(session.page, runtime, user);
+    // The assignment notification is delivered asynchronously by the push
+    // worker, so poll the API until it lands before asserting the UI. Without
+    // this the panel can open before delivery and the lookup races (flaky).
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const pending = await api(runtime, user, 'GET', '/api/notifications', undefined, [200]);
+      const delivered = Array.isArray(pending)
+        && pending.some((item) => String(item?.jobNumber ?? item?.title ?? '').includes(reportNumber));
+      if (delivered) break;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
     const notificationsResponse = session.page.waitForResponse((response) =>
       response.request().method() === 'GET'
         && new URL(response.url()).pathname === '/api/notifications'
@@ -344,7 +355,7 @@ async function createJob(runtime, admin, unique, label, assignedUserIds) {
     destinationCity: 'Aarhus C',
     jobType: 'KLS',
     assignedUserIds,
-  }, [200]);
+  }, [200], { 'Idempotency-Key': `notif-people-${label.toLowerCase().replace(/\s+/g, '-')}-${unique}` });
   const id = job?.id ?? null;
   const reportNumber = String(job?.reportNumber ?? '').trim();
   if (!id || !reportNumber) throw new Error(`${label} fixture job did not return id/reportNumber.`);
