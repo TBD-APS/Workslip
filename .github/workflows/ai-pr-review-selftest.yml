@@ -60,7 +60,7 @@ jobs:
           grep -Fq 'node .github/ai-review/resolve-openai-model.mjs' "$workflow"
           grep -Fq 'steps.model.outputs.model' "$workflow"
           grep -Fq 'steps.model.outputs.reason' "$workflow"
-          grep -Fq 'anthropics/claude-code-action@239e3a730883eeb5c53db12b0fc9573b3024b126' "$workflow"
+          grep -Fq 'anthropics/claude-code-action@d40ddef4c030e508327d6e35a9c45f3368482c50' "$workflow"
           grep -Fq 'ollama_review:' "$workflow"
           grep -Fq 'OLLAMA_API_KEY:' "$workflow"
           grep -Fq 'OLLAMA_BASE_URL:' "$workflow"
