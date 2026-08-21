@@ -242,7 +242,7 @@ export const Login = () => {
         <div className="bg-glow bg-glow-2" />
       </div>
 
-      <div className="login-card">
+      <div id="login-card" className="login-card">
         {showOtcLogin ? (
           <Suspense
             fallback={(

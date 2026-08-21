@@ -91,6 +91,8 @@ export function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJob
               value={details.form.technicalObservations}
               onChange={details.updateTechnicalObservations}
               placeholder="Skriv en kommentar til sagen..."
+              triggerId="job-technical-observations-trigger"
+              textareaId="job-technical-observations"
             />
           </section>
 

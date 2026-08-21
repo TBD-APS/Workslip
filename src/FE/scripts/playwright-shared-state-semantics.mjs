@@ -64,14 +64,14 @@ async function verifySharedStateSemantics({ name, theme, viewport }) {
     });
     assert.ok(navigation?.ok(), `${name}: authenticated navigation returned HTTP ${navigation?.status() ?? 'unknown'}.`);
     assert.equal((await meResponse).status(), 200, `${name}: /api/auth/me must succeed.`);
-    await page.locator('.app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await page.locator('#app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
     if (viewport.width < 768) {
-      await page.locator('.quick-nav-mobile-trigger').click();
+      await page.locator('#bottom-nav-search').click();
     } else {
       await page.keyboard.press('Control+K');
     }
-    const dialog = page.getByRole('dialog', { name: 'Søg' });
+    const dialog = page.locator('#quick-nav-dialog');
     await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     const activeResult = dialog.locator('.quick-nav-result.active').first();
     await activeResult.waitFor({ state: 'visible', timeout: UI_TIMEOUT });

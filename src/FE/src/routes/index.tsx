@@ -99,6 +99,7 @@ const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupReco
     actions={(
       <>
         <button
+          id="startup-retry-button"
           type="button"
           className="btn btn-primary"
           onClick={onRetry}

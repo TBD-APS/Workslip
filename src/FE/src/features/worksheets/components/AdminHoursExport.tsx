@@ -104,6 +104,7 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
         </div>
         <div className="hours-export-actions">
           <button
+            id="hours-export-csv-button"
             type="button"
             className="btn btn-secondary hours-export-button hours-export-csv-button"
             onClick={downloadCsv}
@@ -113,6 +114,7 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
             CSV til Excel
           </button>
           <button
+            id="hours-export-preview-button"
             type="button"
             className="btn btn-secondary hours-export-button"
             onClick={() => { void previewPdf(); }}
@@ -124,6 +126,7 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
             Vis PDF
           </button>
           <button
+            id="hours-export-download-button"
             type="button"
             className="btn btn-primary hours-export-button"
             onClick={() => { void downloadPdf(); }}
@@ -139,6 +142,7 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
 
       {pdfPreview && (
         <div
+          id="hours-pdf-preview-dialog"
           ref={previewDialogRef}
           className="hours-pdf-preview-overlay"
           role="dialog"
@@ -152,6 +156,7 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
               <span>{pdfPreview.fileName}</span>
             </div>
             <button
+              id="hours-pdf-preview-close"
               ref={closeButtonRef}
               type="button"
               className="btn btn-secondary hours-pdf-preview-close"
@@ -169,6 +174,7 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
           >
             {pdfPreview.pageUrls.map((url, index) => (
               <img
+                id={`hours-pdf-preview-page-${index}`}
                 key={index}
                 className="hours-pdf-preview-page"
                 src={url}

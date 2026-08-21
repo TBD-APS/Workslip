@@ -237,6 +237,7 @@ export function QuickNavigator({
       }}
     >
       <div
+        id="quick-nav-dialog"
         ref={dialogRef}
         className="quick-nav-dialog"
         role="dialog"
@@ -246,14 +247,15 @@ export function QuickNavigator({
       >
         <div className="quick-nav-header">
           <h2 id="quick-nav-title">Søg</h2>
-          <button type="button" className="quick-nav-close" onClick={resetAndClose} aria-label="Luk søgning">
+          <button id="quick-nav-close" type="button" className="quick-nav-close" onClick={resetAndClose} aria-label="Luk søgning">
             <X size={18} />
           </button>
         </div>
 
-        <div className="quick-nav-search-wrap">
+        <div id="quick-nav-search-wrap" className="quick-nav-search-wrap">
           <Search size={19} aria-hidden="true" />
           <input
+            id="quick-nav-search-input"
             ref={inputRef}
             type="search"
             value={query}
@@ -267,7 +269,7 @@ export function QuickNavigator({
             autoComplete="off"
             spellCheck={false}
           />
-          <kbd>Esc</kbd>
+          <kbd id="quick-nav-escape-hint">Esc</kbd>
         </div>
 
         <div className="quick-nav-meta" aria-live="polite">
@@ -287,7 +289,7 @@ export function QuickNavigator({
           onHoverIndex={setActiveIndex}
         />
 
-        <div className="quick-nav-footer">
+        <div id="quick-nav-footer" className="quick-nav-footer">
           <span><kbd>↑</kbd><kbd>↓</kbd> vælg</span>
           <span><kbd>Enter</kbd> åbn</span>
           <span className="quick-nav-shortcut"><kbd>Ctrl</kbd>/<kbd>⌘</kbd><kbd>K</kbd></span>

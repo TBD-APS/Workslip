@@ -274,6 +274,7 @@ export function JobAttestationStep({
             </span>
           </span>
           <input
+            id="job-attestation-confirmation"
             type="checkbox"
             checked={confirmed || isInReview}
             disabled={confirmationDisabled}
@@ -294,6 +295,7 @@ export function JobAttestationStep({
         ) : (
           <div className="attestation-submit-row">
             <button
+              id="job-attestation-submit"
               type="button"
               className={confirmed ? 'btn btn-primary attestation-submit-button' : 'btn attestation-submit-button attestation-submit-button-locked'}
               onClick={handleSubmit}

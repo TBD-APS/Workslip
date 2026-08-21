@@ -62,7 +62,7 @@ async function openAuthenticatedApp(context, path) {
   });
   assert.ok(navigation?.ok(), `Authenticated PDF navigation returned HTTP ${navigation?.status() ?? 'unknown'}.`);
   assert.equal((await meResponse).status(), 200, 'Authenticated PDF flow requires successful /api/auth/me.');
-  await page.locator('.app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.locator('#app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
   return {
     page,
@@ -78,7 +78,7 @@ async function verifyTimerPreview(contextOptions, viewportLabel) {
   try {
     const flow = await openAuthenticatedApp(context, '/app/timer');
     const { page } = flow;
-    const previewButton = page.getByRole('button', { name: 'Vis PDF' });
+    const previewButton = page.locator('#hours-export-preview-button');
     await previewButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     assert.equal(await previewButton.isDisabled(), false, `${viewportLabel}: seeded current month must allow PDF preview.`);
 
@@ -92,9 +92,9 @@ async function verifyTimerPreview(contextOptions, viewportLabel) {
     const previewResponse = await previewResponsePromise;
     assert.equal(previewResponse.status(), 200, `${viewportLabel}: Timer PDF preview endpoint must return 200.`);
 
-    const dialog = page.getByRole('dialog', { name: /PDF-preview af timer/i });
+    const dialog = page.locator('#hours-pdf-preview-dialog');
     await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    const firstPage = dialog.locator('img.hours-pdf-preview-page').first();
+    const firstPage = dialog.locator('#hours-pdf-preview-page-0');
     await firstPage.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await firstPage.evaluate((image) => image.decode?.()).catch(() => {});
 
@@ -110,7 +110,7 @@ async function verifyTimerPreview(contextOptions, viewportLabel) {
     assert.ok(dimensions.width >= 1000 && dimensions.width <= 1200, `${viewportLabel}: unexpected raw preview width ${dimensions.width}.`);
     assert.ok(dimensions.height >= 700 && dimensions.height <= 850, `${viewportLabel}: unexpected raw preview height ${dimensions.height}.`);
 
-    await dialog.getByRole('button', { name: 'Luk PDF-preview' }).click();
+    await dialog.locator('#hours-pdf-preview-close').click();
     await dialog.waitFor({ state: 'hidden', timeout: UI_TIMEOUT });
     flow.assertCleanBrowser();
     console.log(`[playwright] worksheet PDF preview passed on ${viewportLabel} at raw ${dimensions.width}x${dimensions.height}.`);
@@ -146,7 +146,7 @@ async function verifyJobPreviewDownloadReuse() {
       }
     });
 
-    const previewButton = page.getByRole('button', { name: 'Forhåndsvis PDF' });
+    const previewButton = page.locator('#job-report-preview-pdf');
     await previewButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     const previewResponsePromise = page.waitForResponse((response) =>
       response.request().method() === 'GET'
@@ -157,12 +157,12 @@ async function verifyJobPreviewDownloadReuse() {
     const previewResponse = await previewResponsePromise;
     assert.equal(previewResponse.status(), 200, 'Job PDF preview endpoint must return 200.');
     await page.waitForFunction(() => {
-      const button = document.querySelector('button[aria-label="Forhåndsvis PDF"]');
+      const button = document.querySelector('#job-report-preview-pdf');
       return button instanceof HTMLButtonElement && !button.disabled;
     }, undefined, { timeout: UI_TIMEOUT });
     assert.equal(pdfGetCount, 1, 'Job PDF preview must issue exactly one PDF GET.');
 
-    const downloadButton = page.getByRole('button', { name: 'Download PDF' });
+    const downloadButton = page.locator('#job-report-download-pdf');
     const downloadPromise = page.waitForEvent('download', { timeout: UI_TIMEOUT });
     await downloadButton.click();
     const download = await downloadPromise;

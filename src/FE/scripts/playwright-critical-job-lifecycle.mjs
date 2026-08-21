@@ -299,24 +299,21 @@ async function verifyRejectionCorrectionLifecycle() {
 
     await userHarness.session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
     await contractHelpers.waitForWizardStep(userHarness.session.page, 'Sagsdetaljer');
-    const commentTrigger = userHarness.session.page
-      .locator('button.collapsible-section-trigger')
-      .filter({ has: userHarness.session.page.getByRole('heading', { name: 'Skriv en kommentar til sagen', exact: true }) })
-      .first();
+    const commentTrigger = userHarness.session.page.locator('#job-technical-observations-trigger');
     await commentTrigger.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     if ((await commentTrigger.getAttribute('aria-expanded')) !== 'true') {
       await commentTrigger.click();
     }
-    const technical = userHarness.session.page.getByPlaceholder('Skriv en kommentar til sagen...');
+    const technical = userHarness.session.page.locator('#job-technical-observations');
     await technical.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await technical.fill(userHarness.session.data.correctedObservation);
     const correctionSave = contractHelpers.waitForApiResponse(userHarness.session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
     await domain.navigateToAttestation(userHarness.session, userHarness.session.referenceData);
     await correctionSave;
 
-    await userHarness.session.page.getByRole('checkbox', { name: /Jeg bekræfter, at sagen er gennemgået/ }).check();
+    await userHarness.session.page.locator('#job-attestation-confirmation').check();
     const resubmittedResponse = contractHelpers.waitForApiResponse(userHarness.session.page, 'POST', `/api/jobs/${job.id}/status`, [200]);
-    await userHarness.session.page.getByRole('button', { name: 'Attestér og indsend', exact: true }).click();
+    await userHarness.session.page.locator('#job-attestation-submit').click();
     await resubmittedResponse;
 
     const resubmitted = await userHarness.session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
