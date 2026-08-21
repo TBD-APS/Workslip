@@ -114,31 +114,31 @@ export function AdminPowerBiJobStatusChart() {
   const maxCustomerCount = Math.max(1, ...customerGrowth.map((item) => item.count));
 
   return (
-    <section className="overview-power-bi-card" aria-labelledby="overview-power-bi-heading" data-testid="admin-power-bi-job-status">
+    <section id="admin-power-bi-job-status" className="overview-power-bi-card" aria-labelledby="overview-power-bi-heading" data-testid="admin-power-bi-job-status">
       <div className="overview-section-header overview-power-bi-header">
         <div>
           <h3 id="overview-power-bi-heading">Virksomhedsstatistik</h3>
           <p>Opdateres automatisk hvert 30. sekund.</p>
         </div>
         {analyticsQuery.isError && (
-          <button type="button" className="btn btn-secondary overview-power-bi-retry" onClick={() => { void analyticsQuery.refetch(); }}>
+          <button id="overview-power-bi-retry" type="button" className="btn btn-secondary overview-power-bi-retry" onClick={() => { void analyticsQuery.refetch(); }}>
             <RefreshCw size={16} aria-hidden="true" /> Prøv igen
           </button>
         )}
       </div>
 
-      <div className="overview-analytics-tabs" role="tablist" aria-label="Virksomhedsstatistik">
-        <button type="button" role="tab" aria-selected={tab === 'cases'} onClick={() => setTab('cases')}><BarChart3 size={16} aria-hidden="true" /> Sager</button>
-        <button type="button" role="tab" aria-selected={tab === 'employees'} onClick={() => setTab('employees')}><WalletCards size={16} aria-hidden="true" /> Medarbejderøkonomi</button>
-        <button type="button" role="tab" aria-selected={tab === 'customers'} onClick={() => setTab('customers')}><UsersRound size={16} aria-hidden="true" /> Nye kunder</button>
+      <div id="overview-analytics-tabs" className="overview-analytics-tabs" role="tablist" aria-label="Virksomhedsstatistik">
+        <button id="overview-analytics-tab-cases" type="button" role="tab" aria-selected={tab === 'cases'} onClick={() => setTab('cases')}><BarChart3 size={16} aria-hidden="true" /> Sager</button>
+        <button id="overview-analytics-tab-employees" type="button" role="tab" aria-selected={tab === 'employees'} onClick={() => setTab('employees')}><WalletCards size={16} aria-hidden="true" /> Medarbejderøkonomi</button>
+        <button id="overview-analytics-tab-customers" type="button" role="tab" aria-selected={tab === 'customers'} onClick={() => setTab('customers')}><UsersRound size={16} aria-hidden="true" /> Nye kunder</button>
       </div>
 
       {analyticsQuery.isPending ? (
-        <div className="overview-power-bi-state" role="status"><Loader2 className="overview-power-bi-spinner" size={22} aria-hidden="true" /><span>Henter rapportdata…</span></div>
+        <div id="overview-analytics-loading" className="overview-power-bi-state" role="status"><Loader2 className="overview-power-bi-spinner" size={22} aria-hidden="true" /><span>Henter rapportdata…</span></div>
       ) : analyticsQuery.isError ? (
-        <div className="overview-power-bi-state overview-power-bi-state--error" role="alert"><strong>Kunne ikke hente statistik</strong><span>Resten af overblikssiden virker fortsat.</span></div>
+        <div id="overview-analytics-error" className="overview-power-bi-state overview-power-bi-state--error" role="alert"><strong>Kunne ikke hente statistik</strong><span>Resten af overblikssiden virker fortsat.</span></div>
       ) : tab === 'cases' ? (
-        <div className="overview-power-bi-content">
+        <div id="overview-analytics-panel-cases" className="overview-power-bi-content">
           <div className="overview-power-bi-donut-wrap">
             <svg className="overview-power-bi-donut" viewBox="0 0 42 42" role="img" aria-label={`Sagsfordeling. ${segments.map((segment) => `${segment.label}: ${segment.count}`).join(', ') || 'Ingen sager'}`}>
               <circle className="overview-power-bi-donut__track" cx="21" cy="21" r="15.9155" />
@@ -151,12 +151,12 @@ export function AdminPowerBiJobStatusChart() {
           </ul>
         </div>
       ) : tab === 'employees' ? (
-        <div className="overview-analytics-list" role="tabpanel">
+        <div id="overview-analytics-panel-employees" className="overview-analytics-list" role="tabpanel">
           <p className="overview-analytics-note">Viser fakturerbar værdi fra registrerede timer. Workslip har ikke en verificeret intern lønkostpris endnu.</p>
           {employeeValues.length ? employeeValues.map((employee) => <div className="overview-analytics-row" key={employee.userId}><span>{employee.employee}</span><strong>{formatCurrency(employee.amount)}</strong></div>) : <p className="overview-analytics-empty">Ingen fakturerbare timer i perioden.</p>}
         </div>
       ) : (
-        <div className="overview-customer-growth" role="tabpanel" aria-label="Nye kunder pr. måned">
+        <div id="overview-analytics-panel-customers" className="overview-customer-growth" role="tabpanel" aria-label="Nye kunder pr. måned">
           {customerGrowth.map((item) => <div className="overview-customer-growth__item" key={item.key}><strong>{item.count}</strong><div className="overview-customer-growth__bar" aria-hidden="true"><span style={{ height: `${Math.max(8, (item.count / maxCustomerCount) * 100)}%` }} /></div><span>{item.label}</span></div>)}
         </div>
       )}
