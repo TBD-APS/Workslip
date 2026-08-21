@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { BarChart3, Loader2, RefreshCw, UsersRound, WalletCards } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { apiClient } from '../../../lib/axios';
+import { formatMonthYearShort } from '../../../lib/presentation/date';
 
 type AnalyticsResponse = {
   generatedAtUtc: string;
@@ -61,7 +62,7 @@ const formatCurrency = (value: number) => new Intl.NumberFormat('da-DK', {
 const monthKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 const monthLabel = (key: string) => {
   const [year, month] = key.split('-').map(Number);
-  return new Intl.DateTimeFormat('da-DK', { month: 'short', year: '2-digit' }).format(new Date(year, month - 1, 1));
+  return formatMonthYearShort(new Date(year, month - 1, 1)) ?? key;
 };
 
 export function AdminPowerBiJobStatusChart() {
