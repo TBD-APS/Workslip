@@ -10,18 +10,20 @@ Coupling = fan-in + fan-out between `Workslip.Application.*` modules. File refs 
 
 | Module | Files | LOC | Fan-in | Fan-out | Inbound file refs | Outbound file refs | Coupling |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Auth | 5 | 263 | 8 | 1 | 22 | 2 | **9** |
-| Jobs | 31 | 3414 | 4 | 3 | 6 | 18 | **7** |
-| Users | 14 | 1671 | 4 | 2 | 8 | 4 | **6** |
-| Images | 4 | 443 | 1 | 3 | 1 | 3 | **4** |
+| Auth | 5 | 263 | 9 | 1 | 23 | 2 | **10** |
+| Jobs | 32 | 3823 | 5 | 3 | 7 | 18 | **8** |
+| Users | 14 | 1673 | 4 | 2 | 8 | 4 | **6** |
+| Conversations | 3 | 742 | 0 | 4 | 0 | 4 | **4** |
+| Images | 4 | 455 | 1 | 3 | 1 | 3 | **4** |
 | Invitations | 6 | 726 | 0 | 3 | 0 | 7 | **3** |
+| Notifications | 8 | 485 | 2 | 1 | 4 | 1 | **3** |
 | Worksheets | 5 | 515 | 1 | 2 | 6 | 4 | **3** |
+| Common | 3 | 167 | 2 | 0 | 2 | 0 | **2** |
 | Customers | 7 | 562 | 0 | 2 | 0 | 2 | **2** |
-| Notifications | 8 | 277 | 1 | 1 | 3 | 1 | **2** |
 | Organizations | 7 | 594 | 0 | 2 | 0 | 4 | **2** |
-| Common | 3 | 167 | 1 | 0 | 1 | 0 | **1** |
-| Documents | 9 | 744 | 0 | 1 | 0 | 2 | **1** |
+| Documents | 9 | 745 | 0 | 1 | 0 | 2 | **1** |
 | Diagnostics | 1 | 90 | 0 | 0 | 0 | 0 | **0** |
+| Operations | 3 | 383 | 0 | 0 | 0 | 0 | **0** |
 
 ### Cross-module edges (Application → Application)
 
@@ -39,6 +41,7 @@ Coupling = fan-in + fan-out between `Workslip.Application.*` modules. File refs 
 | Organizations -> Auth | 2 |
 | Organizations -> Users | 2 |
 | (root) -> Auth | 1 |
+| (root) -> Conversations | 1 |
 | (root) -> Customers | 1 |
 | (root) -> Documents | 1 |
 | (root) -> Images | 1 |
@@ -48,6 +51,10 @@ Coupling = fan-in + fan-out between `Workslip.Application.*` modules. File refs 
 | (root) -> Organizations | 1 |
 | (root) -> Users | 1 |
 | (root) -> Worksheets | 1 |
+| Conversations -> Auth | 1 |
+| Conversations -> Common | 1 |
+| Conversations -> Jobs | 1 |
+| Conversations -> Notifications | 1 |
 | Customers -> Auth | 1 |
 | Customers -> Jobs | 1 |
 | Images -> Auth | 1 |
@@ -66,10 +73,10 @@ Coupling = fan-in + fan-out between `Workslip.Application.*` modules. File refs 
 | Infra:Repositories -> App:Auth | 5 |
 | Infra:Repositories -> App:Users | 5 |
 | Infra:(root) -> App:(root) | 3 |
-| Infra:(root) -> App:Worksheets | 3 |
 | Infra:Mappers -> App:Jobs | 3 |
 | Infra:Notifications -> App:Notifications | 3 |
 | Infra:Repositories -> App:Worksheets | 3 |
+| Infra:(root) -> App:Worksheets | 2 |
 | Infra:Reporting -> App:Worksheets | 2 |
 | Infra:Repositories -> App:Customers | 2 |
 | Infra:Repositories -> App:Documents | 2 |
@@ -78,6 +85,7 @@ Coupling = fan-in + fan-out between `Workslip.Application.*` modules. File refs 
 | Infra:Storage -> App:Images | 2 |
 | Infra:Transactions -> App:Common | 2 |
 | Infra:(root) -> App:Common | 1 |
+| Infra:(root) -> App:Conversations | 1 |
 | Infra:(root) -> App:Customers | 1 |
 | Infra:(root) -> App:Diagnostics | 1 |
 | Infra:(root) -> App:Documents | 1 |
@@ -85,13 +93,16 @@ Coupling = fan-in + fan-out between `Workslip.Application.*` modules. File refs 
 | Infra:(root) -> App:Invitations | 1 |
 | Infra:(root) -> App:Jobs | 1 |
 | Infra:(root) -> App:Notifications | 1 |
+| Infra:(root) -> App:Operations | 1 |
 | Infra:(root) -> App:Organizations | 1 |
 | Infra:(root) -> App:Users | 1 |
 | Infra:Diagnostics -> App:Diagnostics | 1 |
 | Infra:Invitations -> App:Invitations | 1 |
 | Infra:Jobs -> App:Images | 1 |
 | Infra:Jobs -> App:Jobs | 1 |
+| Infra:Operations -> App:Operations | 1 |
 | Infra:Repositories -> App:Common | 1 |
+| Infra:Repositories -> App:Conversations | 1 |
 | Infra:Repositories -> App:Invitations | 1 |
 | Infra:Repositories -> App:Notifications | 1 |
 | Infra:Repositories -> App:Organizations | 1 |
@@ -105,31 +116,28 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 
 | Feature | Files | LOC | Cross-feature imports | Shared imports |
 | --- | --- | --- | --- | --- |
-| customers | 6 | 1551 | **7** | 35 |
-| settings | 3 | 671 | **4** | 8 |
-| users | 8 | 1213 | **2** | 28 |
-| auditor | 1 | 483 | **1** | 16 |
-| jobs | 51 | 8288 | **1** | 156 |
-| overview | 1 | 165 | **1** | 4 |
+| settings | 4 | 947 | **5** | 9 |
+| jobs | 53 | 9902 | **2** | 186 |
+| overview | 2 | 514 | **1** | 11 |
 | superadmin | 16 | 3400 | **1** | 9 |
-| auth | 10 | 1439 | 0 | 18 |
+| users | 8 | 1218 | **1** | 30 |
+| auditor | 1 | 483 | 0 | 17 |
+| auth | 10 | 1469 | 0 | 18 |
 | create | 2 | 172 | 0 | 1 |
-| docs | 3 | 828 | 0 | 12 |
-| images | 6 | 532 | 0 | 4 |
+| customers | 6 | 1530 | 0 | 41 |
+| docs | 5 | 877 | 0 | 19 |
+| images | 7 | 629 | 0 | 5 |
 | legal | 6 | 256 | 0 | 1 |
-| worksheets | 6 | 933 | 0 | 11 |
+| worksheets | 6 | 912 | 0 | 10 |
 
 ### Cross-feature edges
 
 | From → To | Imports |
 | --- | --- |
-| customers -> jobs | 7 |
-| settings -> images | 4 |
-| auditor -> jobs | 1 |
-| jobs -> images | 1 |
-| overview -> jobs | 1 |
+| settings -> images | 5 |
+| jobs -> images | 2 |
+| overview -> docs | 1 |
 | superadmin -> users | 1 |
-| users -> jobs | 1 |
 | users -> superadmin | 1 |
 
 ## God-file watchlist (largest files)
@@ -142,37 +150,37 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs` | 1077 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Schema/AuditPolicies.cs` | 926 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Diagnostics/ApplicationInsightsErrorDiagnosticsService.cs` | 879 |
-| `src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs` | 847 |
+| `src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs` | 850 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/JobReportPdfService.cs` | 679 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Seeding/DatabaseSeeder.cs` | 625 |
+| `src/BE/WorkslipApi/Workslip.Application/Conversations/JobConversationService.cs` | 587 |
 | `src/BE/WorkslipApi/Workslip.Application/Invitations/InvitationService.cs` | 548 |
+| `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/SqlJobConversationRepository.cs` | 473 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Seeding/PlatformIdentityBootstrapper.cs` | 453 |
 | `src/BE/WorkslipApi/Workslip.Application/Users/SuperAdminUserService.cs` | 449 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfWorksheetRepository.cs` | 449 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Mappers/JobReportMapper.cs` | 437 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfCustomerRepository.cs` | 430 |
-| `src/BE/WorkslipApi/Workslip.Application/Jobs/AuthorizedJobService.cs` | 423 |
-| `src/BE/WorkslipApi/Configuration/LocalDevelopmentDatabaseMigrationRunner.cs` | 420 |
 
 ### Frontend
 
 | File | LOC |
 | --- | --- |
 | `src/FE/src/features/jobs/hooks/useJobDetails.ts` | 800 |
+| `src/FE/src/features/jobs/components/JobConversationDrawer.tsx` | 751 |
+| `src/FE/src/features/jobs/routes/CompletedJobReport.tsx` | 680 |
 | `src/FE/src/features/superadmin/routes/CacheDiagnostics.tsx` | 663 |
-| `src/FE/src/features/jobs/routes/CompletedJobReport.tsx` | 625 |
-| `src/FE/src/features/jobs/routes/JobList.tsx` | 554 |
+| `src/FE/src/features/jobs/routes/AdminCompletedJobReport.tsx` | 645 |
+| `src/FE/src/components/common/NotificationsDrawer.tsx` | 553 |
 | `src/FE/src/features/worksheets/routes/MyWorksheets.tsx` | 532 |
-| `src/FE/src/features/jobs/components/JobDetails.tsx` | 511 |
+| `src/FE/src/features/docs/DocsPage.tsx` | 497 |
 | `src/FE/src/features/superadmin/diagnostics/ErrorDiagnosticsDashboard.tsx` | 490 |
 | `src/FE/src/features/auditor/routes/AuditorReportList.tsx` | 483 |
-| `src/FE/src/features/docs/DocsPage.tsx` | 476 |
+| `src/FE/src/features/jobs/components/JobDetails.tsx` | 483 |
+| `src/FE/src/features/users/routes/UserDetail.tsx` | 478 |
 | `src/FE/src/features/jobs/components/JobDetailBlocks.tsx` | 472 |
-| `src/FE/src/features/users/routes/UserDetail.tsx` | 471 |
-| `src/FE/src/features/customers/routes/CustomerList.tsx` | 466 |
-| `src/FE/src/components/common/NotificationsDrawer.tsx` | 465 |
-| `src/FE/src/features/superadmin/components/SuperAdminUsersPanel.tsx` | 453 |
-| `src/FE/src/applicationInsights.ts` | 406 |
+| `src/FE/src/features/customers/routes/CustomerList.tsx` | 467 |
+| `src/FE/src/features/images/JobImagesSection.tsx` | 461 |
 
 ## Method
 

@@ -44,7 +44,7 @@ import { LinkedJobs } from '../components/LinkedJobs';
 import { WorksheetDetailList } from '../components/WorksheetDetailList';
 import { ControlPointOverview, getSelectedControlPoints, getIrrelevantCategories } from '../components/ControlPointOverview';
 import { JobImagesSection } from '../../images/JobImagesSection';
-import { formatJobStatus } from '../statusLabels';
+import { formatJobStatus } from '../../../lib/statusLabels';
 import { COMPLETED_JOB_VIEW_TYPE, markJobAsSeen } from '../utils/markJobSeen';
 import { createJobReportPdfPreview, downloadJobReportPdf } from '../utils/downloadJobReportPdf';
 import {

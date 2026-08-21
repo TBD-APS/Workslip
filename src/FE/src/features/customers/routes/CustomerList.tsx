@@ -14,7 +14,7 @@ import { usePaginatedList } from '../../../hooks/usePaginatedList';
 import { useColumnResize } from '../../../hooks/useColumnResize';
 import { apiClient } from '../../../lib/axios';
 import { useCustomerActions } from '../components/CustomerActions';
-import { getApiCustomersFavorite } from '../../jobs/customerApi';
+import { getApiCustomersFavorite } from '../../../api/generated/customers/customers';
 import { getGetApiCustomersQueryKey } from '../../../api/generated/customers/customers';
 import { notify } from '../../../lib/toast';
 

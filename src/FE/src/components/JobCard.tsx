@@ -1,7 +1,7 @@
 import { ChevronRight, Clock, MapPin, Timer, User } from 'lucide-react';
-import { CopyAddressButton } from '../../../components/CopyAddressButton';
-import { formatDate } from '../../../lib/formatDate';
-import { formatJobStatus, formatJobType } from '../statusLabels';
+import { CopyAddressButton } from './CopyAddressButton';
+import { formatDate } from '../lib/formatDate';
+import { formatJobStatus, formatJobType } from '../lib/statusLabels';
 
 type AssignedUserLike = {
   id: string;

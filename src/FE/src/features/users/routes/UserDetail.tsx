@@ -24,7 +24,7 @@ import { useGetApiUsersId, getGetApiUsersIdQueryKey } from '../../../api/generat
 import { useGetApiJobs, usePostApiJobsIdAssign } from '../../../api/generated/jobs/jobs';
 import { JobStatus } from '../../../api/generated/models';
 import { formatDateLong } from '../../../lib/formatDate';
-import { formatJobStatus } from '../../jobs/statusLabels';
+import { formatJobStatus } from '../../../lib/statusLabels';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { announceSection } from '../../../components/filters/StatusFilter';
 import { canReceiveJobAssignment } from '../../../providers/permissions';

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Loader2, MapPin, X } from 'lucide-react';
-import { AddressActions } from '../../../components/AddressActions';
+import { AddressActions } from './AddressActions';
 import { useAddressAutocomplete, type AddressSuggestion } from '../hooks/useAddressAutocomplete';
 
 type AddressAutocompleteProps = {

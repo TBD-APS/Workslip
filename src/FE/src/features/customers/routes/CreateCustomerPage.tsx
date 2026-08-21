@@ -7,8 +7,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { getGetApiCustomersQueryKey } from '../../../api/generated/customers/customers';
 import type { CustomerDetailViewModel } from '../../../api/generated/models';
 import { validateCustomer, type CustomerFieldErrors } from '../validation';
-import { AddressAutocomplete } from '../../jobs/components/AddressAutocomplete';
-import type { AddressSuggestion } from '../../jobs/hooks/useAddressAutocomplete';
+import { AddressAutocomplete } from '../../../components/AddressAutocomplete';
+import type { AddressSuggestion } from '../../../hooks/useAddressAutocomplete';
 import { useModalAccessibility } from '../../../components/common/useModalAccessibility';
 
 export const CreateCustomerPage = () => {

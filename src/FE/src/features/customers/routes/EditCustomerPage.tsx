@@ -8,8 +8,8 @@ import { getGetApiCustomersQueryKey, getGetApiCustomersIdQueryKey } from '../../
 import { notify } from '../../../lib/toast';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { validateCustomer, type CustomerFieldErrors } from '../validation';
-import { AddressAutocomplete } from '../../jobs/components/AddressAutocomplete';
-import type { AddressSuggestion } from '../../jobs/hooks/useAddressAutocomplete';
+import { AddressAutocomplete } from '../../../components/AddressAutocomplete';
+import type { AddressSuggestion } from '../../../hooks/useAddressAutocomplete';
 
 type ExtendedCustomerFields = {
   customerNumber?: string | null;

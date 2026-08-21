@@ -5,12 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from '../../../lib/axios';
 import { useHasRole } from '../../../providers/permissions/usePermissions';
 import { listDocuments } from '../../docs/docsApi';
-import { getApiCustomersFavorite } from '../../jobs/customerApi';
+import { getApiCustomersFavorite } from '../../../api/generated/customers/customers';
 import { Overview } from './Overview';
 
 vi.mock('../../../lib/axios', () => ({ apiClient: { get: vi.fn() } }));
 vi.mock('../../../providers/permissions/usePermissions', () => ({ useHasRole: vi.fn() }));
-vi.mock('../../jobs/customerApi', () => ({ getApiCustomersFavorite: vi.fn() }));
+vi.mock('../../../api/generated/customers/customers', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getApiCustomersFavorite: vi.fn(),
+}));
 vi.mock('../../docs/docsApi', () => ({ listDocuments: vi.fn() }));
 
 function LocationProbe() {
