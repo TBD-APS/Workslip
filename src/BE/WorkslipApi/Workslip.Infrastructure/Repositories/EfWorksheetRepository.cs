@@ -248,23 +248,22 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
             .FirstOrDefaultAsync(j => j.Id == request.JobId && j.OrganizationId == _currentUser.OrganizationId, cancellationToken)
             ?? throw new InvalidOperationException($"Job with ID {request.JobId} not found");
 
-        var stale = _dbContext.Worksheets.Local
-            .FirstOrDefault(w => request.Id.HasValue
-                ? w.Id == request.Id.Value && w.JobId == request.JobId
-                : w.JobId == request.JobId && w.UserId == request.UserId && w.WorkDate == workDate);
-        if (stale is not null)
-            _dbContext.Entry(stale).State = EntityState.Detached;
+        WorksheetRow? existing = null;
+        if (request.Id.HasValue)
+        {
+            var stale = _dbContext.Worksheets.Local
+                .FirstOrDefault(w => w.Id == request.Id.Value && w.JobId == request.JobId);
+            if (stale is not null)
+                _dbContext.Entry(stale).State = EntityState.Detached;
 
-        var existing = request.Id.HasValue
-            ? await _dbContext.Worksheets
+            existing = await _dbContext.Worksheets
                 .FirstOrDefaultAsync(
                     w => w.Id == request.Id.Value && w.JobId == request.JobId && w.OrganizationId == _currentUser.OrganizationId,
-                    cancellationToken)
-            : await _dbContext.Worksheets
-                .FirstOrDefaultAsync(w => w.JobId == request.JobId && w.UserId == request.UserId && w.WorkDate == workDate, cancellationToken);
+                    cancellationToken);
 
-        if (request.Id.HasValue && existing is null)
-            throw new InvalidOperationException("Worksheet not found");
+            if (existing is null)
+                throw new InvalidOperationException("Worksheet not found");
+        }
 
         var existingId = existing?.Id;
         var existingHoursForUserDay = await _dbContext.Worksheets

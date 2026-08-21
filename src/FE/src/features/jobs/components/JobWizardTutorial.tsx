@@ -15,40 +15,40 @@ type GuideCopy = {
 
 const GUIDE_COPY: Record<JobStepLabel, GuideCopy> = {
   Sagsdetaljer: {
-    title: 'Start med sagens grundoplysninger',
+    title: 'Start med de vigtigste oplysninger',
     description:
-      'Kontrollér kunde, arbejdssted og de grundoplysninger, der beskriver sagen. De påkrævede felter skal være udfyldt, før du kan gå videre.',
-    tip: 'Ret fejl her først. De næste trin bygger videre på disse oplysninger.',
+      'Tjek kunde, arbejdssted og de andre oplysninger om sagen. Felter med * skal være udfyldt, før du kan gå videre.',
+    tip: 'Mangler der noget, så ret det her først. Tryk Næste, når oplysningerne er rigtige.',
   },
   Anlægstyper: {
-    title: 'Vælg det arbejde, der faktisk er udført',
+    title: 'Vælg det arbejde, du har udført',
     description:
-      'Vælg anlægstyper og arbejdstype, så de passer til opgaven. Valgene er med til at bestemme, hvilke kontrolpunkter der bliver relevante bagefter.',
-    tip: 'Vælg kun det, der hører til denne sag. Det gør dokumentationen lettere at gennemgå senere.',
+      'Vælg de anlægstyper og den arbejdstype, der passer til opgaven. Dine valg bestemmer, hvilke kontrolpunkter du får vist bagefter.',
+    tip: 'Vælg kun det, der hører til denne sag. Du kan altid gå tilbage og ændre det senere.',
   },
   Kontrolpunkter: {
-    title: 'Gennemgå kontrolpunkterne',
+    title: 'Gennemgå de relevante kontrolpunkter',
     description:
-      'Vælg mindst ét kontrolpunkt i hver relevant kategori. Hvis en kategori ikke gælder for arbejdet, kan du markere den som ikke relevant. Hvis alle valgte kategorier er irrelevante, kan du tilføje en samlet forklaring.',
-    tip: 'Guiden springer aldrig krav over. Wizardens validering afgør, hvornår du kan gå videre.',
+      'Vælg mindst ét kontrolpunkt i hver relevant kategori. Hvis en kategori ikke gælder for arbejdet, kan du markere den som ikke relevant.',
+    tip: 'Hvis du ikke kan gå videre, så tjek om der mangler et valg eller en forklaring på dette trin.',
   },
   Timesedler: {
-    title: 'Registrér arbejdstid og eventuelle udlæg',
+    title: 'Registrér tid og eventuelle udlæg',
     description:
-      'Tilføj mindst én timeseddel til sagen. Registrér den arbejdstid og de udlæg, der hører til det udførte arbejde.',
-    tip: 'Timesedlerne bliver en del af sagens dokumentation og skal være på plads før afslutningen.',
+      'Tilføj den arbejdstid og de udlæg, der hører til sagen. Du kan have flere timesedler på den samme sag.',
+    tip: 'Tjek at timer og udlæg er rigtige, før du går videre. Du kan gå tilbage og rette dem senere.',
   },
   Afslutning: {
-    title: 'Beskriv hvordan arbejdet blev afsluttet',
+    title: 'Fortæl hvordan arbejdet blev afsluttet',
     description:
-      'Vælg den afslutningsstatus, der passer til resultatet. Hvis arbejdet ikke er færdigt, skal det fremgå tydeligt i stedet for at blive sendt videre som færdigt.',
-    tip: 'Afslutningsstatus hjælper næste person med at forstå, om sagen kræver mere arbejde eller kan gå videre.',
+      'Vælg den afslutning, der passer til arbejdet. Hvis arbejdet ikke er færdigt, skal du vælge det i stedet for at sende sagen videre som færdig.',
+    tip: 'Vælg det, der passer til situationen. Du kan gå tilbage, hvis noget tidligere i sagen skal rettes.',
   },
   Attestering: {
-    title: 'Gennemgå, attestér og send videre',
+    title: 'Tjek sagen én sidste gang',
     description:
-      'Kontrollér sagen samlet og bekræft, at oplysningerne er korrekte. Når du indsender, går sagen videre i Workslips normale gennemsyns- og godkendelsesflow.',
-    tip: 'Brug dette sidste trin som dit kvalitetstjek, før sagen forlader dit arbejdsflow.',
+      'Gennemgå oplysningerne og bekræft, at de er rigtige. Når du sender sagen videre, går den til gennemsyn og godkendelse.',
+    tip: 'Brug Tilbage, hvis du vil ændre noget. Send først sagen videre, når alt ser rigtigt ud.',
   },
 };
 
@@ -110,14 +110,14 @@ export function JobWizardTutorial({ currentStep }: JobWizardTutorialProps) {
         aria-controls="job-wizard-tutorial-panel"
       >
         <HelpCircle size={16} aria-hidden="true" />
-        <span>{isOpen ? 'Skjul guide' : 'Guide til dette trin'}</span>
+        <span>{isOpen ? 'Skjul' : 'Vis hjælp'}</span>
       </button>
 
       {isOpen && (
         <aside
           id="job-wizard-tutorial-panel"
           className="job-wizard-tutorial"
-          aria-label={`Guide til ${step.label}`}
+          aria-label={`Hjælp til ${step.label}`}
           aria-live="polite"
         >
           <div className="job-wizard-tutorial-header">
@@ -126,7 +126,7 @@ export function JobWizardTutorial({ currentStep }: JobWizardTutorialProps) {
             </div>
             <div className="job-wizard-tutorial-heading">
               <span className="job-wizard-tutorial-kicker">
-                Guide · trin {stepIndex + 1} af {JOB_STEPS.length}
+                Trin {stepIndex + 1} af {JOB_STEPS.length}
               </span>
               <h3>{step.label}</h3>
             </div>
@@ -134,7 +134,7 @@ export function JobWizardTutorial({ currentStep }: JobWizardTutorialProps) {
               type="button"
               className="btn-icon job-wizard-tutorial-close"
               onClick={closeGuide}
-              aria-label="Luk guide"
+              aria-label="Skjul hjælp"
             >
               <X size={18} aria-hidden="true" />
             </button>
@@ -146,7 +146,7 @@ export function JobWizardTutorial({ currentStep }: JobWizardTutorialProps) {
             <p className="job-wizard-tutorial-tip">{guide.tip}</p>
           </div>
 
-          <div className="job-wizard-tutorial-progress" aria-label="Jobforløbets trin">
+          <div className="job-wizard-tutorial-progress" aria-label="Sagens trin">
             {JOB_STEPS.map((wizardStep, index) => {
               const isActive = index === stepIndex;
               const isPast = index < stepIndex;
@@ -155,7 +155,7 @@ export function JobWizardTutorial({ currentStep }: JobWizardTutorialProps) {
                   key={wizardStep.label}
                   className={`job-wizard-tutorial-progress-step${isActive ? ' is-active' : ''}${isPast ? ' is-past' : ''}`}
                   aria-current={isActive ? 'step' : undefined}
-                  aria-label={isActive ? `${wizardStep.label} - aktuelt trin` : wizardStep.label}
+                  aria-label={isActive ? `${wizardStep.label} - du er her` : wizardStep.label}
                   title={wizardStep.label}
                 >
                   <span className="job-wizard-tutorial-progress-dot" aria-hidden="true" />
@@ -165,7 +165,7 @@ export function JobWizardTutorial({ currentStep }: JobWizardTutorialProps) {
           </div>
 
           <p className="job-wizard-tutorial-footer">
-            Brug wizardens normale Næste og Tilbage. Guiden følger automatisk med til det aktuelle trin.
+            Brug Tilbage, hvis du vil ændre noget, du allerede har udfyldt. Tryk Næste, når du er klar til at gå videre.
           </p>
         </aside>
       )}
