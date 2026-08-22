@@ -2,6 +2,7 @@ import process from 'node:process';
 
 export function createContractHelpers(env) {
   const { API_TIMEOUT, UI_TIMEOUT, postman } = env;
+  const WIZARD_STEPS = ['Sagsdetaljer', 'Anlægstyper', 'Kontrolpunkter', 'Timesedler', 'Afslutning', 'Attestering'];
 
 function buildDataFactory(collection, runId) {
   const variables = Object.fromEntries((collection.variable ?? []).map((entry) => [entry.key, entry.value]));
@@ -172,12 +173,18 @@ function unwrapCollection(payload) { if (Array.isArray(payload)) return payload;
 function extractInviteToken(value) { if (!value) return null; const text = String(value); return text.includes('/') ? text.split('/').filter(Boolean).pop() : text; }
 function sectionByHeading(page, heading) { return page.locator('section').filter({ has: page.getByRole('heading', { name: heading, exact: true }) }).first(); }
 
+function wizardStepIndex(label) {
+  const index = WIZARD_STEPS.indexOf(label);
+  if (index < 0) throw new Error(`Unknown wizard step: ${label}.`);
+  return index;
+}
+function wizardStepLocator(page, label) { return page.locator(`#job-step-${wizardStepIndex(label)}`); }
 async function fillIfVisible(locator, value) { if (await locator.isVisible().catch(() => false)) await locator.fill(String(value ?? '')); }
 async function waitForEnabled(locator, description, timeout = UI_TIMEOUT) { await locator.waitFor({ state: 'visible', timeout }); const start = Date.now(); while (await locator.isDisabled()) { if (Date.now() - start > timeout) throw new Error(`${description} remained disabled.`); await new Promise((resolve) => setTimeout(resolve, 150)); } }
-async function waitForWizardStep(page, label) { await page.getByRole('button', { name: `${label} - aktuelt trin`, exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT }); }
-async function currentWizardStep(page) { for (const label of ['Sagsdetaljer', 'Anlægstyper', 'Kontrolpunkter', 'Timesedler', 'Afslutning', 'Attestering']) if (await page.getByRole('button', { name: `${label} - aktuelt trin`, exact: true }).isVisible().catch(() => false)) return label; return null; }
+async function waitForWizardStep(page, label) { await page.locator(`#job-step-${wizardStepIndex(label)}[aria-current="step"]`).waitFor({ state: 'visible', timeout: UI_TIMEOUT }); }
+async function currentWizardStep(page) { for (let index = 0; index < WIZARD_STEPS.length; index += 1) if (await page.locator(`#job-step-${index}[aria-current="step"]`).isVisible().catch(() => false)) return WIZARD_STEPS[index]; return null; }
 async function revealStepNavigation(page) {
-  const button = page.getByRole('button', { name: 'Næste', exact: true });
+  const button = page.locator('#job-step-next');
   const shell = page.locator('.app-shell').first();
   if (await shell.count()) {
     await shell.evaluate((element) => {
@@ -221,7 +228,7 @@ async function waitForTransientToastsToClear(page, timeout = 10_000) {
   }
 }
 async function clickNext(page, nextStep) { await waitForTransientToastsToClear(page); const button = await revealStepNavigation(page); await waitForEnabled(button, `Næste before ${nextStep}`); await button.click(); await waitForWizardStep(page, nextStep); }
-async function clickWizardStep(page, label) { const button = page.getByRole('button', { name: new RegExp(`^${escapeRegex(label)}`) }); await button.click(); await waitForWizardStep(page, label); }
+async function clickWizardStep(page, label) { const button = wizardStepLocator(page, label); await button.waitFor({ state: 'visible', timeout: UI_TIMEOUT }); await button.click(); await waitForWizardStep(page, label); }
 async function clickByTextCandidates(locator, values, description) { for (const value of values) { const match = locator.filter({ hasText: value }).first(); if (await match.isVisible().catch(() => false)) { await match.click(); return; } } throw new Error(`No visible ${description} matched runtime values: ${values.join(', ')}.`); }
 async function checkRadioByCandidates(page, values, description) {
   for (const value of values) {
