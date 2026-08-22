@@ -287,7 +287,7 @@ async function createMinimalJobFixtureViaApi(session, customer) {
 
 async function addWorksheetViaUi(session, user, hours) {
   const page = session.page;
-  const add = page.locator('#worksheet-add-trigger');
+  const add = page.locator('#job-worksheet-add-trigger');
   await add.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await waitForEnabled(add, 'worksheet add trigger');
   await add.click();
