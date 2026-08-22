@@ -1,5 +1,6 @@
 import { ChevronRight, Clock, MapPin, Timer, User } from 'lucide-react';
 import { CopyAddressButton } from './CopyAddressButton';
+import { CopyableValue } from './CopyableValue';
 import { formatDate } from '../lib/formatDate';
 import { formatJobStatus, formatJobType } from '../lib/statusLabels';
 
@@ -47,6 +48,7 @@ export function JobCard({
   const users = assignedUsers ?? [];
   const title = customerName || taskDescription || 'Sag uden kunde';
   const number = (reportNumber || id.slice(0, 4)).toUpperCase();
+  const displayNumber = `SAG-${number}`;
   const isRejected = status === 'Rejected';
 
   return (
@@ -66,7 +68,7 @@ export function JobCard({
       <div className="job-card-top">
         <div>
           <span className="job-number">
-            SAG-{number}
+            <CopyableValue field="job.reportNumber" value={displayNumber} />
             {jobType && <><span className="job-number-sep">&middot;</span>{formatJobType(jobType)}</>}
             <span className="job-number-sep">&middot;</span>
             <span className="job-number-status">{formatJobStatus(status)}</span>
@@ -76,13 +78,19 @@ export function JobCard({
           {!isSeen && <span className="unread-dot" role="img" aria-label="Ulæst" />}
           {isNewRejection && <span className="rejected-dot" role="img" aria-label="Ny afvisning" />}
           {showUnassigned && hasAssignmentData && users.length === 0 && <span className="unassigned-dot" role="img" aria-label="Ikke tildelt" />}
-          <h3 className="job-customer">{title}</h3>
+          <h3 className="job-customer">
+            {customerName ? <CopyableValue field="customer.name" value={customerName} /> : title}
+          </h3>
         </div>
       </div>
 
       <p className="job-address-row">
         <MapPin size={14} aria-hidden="true" />
-        <span className="job-address">{address || 'Ingen adresse angivet'}</span>
+        {address ? (
+          <CopyableValue field="address.full" value={address} className="job-address" />
+        ) : (
+          <span className="job-address">Ingen adresse angivet</span>
+        )}
         <CopyAddressButton address={address} />
       </p>
 
@@ -111,7 +119,12 @@ export function JobCard({
           users.length > 0 ? (
             <span className="cell-comma-list">
               {users.map((user) => (
-                <span key={user.id} className="cell-comma-list-item">{user.displayName}</span>
+                <CopyableValue
+                  key={user.id}
+                  field="user.name"
+                  value={user.displayName}
+                  className="cell-comma-list-item"
+                />
               ))}
             </span>
           ) : (

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ErrorState } from '../../../components/ErrorState';
 import { CopyAddressButton } from '../../../components/CopyAddressButton';
+import { CopyableValue } from '../../../components/CopyableValue';
 import { useQueryClient } from '@tanstack/react-query';
 import { notify } from '../../../lib/toast';
 import { useScrollRestore } from '../../../hooks/useScrollRestore';
@@ -14,6 +15,7 @@ import {
   Loader2,
   Mail,
   MapPin,
+  Phone,
   Search,
   Shield,
   Timer,
@@ -221,7 +223,9 @@ export const UserDetail = () => {
         <button className="btn-icon-back" onClick={() => navigate('/app/users')} aria-label="Tilbage">
           <ArrowLeft size={20} />
         </button>
-        <h2 id="user-detail-name">{user.displayName}</h2>
+        <h2 id="user-detail-name">
+          <CopyableValue field="user.name" value={user.displayName} />
+        </h2>
       </div>
 
       <UserRateCard userId={user.id} />
@@ -229,8 +233,14 @@ export const UserDetail = () => {
       <div className="user-detail-info">
         <div className="detail-row">
           <Mail size={16} />
-          <span id="user-detail-email">{user.email}</span>
+          <CopyableValue id="user-detail-email" field="user.email" value={user.email} />
         </div>
+        {user.phone && (
+          <div className="detail-row">
+            <Phone size={16} />
+            <CopyableValue id="user-detail-phone" field="user.phone" value={user.phone} />
+          </div>
+        )}
         <div className="detail-row">
           <Shield size={16} />
           <span>{user.role}</span>
@@ -357,19 +367,19 @@ export const UserDetail = () => {
                 {job.customerName && (
                   <span className="meta-item">
                     <Building2 size={14} />
-                    <span>{job.customerName}</span>
+                    <CopyableValue field="customer.name" value={job.customerName} />
                   </span>
                 )}
                 {job.customerEmail && (
                   <span className="meta-item">
                     <Mail size={14} />
-                    <span>{job.customerEmail}</span>
+                    <CopyableValue field="customer.email" value={job.customerEmail} />
                   </span>
                 )}
                 {job.customerAddress && (
                   <span className="meta-item">
                     <MapPin size={14} />
-                    <span>{job.customerAddress}</span>
+                    <CopyableValue field="address.full" value={job.customerAddress} />
                     <CopyAddressButton address={job.customerAddress} />
                   </span>
                 )}
@@ -418,13 +428,19 @@ export const UserDetail = () => {
             <span className="job-number">
               SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}<span className="job-number-sep">&middot;</span><span className="job-number-status">{formatJobStatus(job.status)}</span>
             </span>
-            <h3 className="job-customer">{customerLabel}</h3>
+            <h3 className="job-customer">
+              <CopyableValue field="customer.name" value={customerLabel} />
+            </h3>
           </div>
         </div>
 
         <p className="job-address-row">
           <MapPin size={14} />
-          <span className="job-address">{address || 'Ingen adresse angivet'}</span>
+          {address ? (
+            <CopyableValue field="address.full" value={address} className="job-address" />
+          ) : (
+            <span className="job-address">Ingen adresse angivet</span>
+          )}
           <CopyAddressButton address={address} />
         </p>
 

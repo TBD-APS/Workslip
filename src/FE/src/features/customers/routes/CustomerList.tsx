@@ -7,6 +7,7 @@ import { Can } from '../../../providers/permissions/Can';
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { ErrorState } from '../../../components/ErrorState';
 import { CopyAddressButton } from '../../../components/CopyAddressButton';
+import { CopyableValue } from '../../../components/CopyableValue';
 import { SearchBar } from '../../../components/filters/SearchBar';
 import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
 import { PaginationControls } from '../../../components/pagination/PaginationControls';
@@ -163,19 +164,38 @@ export const CustomerList = () => {
             <span>Favoritkunder</span>
           </div>
           <div className="favorite-customers-grid">
-            {favoriteCustomers.map((customer) => (
-              <button
-                key={customer.id}
-                className="favorite-customer-card"
-                onClick={() => navigate(`/app/customers/${customer.id}`)}
-                type="button"
-              >
-                <span className="favorite-customer-name">{customer.name}</span>
-                {customer.contactPerson && (
-                  <span className="favorite-customer-contact">{customer.contactPerson}</span>
-                )}
-              </button>
-            ))}
+            {favoriteCustomers.map((customer) => {
+              const openCustomer = () => navigate(`/app/customers/${customer.id}`);
+              return (
+                <div
+                  key={customer.id}
+                  className="favorite-customer-card"
+                  onClick={openCustomer}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openCustomer();
+                    }
+                  }}
+                  role="link"
+                  tabIndex={0}
+                >
+                  <CopyableValue
+                    field="customer.name"
+                    value={customer.name}
+                    className="favorite-customer-name"
+                  />
+                  {customer.contactPerson && (
+                    <CopyableValue
+                      field="customer.contactPerson"
+                      value={customer.contactPerson}
+                      className="favorite-customer-contact"
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -289,17 +309,25 @@ export const CustomerList = () => {
                     >
                       <td>
                         <div className="flex-row-center">
-                          <span>{customer.name}</span>
+                          <CopyableValue id={`customer-list-name-${customer.id}`} field="customer.name" value={customer.name} />
                         </div>
                       </td>
-                      <td>{customer.customerNumber}</td>
                       <td>
-                        <span>{customer.address}</span>
+                        <CopyableValue id={`customer-list-number-${customer.id}`} field="customer.number" value={customer.customerNumber} />
+                      </td>
+                      <td>
+                        <CopyableValue id={`customer-list-address-${customer.id}`} field="address.full" value={customer.address} />
                         <CopyAddressButton address={customer.address} />
                       </td>
-                      <td>{customer.email}</td>
-                      <td>{customer.contactPerson}</td>
-                      <td>{customer.phone}</td>
+                      <td>
+                        <CopyableValue id={`customer-list-email-${customer.id}`} field="customer.email" value={customer.email} />
+                      </td>
+                      <td>
+                        <CopyableValue id={`customer-list-contact-${customer.id}`} field="customer.contactPerson" value={customer.contactPerson} />
+                      </td>
+                      <td>
+                        <CopyableValue id={`customer-list-phone-${customer.id}`} field="customer.phone" value={customer.phone} />
+                      </td>
                       <td className="cell-number">{customer.jobCount}</td>
                       <td className="col-actions">
                         <div className="flex-row-end">
@@ -362,9 +390,18 @@ export const CustomerList = () => {
                     >
                       <div className="job-card-top job-card-top-center">
                         <div className="customer-card-identity">
-                          <h3 className="customer-name">{customer.name}</h3>
+                          <h3 className="customer-name">
+                            <CopyableValue id={`customer-list-name-${customer.id}`} field="customer.name" value={customer.name} />
+                          </h3>
                           {customer.customerNumber && (
-                            <span className="text-muted customer-number">#{customer.customerNumber}</span>
+                            <CopyableValue
+                              id={`customer-list-number-${customer.id}`}
+                              field="customer.number"
+                              value={customer.customerNumber}
+                              className="text-muted customer-number"
+                            >
+                              #{customer.customerNumber}
+                            </CopyableValue>
                           )}
                         </div>
                       </div>
@@ -376,26 +413,26 @@ export const CustomerList = () => {
                         {customer.address && (
                           <span className="meta-item">
                             <MapPin size={14} aria-hidden="true" />
-                            <span>{customer.address}</span>
+                            <CopyableValue id={`customer-list-address-${customer.id}`} field="address.full" value={customer.address} />
                             <CopyAddressButton address={customer.address} />
                           </span>
                         )}
                         {customer.email && (
                           <span className="meta-item">
                             <Mail size={14} aria-hidden="true" />
-                            <span>{customer.email}</span>
+                            <CopyableValue id={`customer-list-email-${customer.id}`} field="customer.email" value={customer.email} />
                           </span>
                         )}
                         {customer.contactPerson && (
                           <span className="meta-item">
                             <Users size={14} aria-hidden="true" />
-                            <span>{customer.contactPerson}</span>
+                            <CopyableValue id={`customer-list-contact-${customer.id}`} field="customer.contactPerson" value={customer.contactPerson} />
                           </span>
                         )}
                         {customer.phone && (
                           <span className="meta-item">
                             <Phone size={14} aria-hidden="true" />
-                            <span>{customer.phone}</span>
+                            <CopyableValue id={`customer-list-phone-${customer.id}`} field="customer.phone" value={customer.phone} />
                           </span>
                         )}
                       </div>
