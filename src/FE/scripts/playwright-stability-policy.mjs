@@ -11,6 +11,7 @@ const BLOCKING_SCENARIOS = new Set([
   'playwright-pdf-performance.mjs',
   'playwright-critical-rare-flows.mjs',
   'playwright-critical-job-lifecycle.mjs',
+  'playwright-duplicate-assignment-lifecycle.mjs',
   'playwright-copyability-lifecycle.mjs',
   'playwright-shared-state-semantics.mjs',
   'playwright-overview-status-navigation.mjs',

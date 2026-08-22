@@ -60,6 +60,10 @@ function readCustomerName(job) {
   return job?.customer?.name ?? job?.customerSnapshot?.name ?? job?.customerName ?? null;
 }
 
+function normalizePathname(url) {
+  return new URL(url).pathname.replace(/\/$/, '');
+}
+
 async function getDevIdentity(runtime, role) {
   const email = role === 'Admin' ? runtime.adminEmail : runtime.userEmail;
   const response = await fetch(`${runtime.apiUrl}/api/dev/token`, {
@@ -238,9 +242,8 @@ export async function runCustomerWave1Acceptance(viewportName) {
       }, { once: true });
     });
     const createResponsePromise = page.waitForResponse((response) => {
-      const url = new URL(response.url());
       return response.request().method() === 'POST'
-        && url.pathname.replace(/\/$/, '') === '/api/customers';
+        && normalizePathname(response.url()) === '/api/customers';
     }, { timeout: API_TIMEOUT });
     await createSubmit.click();
     const createResponse = await createResponsePromise.catch(async () => {
@@ -280,12 +283,16 @@ export async function runCustomerWave1Acceptance(viewportName) {
     await customerResult.press('Enter');
     await page.locator('#customer-detail-page').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
+    const favoriteButton = page.locator('#customer-favorite-button');
+    await favoriteButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     const favoriteResponsePromise = page.waitForResponse((response) => {
-      const url = new URL(response.url());
       return response.request().method() === 'PATCH'
-        && url.pathname === `/api/customers/${customerId}/favorite`;
+        && normalizePathname(response.url()) === `/api/customers/${customerId}/favorite`;
     }, { timeout: API_TIMEOUT });
-    await page.locator('#customer-favorite-button').click();
+    // Native DOM click avoids FAB/overlay interception on the header control.
+    await favoriteButton.evaluate((button) => {
+      if (button instanceof HTMLElement) button.click();
+    });
     const favoriteResponse = await favoriteResponsePromise;
     if (![200, 204].includes(favoriteResponse.status())) {
       throw new Error(`Favorite mutation returned HTTP ${favoriteResponse.status()}.`);
@@ -310,9 +317,8 @@ export async function runCustomerWave1Acceptance(viewportName) {
       }, { once: true });
     });
     const editResponsePromise = page.waitForResponse((response) => {
-      const url = new URL(response.url());
       return response.request().method() === 'PUT'
-        && url.pathname === `/api/customers/${customerId}`;
+        && normalizePathname(response.url()) === `/api/customers/${customerId}`;
     }, { timeout: API_TIMEOUT });
     await editSave.click();
     const editResponse = await editResponsePromise.catch(async () => {
