@@ -167,7 +167,7 @@ jobs:
 
       - name: Upload Kimi evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wor674-kimi-5-0-1-evidence-${{ github.run_id }}
           path: |
