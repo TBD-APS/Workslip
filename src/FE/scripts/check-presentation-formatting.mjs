@@ -60,7 +60,7 @@ for (const file of files) {
     pattern.lastIndex = 0;
     for (const match of source.matchAll(pattern)) {
       findings.push({
-        file: path.relative(FRONTEND_ROOT, file),
+        file: path.relative(FRONTEND_ROOT, file).split(path.sep).join('/'),
         line: lineNumberAt(source, match.index ?? 0),
         label,
       });

@@ -4,6 +4,7 @@ import { ArrowLeft, Hash, Heart, Mail, MapPin, MoreHorizontal, Phone, PlusCircle
 import { Can } from '../../../providers/permissions/Can';
 import { ErrorState } from '../../../components/ErrorState';
 import { CopyAddressButton } from '../../../components/CopyAddressButton';
+import { CopyableValue } from '../../../components/CopyableValue';
 import {
   getGetApiCustomersIdQueryKey,
   getGetApiCustomersQueryKey,
@@ -100,7 +101,9 @@ export const CustomerDetail = () => {
           <ArrowLeft size={20} />
         </button>
         <div className="flex-1">
-          <h2>{customer.name}</h2>
+          <h2>
+            <CopyableValue id="customer-detail-name" field="customer.name" value={customer.name} />
+          </h2>
           <p className="subtitle">{customer.customerNumber ? `${customer.customerNumber} · ` : ''}{customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}</p>
         </div>
         <Can permission="customer:edit">
@@ -162,23 +165,35 @@ export const CustomerDetail = () => {
       <section className="detail-section">
         <div className="customer-detail-info">
           {customer.customerNumber && (
-            <div className="detail-row"><Hash size={16} /><span>{customer.customerNumber}</span></div>
+            <div className="detail-row">
+              <Hash size={16} />
+              <CopyableValue id="customer-detail-number" field="customer.number" value={customer.customerNumber} />
+            </div>
           )}
           {fullAddress && (
             <div className="detail-row">
               <MapPin size={16} />
-              <span>{fullAddress}</span>
-              <CopyAddressButton address={fullAddress} />
+              <CopyableValue id="customer-detail-address" field="address.full" value={fullAddress} />
+              <CopyAddressButton id="customer-detail-address-actions" address={fullAddress} />
             </div>
           )}
           {customer.email && (
-            <div className="detail-row"><Mail size={16} /><span>{customer.email}</span></div>
+            <div className="detail-row">
+              <Mail size={16} />
+              <CopyableValue id="customer-detail-email" field="customer.email" value={customer.email} />
+            </div>
           )}
           {customer.contactPerson && (
-            <div className="detail-row"><Users size={16} /><span>{customer.contactPerson}</span></div>
+            <div className="detail-row">
+              <Users size={16} />
+              <CopyableValue id="customer-detail-contact" field="customer.contactPerson" value={customer.contactPerson} />
+            </div>
           )}
           {customer.phone && (
-            <div className="detail-row"><Phone size={16} /><span>{customer.phone}</span></div>
+            <div className="detail-row">
+              <Phone size={16} />
+              <CopyableValue id="customer-detail-phone" field="customer.phone" value={customer.phone} />
+            </div>
           )}
         </div>
       </section>

@@ -1,0 +1,461 @@
+.time-overview-page {
+  max-width: none;
+  padding: 0 1rem 2rem;
+}
+
+.time-overview-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.time-overview-header > div:first-child {
+  min-width: 0;
+}
+
+.time-overview-header h2 {
+  margin-bottom: 0.2rem;
+}
+
+.time-month-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.time-month-switcher {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(9rem, auto) 2.5rem;
+  align-items: center;
+  min-height: 2.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.time-month-switcher > span {
+  padding: 0 0.75rem;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.time-month-button {
+  width: 2.5rem;
+  min-width: 2.5rem;
+  height: 2.5rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.time-month-button:first-child {
+  border-right: 1px solid var(--border);
+}
+
+.time-month-button:last-child {
+  border-left: 1px solid var(--border);
+}
+
+.time-today-button {
+  min-height: 2.5rem;
+  padding: 0 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.time-today-button:disabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.65;
+}
+
+.timer-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 1rem;
+  border-block: 1px solid var(--border);
+}
+
+.timer-summary-item {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.12rem;
+  padding: 0.75rem 1rem;
+}
+
+.timer-summary-item + .timer-summary-item {
+  border-left: 1px solid var(--border);
+}
+
+.timer-summary-item span {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.timer-summary-item strong {
+  color: var(--text);
+  font-size: 1.15rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-desktop-overview,
+.timer-desktop-skeleton {
+  display: none;
+}
+
+.timer-mobile-overview {
+  display: flex;
+}
+
+.timer-view-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.timer-view-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+
+.timer-view-button {
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.timer-view-button.is-active {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.timer-ledger {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.timer-ledger-columns,
+.timer-ledger-row {
+  display: grid;
+  grid-template-columns: 6.75rem 7.5rem minmax(13rem, 1fr) 5.5rem 5rem;
+  align-items: center;
+  min-width: 0;
+  column-gap: 0.75rem;
+}
+
+.timer-ledger.is-admin .timer-ledger-columns,
+.timer-ledger.is-admin .timer-ledger-row {
+  grid-template-columns: 6.75rem minmax(8.5rem, 0.8fr) 7.5rem minmax(12rem, 1.3fr) 5.5rem 5rem;
+}
+
+.timer-ledger-columns {
+  min-height: 2.5rem;
+  padding: 0 0.9rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.timer-ledger-columns .is-numeric {
+  text-align: right;
+}
+
+.timer-ledger-week + .timer-ledger-week {
+  border-top: 1px solid var(--border-strong);
+}
+
+.timer-ledger-week-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 2.85rem;
+  padding: 0.55rem 0.9rem;
+  background: color-mix(in srgb, var(--surface-raised) 78%, var(--bg));
+}
+
+.timer-ledger-week-title {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  gap: 0.55rem;
+}
+
+.timer-ledger-week-title strong {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.timer-ledger-week-title span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timer-ledger-week-total {
+  flex: 0 0 auto;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-ledger-row {
+  position: relative;
+  min-height: 3.8rem;
+  padding: 0.5rem 0.9rem;
+  border-top: 1px solid var(--border);
+  color: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.14s ease;
+}
+
+@media (hover: hover) {
+  .timer-ledger-row:hover {
+    background: var(--surface-raised);
+  }
+
+  .timer-ledger-row:hover .timer-ledger-address .address-actions,
+  .timer-ledger-row:focus-within .timer-ledger-address .address-actions {
+    opacity: 1;
+  }
+}
+
+.timer-ledger-row:focus-visible {
+  z-index: 1;
+  box-shadow: inset 0 0 0 2px var(--focus-ring);
+}
+
+.timer-ledger-date,
+.timer-ledger-person,
+.timer-ledger-case,
+.timer-ledger-hours,
+.timer-ledger-outlay {
+  min-width: 0;
+  font-size: var(--fs-sm);
+}
+
+.timer-ledger-date,
+.timer-ledger-person {
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timer-ledger-case {
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.timer-ledger-customer {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.timer-ledger-customer strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timer-ledger-address {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.timer-ledger-address > svg {
+  flex: 0 0 auto;
+}
+
+.timer-ledger-address > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timer-ledger-address .address-actions {
+  flex: 0 0 auto;
+  transition: opacity 0.14s ease;
+}
+
+.timer-ledger-hours,
+.timer-ledger-outlay {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-ledger-hours {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.timer-ledger-outlay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  color: var(--text-muted);
+}
+
+.timer-ledger-outlay.has-outlay {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.timer-admin-week-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.timer-admin-week-view .admin-week-card {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.timer-admin-week-view .admin-week-card.is-current {
+  border-color: var(--border-strong);
+  box-shadow: inset 3px 0 0 var(--focus-ring);
+}
+
+.timer-admin-week-view .admin-week-table {
+  min-width: 760px;
+}
+
+.timer-desktop-skeleton {
+  overflow: hidden;
+  min-height: 14rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.timer-desktop-skeleton::before,
+.timer-desktop-skeleton::after {
+  content: '';
+  display: block;
+  height: 3.75rem;
+  margin: 3rem 1rem 0;
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  animation: timer-ledger-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.timer-desktop-skeleton::after {
+  margin-top: 0.75rem;
+}
+
+@keyframes timer-ledger-pulse {
+  to {
+    opacity: 0.5;
+  }
+}
+
+@media (min-width: 1024px) {
+  .time-overview-page {
+    padding: 0 clamp(1.5rem, 3vw, 2.75rem) 2.5rem;
+  }
+
+  .time-overview-header {
+    margin-bottom: 0.9rem;
+  }
+
+  .timer-desktop-overview,
+  .timer-desktop-skeleton {
+    display: block;
+  }
+
+  .timer-mobile-overview {
+    display: none;
+  }
+
+  .time-overview-page .hours-export-toolbar {
+    margin: 0 0 0.9rem;
+    padding: 0.35rem 0 0.85rem;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    background: transparent;
+  }
+}
+
+@media (max-width: 760px) {
+  .time-overview-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .time-month-controls {
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .time-month-switcher {
+    flex: 1 1 auto;
+  }
+
+  .time-today-button {
+    flex: 1 1 100%;
+  }
+
+  .timer-summary-item {
+    padding-inline: 0.65rem;
+  }
+
+  .timer-summary-item strong {
+    font-size: 1rem;
+  }
+}

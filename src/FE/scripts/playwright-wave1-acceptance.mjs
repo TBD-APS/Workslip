@@ -264,11 +264,23 @@ export async function runCustomerWave1Acceptance(viewportName) {
     customerId = customer?.id ?? null;
     if (!customerId) throw new Error('UI customer create did not return an id.');
 
-    // Open detail by absolute URL. Avoid list search debounce and overlay races.
-    await page.goto(`${runtime.appUrl}/app/customers/${customerId}`, {
-      waitUntil: 'domcontentloaded',
-      timeout: UI_TIMEOUT,
-    });
+    await page.locator('#create-customer-success-list').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await page.locator('#create-customer-success-list').click();
+    await page.locator('#customer-search-input').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+    const searchResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return response.request().method() === 'GET'
+        && url.pathname === '/api/customers'
+        && url.searchParams.get('search') === customerName
+        && response.status() === 200;
+    }, { timeout: API_TIMEOUT });
+    await page.locator('#customer-search-input').fill(customerName);
+    await searchResponsePromise;
+    const customerResult = page.locator(`#customer-list-item-${customerId}`);
+    await customerResult.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await customerResult.focus();
+    await customerResult.press('Enter');
     await page.locator('#customer-detail-page').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
     const favoriteButton = page.locator('#customer-favorite-button');

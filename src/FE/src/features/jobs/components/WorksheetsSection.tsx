@@ -64,7 +64,7 @@ export function WorksheetsSection({
   const addDisabled = canPickUser && isLoadingUsers;
 
   return (
-    <section className="detail-section worksheet-list-section">
+    <section id="worksheet-section" className="detail-section worksheet-list-section">
       <div className="section-header-row attestation-compact-header">
         <Timer size={18} />
         <h3>Timesedler</h3>
@@ -93,8 +93,10 @@ export function WorksheetsSection({
           currentUserName={currentUserName}
           isLoadingUsers={isLoadingUsers}
           isSaving={isSaving}
+          formId="worksheet-add-form"
           hoursInputId="worksheet-add-hours"
           submitId="worksheet-add-submit"
+          cancelId="worksheet-add-cancel"
           submitLabel="Tilføj"
           error={formError}
           onDraftChange={onAddDraftChange}

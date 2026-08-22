@@ -270,8 +270,8 @@ export async function runFocusedAdminScenario(scenarioName, viewportName) {
     auth.role = null;
   }
 
-  async function apiExpect(method, pathname, body, expectedStatuses = [200]) {
-    const headers = { Accept: 'application/json' };
+  async function apiExpect(method, pathname, body, expectedStatuses = [200], extraHeaders = {}) {
+    const headers = { Accept: 'application/json', ...extraHeaders };
     if (auth.token) headers.Authorization = `Bearer ${auth.token}`;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (method === 'POST' && ['/api/customers/', '/api/jobs/'].includes(pathname)) {

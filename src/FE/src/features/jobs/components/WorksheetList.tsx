@@ -52,7 +52,11 @@ export function WorksheetList({
         const isEditing = editingWorksheetId === worksheet.id && editDraft;
 
         return (
-          <li key={worksheet.id} className={`worksheet-list-item ${isDetailList ? 'worksheet-list-item--detail' : ''} ${isEditing ? 'worksheet-list-item--editing is-selected' : ''}`}>
+          <li
+            id={`worksheet-item-${worksheet.id}`}
+            key={worksheet.id}
+            className={`worksheet-list-item ${isDetailList ? 'worksheet-list-item--detail' : ''} ${isEditing ? 'worksheet-list-item--editing is-selected' : ''}`}
+          >
             {!isEditing && (
               isDetailList ? (
                 <>
@@ -72,6 +76,7 @@ export function WorksheetList({
                   <div className="worksheet-list-item-actions worksheet-list-item-actions--detail">
                     <div className="worksheet-actions-menu-root">
                       <button
+                        id={`worksheet-actions-${worksheet.id}`}
                         type="button"
                         className="btn-icon"
                         onClick={(event) => onToggleActionMenu(event, worksheet.id)}
@@ -100,6 +105,7 @@ export function WorksheetList({
                     <div className="worksheet-list-item-actions">
                       <div className="worksheet-actions-menu-root">
                         <button
+                          id={`worksheet-actions-${worksheet.id}`}
                           type="button"
                           className="btn-icon"
                           onClick={(event) => onToggleActionMenu(event, worksheet.id)}
@@ -126,6 +132,10 @@ export function WorksheetList({
                   currentUserName={currentUserName}
                   isLoadingUsers={isLoadingUsers}
                   isSaving={isSaving}
+                  formId={`worksheet-edit-form-${worksheet.id}`}
+                  hoursInputId={`worksheet-edit-hours-${worksheet.id}`}
+                  submitId={`worksheet-edit-submit-${worksheet.id}`}
+                  cancelId={`worksheet-edit-cancel-${worksheet.id}`}
                   submitLabel="Gem"
                   error={formError}
                   onDraftChange={onEditDraftChange}
