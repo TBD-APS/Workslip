@@ -103,6 +103,19 @@ async function assignmentLifecycleFlow(session) {
     session.assignmentCopies = copyByAssignedUserId;
   });
 
+  const waitForSeenResponse = (jobId, viewType) => session.page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    const matchesViewType = viewType === undefined
+      ? !url.searchParams.has('viewType')
+      : url.searchParams.get('viewType') === viewType;
+    return response.request().method() === 'POST'
+      && url.pathname === `/api/jobs/${jobId}/seen`
+      && matchesViewType;
+  }, { timeout: API_TIMEOUT });
+  const assertSeenSuccess = (response, label) => {
+    if (![200, 204].includes(response.status())) throw new Error(`${label} returned HTTP ${response.status()}.`);
+  };
+
   await session.step('each assignee completes only their own duplicate', async () => {
     const [user, admin] = session.assignmentUsers;
     const userJob = session.assignmentCopies.get(user.id);
@@ -114,7 +127,9 @@ async function assignmentLifecycleFlow(session) {
     const assignedJobs = unwrapCollection(await session.apiExpect('GET', '/api/jobs/my-assigned', undefined, [200]));
     if (!assignedJobs.some((item) => item.id === userJob.id)) throw new Error('User cannot see their duplicated assignment.');
     if (assignedJobs.some((item) => item.id === adminJob.id)) throw new Error('User can see another assignee’s duplicated assignment.');
+    const userSeenResponse = waitForSeenResponse(userJob.id);
     await completeAndSubmitKlsViaUi(session, userJob);
+    assertSeenSuccess(await userSeenResponse, 'User job seen mutation');
     const userSubmitted = await session.apiExpect('GET', `/api/jobs/${userJob.id}`, undefined, [200]);
     assertStatus(userSubmitted, ['InReview']);
     await session.logout();
@@ -122,7 +137,9 @@ async function assignmentLifecycleFlow(session) {
     await session.login('Admin');
     const adminDraft = await session.apiExpect('GET', `/api/jobs/${adminJob.id}`, undefined, [200]);
     assertStatus(adminDraft, ['Draft', 'Kladde']);
+    const adminSeenResponse = waitForSeenResponse(adminJob.id);
     await completeAndSubmitKlsViaUi(session, adminJob);
+    assertSeenSuccess(await adminSeenResponse, 'Admin job seen mutation');
     const adminSubmitted = await session.apiExpect('GET', `/api/jobs/${adminJob.id}`, undefined, [200]);
     assertStatus(adminSubmitted, ['InReview']);
   });
@@ -131,7 +148,11 @@ async function assignmentLifecycleFlow(session) {
     for (const assignedUser of session.assignmentUsers) {
       const copy = session.assignmentCopies.get(assignedUser.id);
       if (!copy?.id) throw new Error('Missing duplicate job before approval.');
+      const reportSeenResponse = waitForSeenResponse(copy.id);
+      const approvedSeenResponse = waitForSeenResponse(copy.id, 'Completed');
       await approveJobViaUi(session, copy.id);
+      assertSeenSuccess(await reportSeenResponse, 'In-review report seen mutation');
+      assertSeenSuccess(await approvedSeenResponse, 'Approved job seen mutation');
       const approved = await session.apiExpect('GET', `/api/jobs/${copy.id}`, undefined, [200]);
       assertStatus(approved, ['Approved', 'Godkendt']);
     }
@@ -212,26 +233,64 @@ async function worksheetIntegrityFlow(session) {
   });
 
   await session.step('edit and delete worksheet without duplicates', async () => {
-    await session.page.getByRole('button', { name: 'Åbn handlinger for timeseddel', exact: true }).first().click();
-    await session.page.getByRole('menuitem', { name: 'Rediger', exact: true }).click();
-    const hours = session.page.getByLabel('Timer', { exact: true });
+    const worksheetId = session.worksheetId;
+    if (!worksheetId) throw new Error('Worksheet id is unavailable before edit/delete verification.');
+
+    await session.page.locator(`#worksheet-actions-${worksheetId}`).click();
+    await session.page.locator(`#worksheet-action-edit-${worksheetId}`).click();
+    const hours = session.page.locator(`#worksheet-edit-hours-${worksheetId}`);
+    await hours.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await hours.fill('2,25');
-    const updateResponse = waitForApiResponse(session.page, 'POST', `/api/worksheets/jobs/${job.id}`, [200]);
-    await session.page.getByRole('button', { name: 'Gem', exact: true }).click();
-    await updateResponse;
+    const submit = session.page.locator(`#worksheet-edit-submit-${worksheetId}`);
+    await submit.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await waitForEnabled(submit, 'worksheet edit submit');
+    await submit.focus();
+
+    const updateRequestPromise = session.page.waitForRequest((request) =>
+      request.method() === 'POST'
+        && new URL(request.url()).pathname === `/api/worksheets/jobs/${job.id}`,
+    { timeout: API_TIMEOUT });
+    const updateResponsePromise = session.page.waitForResponse((response) =>
+      response.request().method() === 'POST'
+        && new URL(response.url()).pathname === `/api/worksheets/jobs/${job.id}`,
+    { timeout: API_TIMEOUT });
+    await submit.click();
+    const updateRequest = await updateRequestPromise;
+    const updateResponse = await updateResponsePromise;
+    if (updateResponse.request() !== updateRequest) {
+      throw new Error('Worksheet edit response did not correspond to the observed update request.');
+    }
+    if (updateResponse.status() !== 200) {
+      throw new Error(`Worksheet edit returned HTTP ${updateResponse.status()}.`);
+    }
+
     let persisted = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
     const matches = persisted.worksheets.filter((item) => item.userId === session.worksheetUser.id && Number(item.hoursWorked) === 2.25);
     if (matches.length !== 1) throw new Error(`Expected one updated worksheet; found ${matches.length}.`);
 
-    await session.page.getByRole('button', { name: 'Åbn handlinger for timeseddel', exact: true }).first().click();
-    await session.page.getByRole('menuitem', { name: 'Slet', exact: true }).click();
-    const dialog = session.page.getByRole('dialog', { name: 'Slet timeseddel' });
+    await session.page.locator(`#worksheet-actions-${worksheetId}`).click();
+    await session.page.locator(`#worksheet-action-delete-${worksheetId}`).click();
+    const dialog = session.page.locator('#confirm-delete-dialog');
     await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    const deleteResponse = waitForApiResponse(session.page, 'DELETE', `/api/worksheets/${session.worksheetId}/jobs/${job.id}`, [200]);
-    await dialog.getByRole('button', { name: 'Slet', exact: true }).click();
-    await deleteResponse;
+    const deletePath = `/api/worksheets/${worksheetId}/jobs/${job.id}`;
+    const deleteRequestPromise = session.page.waitForRequest((request) =>
+      request.method() === 'DELETE' && new URL(request.url()).pathname === deletePath,
+    { timeout: API_TIMEOUT });
+    const deleteResponsePromise = session.page.waitForResponse((response) =>
+      response.request().method() === 'DELETE' && new URL(response.url()).pathname === deletePath,
+    { timeout: API_TIMEOUT });
+    await session.page.locator('#confirm-delete-confirm').click();
+    const deleteRequest = await deleteRequestPromise;
+    const deleteResponse = await deleteResponsePromise;
+    if (deleteResponse.request() !== deleteRequest) {
+      throw new Error('Worksheet delete response did not correspond to the observed delete request.');
+    }
+    if (deleteResponse.status() !== 200) {
+      throw new Error(`Worksheet delete returned HTTP ${deleteResponse.status()}.`);
+    }
+
     persisted = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
-    if (persisted.worksheets.some((item) => item.id === session.worksheetId)) throw new Error('Deleted worksheet still exists.');
+    if (persisted.worksheets.some((item) => item.id === worksheetId)) throw new Error('Deleted worksheet still exists.');
   });
 }
 
