@@ -197,6 +197,7 @@ run_scenario 'critical job lifecycle flows' scripts/playwright-critical-job-life
 run_scenario 'customer lifecycle evidence' scripts/playwright-customer-lifecycle.mjs
 run_scenario 'worksheet integrity evidence' scripts/playwright-worksheet-integrity.mjs
 run_scenario 'notification and people lifecycle evidence' scripts/playwright-notification-people-lifecycle.mjs
+run_scenario 'global copyability evidence' scripts/playwright-copyability-lifecycle.mjs
 run_scenario 'shared state semantics evidence' scripts/playwright-shared-state-semantics.mjs
 run_scenario 'overview status navigation evidence' scripts/playwright-overview-status-navigation.mjs
 run_scenario 'WOR-542 Admin Overview + Timer isolation evidence' scripts/playwright-power-bi-admin-overview.mjs
