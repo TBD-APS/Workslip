@@ -6,6 +6,9 @@ import { ErrorState } from '../../../components/ErrorState';
 import { CopyAddressButton } from '../../../components/CopyAddressButton';
 import { apiClient } from '../../../lib/axios';
 import { abbreviateName } from '../../../lib/formatUtils';
+import { formatDayMonth, formatMonthYear, formatWeekdayDay } from '../../../lib/presentation/date';
+import { formatNumber as formatPresentationNumber } from '../../../lib/presentation/number';
+import { compareUiText } from '../../../lib/presentation/text';
 import { useIsAdmin } from '../../../providers/permissions';
 import { useAppScrollRestoreKey } from '../../../hooks/useAppRouteScroll';
 import { AdminHoursExport } from '../components/AdminHoursExport';
@@ -16,6 +19,7 @@ import type {
   MyWorksheetWeekResponse,
   MyWorksheetsMonthResponse,
 } from '../worksheetOverviewTypes';
+import './MyWorksheets.css';
 
 type MonthCursor = { year: number; month: number };
 type TimerOverviewState = {
@@ -23,6 +27,7 @@ type TimerOverviewState = {
   expandedWeeks: string[];
   scrollTop: number;
 };
+type TimerDesktopView = 'ledger' | 'week';
 
 type AdminUserWeek = {
   displayName: string;
@@ -32,11 +37,6 @@ type AdminUserWeek = {
 
 const TIMER_OVERVIEW_STATE_KEY = 'workslip.timerOverviewState';
 
-const MONTH_FORMATTER = new Intl.DateTimeFormat('da-DK', { month: 'short', year: 'numeric' });
-const DAY_FORMATTER = new Intl.DateTimeFormat('da-DK', { weekday: 'short', day: 'numeric' });
-const WEEK_RANGE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'short' });
-const DANISH_NAME_COLLATOR = new Intl.Collator('da-DK', { sensitivity: 'base' });
-
 function AdminWeeklyOverview({
   data,
   currentWeekStart,
@@ -45,7 +45,7 @@ function AdminWeeklyOverview({
   currentWeekStart: string;
 }) {
   return (
-    <section className="admin-weekly-overview">
+    <section id="timer-week-overview" className="admin-weekly-overview timer-admin-week-view">
       {data.weeks.map((week) => {
         const isCurrentWeek = week.weekStart === currentWeekStart;
         const users = new Map<string, AdminUserWeek>();
@@ -72,12 +72,16 @@ function AdminWeeklyOverview({
         });
 
         const orderedUsers = Array.from(users.entries()).sort((left, right) => {
-          const nameComparison = DANISH_NAME_COLLATOR.compare(left[1].displayName, right[1].displayName);
+          const nameComparison = compareUiText(left[1].displayName, right[1].displayName);
           return nameComparison !== 0 ? nameComparison : left[0].localeCompare(right[0]);
         });
 
         return (
-          <div key={week.weekStart} className={`admin-week-card ${isCurrentWeek ? 'is-current' : ''}`}>
+          <div
+            id={`timer-week-matrix-${week.weekStart}`}
+            key={week.weekStart}
+            className={`admin-week-card ${isCurrentWeek ? 'is-current' : ''}`}
+          >
             <table className="admin-week-table">
               <thead>
                 <tr>
@@ -90,9 +94,10 @@ function AdminWeeklyOverview({
                     const date = parseDate(day.date);
                     const dayOfWeek = date.getDay();
                     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                    const weekday = (formatWeekdayDay(date) ?? '').split(' ')[0];
                     return (
                       <th key={day.date} className={`admin-col-day ${isWeekend ? 'admin-col-weekend' : ''}`}>
-                        <span className="admin-day-short">{DAY_FORMATTER.format(date).split(' ')[0]}</span>
+                        <span className="admin-day-short">{weekday}</span>
                         <span className="admin-day-num">{date.getDate()}</span>
                       </th>
                     );
@@ -103,7 +108,7 @@ function AdminWeeklyOverview({
                 {orderedUsers.map(([userId, user]) => (
                   <tr key={userId} className="admin-user-row">
                     <td className="admin-col-name admin-user-name">{user.displayName}</td>
-                    <td className="admin-col-total admin-user-total">{formatNumber(user.totalHours)}</td>
+                    <td className="admin-col-total admin-user-total">{formatNumeric(user.totalHours)}</td>
                     {week.days.map((day) => {
                       const dayData = user.days.get(day.date);
                       const date = parseDate(day.date);
@@ -111,7 +116,7 @@ function AdminWeeklyOverview({
                       const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                       return (
                         <td key={day.date} className={`admin-col-day admin-col-hours ${isWeekend ? 'admin-col-weekend' : ''}`}>
-                          {dayData ? formatNumber(dayData.hours) : '—'}
+                          {dayData ? formatNumeric(dayData.hours) : '—'}
                         </td>
                       );
                     })}
@@ -119,14 +124,14 @@ function AdminWeeklyOverview({
                 ))}
                 <tr className="admin-row-total">
                   <td className="admin-col-name">I alt pr. dag</td>
-                  <td className="admin-col-total">{formatNumber(week.totalHours)}</td>
+                  <td className="admin-col-total">{formatNumeric(week.totalHours)}</td>
                   {week.days.map((day) => {
                     const date = parseDate(day.date);
                     const dayOfWeek = date.getDay();
                     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                     return (
                       <td key={day.date} className={`admin-col-day admin-col-hours ${isWeekend ? 'admin-col-weekend' : ''}`}>
-                        {formatNumber(day.totalHours)}
+                        {formatNumeric(day.totalHours)}
                       </td>
                     );
                   })}
@@ -134,6 +139,143 @@ function AdminWeeklyOverview({
               </tbody>
             </table>
           </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function TimerDesktopOverview({
+  data,
+  isAdmin,
+  currentWeekStart,
+  onOpenJob,
+}: {
+  data: MyWorksheetsMonthResponse;
+  isAdmin: boolean;
+  currentWeekStart: string;
+  onOpenJob: (jobId: string) => void;
+}) {
+  const [view, setView] = useState<TimerDesktopView>('ledger');
+
+  return (
+    <div className="timer-desktop-overview">
+      {isAdmin && (
+        <div className="timer-view-toolbar">
+          <div className="timer-view-switcher" role="group" aria-label="Vælg timevisning">
+            <button
+              id="timer-view-ledger"
+              type="button"
+              className={`timer-view-button ${view === 'ledger' ? 'is-active' : ''}`}
+              aria-pressed={view === 'ledger'}
+              onClick={() => setView('ledger')}
+            >
+              Registreringer
+            </button>
+            <button
+              id="timer-view-week"
+              type="button"
+              className={`timer-view-button ${view === 'week' ? 'is-active' : ''}`}
+              aria-pressed={view === 'week'}
+              onClick={() => setView('week')}
+            >
+              Ugeoversigt
+            </button>
+          </div>
+        </div>
+      )}
+
+      {view === 'ledger' || !isAdmin ? (
+        <TimerLedger data={data} isAdmin={isAdmin} currentWeekStart={currentWeekStart} onOpenJob={onOpenJob} />
+      ) : (
+        <AdminWeeklyOverview data={data} currentWeekStart={currentWeekStart} />
+      )}
+    </div>
+  );
+}
+
+function TimerLedger({
+  data,
+  isAdmin,
+  currentWeekStart,
+  onOpenJob,
+}: {
+  data: MyWorksheetsMonthResponse;
+  isAdmin: boolean;
+  currentWeekStart: string;
+  onOpenJob: (jobId: string) => void;
+}) {
+  return (
+    <section id="timer-ledger" className={`timer-ledger ${isAdmin ? 'is-admin' : ''}`} aria-label="Timeregistreringer">
+      <div className="timer-ledger-columns" aria-hidden="true">
+        <span>Dato</span>
+        {isAdmin && <span>Medarbejder</span>}
+        <span>Sag</span>
+        <span>Kunde</span>
+        <span className="is-numeric">Timer</span>
+        <span className="is-numeric">Udlæg</span>
+      </div>
+
+      {data.weeks.map((week) => {
+        const entries = week.days.flatMap((day) => day.entries.map((entry) => ({ day, entry })));
+        if (entries.length === 0) return null;
+        const isCurrentWeek = week.weekStart === currentWeekStart;
+
+        return (
+          <section id={`timer-ledger-week-${week.weekStart}`} key={week.weekStart} className="timer-ledger-week">
+            <header className="timer-ledger-week-header">
+              <div className="timer-ledger-week-title">
+                <strong>Uge {getIsoWeek(week.weekStart)}{isCurrentWeek ? ' · Nu' : ''}</strong>
+                <span>{formatWeekRange(week.weekStart, week.weekEnd)}</span>
+              </div>
+              <span className="timer-ledger-week-total">{formatNumeric(week.totalHours)} t</span>
+            </header>
+
+            {entries.map(({ day, entry }) => {
+              const entryId = getTimerEntryDomId(entry);
+              const openEntry = () => onOpenJob(entry.jobId);
+              return (
+                <div
+                  id={entryId}
+                  key={entryId}
+                  className="timer-ledger-row"
+                  onClick={openEntry}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openEntry();
+                    }
+                  }}
+                  role="link"
+                  tabIndex={0}
+                  aria-label={`Åbn sag ${(entry.reportNumber || entry.jobId).toUpperCase()}`}
+                >
+                  <span className="timer-ledger-date">{formatWeekdayDay(parseDate(day.date))}</span>
+                  {isAdmin && (
+                    <span className="timer-ledger-person" title={entry.userDisplayName?.trim() || 'Ukendt medarbejder'}>
+                      {entry.userDisplayName?.trim() || 'Ukendt medarbejder'}
+                    </span>
+                  )}
+                  <span className="timer-ledger-case">SAG-{(entry.reportNumber || entry.jobId.slice(0, 4)).toUpperCase()}</span>
+                  <span className="timer-ledger-customer">
+                    <strong>{entry.customerName}</strong>
+                    {entry.customerAddress && (
+                      <span className="timer-ledger-address">
+                        <MapPin size={12} aria-hidden="true" />
+                        <span>{entry.customerAddress}</span>
+                        <CopyAddressButton address={entry.customerAddress} />
+                      </span>
+                    )}
+                  </span>
+                  <span className="timer-ledger-hours">{formatNumeric(entry.hoursWorked)} t</span>
+                  <span className={`timer-ledger-outlay ${entry.hasOutlay ? 'has-outlay' : ''}`}>
+                    {entry.hasOutlay ? <><ReceiptText size={13} aria-hidden="true" /> Ja</> : '—'}
+                  </span>
+                </div>
+              );
+            })}
+          </section>
         );
       })}
     </section>
@@ -165,6 +307,7 @@ export function MyWorksheets() {
   const data = query.data;
   const monthLabel = useMemo(() => formatMonth(cursor), [cursor]);
   const isCurrentMonth = sameMonth(cursor, getCurrentMonthCursor());
+  const entryCount = data ? countEntries(data.weeks) : 0;
 
   useEffect(() => {
     writeTimerOverviewState(cursor, expandedWeeks, getAppScrollTop());
@@ -209,23 +352,36 @@ export function MyWorksheets() {
   };
 
   return (
-    <div className={`page-container time-overview-page ${isAdmin ? 'time-overview-page--admin' : ''}`}>
+    <div id="timer-page" className={`page-container time-overview-page ${isAdmin ? 'time-overview-page--admin' : ''}`}>
       <div className="page-header time-overview-header">
         <div>
           <h2>{isAdmin ? 'Alles timer' : 'Mine timer'}</h2>
           <p className="subtitle">Ugentligt overblik over sager, timer og udlæg</p>
         </div>
         <div className="time-month-controls">
-          <div className="time-month-switcher" aria-label="Vælg måned">
-            <button type="button" className="btn-icon time-month-button" onClick={() => selectMonth(addMonths(cursor, -1))} aria-label="Forrige måned">
+          <div id="timer-month-switcher" className="time-month-switcher" aria-label="Vælg måned">
+            <button
+              id="timer-month-previous"
+              type="button"
+              className="btn-icon time-month-button"
+              onClick={() => selectMonth(addMonths(cursor, -1))}
+              aria-label="Forrige måned"
+            >
               <ChevronLeft size={20} />
             </button>
             <span>{monthLabel}</span>
-            <button type="button" className="btn-icon time-month-button" onClick={() => selectMonth(addMonths(cursor, 1))} aria-label="Næste måned">
+            <button
+              id="timer-month-next"
+              type="button"
+              className="btn-icon time-month-button"
+              onClick={() => selectMonth(addMonths(cursor, 1))}
+              aria-label="Næste måned"
+            >
               <ChevronRight size={20} />
             </button>
           </div>
           <button
+            id="timer-month-current"
             type="button"
             className="time-today-button"
             onClick={() => selectMonth(getCurrentMonthCursor())}
@@ -233,22 +389,36 @@ export function MyWorksheets() {
           >
             Til nuværende måned
           </button>
-          {data && (
-            <div className="admin-total-footer">
-              <span>Totale timer:</span>
-              <span className="admin-total-value">{formatNumber(data.totalHours)}</span>
-            </div>
-          )}
         </div>
       </div>
+
+      {data && (
+        <section id="timer-summary" className="timer-summary-strip" aria-label="Månedsoversigt">
+          <div className="timer-summary-item">
+            <span>Timer</span>
+            <strong>{formatNumeric(data.totalHours)} t</strong>
+          </div>
+          <div className="timer-summary-item">
+            <span>Registreringer</span>
+            <strong>{formatNumeric(entryCount)}</strong>
+          </div>
+          <div className="timer-summary-item">
+            <span>Udlæg</span>
+            <strong>{formatNumeric(data.outlayCount)}</strong>
+          </div>
+        </section>
+      )}
 
       {isAdmin && data && <AdminHoursExport data={data} monthLabel={monthLabel} />}
 
       {query.isLoading && (
-        <div className="time-week-list">
-          <div className="time-week-card time-week-skeleton" />
-          <div className="time-week-card time-week-skeleton" />
-        </div>
+        <>
+          <div className="timer-desktop-skeleton" aria-hidden="true" />
+          <div className="time-week-list timer-mobile-overview" aria-hidden="true">
+            <div className="time-week-card time-week-skeleton" />
+            <div className="time-week-card time-week-skeleton" />
+          </div>
+        </>
       )}
 
       {query.isError && (
@@ -257,33 +427,34 @@ export function MyWorksheets() {
 
       {data && (
         <>
-          {countEntries(data.weeks) === 0 && (
+          {entryCount === 0 && (
             <div className="empty-state">
               <p>{isAdmin ? `Ingen timer registreret for nogen medarbejdere i ${monthLabel}.` : `Ingen timer registreret i ${monthLabel}.`}</p>
             </div>
           )}
-          {isAdmin && data.weeks.length > 0 ? (
+
+          {entryCount > 0 && (
             <>
-              <AdminWeeklyOverview data={data} currentWeekStart={getCurrentWeekStart()} />
-              <div className="admin-total-footer">
-                <span>Totale timer:</span>
-                <span className="admin-total-value">{formatNumber(data.totalHours)}</span>
-              </div>
+              <TimerDesktopOverview
+                data={data}
+                isAdmin={isAdmin}
+                currentWeekStart={getCurrentWeekStart()}
+                onOpenJob={openJob}
+              />
+              <section id="timer-mobile-overview" className="time-week-list timer-mobile-overview" aria-label="Ugentligt timeoverblik">
+                {data.weeks.map((week) => (
+                  <WeekCard
+                    key={week.weekStart}
+                    week={week}
+                    month={data.month}
+                    isCurrentWeek={week.weekStart === getCurrentWeekStart()}
+                    isExpanded={expandedWeeks.has(week.weekStart)}
+                    onToggle={() => toggleWeek(week.weekStart)}
+                    onOpenJob={openJob}
+                  />
+                ))}
+              </section>
             </>
-          ) : (
-            <section className="time-week-list" aria-label="Ugentligt timeoverblik">
-              {data.weeks.map((week) => (
-                <WeekCard
-                  key={week.weekStart}
-                  week={week}
-                  month={data.month}
-                  isCurrentWeek={week.weekStart === getCurrentWeekStart()}
-                  isExpanded={expandedWeeks.has(week.weekStart)}
-                  onToggle={() => toggleWeek(week.weekStart)}
-                  onOpenJob={openJob}
-                />
-              ))}
-            </section>
           )}
         </>
       )}
@@ -307,20 +478,24 @@ function WeekCard({
   onOpenJob: (jobId: string) => void;
 }) {
   const entryCount = countWeekEntries(week);
-  const contentId = `week-${week.weekStart}`;
+  const contentId = `timer-mobile-week-content-${week.weekStart}`;
 
   return (
-    <article className={`time-week-card ${isCurrentWeek ? 'is-current' : ''} ${isExpanded ? 'is-expanded' : ''}`}>
+    <article
+      id={`timer-mobile-week-${week.weekStart}`}
+      className={`time-week-card ${isCurrentWeek ? 'is-current' : ''} ${isExpanded ? 'is-expanded' : ''}`}
+    >
       <div className="time-week-header">
         <div>
           <span className="job-number">{formatWeekRange(week.weekStart, week.weekEnd)} | Uge {getIsoWeek(week.weekStart)} </span>
           {isCurrentWeek && <span className="current-week-badge">Nu</span>}
         </div>
         <div className="time-week-totals">
-          <span><Timer size={14} /> {formatNumber(week.totalHours)} t</span>
+          <span><Timer size={14} /> {formatNumeric(week.totalHours)} t</span>
           <span><ReceiptText size={14} /> {week.outlayCount}</span>
           <span><BriefcaseBusiness size={14} /> {entryCount}</span>
           <button
+            id={`timer-mobile-week-toggle-${week.weekStart}`}
             type="button"
             className="time-week-toggle"
             onClick={onToggle}
@@ -373,8 +548,8 @@ function DayCell({
   return (
     <div className={classNames}>
       <div className="time-day-head">
-        <span>{DAY_FORMATTER.format(date)}</span>
-        {day.totalHours !== 0 && <p>{formatNumber(day.totalHours)} total</p>}
+        <span>{formatWeekdayDay(date)}</span>
+        {day.totalHours !== 0 && <p>{formatNumeric(day.totalHours)} total</p>}
       </div>
 
       <div className="time-entry-list">
@@ -396,7 +571,7 @@ function DayCell({
               <div className="time-entry-top">
                 <span className="job-number">SAG-{(entry.reportNumber || entry.jobId.slice(0, 4)).toUpperCase()}</span>
                 <span className="time-entry-meta">
-                  <span>{formatNumber(entry.hoursWorked)} t</span>
+                  <span>{formatNumeric(entry.hoursWorked)} t</span>
                   {entry.hasOutlay && <span className="time-entry-outlay"><ReceiptText size={12} /> Udlæg</span>}
                 </span>
               </div>
@@ -485,16 +660,15 @@ function setAppScrollTop(scrollTop: number) {
 }
 
 function formatMonth(cursor: MonthCursor) {
-  return MONTH_FORMATTER.format(new Date(cursor.year, cursor.month - 1, 1));
+  return formatMonthYear(new Date(cursor.year, cursor.month - 1, 1)) ?? '';
 }
 
 function formatWeekRange(start: string, end: string) {
-  return `${WEEK_RANGE_FORMATTER.format(parseDate(start))} - ${WEEK_RANGE_FORMATTER.format(parseDate(end))}`;
+  return `${formatDayMonth(parseDate(start)) ?? start} - ${formatDayMonth(parseDate(end)) ?? end}`;
 }
 
-function formatNumber(value: number | string | null | undefined) {
-  const number = Number(value ?? 0);
-  return new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 }).format(number);
+function formatNumeric(value: number | string | null | undefined) {
+  return formatPresentationNumber(Number(value ?? 0), { maximumFractionDigits: 2 });
 }
 
 function countEntries(weeks: MyWorksheetWeekResponse[]) {
@@ -503,6 +677,10 @@ function countEntries(weeks: MyWorksheetWeekResponse[]) {
 
 function countWeekEntries(week: MyWorksheetWeekResponse) {
   return week.days.reduce((sum, day) => sum + day.entries.length, 0);
+}
+
+function getTimerEntryDomId(entry: MyWorksheetEntryResponse) {
+  return `timer-ledger-entry-${entry.jobId}-${entry.userId}-${entry.workDate.slice(0, 10)}`;
 }
 
 function parseDate(value: string) {
