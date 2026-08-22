@@ -204,9 +204,8 @@ async function verifyCustomer(config, admin, customer, viewportName) {
       { selector: `#customer-list-phone-${customer.id}-call`, href: `tel:${customer.phone}` },
     );
 
-    const customerOpen = session.page.locator(`#customer-list-open-${customer.id}`);
-    await customerOpen.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    await customerOpen.click();
+    await row.focus();
+    await row.press('Enter');
     await session.page.locator('#customer-detail-page').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await assertDirectClipboardCopy(session.page, '#customer-detail-name', customer.name, `${viewportName} customer detail name`);
     await assertActionMenuCopy(

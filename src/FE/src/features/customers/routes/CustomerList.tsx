@@ -348,12 +348,7 @@ export const CustomerList = () => {
                               <MoreHorizontal size={16} aria-hidden="true" />
                             </button>
                           </Can>
-                          <ChevronRight
-                            id={`customer-list-open-${customer.id}`}
-                            size={16}
-                            className="row-link-icon"
-                            aria-hidden="true"
-                          />
+                          <ChevronRight size={16} className="row-link-icon" aria-hidden="true" />
                         </div>
                       </td>
                     </tr>
@@ -446,7 +441,7 @@ export const CustomerList = () => {
                         <span className={`btn-icon ${customer.isFavorite ? 'text-red' : 'opacity-30'}`} title={customer.isFavorite ? 'Favorit' : ''}>
                           <Heart size={18} fill={customer.isFavorite ? 'currentColor' : 'none'} aria-hidden="true" />
                         </span>
-                        <span id={`customer-list-open-${customer.id}`} className="btn-icon" aria-label="Se kunde">
+                        <span className="btn-icon" aria-label="Se kunde">
                           <ChevronRight size={20} aria-hidden="true" />
                         </span>
                       </div>
