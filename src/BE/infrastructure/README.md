@@ -107,6 +107,12 @@ The infrastructure phase:
 3. reconciles Azure-owned deployment secrets without exposing them on command lines;
 4. provisions the API user-assigned managed identity in Azure SQL.
 
+The new `live` production environment uses a B1 App Service worker with
+`alwaysOn` enabled. The legacy `prod` boundary and other environments remain on
+F1 with `alwaysOn` disabled. This keeps the authoritative template aligned with
+the B1 landing zone and prevents a reconcile from silently downgrading the new
+tenant.
+
 The template takes no compile-time file input. Everything instance-specific arrives as a deployment parameter, so `main.bicep` describes *a* Workslip environment rather than this one, and a deployment no longer writes to the working tree as a side effect. `monitoring.config.json` remains operator configuration; the deployment script reads it and passes the addresses through.
 
 An infrastructure-only deployment does not generate the VAPID private key. Use the full `deploy.ps1` entry point when establishing a new environment or repairing a missing VAPID secret.
@@ -178,7 +184,7 @@ The availability test runs every five minutes from five regions, has retries ena
 
 Alert recipients are maintained in `monitoring.config.json`. This is intentionally deployment-time operations configuration rather than a query against the Workslip database: alerts must still be deliverable when the API or SQL database is unavailable. Keep the list aligned with the people expected to respond to production incidents. Do not place credentials or notification-service secrets in this file.
 
-After deployment, use Azure Monitor's **Test action group** function to verify delivery. Do not deliberately stop production or generate production errors solely to test an alert. Tune the response-time threshold if the F1 App Service cold-start behaviour creates repeated non-actionable notifications.
+After deployment, use Azure Monitor's **Test action group** function to verify delivery. Do not deliberately stop production or generate production errors solely to test an alert. Tune the response-time threshold if App Service startup behaviour creates repeated non-actionable notifications.
 
 ## Cost budget
 

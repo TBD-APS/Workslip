@@ -5,6 +5,20 @@ on:
     workflows: [CI]
     types: [completed]
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DEPLOY NEW TENANT AFTER DATA VERIFIED
+        required: true
+        type: string
+      data_manifest_sha256:
+        description: SHA-256 of the reviewed non-personal SQL/blob comparison manifest
+        required: true
+        type: string
+      data_manifest_evidence_url:
+        description: URL to the reviewed manifest evidence in WOR-430 or this repository
+        required: true
+        type: string
 
 env:
   DOTNET_VERSION: '10.0.x'
@@ -12,11 +26,15 @@ env:
   API_PROJECT: src/BE/WorkslipApi/Workslip.Api.csproj
   PUBLISH_DIR: ${{ github.workspace }}/publish/api
   DEPLOY_PACKAGE: ${{ github.workspace }}/publish/workslip-api.zip
-  AZURE_WEBAPP_NAME: api-mrsoftware-prod
-  AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
-  AZURE_MIGRATION_IDENTITY_NAME: id-mrsoftware-prod-migration
-  RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
-  CI_RUN_ID: ${{ github.event.workflow_run.id }}
+  AZURE_WEBAPP_NAME: ${{ github.event_name == 'workflow_dispatch' && 'api-mrsoftwarev2-live' || 'api-mrsoftware-prod' }}
+  AZURE_RESOURCE_GROUP: ${{ github.event_name == 'workflow_dispatch' && 'rg-mrsoftwarev2-live' || 'rg-mrsoftware-prod' }}
+  AZURE_MIGRATION_IDENTITY_NAME: ${{ github.event_name == 'workflow_dispatch' && 'id-mrsoftwarev2-live-migration' || 'id-mrsoftware-prod-migration' }}
+  TARGET_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && 'live' || 'prod' }}
+  TARGET_COMPANY_NAME: ${{ github.event_name == 'workflow_dispatch' && 'mrsoftwarev2' || 'mrsoftware' }}
+  DATA_MANIFEST_SHA256: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.data_manifest_sha256 || '' }}
+  DATA_MANIFEST_EVIDENCE_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.data_manifest_evidence_url || '' }}
+  RELEASE_SHA: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+  CI_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || '' }}
 
 permissions:
   contents: read
@@ -34,6 +52,31 @@ jobs:
       contents: read
       actions: read
     steps:
+      - name: Verify manual new-tenant deployment intent
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "${GITHUB_REF}" != 'refs/heads/main' ]]; then
+            echo "::error::The new-tenant package may only be deployed from main. Selected ref: ${GITHUB_REF}"
+            exit 1
+          fi
+          if [[ "${CONFIRMATION}" != 'DEPLOY NEW TENANT AFTER DATA VERIFIED' ]]; then
+            echo '::error::Confirmation must be exactly: DEPLOY NEW TENANT AFTER DATA VERIFIED'
+            exit 1
+          fi
+          if [[ ! "${DATA_MANIFEST_SHA256}" =~ ^[0-9a-f]{64}$ ]]; then
+            echo '::error::data_manifest_sha256 must be a lowercase SHA-256 for the reviewed non-personal data comparison manifest.'
+            exit 1
+          fi
+          evidence_pattern='^https://(github\.com/rasm105k/Workslip-v2\.0/(issues|pull)/[0-9]+(#issuecomment-[0-9]+)?|linear\.app/[A-Za-z0-9._-]+/issue/WOR-430/[A-Za-z0-9._~/-]+)$'
+          if [[ ! "${DATA_MANIFEST_EVIDENCE_URL}" =~ ${evidence_pattern} ]]; then
+            echo '::error::data_manifest_evidence_url must point to WOR-430 in Linear or an issue/PR in rasm105k/Workslip-v2.0, without query parameters.'
+            exit 1
+          fi
+
       - name: Checkout trusted release policy
         uses: actions/checkout@v7
         with:
@@ -41,13 +84,33 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Require exact green main CI Gate
+      - name: Require protected new-tenant deployment environment
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          node tools/release/verify-deployment-environment.mjs
+          --repository "${GITHUB_REPOSITORY}"
+          --environment live
+          --branch main
+          --require-reviewers
+          --required-reviewer-id 31623093
+          --require-no-admin-bypass
+
+      - name: Require exact green main CI Gate for automatic current production deploy
+        if: ${{ github.event_name == 'workflow_run' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: >-
           node tools/release/verify-production-eligibility.mjs
           --sha "${RELEASE_SHA}"
           --ci-run-id "${CI_RUN_ID}"
+
+      - name: Require exact green current main CI Gate for manual new-tenant deploy
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node tools/release/verify-production-eligibility.mjs --sha "${RELEASE_SHA}"
 
   build:
     name: Backend · Build release artifact
@@ -122,7 +185,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: build
-    environment: prod
+    environment:
+      name: ${{ github.event_name == 'workflow_dispatch' && 'live' || 'prod' }}
     permissions:
       id-token: write
       contents: read
@@ -137,10 +201,16 @@ jobs:
       - name: Re-verify green current main before mutation
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: >-
-          node tools/release/verify-production-eligibility.mjs
-          --sha "${RELEASE_SHA}"
-          --ci-run-id "${CI_RUN_ID}"
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == 'workflow_run' ]]; then
+            node tools/release/verify-production-eligibility.mjs \
+              --sha "${RELEASE_SHA}" \
+              --ci-run-id "${CI_RUN_ID}"
+          else
+            node tools/release/verify-production-eligibility.mjs --sha "${RELEASE_SHA}"
+          fi
 
       - name: Download exact-SHA artifact
         uses: actions/download-artifact@v8
@@ -200,8 +270,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & ./src/BE/infrastructure/run-database-migrations.ps1 `
-            -Environment prod `
-            -CompanyName mrsoftware
+            -Environment $env:TARGET_ENVIRONMENT `
+            -CompanyName $env:TARGET_COMPANY_NAME
 
       - name: Logout database migration identity
         run: az logout
@@ -341,3 +411,32 @@ jobs:
 
           echo "::error::API package was applied, but ${HEALTH_URL} did not become healthy. Revision ${RELEASE_SHA} is not considered successfully released."
           exit 1
+
+      - name: Require unauthenticated API boundary
+        shell: bash
+        env:
+          HEALTH_URL: ${{ steps.target.outputs.health_url }}
+        run: |
+          set -Eeuo pipefail
+          api_root="${HEALTH_URL%/health}"
+          status="$(curl --silent --show-error --connect-timeout 10 --max-time 10 \
+            --output /dev/null --write-out '%{http_code}' \
+            "${api_root}/api/auth/me")"
+          if [[ "${status}" != '401' ]]; then
+            echo "::error::Expected unauthenticated /api/auth/me to return 401, received ${status}."
+            exit 1
+          fi
+
+      - name: Record manual new-tenant evidence reference
+        if: ${{ github.event_name == 'workflow_dispatch' && success() }}
+        shell: bash
+        run: |
+          {
+            echo '### New-tenant package deployment'
+            echo
+            echo "- SHA: \`${RELEASE_SHA}\`"
+            echo "- Target: \`${AZURE_WEBAPP_NAME}\`"
+            echo "- Data manifest SHA-256: \`${DATA_MANIFEST_SHA256}\`"
+            echo "- Data manifest evidence: [reviewed reference](${DATA_MANIFEST_EVIDENCE_URL})"
+            echo '- Traffic: unchanged; Vercel remains a separate approval gate'
+          } >> "${GITHUB_STEP_SUMMARY}"

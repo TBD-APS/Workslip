@@ -28,7 +28,7 @@ Application code and Azure infrastructure are released through two independent t
 
 | Track | Trigger | What it applies |
 |---|---|---|
-| [`backend-production-deploy.yml`](../../.github/workflows/backend-production-deploy.yml) | Automatic, on every green `CI` run on `main` | The API application package and reviewed database migrations only. It never runs Bicep and only reads existing app settings. |
+| [`backend-production-deploy.yml`](../../.github/workflows/backend-production-deploy.yml) | Automatic current-production deploy on every green `CI` run on `main`; manual allowlisted new-tenant deploy during cutover | The API application package and reviewed database migrations only. It never runs Bicep and only reads existing app settings. |
 | [`infrastructure-production-reconcile.yml`](../../.github/workflows/infrastructure-production-reconcile.yml) | Manual (`workflow_dispatch`) from `main` | [`deploy-infrastructure.ps1`](../../src/BE/infrastructure/deploy-infrastructure.ps1) → [`main.bicep`](../../src/BE/infrastructure/main.bicep): the storage account, blob containers, managed-identity role assignments and the App Configuration key values. |
 
 The document/image feature stores files in Azure Blob Storage using the API managed identity. In any non-Development environment the concrete adapters require infrastructure that only the reconcile track provisions:
@@ -79,7 +79,7 @@ Read the exception type behind the 500 in Application Insights (see [`APPLICATIO
 ## Recovery
 
 1. Ensure `main` is green and carries the intended infrastructure definition.
-2. Run **Infrastructure · Production reconcile** ([`infrastructure-production-reconcile.yml`](../../.github/workflows/infrastructure-production-reconcile.yml)) from `main` via `workflow_dispatch` and approve the `prod` environment. It runs `deploy-infrastructure.ps1 prod`, which deploys `main.bicep` in incremental mode: it creates the storage account and `uploads` container, assigns `Storage Blob Data Contributor` to the API managed identity, and writes the `Azure:DocumentFileStorage:*` App Configuration values. The workflow restarts the API at the end so the singleton blob clients pick up the new configuration.
+2. Run **Infrastructure · Production reconcile** ([`infrastructure-production-reconcile.yml`](../../.github/workflows/infrastructure-production-reconcile.yml)) from `main` via `workflow_dispatch`: first select `plan` / `current-production` with `PLAN CURRENT PRODUCTION`, then review the preview. With explicit approval, select `reconcile` / `current-production`, type `RECONCILE CURRENT PRODUCTION`, and approve the `prod` environment. It runs `deploy-infrastructure.ps1` for `mrsoftware` / `prod`, which deploys `main.bicep` in incremental mode: it creates the storage account and `uploads` container, assigns `Storage Blob Data Contributor` to the API managed identity, and writes the `Azure:DocumentFileStorage:*` App Configuration values. The workflow restarts the current API at the end so the singleton blob clients pick up the new configuration.
 3. If you reconcile outside that workflow, restart the API afterwards so it re-reads App Configuration:
 
    ```bash

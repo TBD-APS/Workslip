@@ -209,7 +209,11 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Web API hosting
-// Free App Service tier with shared user-assigned managed identity.
+// The new `live` production boundary uses a dedicated Basic worker. The legacy
+// `prod` boundary and lower environments remain on Free. The live tenant was
+// initially provisioned on B1 by migration.bicep, so keeping the tier explicit
+// here also prevents the authoritative reconcile from silently downgrading that
+// worker to F1 during cutover.
 // The API reads App Configuration + Key Vault references through that identity.
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -217,11 +221,17 @@ resource webApiServer 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: webApiServerName
   location: location
   tags: tags
-  sku: {
-    name: 'F1'
-    tier: 'Free'
-    capacity: 1
-  }
+  sku: isProduction
+    ? {
+        name: 'B1'
+        tier: 'Basic'
+        capacity: 1
+      }
+    : {
+        name: 'F1'
+        tier: 'Free'
+        capacity: 1
+      }
   properties: {}
 }
 
@@ -243,7 +253,7 @@ resource webApi 'Microsoft.Web/sites@2023-12-01' = {
     publicNetworkAccess: 'Enabled'
     keyVaultReferenceIdentity: identity.id
     siteConfig: {
-      alwaysOn: false
+      alwaysOn: isProduction
       ftpsState: 'Disabled'
       http20Enabled: true
       minTlsVersion: '1.2'
@@ -531,8 +541,9 @@ resource sqlServer 'Microsoft.Sql/servers@2021-11-01' = {
     version: '12.0'
     administratorLogin: 'rbj'
     administratorLoginPassword: sqlAdminPassword
-    // The F1 App Service cannot use VNet integration. Restrict the public
-    // endpoint to the App Service outbound IP allowlist managed below.
+    // Lower environments use F1 and cannot use VNet integration. Keep one
+    // firewall model across tiers and restrict the public endpoint to the App
+    // Service outbound IP allowlist managed below.
     publicNetworkAccess: 'Enabled'
     administrators:{
       administratorType: 'ActiveDirectory'

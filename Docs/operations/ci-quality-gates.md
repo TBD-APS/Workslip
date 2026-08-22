@@ -87,7 +87,7 @@ A Vercel deployment record can therefore exist while CI is pending, but it is no
 
 ### Backend · Azure production
 
-`.github/workflows/backend-production-deploy.yml` is named **Backend · Production deploy** and listens for completed `CI` runs on `main`.
+`.github/workflows/backend-production-deploy.yml` is named **Backend · Production deploy**. Its normal path listens for completed `CI` runs on `main` and deploys current production. Its manual path is reserved for a no-traffic package deployment to the allowlisted new tenant.
 
 The workflow:
 
@@ -99,7 +99,16 @@ The workflow:
 6. verifies required diagnostics configuration;
 7. applies the production release-testing policy;
 8. deploys the exact-SHA artifact with bounded retries and captures Azure deployment diagnostics on failure; and
-9. requires the API `/health` endpoint to recover before reporting the release successful.
+9. requires the API `/health` endpoint to recover and unauthenticated `/api/auth/me` to return 401 before reporting the release successful.
+
+The manual new-tenant path additionally requires `main`, the protected `live`
+environment, the exact confirmation `DEPLOY NEW TENANT AFTER DATA VERIFIED`,
+and the SHA-256 plus allowlisted evidence URL of the reviewed non-personal
+SQL/blob comparison manifest. The environment reviewer verifies that evidence;
+the workflow records the reference but does not treat a syntactically valid
+hash as proof of data correctness. It targets only `api-mrsoftwarev2-live`; it
+cannot select current production and it does not change the Vercel proxy. The
+automatic path remains pinned to `api-mrsoftware-prod` during preparation.
 
 The old ancestor check is intentionally not used. A previously green SHA that is merely contained in a newer `main` is stale and cannot deploy.
 
@@ -109,7 +118,7 @@ The old ancestor check is intentionally not used. A previously green SHA that is
 
 ### Infrastructure · Production reconcile
 
-`.github/workflows/infrastructure-production-reconcile.yml` remains the separate privileged infrastructure path. Before OIDC login or infrastructure mutation it requires `main` and a successful exact-SHA `CI Gate`. It preserves the dedicated infrastructure identity and post-reconcile API health verification and sets up Node 24 explicitly for the gate.
+`.github/workflows/infrastructure-production-reconcile.yml` remains the separate privileged infrastructure path. It selects current production or the new tenant from a fixed allowlist, defaults to the non-mutating `plan.ps1` operation, and requires a target/operation-specific confirmation. Before OIDC login it requires `main` and a successful exact-SHA `CI Gate`, then uses the corresponding protected `prod` or `live` environment and verifies the authenticated tenant, subscription, and resource group. Reconcile preserves the dedicated infrastructure identity. Current production also requires the existing API health check; the new foundation cannot claim API readiness until the later data/package gate.
 
 ### Production · Readiness smoke
 
@@ -123,7 +132,8 @@ Canonical workflow/job naming is `<Surface> · Production <action>` so GitHub Ac
 
 Stable cloud resource names are not renamed merely for aesthetics. The active environment inventory is:
 
-- GitHub `prod` — Workslip's protected Azure application/infrastructure environment. It carries the existing Azure environment configuration and permits deployment from `main`; keep this stable until a separately verified secret/variable migration can be performed.
+- GitHub `prod` — Workslip's protected current Azure application/infrastructure environment. It carries the existing Azure environment configuration and remains the automatic backend target during cutover preparation.
+- GitHub `live` — reserved name for the separately protected new-tenant Azure boundary. Manual paths fail closed unless it already exists, allows exactly `main`, requires repository owner `rasm105k` (GitHub user ID `31623093`) as reviewer, and disables administrator bypass. It is not auto-created by a deployment run.
 - GitHub `Production` and `Preview` — Vercel Git integration environments with active Vercel-created deployment records; they are not duplicates of the Azure `prod` environment.
 - GitHub `github-pages` — independent GitHub Pages deployment environment.
 - GitHub `copilot` — GitHub/Copilot integration environment, not an application production path.
@@ -157,7 +167,8 @@ Production delivery no longer trusts that ruleset as its only red-deploy defense
 - both Actions and Vercel adapters reject red/cancelled/stale/missing/duplicate gates;
 - Vercel production uses the Root-Directory-local exact-SHA gate and has no `generate:api:dev` or parent-directory dependency;
 - the Vercel adapter retries only positively identified GitHub rate-limit responses within its bounded eligibility window while ordinary API authorization failures remain terminal;
-- all privileged production workflows use the shared `workslip-production` lock and `prod` environment;
+- all privileged production workflows use the shared `workslip-production` lock and an allowlisted protected `prod`/`live` environment;
+- manual new-tenant deployment remains exact-main, records the reviewed data-manifest hash as evidence, and cannot change Vercel traffic;
 - backend deployment revalidates before mutation and cannot fall back to ancestor semantics;
 - the repository-protection source requires `CI Gate`, `Feature change guard`, no bypass actors and strict status checks; and
 - retired legacy workflow entrypoints do not reappear.
