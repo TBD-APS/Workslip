@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Clock, Mail } from 'lucide-react';
 import { type UserListViewModel, type UserViewModel } from '../../../api/generated/models';
 import { getGetApiJobCostingUsersIdRateQueryOptions } from '../../../api/generated/job-costing/job-costing';
+import { CopyableValue } from '../../../components/CopyableValue';
 import { ErrorState } from '../../../components/ErrorState';
 import { SearchBar } from '../../../components/filters/SearchBar';
 import { announceSection } from '../../../components/filters/StatusFilter';
@@ -219,11 +220,15 @@ export const UserList = () => {
                           }
                         }}
                       >
-                        <td><strong>{user.displayName}</strong></td>
+                        <td>
+                          <strong>
+                            <CopyableValue id={`user-list-name-${user.id}`} field="user.name" value={user.displayName} />
+                          </strong>
+                        </td>
                         <td>
                           <span className="inline-flex-center">
                             <Mail size={14} className="text-muted" aria-hidden="true" />
-                            {user.email}
+                            <CopyableValue id={`user-list-email-${user.id}`} field="user.email" value={user.email} />
                           </span>
                         </td>
                         <td>
@@ -264,24 +269,35 @@ export const UserList = () => {
             <div className="job-list">
               {pageItems.map((user, index) => {
                 const rateState = getRateState(index);
+                const openUser = () => navigate(`/app/users/${user.id}`);
                 return (
                   <div key={user.id} className="job-card user-card-with-rate">
-                    <button
+                    <div
                       className="user-card-primary-action"
-                      onClick={() => navigate(`/app/users/${user.id}`)}
-                      type="button"
+                      onClick={openUser}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          openUser();
+                        }
+                      }}
+                      role="link"
+                      tabIndex={0}
                       aria-label={`Åbn ${user.displayName}`}
                     >
                       <div className="job-card-top">
                         <div>
-                          <h3 className="job-customer">{user.displayName}</h3>
+                          <h3 className="job-customer">
+                            <CopyableValue id={`user-list-name-${user.id}`} field="user.name" value={user.displayName} />
+                          </h3>
                         </div>
                       </div>
 
                       <div className="job-card-meta">
                         <span className="meta-item">
                           <Mail size={14} aria-hidden="true" />
-                          <span>{user.email}</span>
+                          <CopyableValue id={`user-list-email-${user.id}`} field="user.email" value={user.email} />
                         </span>
                         <UserRoleBadge role={user.role} displayName={user.roleDisplayName} />
                       </div>
@@ -290,7 +306,7 @@ export const UserList = () => {
                         <Clock size={14} className="text-muted" aria-hidden="true" />
                         <span>{formatHours(user.hoursThisWeek)} denne uge</span>
                       </div>
-                    </button>
+                    </div>
 
                     <div className="user-rate-mobile-row">
                       <UserRateEditor
@@ -309,7 +325,7 @@ export const UserList = () => {
                         type="button"
                         className="btn-icon"
                         aria-label={`Se ${user.displayName}`}
-                        onClick={() => navigate(`/app/users/${user.id}`)}
+                        onClick={openUser}
                       >
                         <ChevronRight size={20} aria-hidden="true" />
                       </button>

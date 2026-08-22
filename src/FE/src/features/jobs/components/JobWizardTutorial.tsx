@@ -29,7 +29,7 @@ const GUIDE_COPY: Record<JobStepLabel, GuideCopy> = {
   Kontrolpunkter: {
     title: 'Gennemgå de relevante kontrolpunkter',
     description:
-      'Vælg mindst ét kontrolpunkt i hver relevant kategori. Hvis en kategori ikke gælder for arbejdet, kan du markere den som ikke relevant.',
+      'Vælg mindst ét kontrolpunkt i hver relevant kategori. Hvis en kategori ikke gælder for arbejdet, kan du markere den som ikke relevant. Hvis alle valgte kategorier er irrelevante, kan du tilføje en samlet forklaring.',
     tip: 'Hvis du ikke kan gå videre, så tjek om der mangler et valg eller en forklaring på dette trin.',
   },
   Timesedler: {

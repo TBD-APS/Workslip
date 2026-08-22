@@ -7,9 +7,10 @@ import './AddressActions.css';
 export type AddressActionsProps = {
   address: string | null | undefined;
   className?: string;
+  id?: string;
 };
 
-export function AddressActions({ address, className }: AddressActionsProps) {
+export function AddressActions({ address, className, id }: AddressActionsProps) {
   const [copied, setCopied] = useState(false);
   const resetTimerRef = useRef<number | null>(null);
   const normalizedAddress = address?.trim() ?? '';
@@ -42,12 +43,14 @@ export function AddressActions({ address, className }: AddressActionsProps) {
 
   return (
     <span
+      id={id}
       className={`address-actions${className ? ` ${className}` : ''}`}
       role="group"
       aria-label="Adressehandlinger"
       onClick={(event) => event.stopPropagation()}
     >
       <button
+        id={id ? `${id}-copy` : undefined}
         type="button"
         className={`address-action address-action-copy${copied ? ' is-copied' : ''}`}
         onClick={(event) => { void handleCopy(event); }}
@@ -57,6 +60,7 @@ export function AddressActions({ address, className }: AddressActionsProps) {
         {copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
       </button>
       <a
+        id={id ? `${id}-maps` : undefined}
         href={getAddressMapsUrl(normalizedAddress)}
         className="address-action address-action-maps"
         target="_blank"

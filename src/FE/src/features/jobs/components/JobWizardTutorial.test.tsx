@@ -74,6 +74,7 @@ describe('JobWizardTutorial', () => {
 
     expect(screen.getByText(/Vælg mindst ét kontrolpunkt i hver relevant kategori/)).toBeInTheDocument();
     expect(screen.getByText(/Hvis en kategori ikke gælder for arbejdet, kan du markere den som ikke relevant/)).toBeInTheDocument();
+    expect(screen.getByText(/Hvis alle valgte kategorier er irrelevante, kan du tilføje en samlet forklaring/)).toBeInTheDocument();
     expect(screen.getByText(/tjek om der mangler et valg eller en forklaring på dette trin/)).toBeInTheDocument();
     expect(screen.queryByText(/krævede begrundelse/)).not.toBeInTheDocument();
   });

@@ -11,10 +11,19 @@ test('assignment lifecycle completes and approves one independent duplicate per 
   ]);
   const completed = [];
   const approved = [];
+  const seen = [];
+  const seenResponses = [
+    { jobId: 'job-user', viewType: undefined },
+    { jobId: 'job-admin', viewType: undefined },
+    { jobId: 'job-user', viewType: undefined },
+    { jobId: 'job-user', viewType: 'Completed' },
+    { jobId: 'job-admin', viewType: undefined },
+    { jobId: 'job-admin', viewType: 'Completed' },
+  ];
   let activeRole = null;
 
   const handlers = createAdminScenarioHandlers(
-    { APP_URL: 'https://app.example.test' },
+    { APP_URL: 'https://app.example.test', API_TIMEOUT: 30_000 },
     {
       createKlsDraftViaUi: async () => ({
         id: 'job-user',
@@ -40,6 +49,21 @@ test('assignment lifecycle completes and approves one independent duplicate per 
 
   const session = {
     auth: { user: null },
+    page: {
+      waitForResponse: async (predicate) => {
+        const expected = seenResponses.shift();
+        assert.ok(expected, 'Unexpected extra /seen response wait.');
+        const suffix = expected.viewType === undefined ? '' : `?viewType=${expected.viewType}`;
+        const response = {
+          request: () => ({ method: () => 'POST' }),
+          url: () => `https://app.example.test/api/jobs/${expected.jobId}/seen${suffix}`,
+          status: () => 200,
+        };
+        assert.equal(predicate(response), true);
+        seen.push(expected);
+        return response;
+      },
+    },
     step: async (_label, action) => action(),
     login: async (role) => {
       activeRole = role;
@@ -70,6 +94,15 @@ test('assignment lifecycle completes and approves one independent duplicate per 
   await handlers['assignment-lifecycle'](session);
 
   assert.deepEqual(completed, ['job-user', 'job-admin']);
+  assert.deepEqual(seen, [
+    { jobId: 'job-user', viewType: undefined },
+    { jobId: 'job-admin', viewType: undefined },
+    { jobId: 'job-user', viewType: undefined },
+    { jobId: 'job-user', viewType: 'Completed' },
+    { jobId: 'job-admin', viewType: undefined },
+    { jobId: 'job-admin', viewType: 'Completed' },
+  ]);
+  assert.equal(seenResponses.length, 0);
   assert.deepEqual(approved, ['job-user', 'job-admin']);
   assert.equal(jobs.get('job-user').status, 'Approved');
   assert.equal(jobs.get('job-admin').status, 'Approved');

@@ -558,7 +558,8 @@ if (request.Work.ClosureFlags is not null)
             entry.Property(e => e.SubmittedByUserId).CurrentValue = actorId;
         }
 
-        entry.Property(e => e.RejectionNote).CurrentValue = nextStatus == JobStatus.Rejected ? rejectionNote : null;
+        entry.Property(e => e.RejectionNote).CurrentValue =
+            nextStatus is JobStatus.Rejected or JobStatus.Reopened ? rejectionNote : null;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 

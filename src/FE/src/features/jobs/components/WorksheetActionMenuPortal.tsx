@@ -24,16 +24,23 @@ export function WorksheetActionMenuPortal({
 
   return createPortal(
     <div
+      id={`worksheet-actions-menu-${openActionWorksheet.id}`}
       className="worksheet-actions-menu"
       role="menu"
       style={{ top: openActionMenu.top, right: openActionMenu.right }}
     >
-      <button type="button" role="menuitem" onClick={() => onStartEdit(openActionWorksheet)}>
+      <button
+        id={`worksheet-action-edit-${openActionWorksheet.id}`}
+        type="button"
+        role="menuitem"
+        onClick={() => onStartEdit(openActionWorksheet)}
+      >
         <Pencil size={15} />
         <span>Rediger</span>
       </button>
       {canDelete && (
         <button
+          id={`worksheet-action-delete-${openActionWorksheet.id}`}
           type="button"
           className="danger"
           role="menuitem"

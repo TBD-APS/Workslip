@@ -13,8 +13,10 @@ type WorksheetDraftFormProps = {
   currentUserName: string;
   isLoadingUsers: boolean;
   isSaving: boolean;
+  formId?: string;
   hoursInputId?: string;
   submitId?: string;
+  cancelId?: string;
   submitLabel: string;
   error?: string | null;
   onDraftChange: (draft: WorksheetDraft) => void;
@@ -30,8 +32,10 @@ export function WorksheetDraftForm({
   currentUserName,
   isLoadingUsers,
   isSaving,
+  formId,
   hoursInputId,
   submitId,
+  cancelId,
   submitLabel,
   error,
   onDraftChange,
@@ -43,6 +47,7 @@ export function WorksheetDraftForm({
 
   return (
     <form
+      id={formId}
       className="worksheet-form worksheet-form--compact"
       onSubmit={(event) => {
         event.preventDefault();
@@ -110,6 +115,7 @@ export function WorksheetDraftForm({
         </button>
         {onCancel && (
           <button
+            id={cancelId}
             type="button"
             className="btn btn-secondary"
             onClick={onCancel}
