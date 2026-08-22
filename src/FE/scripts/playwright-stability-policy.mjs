@@ -8,6 +8,7 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const BLOCKING_SCENARIOS = new Set([
   'playwright-ephemeral-smoke.mjs',
   'playwright-auth-brand.mjs',
+  'playwright-help-wizard.mjs',
   'playwright-pdf-performance.mjs',
   'playwright-critical-rare-flows.mjs',
   'playwright-critical-job-lifecycle.mjs',

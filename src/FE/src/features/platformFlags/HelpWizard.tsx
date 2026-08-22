@@ -15,13 +15,14 @@ export function HelpWizard() {
   }
 
   return (
-    <div className="help-wizard" data-testid="help-wizard">
+    <div id="help-wizard" className="help-wizard" data-testid="help-wizard">
       {open && (
-        <div className="help-wizard-bubble" role="status">
+        <div id="help-wizard-message" className="help-wizard-bubble" role="status">
           Det ser ud til, du opretter et job. Skal jeg hjælpe?
         </div>
       )}
       <button
+        id="help-wizard-toggle"
         type="button"
         className="help-wizard-clip"
         aria-label="Hjælp"
