@@ -186,7 +186,7 @@ async function main() {
       duplicatePerAssignedUser: false,
       linkedJobIds: [],
       taskDescription: `Original sag ${unique}`,
-    }), [200, 201]);
+    }), [200, 201], `playwright-source-${unique}`);
     if (!source?.id) throw new Error('Source job did not return an id.');
     createdIds.push(source.id);
 
@@ -266,7 +266,7 @@ async function main() {
         customerObservations: null,
         technicalObservations: null,
       },
-    }, [200]);
+    }, [200], `playwright-update-${unique}`);
 
     const userAfter = await api(runtime, admin, 'GET', `/api/jobs/${userCopy.id}`);
     const adminAfter = await api(runtime, admin, 'GET', `/api/jobs/${adminCopy.id}`);
