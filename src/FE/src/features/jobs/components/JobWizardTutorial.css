@@ -8,7 +8,18 @@
 }
 
 .job-wizard-tutorial-trigger {
-  min-height: 2.25rem;
+  min-height: 2.75rem;
+  padding-inline: 0.85rem;
+  gap: 0.45rem;
+  border-radius: var(--radius-pill);
+  border-color: var(--border-strong);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--shadow-sm-raw);
+}
+
+.job-wizard-tutorial-trigger:hover {
+  background: var(--surface-selected);
 }
 
 .job-wizard-tutorial {
@@ -82,6 +93,7 @@
 .job-wizard-tutorial-copy .job-wizard-tutorial-tip {
   margin-top: 0.6rem;
   padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-raised);
   color: var(--text);
@@ -124,6 +136,25 @@
   font-size: var(--fs-xs);
 }
 
+/* The global day palette deliberately uses restrained greys. The guide contains
+   dense helper copy, so give this surface a little more contrast without changing
+   the rest of the application theme. */
+html[data-theme="day"] .job-wizard-tutorial {
+  background: var(--surface-floating);
+  border-color: color-mix(in srgb, var(--brand-marine) 18%, transparent);
+}
+
+html[data-theme="day"] .job-wizard-tutorial-copy p,
+html[data-theme="day"] .job-wizard-tutorial-footer,
+html[data-theme="day"] .job-wizard-tutorial-kicker {
+  color: color-mix(in srgb, var(--brand-marine) 76%, white);
+}
+
+html[data-theme="day"] .job-wizard-tutorial-copy .job-wizard-tutorial-tip {
+  background: color-mix(in srgb, var(--brand-marine) 7%, white);
+  border-color: color-mix(in srgb, var(--brand-marine) 15%, transparent);
+}
+
 @media (max-width: 600px) {
   .job-wizard-tutorial-shell {
     margin-top: 0.5rem;
@@ -134,7 +165,8 @@
   }
 
   .job-wizard-tutorial-trigger {
-    width: 100%;
+    width: auto;
+    align-self: flex-end;
   }
 
   .job-wizard-tutorial-header {

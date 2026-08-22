@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "description": "Machine-readable ownership map for agents and tooling. Register only current, real repository boundaries; planned architecture belongs in ADRs or Linear until it exists.",
+  "bootstrap": {
+    "instructions": [
+      "AGENTS.md",
+      "Docs/agents/AGENT_HANDBOOK.md"
+    ]
+  },
+  "owners": {
+    "frontend.presentation": {
+      "path": "src/FE/src/lib/presentation",
+      "instructions": "src/FE/src/lib/presentation/AGENTS.md",
+      "intents": [
+        "date",
+        "time",
+        "datetime",
+        "number-formatting",
+        "currency",
+        "percent",
+        "bytes",
+        "duration-formatting",
+        "locale",
+        "localization",
+        "collation",
+        "text-formatting"
+      ],
+      "summary": "Shared locale-sensitive UI presentation primitives and product-wide formatting contracts."
+    },
+    "frontend.brand": {
+      "path": "src/FE/src/workslip-brand.css",
+      "instructions": "src/FE/AGENTS.md",
+      "intents": [
+        "brand",
+        "palette",
+        "color-token",
+        "design-token"
+      ],
+      "summary": "Canonical Workslip brand palette and semantic color-token ownership."
+    },
+    "backend.api": {
+      "path": "src/BE/WorkslipApi",
+      "instructions": "src/BE/WorkslipApi/AGENTS.md",
+      "intents": [
+        "backend",
+        "api",
+        "authorization",
+        "tenant-isolation"
+      ],
+      "summary": "Workslip backend/API implementation and server-side authorization boundary."
+    },
+    "agent.runtime": {
+      "path": "platform/mr-saasy-control-plane",
+      "instructions": "platform/mr-saasy-control-plane/AGENTS.md",
+      "intents": [
+        "agent-runtime",
+        "agent-routing",
+        "ai-provider",
+        "model-routing",
+        "agent-orchestration"
+      ],
+      "summary": "Provider-neutral MR SAAS'y agent/control-plane runtime boundary."
+    }
+  }
+}

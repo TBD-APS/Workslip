@@ -24,7 +24,7 @@ import { useGetApiUsersId, getGetApiUsersIdQueryKey } from '../../../api/generat
 import { useGetApiJobs, usePostApiJobsIdAssign } from '../../../api/generated/jobs/jobs';
 import { JobStatus } from '../../../api/generated/models';
 import { formatDateLong } from '../../../lib/formatDate';
-import { formatJobStatus } from '../../jobs/statusLabels';
+import { formatJobStatus } from '../../../lib/statusLabels';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { announceSection } from '../../../components/filters/StatusFilter';
 import { canReceiveJobAssignment } from '../../../providers/permissions';
@@ -216,12 +216,12 @@ export const UserDetail = () => {
   const canReceiveJobs = canReceiveJobAssignment(user.role);
 
   return (
-    <div className="page-container">
+    <div id="user-detail-page" className="page-container">
       <div className="detail-header">
         <button className="btn-icon-back" onClick={() => navigate('/app/users')} aria-label="Tilbage">
           <ArrowLeft size={20} />
         </button>
-        <h2>{user.displayName}</h2>
+        <h2 id="user-detail-name">{user.displayName}</h2>
       </div>
 
       <UserRateCard userId={user.id} />
@@ -229,7 +229,7 @@ export const UserDetail = () => {
       <div className="user-detail-info">
         <div className="detail-row">
           <Mail size={16} />
-          <span>{user.email}</span>
+          <span id="user-detail-email">{user.email}</span>
         </div>
         <div className="detail-row">
           <Shield size={16} />
@@ -257,61 +257,62 @@ export const UserDetail = () => {
         <>
           <h3 className="section-title">Tildel sag</h3>
 
-      <div className="search-input-wrapper">
-        <Search size={16} className="search-input-icon" />
-        <input
-          type="text"
-          className="search-input"
-          placeholder="Søg på sagsnummer eller kundenavn..."
-          value={searchValue}
-          onChange={(e) => setSearchValue(e.target.value)}
-        />
-      </div>
+          <div className="search-input-wrapper">
+            <Search size={16} className="search-input-icon" />
+            <input
+              id="user-job-search"
+              type="text"
+              className="search-input"
+              placeholder="Søg på sagsnummer eller kundenavn..."
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+            />
+          </div>
 
-      {isSearching && (
-        <div className="job-list">
-          {(searchQuery.isLoading || customerSearchQuery.isLoading) && (
-            <div className="empty-state">
-              <p>Søger...</p>
+          {isSearching && (
+            <div className="job-list">
+              {(searchQuery.isLoading || customerSearchQuery.isLoading) && (
+                <div className="empty-state">
+                  <p>Søger...</p>
+                </div>
+              )}
+
+              {(searchQuery.isError || customerSearchQuery.isError) && (
+                <ErrorState message="Kunne ikke søge efter sager." />
+              )}
+
+              {!searchQuery.isLoading && !customerSearchQuery.isLoading &&
+                !searchQuery.isError && !customerSearchQuery.isError &&
+                searchResults.length === 0 && (
+                <div className="empty-state">
+                  <p>Ingen sager fundet.</p>
+                </div>
+              )}
+
+              {searchResults.map((job) => renderAssignableJobCard(job))}
             </div>
           )}
-
-          {(searchQuery.isError || customerSearchQuery.isError) && (
-            <ErrorState message="Kunne ikke søge efter sager." />
-          )}
-
-          {!searchQuery.isLoading && !customerSearchQuery.isLoading &&
-            !searchQuery.isError && !customerSearchQuery.isError &&
-            searchResults.length === 0 && (
-            <div className="empty-state">
-              <p>Ingen sager fundet.</p>
-            </div>
-          )}
-
-          {searchResults.map((job) => renderAssignableJobCard(job))}
-        </div>
-      )}
 
           {!isSearching && (
-        <div className="job-list">
-          {suggestionsQuery.isLoading && (
-            <div className="empty-state">
-              <p>Henter forslag...</p>
+            <div className="job-list">
+              {suggestionsQuery.isLoading && (
+                <div className="empty-state">
+                  <p>Henter forslag...</p>
+                </div>
+              )}
+
+              {suggestionsQuery.isError && (
+                <ErrorState message="Kunne ikke hente forslag." />
+              )}
+
+              {!suggestionsQuery.isLoading && !suggestionsQuery.isError && suggestionResults.length === 0 && (
+                <div className="empty-state">
+                  <p>Ingen åbne sager at foreslå.</p>
+                </div>
+              )}
+
+              {suggestionResults.map((job) => renderAssignableJobCard(job))}
             </div>
-          )}
-
-          {suggestionsQuery.isError && (
-            <ErrorState message="Kunne ikke hente forslag." />
-          )}
-
-          {!suggestionsQuery.isLoading && !suggestionsQuery.isError && suggestionResults.length === 0 && (
-            <div className="empty-state">
-              <p>Ingen åbne sager at foreslå.</p>
-            </div>
-          )}
-
-          {suggestionResults.map((job) => renderAssignableJobCard(job))}
-        </div>
           )}
         </>
       ) : (
@@ -325,11 +326,13 @@ export const UserDetail = () => {
         title={`Tildelte opgaver (${user.assignedJobs.length})`}
         defaultOpen={false}
         className="assigned-jobs-section"
+        triggerId="user-assigned-jobs-trigger"
       >
         {user.assignedJobs.map((job) => {
           const openAssignedJob = () => navigate(`/app/completed/${job.reportId}`, { state: { from: `/app/users/${id}` } });
           return (
             <div
+              id={`user-assigned-job-${job.reportId}`}
               key={job.reportId}
               className="job-card"
               onClick={openAssignedJob}
@@ -399,6 +402,7 @@ export const UserDetail = () => {
 
     return (
       <div
+        id={`user-assignable-job-${job.id}`}
         key={job.id}
         className={`job-card${isDisabled ? ' job-card--disabled' : ''}`}
         onClick={() => navigate(`/app/job/${job.id}`)}
@@ -444,6 +448,7 @@ export const UserDetail = () => {
             </span>
           ) : alreadyAssigned ? (
             <button
+              id={`user-job-assignment-action-${job.id}`}
               type="button"
               className="btn btn-sm btn-outline-danger"
               onClick={(e) => { e.stopPropagation(); handleAssign(job); }}
@@ -453,6 +458,7 @@ export const UserDetail = () => {
             </button>
           ) : (
             <button
+              id={`user-job-assignment-action-${job.id}`}
               type="button"
               className="btn btn-sm btn-primary"
               onClick={(e) => { e.stopPropagation(); handleAssign(job); }}

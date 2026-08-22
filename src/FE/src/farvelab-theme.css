@@ -349,10 +349,7 @@ body:has(.app-shell) :is(.status-badge, .job-type-badge) {
   font-weight: 600;
 }
 
-body:has(.app-shell) .review-dot { background: var(--warning); }
 body:has(.app-shell) :is(.unread-dot, .unassigned-dot) { background: var(--accent-cyan); }
-body:has(.app-shell) .approved-dot { background: var(--success); }
-body:has(.app-shell) .rejected-dot { background: var(--danger); }
 
 /* Tables --------------------------------------------------------------- */
 body:has(.app-shell) .data-table {

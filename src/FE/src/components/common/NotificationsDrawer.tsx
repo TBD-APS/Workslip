@@ -15,7 +15,9 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiClient } from '../../lib/axios';
+import { formatDateTime } from '../../lib/formatDate';
 import { notificationListQueryKey } from '../../lib/notificationQueryKeys';
+import { toUiLowerCase } from '../../lib/presentation/text';
 import { useAuth } from '../../providers/useAuth';
 import { formatRelativeActivityTime } from './activityFeed';
 import { Drawer } from './Drawer';
@@ -68,7 +70,7 @@ const getNotificationIcon = (item: NotificationItem) => {
     return <UserPlus size={17} />;
   }
 
-  const haystack = `${item.title} ${item.body}`.toLocaleLowerCase('da-DK');
+  const haystack = toUiLowerCase(`${item.title} ${item.body}`);
 
   if (haystack.includes('færdig') || haystack.includes('completed') || haystack.includes('godkend')) {
     return <CircleCheck size={17} />;
@@ -86,7 +88,7 @@ const getNotificationIcon = (item: NotificationItem) => {
 };
 
 const getNotificationAvatarTone = (item: NotificationItem) => {
-  const haystack = `${item.title} ${item.body}`.toLocaleLowerCase('da-DK');
+  const haystack = toUiLowerCase(`${item.title} ${item.body}`);
 
   if (haystack.includes('afvist') || haystack.includes('fejl')) return 'activity-avatar-danger';
   if (haystack.includes('færdig') || haystack.includes('completed') || haystack.includes('godkend')) {
@@ -420,7 +422,7 @@ export function NotificationsDrawer({
                         <time
                           className="activity-time"
                           dateTime={latest.createdUtc}
-                          title={new Date(latest.createdUtc).toLocaleString('da-DK')}
+                          title={formatDateTime(latest.createdUtc) ?? undefined}
                         >
                           {formatRelativeActivityTime(latest.createdUtc)}
                         </time>

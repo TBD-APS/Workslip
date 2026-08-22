@@ -1,9 +1,11 @@
-import { ArrowRight, Building2, FileText, Search } from 'lucide-react';
+import { ArrowRight, BookOpen, Building2, FileText, Search } from 'lucide-react';
+import type { ReactNode } from 'react';
 import type { QuickNavigatorResult } from './QuickNavigator';
 import type { QuickNavigatorSearchResult } from './quickNavigatorTypes';
 
 interface QuickNavigatorResultsProps {
   results: QuickNavigatorResult[];
+  query: string;
   safeActiveIndex: number;
   hasSearchQuery: boolean;
   searchResult: QuickNavigatorSearchResult;
@@ -11,8 +13,27 @@ interface QuickNavigatorResultsProps {
   onHoverIndex: (index: number) => void;
 }
 
+function getHighlightTerm(query: string): string {
+  return query.trim().replace(/^(sag|job|kunde|doc|docs|dokument)\b\s*#?\s*/i, '').trim();
+}
+
+function highlightMatch(value: string, query: string): ReactNode {
+  const term = getHighlightTerm(query);
+  if (!term) return value;
+  const index = value.toLocaleLowerCase('da-DK').indexOf(term.toLocaleLowerCase('da-DK'));
+  if (index < 0) return value;
+  return (
+    <>
+      {value.slice(0, index)}
+      <mark className="quick-nav-match">{value.slice(index, index + term.length)}</mark>
+      {value.slice(index + term.length)}
+    </>
+  );
+}
+
 export function QuickNavigatorResults({
   results,
+  query,
   safeActiveIndex,
   hasSearchQuery,
   searchResult,
@@ -22,14 +43,17 @@ export function QuickNavigatorResults({
   const {
     isLoadingJobs,
     isLoadingCustomers,
+    isLoadingDocuments,
     jobError,
     customerError,
+    documentError,
     jobs,
     customers,
+    documents,
   } = searchResult;
 
-  const anyLoading = isLoadingJobs || isLoadingCustomers;
-  const anyError = jobError || customerError;
+  const anyLoading = isLoadingJobs || isLoadingCustomers || isLoadingDocuments;
+  const anyError = jobError || customerError || documentError;
   const hasAnyResults = results.length > 0;
 
   return (
@@ -49,8 +73,8 @@ export function QuickNavigatorResults({
             >
               <span className="quick-nav-result-icon"><Icon size={19} /></span>
               <span className="quick-nav-result-copy">
-                <strong>{result.command.label}</strong>
-                <span>{result.command.description} · Navigation</span>
+                <strong>{highlightMatch(result.command.label, query)}</strong>
+                <span>{highlightMatch(result.command.description, query)} · Funktion</span>
               </span>
               <ArrowRight size={17} className="quick-nav-result-arrow" aria-hidden="true" />
             </button>
@@ -72,27 +96,50 @@ export function QuickNavigatorResults({
             >
               <span className="quick-nav-result-icon"><FileText size={19} /></span>
               <span className="quick-nav-result-copy">
-                <strong>{title} · {customer}</strong>
-                <span>{address ? `${address} · ` : ''}Sag</span>
+                <strong>{highlightMatch(`${title} · ${customer}`, query)}</strong>
+                <span>{address ? <>{highlightMatch(address, query)} · </> : null}Sag</span>
               </span>
               <ArrowRight size={17} className="quick-nav-result-arrow" aria-hidden="true" />
             </button>
           );
         }
 
-        const customer = result.customer;
+        if (result.type === 'customer') {
+          const customer = result.customer;
+          return (
+            <button
+              key={`customer-${customer.id}`}
+              type="button"
+              className={`quick-nav-result quick-nav-customer-result${isActive ? ' active' : ''}`}
+              onMouseEnter={() => onHoverIndex(index)}
+              onClick={() => onSelect(result)}
+            >
+              <span className="quick-nav-result-icon"><Building2 size={19} /></span>
+              <span className="quick-nav-result-copy">
+                <strong>{highlightMatch(customer.name, query)}</strong>
+                <span>{customer.address ? <>{highlightMatch(customer.address, query)} · </> : null}Kunde</span>
+              </span>
+              <ArrowRight size={17} className="quick-nav-result-arrow" aria-hidden="true" />
+            </button>
+          );
+        }
+
+        const document = result.document;
+        const documentMeta = document.tags.length > 0
+          ? `${document.tags.slice(0, 2).join(' · ')} · Dokument`
+          : 'Dokument';
         return (
           <button
-            key={`customer-${customer.id}`}
+            key={`document-${document.id}`}
             type="button"
-            className={`quick-nav-result quick-nav-customer-result${isActive ? ' active' : ''}`}
+            className={`quick-nav-result quick-nav-document-result${isActive ? ' active' : ''}`}
             onMouseEnter={() => onHoverIndex(index)}
             onClick={() => onSelect(result)}
           >
-            <span className="quick-nav-result-icon"><Building2 size={19} /></span>
+            <span className="quick-nav-result-icon"><BookOpen size={19} /></span>
             <span className="quick-nav-result-copy">
-              <strong>{customer.name}</strong>
-              <span>{customer.address ? `${customer.address} · ` : ''}Kunde</span>
+              <strong>{highlightMatch(document.title, query)}</strong>
+              <span>{highlightMatch(document.preview || documentMeta, query)}{document.preview ? ' · Dokument' : ''}</span>
             </span>
             <ArrowRight size={17} className="quick-nav-result-arrow" aria-hidden="true" />
           </button>
@@ -102,8 +149,8 @@ export function QuickNavigatorResults({
       {!hasSearchQuery && !hasAnyResults && (
         <div className="quick-nav-empty">
           <Search size={22} aria-hidden="true" />
-          <strong>Ingen resultater</strong>
-          <span>Prøv fx "timer", "docs", "kunde" eller "sag 1234".</span>
+          <strong>Find det, du leder efter</strong>
+          <span>Søg på navn, adresse, sagsnummer eller dokument.</span>
         </div>
       )}
 
@@ -111,7 +158,7 @@ export function QuickNavigatorResults({
         <div className="quick-nav-empty">
           <Search size={22} aria-hidden="true" />
           <strong>Ingen resultater</strong>
-          <span>Prøv et andet søgeord.</span>
+          <span>Prøv navn, adresse, sagsnummer eller et andet ord.</span>
         </div>
       )}
 
@@ -124,6 +171,12 @@ export function QuickNavigatorResults({
       {customerError && customers.length === 0 && (
         <div className="quick-nav-search-error" role="status">
           Kunder kunne ikke søges lige nu.
+        </div>
+      )}
+
+      {documentError && documents.length === 0 && (
+        <div className="quick-nav-search-error" role="status">
+          Dokumenter kunne ikke søges lige nu.
         </div>
       )}
     </div>

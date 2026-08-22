@@ -3,11 +3,27 @@ param(
     [string]$Environment = 'prod',
     [string]$Location = 'westeurope',
     [string]$COMPANY_NAME = 'mrsoftware',
+    # Entra object IDs are per-tenant. This default belongs to the original
+    # production tenant; in any other tenant it resolves to nothing. Leave it
+    # alone here — the script verifies it exists in the signed-in tenant and
+    # falls back to the deploying principal when it does not.
     [string]$GlobalAdminId = '9ea4bcd3-bf90-4249-93e0-f45070d140f7',
+    # Default verified domain of the signed-in tenant. Resolved from Microsoft
+    # Graph when omitted, so a fresh tenant needs no hand-set value.
+    [string]$EntraDefaultDomain = '',
     [string]$PowerBiReaderPrincipalId = '',
     [string]$PowerBiReaderEmail = '',
     [switch]$EnablePowerBiExport,
-    [string]$EntraStatePath = ''
+    # Monthly cost budget in the subscription's billing currency. Threshold
+    # notifications go to the existing API alert action group.
+    [int]$BudgetMonthlyAmount = 800,
+    # Escape hatch for a deploying identity without Microsoft.Consumption write
+    # permission. Turning this off removes cost alerting entirely.
+    [bool]$BudgetEnabled = $true,
+    [string]$EntraStatePath = '',
+    # Resolve everything, run the ARM deployment as what-if, and stop. No resource
+    # group, secret, App Configuration, SQL or Graph write is performed.
+    [switch]$WhatIf
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,7 +37,7 @@ $SqlServerName = "db-$COMPANY_NAME-$NormalizedEnvironment-server"
 $SqlDatabaseName = "db-$COMPANY_NAME-$NormalizedEnvironment"
 $Template = Join-Path $InfrastructureRoot 'main.bicep'
 $SqlAccessScript = Join-Path $PSScriptRoot 'grant-web-api-sql-access.ps1'
-$ProvisionedValuesPath = Join-Path $InfrastructureRoot 'entra-provisioned.json'
+$MonitoringConfigPath = Join-Path $InfrastructureRoot 'monitoring.config.json'
 $GraphRoot = 'https://graph.microsoft.com/v1.0'
 $OAuthUniqueName = "workslip-oauth-server-$NormalizedEnvironment"
 $ClientUniqueName = "workslip-client-$NormalizedEnvironment"
@@ -42,7 +58,9 @@ if (-not (Test-Path $SqlAccessScript)) {
     throw "SQL access provisioning script not found: $SqlAccessScript"
 }
 
-if (-not (Get-Command sqlcmd -ErrorAction SilentlyContinue)) {
+# A preview never runs the SQL access script, so it does not need sqlcmd. Requiring
+# it would block previewing from a machine that only has the Azure CLI.
+if (-not $WhatIf -and -not (Get-Command sqlcmd -ErrorAction SilentlyContinue)) {
     throw 'sqlcmd is required to provision the API managed identity in Azure SQL.'
 }
 
@@ -50,12 +68,6 @@ if ($EnablePowerBiExport -and
     ([string]::IsNullOrWhiteSpace($PowerBiReaderPrincipalId) -or
      [string]::IsNullOrWhiteSpace($PowerBiReaderEmail))) {
     throw 'Power BI export activation requires both PowerBiReaderPrincipalId and PowerBiReaderEmail.'
-}
-
-$OriginalProvisionedValues = $null
-$ProvisionedValuesExisted = Test-Path $ProvisionedValuesPath
-if ($ProvisionedValuesExisted) {
-    $OriginalProvisionedValues = [System.IO.File]::ReadAllText($ProvisionedValuesPath)
 }
 
 function Initialize-AzureCliInvocation {
@@ -220,6 +232,24 @@ function Get-AppConfigurationValue {
 
 function Get-KeyVaultSecretValue {
     param([Parameter(Mandatory = $true)][string]$SecretName)
+
+    # A fresh deployment has no Key Vault yet.
+    # Check the ARM resource before calling the Key Vault data plane.
+    $vaultResult = Invoke-AzureCli `
+        -Arguments @(
+            'keyvault', 'show',
+            '--resource-group', $ResourceGroup,
+            '--name', $KeyVaultName,
+            '--query', 'id',
+            '--only-show-errors',
+            '-o', 'tsv'
+        ) `
+        -AllowFailure
+
+    if ($vaultResult.ExitCode -ne 0 -or
+        [string]::IsNullOrWhiteSpace($vaultResult.Output)) {
+        return $null
+    }
 
     $result = Invoke-AzureCli `
         -Arguments @(
@@ -516,6 +546,125 @@ function Assert-EntraState {
     }
 }
 
+function Resolve-EntraDefaultDomain {
+    <#
+        UserEntraService builds userPrincipalName as "<mailNickname>@<domain>" when
+        it searches for an existing directory user. An empty or foreign domain makes
+        that filter match nothing, so the service creates a duplicate account instead
+        of reusing the real one. The value is tenant-bound and must therefore come
+        from the tenant being deployed into, never from a checked-in constant.
+    #>
+    $result = Invoke-AzureCli `
+        -Arguments @(
+            'rest',
+            '--method', 'GET',
+            '--uri', "$GraphRoot/organization?`$select=verifiedDomains",
+            '--query', 'value[0].verifiedDomains[?isDefault].name | [0]',
+            '--only-show-errors',
+            '-o', 'tsv'
+        ) `
+        -AllowFailure
+
+    if ($result.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($result.Output)) {
+        throw @"
+Could not resolve the tenant's default verified domain from Microsoft Graph.
+The deploying identity needs Organization.Read.All or Directory.Read.All, or you
+can bypass the lookup with -EntraDefaultDomain <domain>.
+$($result.Output)
+"@
+    }
+
+    return $result.Output.Trim()
+}
+
+function Test-GraphObjectExists {
+    param([Parameter(Mandatory = $true)][string]$ObjectId)
+
+    $result = Invoke-AzureCli `
+        -Arguments @(
+            'rest',
+            '--method', 'GET',
+            '--uri', "$GraphRoot/directoryObjects/$ObjectId",
+            '--only-show-errors',
+            '-o', 'none'
+        ) `
+        -AllowFailure
+
+    return $result.ExitCode -eq 0
+}
+
+function Resolve-DeployingPrincipalObjectId {
+    # Interactive/device login: a real user is signed in.
+    $userResult = Invoke-AzureCli `
+        -Arguments @('ad', 'signed-in-user', 'show', '--query', 'id', '--only-show-errors', '-o', 'tsv') `
+        -AllowFailure
+
+    if ($userResult.ExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($userResult.Output)) {
+        return $userResult.Output.Trim()
+    }
+
+    # CI/OIDC: a service principal is signed in, so resolve it via its app ID.
+    $appIdResult = Invoke-AzureCli `
+        -Arguments @('account', 'show', '--query', 'user.name', '--only-show-errors', '-o', 'tsv') `
+        -AllowFailure
+
+    if ($appIdResult.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($appIdResult.Output)) {
+        return $null
+    }
+
+    $spResult = Invoke-AzureCli `
+        -Arguments @(
+            'ad', 'sp', 'show',
+            '--id', $appIdResult.Output.Trim(),
+            '--query', 'id',
+            '--only-show-errors',
+            '-o', 'tsv'
+        ) `
+        -AllowFailure
+
+    if ($spResult.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($spResult.Output)) {
+        return $null
+    }
+
+    return $spResult.Output.Trim()
+}
+
+function Resolve-GlobalAdminId {
+    <#
+        globalAdminId receives App Configuration Data Owner and Key Vault
+        Administrator, and is added to the SQL admin group. A stale ID from another
+        tenant does not fail fast: the role assignments are accepted and the run
+        only dies much later, inside Add-GraphGroupMember's 30-attempt wait. Verify
+        it up front instead.
+    #>
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$RequestedGlobalAdminId)
+
+    if (-not [string]::IsNullOrWhiteSpace($RequestedGlobalAdminId)) {
+        if (Test-GraphObjectExists -ObjectId $RequestedGlobalAdminId) {
+            return $RequestedGlobalAdminId
+        }
+
+        Write-Host "Global administrator '$RequestedGlobalAdminId' does not exist in this tenant. Falling back to the deploying principal." -ForegroundColor Yellow
+    }
+
+    $resolved = Resolve-DeployingPrincipalObjectId
+    if ([string]::IsNullOrWhiteSpace($resolved)) {
+        throw @"
+Could not determine a global administrator object ID for this tenant.
+'$RequestedGlobalAdminId' was not found and the deploying principal could not be
+resolved. Pass -GlobalAdminId <objectId> for an identity that exists in the
+signed-in tenant.
+"@
+    }
+
+    if (-not (Test-GraphObjectExists -ObjectId $resolved)) {
+        throw "Resolved deploying principal '$resolved' is not readable in this tenant. Pass -GlobalAdminId explicitly."
+    }
+
+    Write-Host "Using deploying principal as global administrator: $resolved" -ForegroundColor Cyan
+    return $resolved
+}
+
 function Ensure-ResourceProviders {
     foreach ($provider in @(
         'Microsoft.Web',
@@ -527,6 +676,9 @@ function Ensure-ResourceProviders {
         'Microsoft.Sql',
         'Microsoft.ManagedIdentity',
         'Microsoft.Communication',
+        # Required by the cost budget in budgets.bicep. Without it the first
+        # deployment into a fresh subscription fails on an unregistered provider.
+        'Microsoft.Consumption',
         'Microsoft.Resources'
     )) {
         $state = Invoke-AzureCli `
@@ -614,9 +766,40 @@ try {
     $account = Ensure-AzureLogin
     Ensure-ResourceProviders
 
+    # Resolve every tenant-bound value before the first mutation, so deploying
+    # into a fresh tenant fails immediately and legibly rather than halfway
+    # through provisioning.
+    $resolvedEntraDefaultDomain = if (-not [string]::IsNullOrWhiteSpace($EntraDefaultDomain)) {
+        $EntraDefaultDomain.Trim()
+    } else {
+        Resolve-EntraDefaultDomain
+    }
+    Write-Host "Entra default domain: $resolvedEntraDefaultDomain" -ForegroundColor Cyan
+
+    $resolvedGlobalAdminId = Resolve-GlobalAdminId -RequestedGlobalAdminId $GlobalAdminId
+
+    # Operator configuration, not template content. Read here and passed as a
+    # parameter so main.bicep stays independent of what sits next to it on disk.
+    $alertEmailAddresses = @(
+        (Get-Content -Path $MonitoringConfigPath -Raw | ConvertFrom-Json).alertEmailAddresses
+    )
+    if ($alertEmailAddresses.Count -eq 0) {
+        throw "No alertEmailAddresses configured in $MonitoringConfigPath. Operational alerts would have no recipient."
+    }
+
     $groupExists = Invoke-AzureCli `
         -Arguments @('group', 'exists', '--name', $ResourceGroup, '-o', 'tsv')
     if ($groupExists.Output -ne 'true') {
+        if ($WhatIf) {
+            # what-if runs against a resource group, so there is nothing to compare
+            # against until it exists. Say so rather than reporting an empty diff.
+            throw @"
+Resource group '$ResourceGroup' does not exist, so there is nothing to preview against.
+Run without -WhatIf to create it, or create the group first:
+  az group create --name $ResourceGroup --location $Location
+"@
+        }
+
         Invoke-AzureCli -Arguments @('group', 'create', '--name', $ResourceGroup, '--location', $Location, '-o', 'none') | Out-Null
     }
 
@@ -625,8 +808,13 @@ try {
     }
     else {
         $entraState = Resolve-ExistingEntraState -TenantId ([string]$account.tenantId)
-        Write-Utf8JsonFile -Path $EntraStatePath -Value $entraState
-        Write-Host "Cached read-only Entra state: $EntraStatePath" -ForegroundColor Green
+        if ($WhatIf) {
+            Write-Host "Resolved Entra state in memory; cache file not written: $EntraStatePath" -ForegroundColor DarkGray
+        }
+        else {
+            Write-Utf8JsonFile -Path $EntraStatePath -Value $entraState
+            Write-Host "Cached read-only Entra state: $EntraStatePath" -ForegroundColor Green
+        }
     }
 
     Assert-EntraState -State $entraState
@@ -635,14 +823,6 @@ try {
         throw "Entra state belongs to tenant '$($entraState.tenantId)', but Azure CLI is signed into '$($account.tenantId)'."
     }
 
-    $handoff = [ordered]@{
-        environment = $NormalizedEnvironment
-        oauthClientId = [string]$entraState.oauthClientId
-        oauthAppObjectId = [string]$entraState.oauthAppObjectId
-        clientAppId = [string]$entraState.clientAppId
-        clientAppObjectId = [string]$entraState.clientAppObjectId
-    }
-    Write-Utf8JsonFile -Path $ProvisionedValuesPath -Value $handoff
 
     $existingSqlAdminPassword = Get-KeyVaultSecretValue -SecretName $SqlAdminPasswordSecretName
     $sqlAdminPassword = if (-not [string]::IsNullOrWhiteSpace($env:WORKSLIP_SQL_ADMIN_PASSWORD)) {
@@ -674,10 +854,18 @@ try {
         parameters = [ordered]@{
             companyName = @{ value = $COMPANY_NAME }
             environment = @{ value = $Environment }
-            globalAdminId = @{ value = $GlobalAdminId }
+            globalAdminId = @{ value = $resolvedGlobalAdminId }
+            entraDefaultDomain = @{ value = $resolvedEntraDefaultDomain }
             powerBiReaderPrincipalId = @{ value = $PowerBiReaderPrincipalId }
             powerBiReaderEmail = @{ value = $PowerBiReaderEmail }
             powerBiExportEnabled = @{ value = [bool]$EnablePowerBiExport }
+            budgetMonthlyAmount = @{ value = $BudgetMonthlyAmount }
+            budgetEnabled = @{ value = $BudgetEnabled }
+            oauthClientId = @{ value = [string]$entraState.oauthClientId }
+            oauthAppObjectId = @{ value = [string]$entraState.oauthAppObjectId }
+            clientAppId = @{ value = [string]$entraState.clientAppId }
+            clientAppObjectId = @{ value = [string]$entraState.clientAppObjectId }
+            alertEmailAddressList = @{ value = $alertEmailAddresses }
             location = @{ value = $Location }
             sqlAdminPassword = @{ value = $sqlAdminPassword }
         }
@@ -685,6 +873,29 @@ try {
     Write-Utf8JsonFile -Path $parameterFile.FullName -Value $deploymentParameters
 
     $deploymentName = "$COMPANY_NAME-$NormalizedEnvironment-$(Get-Date -Format 'yyyyMMddHHmmss')"
+
+    if ($WhatIf) {
+        Write-Host "Previewing Azure infrastructure: $deploymentName" -ForegroundColor Cyan
+        Invoke-AzureCli -Arguments @(
+            'deployment', 'group', 'what-if',
+            '--resource-group', $ResourceGroup,
+            '--name', $deploymentName,
+            '--mode', 'Incremental',
+            '--template-file', $Template,
+            '--parameters', "@$($parameterFile.FullName)",
+            '--only-show-errors',
+            '-o', 'table'
+        ) | ForEach-Object { Write-Host $_.Output }
+
+        # Everything past this point consumes deployment outputs and writes secrets,
+        # App Configuration references, SQL principals and Graph group membership.
+        # what-if produces no outputs, so stop here rather than half-run the phase.
+        Write-Host ''
+        Write-Host 'Not written in preview: Key Vault secrets, App Configuration references, SQL access, SQL admin group membership.' -ForegroundColor DarkGray
+        Write-Host 'Preview complete. No Azure resource was changed.' -ForegroundColor Green
+        return
+    }
+
     Write-Host "Deploying Azure infrastructure: $deploymentName" -ForegroundColor Cyan
     $deploymentResult = Invoke-AzureCli -Arguments @(
         'deployment', 'group', 'create',
@@ -726,7 +937,7 @@ try {
     if ([string]::IsNullOrWhiteSpace($sqlAdminGroupId)) {
         throw 'Deployment output SQL_ADMIN_GROUP_ID was empty.'
     }
-    Add-GraphGroupMember -GroupId $sqlAdminGroupId -MemberId $GlobalAdminId -Description 'global administrator'
+    Add-GraphGroupMember -GroupId $sqlAdminGroupId -MemberId $resolvedGlobalAdminId -Description 'global administrator'
 
     & $SqlAccessScript `
         -Environment $Environment `
@@ -743,17 +954,6 @@ try {
 }
 finally {
     Remove-Item $parameterFile.FullName -Force -ErrorAction SilentlyContinue
-
-    if ($ProvisionedValuesExisted) {
-        [System.IO.File]::WriteAllText(
-            $ProvisionedValuesPath,
-            $OriginalProvisionedValues,
-            [System.Text.UTF8Encoding]::new($false)
-        )
-    }
-    else {
-        Remove-Item $ProvisionedValuesPath -Force -ErrorAction SilentlyContinue
-    }
 
     $sqlAdminPassword = $null
     $requestedJwtSigningKey = $null

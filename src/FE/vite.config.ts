@@ -3,6 +3,8 @@ import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const devProxyTarget = process.env.VITE_DEV_PROXY_TARGET || 'http://localhost:5262'
+
 export default defineConfig({
   test: {
     environment: 'jsdom',
@@ -30,7 +32,7 @@ export default defineConfig({
     port: 5270,
     proxy: {
       '/api': {
-        target: 'http://localhost:5262',
+        target: devProxyTarget,
         changeOrigin: true,
         secure: false,
       }
@@ -66,8 +68,8 @@ export default defineConfig({
         name: 'Workslip',
         short_name: 'Workslip',
         description: 'Den digitale arbejdsseddel til VVS',
-        theme_color: '#050505',
-        background_color: '#050505',
+        theme_color: '#FFF7E8',
+        background_color: '#FFF7E8',
         display: 'standalone',
         icons: [
           {

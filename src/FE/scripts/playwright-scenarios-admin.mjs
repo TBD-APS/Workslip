@@ -193,7 +193,12 @@ async function worksheetIntegrityFlow(session) {
     session.referenceData = await session.getReferenceData();
     session.worksheetUser = session.auth.user;
   }, { screenshot: false });
-  const job = await createKlsDraftViaUi(session, { role: 'Admin' });
+
+  const customer = await createCustomerFixtureViaApi(session);
+  const job = await createMinimalJobFixtureViaApi(session, customer);
+  await session.apiExpect('POST', `/api/jobs/${job.id}/assign`, {
+    userIds: [session.worksheetUser.id],
+  }, [200]);
 
   await session.step('add worksheet with Danish decimal comma', async () => {
     await session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded' });

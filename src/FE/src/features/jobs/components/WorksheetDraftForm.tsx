@@ -13,6 +13,8 @@ type WorksheetDraftFormProps = {
   currentUserName: string;
   isLoadingUsers: boolean;
   isSaving: boolean;
+  hoursInputId?: string;
+  submitId?: string;
   submitLabel: string;
   error?: string | null;
   onDraftChange: (draft: WorksheetDraft) => void;
@@ -28,6 +30,8 @@ export function WorksheetDraftForm({
   currentUserName,
   isLoadingUsers,
   isSaving,
+  hoursInputId,
+  submitId,
   submitLabel,
   error,
   onDraftChange,
@@ -35,9 +39,16 @@ export function WorksheetDraftForm({
   onCancel,
 }: WorksheetDraftFormProps) {
   const updateDraft = (patch: Partial<WorksheetDraft>) => onDraftChange({ ...draft, ...patch });
+  const resolvedHoursInputId = hoursInputId ?? `${title}-worksheet-hours`;
 
   return (
-    <div className="worksheet-form worksheet-form--compact">
+    <form
+      className="worksheet-form worksheet-form--compact"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
       <h4>{title}</h4>
       <div className="worksheet-form-grid worksheet-form-grid-main">
         <CalendarPicker value={draft.workDate} onChange={(workDate) => updateDraft({ workDate })} />
@@ -51,6 +62,7 @@ export function WorksheetDraftForm({
             options={userOptions}
             selectedIds={draft.userId ? [draft.userId] : []}
             isLoading={isLoadingUsers}
+            triggerId="worksheet-assignee-trigger"
             onChange={(ids) => updateDraft({ userId: ids.at(-1) ?? '' })}
           />
         ) : (
@@ -63,9 +75,9 @@ export function WorksheetDraftForm({
 
       <div className="worksheet-form-grid worksheet-form-grid-hours">
         <div className="form-group">
-          <label className="form-label" htmlFor={`${title}-worksheet-hours`}>Timer</label>
+          <label className="form-label" htmlFor={resolvedHoursInputId}>Timer</label>
           <NumericInput
-            id={`${title}-worksheet-hours`}
+            id={resolvedHoursInputId}
             kind="decimal"
             min={0}
             max={24}
@@ -84,13 +96,13 @@ export function WorksheetDraftForm({
         </div>
       </div>
 
-      {error && <p className="form-error-text">{error}</p>}
+      {error && <p id="worksheet-form-error" className="form-error-text">{error}</p>}
 
       <div className="worksheet-form-actions worksheet-form-actions--compact">
         <button
-          type="button"
+          id={submitId}
+          type="submit"
           className="btn btn-primary"
-          onClick={onSubmit}
           disabled={isSaving}
         >
           {isSaving && <Loader2 className="animate-spin" size={16} />}
@@ -107,6 +119,6 @@ export function WorksheetDraftForm({
           </button>
         )}
       </div>
-    </div>
+    </form>
   );
 }

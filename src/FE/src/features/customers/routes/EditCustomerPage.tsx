@@ -8,8 +8,8 @@ import { getGetApiCustomersQueryKey, getGetApiCustomersIdQueryKey } from '../../
 import { notify } from '../../../lib/toast';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { validateCustomer, type CustomerFieldErrors } from '../validation';
-import { AddressAutocomplete } from '../../jobs/components/AddressAutocomplete';
-import type { AddressSuggestion } from '../../jobs/hooks/useAddressAutocomplete';
+import { AddressAutocomplete } from '../../../components/AddressAutocomplete';
+import type { AddressSuggestion } from '../../../hooks/useAddressAutocomplete';
 
 type ExtendedCustomerFields = {
   customerNumber?: string | null;
@@ -199,7 +199,7 @@ export const EditCustomerPage = () => {
       </div>
 
       <div className="modal-actions">
-        <button type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={isSaving}>
+        <button id="edit-customer-save" type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={isSaving}>
           {isSaving && <div className="animate-spin spinner-white" />}
           <span>{isSaving ? 'Gemmer...' : 'Gem'}</span>
         </button>

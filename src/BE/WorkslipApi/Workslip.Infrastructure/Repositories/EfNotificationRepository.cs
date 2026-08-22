@@ -50,7 +50,7 @@ public sealed class EfNotificationRepository : INotificationRepository
             const string sql = """
                 ;WITH candidates AS (
                     SELECT TOP (@BatchSize) *
-                    FROM NotificationQueue WITH (UPDLOCK, READPAST, ROWLOCK)
+                    FROM NotificationQueue WITH (UPDLOCK, READPAST, READCOMMITTEDLOCK)
                     WHERE (Status = 'Pending' AND NextAttemptUtc <= SYSUTCDATETIME())
                        OR (Status = 'Processing'
                            AND (ProcessingStartedUtc IS NULL OR ProcessingStartedUtc <= @LeaseCutoffUtc))

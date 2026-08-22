@@ -7,8 +7,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { getGetApiCustomersQueryKey } from '../../../api/generated/customers/customers';
 import type { CustomerDetailViewModel } from '../../../api/generated/models';
 import { validateCustomer, type CustomerFieldErrors } from '../validation';
-import { AddressAutocomplete } from '../../jobs/components/AddressAutocomplete';
-import type { AddressSuggestion } from '../../jobs/hooks/useAddressAutocomplete';
+import { AddressAutocomplete } from '../../../components/AddressAutocomplete';
+import type { AddressSuggestion } from '../../../hooks/useAddressAutocomplete';
 import { useModalAccessibility } from '../../../components/common/useModalAccessibility';
 
 export const CreateCustomerPage = () => {
@@ -131,8 +131,9 @@ export const CreateCustomerPage = () => {
           {fieldErrors.name && <p className="form-error-text">{fieldErrors.name}</p>}
         </div>
         <div className="form-group">
-          <label className="form-label">Adresse</label>
+          <label className="form-label" htmlFor="create-customer-address">Adresse</label>
           <AddressAutocomplete
+            inputId="create-customer-address"
             value={address}
             onTextChange={setAddress}
             onSelectSuggestion={(s: AddressSuggestion) => {
@@ -177,7 +178,7 @@ export const CreateCustomerPage = () => {
       </div>
 
       <div className="modal-actions">
-        <button type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={isSaving}>
+        <button id="create-customer-submit" type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={isSaving}>
           {isSaving && <Loader2 className="animate-spin" size={16} aria-hidden="true" />}
           <span>{isSaving ? 'Opretter...' : 'Opret'}</span>
         </button>
@@ -210,7 +211,7 @@ function CreateCustomerSuccessDialog({ onCreateAnother, onGoToCustomerList }: { 
         <h3 id="create-customer-success-title">Kunden er oprettet</h3>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onCreateAnother}>Opret en mere</button>
-          <button ref={primaryButtonRef} type="button" className="btn btn-primary" onClick={onGoToCustomerList}>Til kundelisten</button>
+          <button id="create-customer-success-list" ref={primaryButtonRef} type="button" className="btn btn-primary" onClick={onGoToCustomerList}>Til kundelisten</button>
         </div>
       </div>
     </div>,

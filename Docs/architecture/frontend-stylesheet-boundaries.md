@@ -19,6 +19,8 @@ New selectors must be placed in the owning stylesheet. Moving selectors out of `
 
 `npm run check:app-css-budget` enforces a shrinking byte ceiling for `App.css` before production builds. The ceiling prevents new work from growing the monolith while existing selectors are extracted incrementally.
 
+`npm run check:color-budget` applies the same shrinking-ceiling pattern to colour literals that bypass the token layer; see [`figma-design-environment.md`](figma-design-environment.md).
+
 The guard is deliberately a ceiling, not a target. Each safe extraction should reduce the file size and lower the ceiling in the same change. Do not raise the ceiling to accommodate new feature styling.
 
 ## Completed boundaries

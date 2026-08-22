@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text;
 using QuestPDF.Infrastructure;
 using Workslip.Application.Worksheets;
@@ -11,7 +12,7 @@ public sealed class MonthlyCostingPdfGeneratorTests
     private static readonly byte[] PngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
     [Fact]
-    public void Generator_renders_costing_pdf_and_preview()
+    public void Generator_renders_costing_pdf_and_bounded_resolution_preview()
     {
         QuestPDF.Settings.License = LicenseType.Community;
         var userId = Guid.NewGuid();
@@ -52,5 +53,11 @@ public sealed class MonthlyCostingPdfGeneratorTests
         Assert.Equal("%PDF-", Encoding.ASCII.GetString(pdf, 0, 5));
         Assert.NotEmpty(previewPages);
         Assert.All(previewPages, page => Assert.True(page.AsSpan().StartsWith(PngSignature)));
+
+        var firstPage = previewPages[0];
+        var width = BinaryPrimitives.ReadInt32BigEndian(firstPage.AsSpan(16, 4));
+        var height = BinaryPrimitives.ReadInt32BigEndian(firstPage.AsSpan(20, 4));
+        Assert.InRange(width, 1000, 1200);
+        Assert.InRange(height, 700, 850);
     }
 }

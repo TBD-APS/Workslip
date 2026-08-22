@@ -17,7 +17,7 @@ import { useJobDetailsState } from '../hooks/useJobDetails';
 import { COMPLETED_JOB_VIEW_TYPE, markJobAsSeen } from '../utils/markJobSeen';
 import { useScrollRestore } from '../../../hooks/useScrollRestore';
 
-import { formatJobStatus } from '../statusLabels';
+import { formatJobStatus } from '../../../lib/statusLabels';
 import { createJobReportPdfPreview, downloadJobReportPdf } from '../utils/downloadJobReportPdf';
 import { JobHistoryDrawer } from '../components/JobHistoryDrawer';
 import { JobConversationLauncher } from '../components/JobConversationLauncher';
@@ -364,6 +364,7 @@ export const CompletedJobReport = () => {
           </button>
           {isDesktop && (
             <button
+              id="job-report-preview-pdf"
               className="btn btn-secondary report-overview-icon-action"
               type="button"
               onClick={() => void handlePreviewPdf()}
@@ -375,6 +376,7 @@ export const CompletedJobReport = () => {
             </button>
           )}
           <button
+            id="job-report-download-pdf"
             className="btn btn-secondary report-overview-icon-action"
             type="button"
             onClick={() => void handleDownloadPdf()}

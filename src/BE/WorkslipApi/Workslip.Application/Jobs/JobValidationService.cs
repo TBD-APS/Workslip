@@ -55,7 +55,9 @@ namespace Workslip.Application.Jobs
                         {
                             errors.Add(new ValidationError
                             {
-                                Identifier = nameof(JobReportResponse.InstallationTypes),
+                                // Keep the validation key structural. The frontend can route this
+                                // directly to the exact category without matching Danish message text.
+                                Identifier = $"{nameof(JobReportResponse.InstallationTypes)}.{installationType.Id}.Categories.{category.Id}.ControlPoints",
                                 ErrorMessage = $"Mindst et kontrolpunkt skal vælges for \"{installationType.Name} i {category.Name}\"."
                             });
                         }

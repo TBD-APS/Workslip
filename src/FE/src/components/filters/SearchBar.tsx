@@ -4,12 +4,14 @@ interface SearchBarProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  inputId?: string;
 }
 
-export const SearchBar = ({ value, onChange, placeholder = 'Søg...' }: SearchBarProps) => (
+export const SearchBar = ({ value, onChange, placeholder = 'Søg...', inputId }: SearchBarProps) => (
   <div className="search-input-wrapper">
     <Search size={16} className="search-input-icon" />
     <input
+      id={inputId}
       type="text"
       className="search-input"
       value={value}

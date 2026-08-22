@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Clock, Hash, Heart, Mail, MapPin, MoreHorizontal, Phone, PlusCircle, Users } from 'lucide-react';
+import { ArrowLeft, Hash, Heart, Mail, MapPin, MoreHorizontal, Phone, PlusCircle, Users } from 'lucide-react';
 import { Can } from '../../../providers/permissions/Can';
 import { ErrorState } from '../../../components/ErrorState';
 import { CopyAddressButton } from '../../../components/CopyAddressButton';
@@ -9,9 +9,8 @@ import {
   getGetApiCustomersQueryKey,
   useGetApiCustomersId,
 } from '../../../api/generated/customers/customers';
-import { formatDateLong } from '../../../lib/formatDate';
-import { formatJobStatus } from '../../jobs/statusLabels';
-import { patchApiCustomersIdFavorite } from '../../jobs/customerApi';
+import { patchApiCustomersIdFavorite } from '../../../api/generated/customers/customers';
+import { JobCard } from '../../../components/JobCard';
 import { useCustomerActions } from '../components/CustomerActions';
 import { useScrollRestore } from '../../../hooks/useScrollRestore';
 import type { CustomerListItemViewModel } from '../../../api/generated/models';
@@ -83,7 +82,7 @@ export const CustomerDetail = () => {
 
   if (query.isError || !customer) {
     return (
-      <div className="page-container">
+      <div id="customer-detail-error" className="page-container">
         <ErrorState message="Kunne ikke hente kundeoplysninger.">
           <button className="btn btn-primary" onClick={() => navigate('/app/customers')}>Tilbage til kunder</button>
         </ErrorState>
@@ -95,7 +94,7 @@ export const CustomerDetail = () => {
   const fullAddress = [customer.address, locality, customer.country].filter(Boolean).join(', ');
 
   return (
-    <div className="page-container">
+    <div id="customer-detail-page" className="page-container">
       <div className="detail-header">
         <button className="btn-icon-back" onClick={() => navigate('/app/customers')} aria-label="Tilbage">
           <ArrowLeft size={20} />
@@ -106,6 +105,7 @@ export const CustomerDetail = () => {
         </div>
         <Can permission="customer:edit">
           <button
+            id="customer-favorite-button"
             type="button"
             className={`btn-icon ${isFavorite ? 'text-red' : 'opacity-30'}`}
             onClick={() => favoriteMutation.mutate(!isFavorite)}
@@ -120,6 +120,7 @@ export const CustomerDetail = () => {
         <Can permission="customer:edit">
           <div className="worksheet-actions-menu-root">
             <button
+              id="customer-actions-button"
               type="button"
               className="btn-icon"
               onClick={(event) => toggleActionMenu(event, customer.id)}
@@ -135,6 +136,7 @@ export const CustomerDetail = () => {
 
       <Can permission="job:create">
         <button
+          id="customer-create-job-button"
           type="button"
           className="fab-create"
           onClick={() => navigate('/app/job/new', {
@@ -184,40 +186,17 @@ export const CustomerDetail = () => {
       <div className="job-list">
         {customer.jobs.map((job) => {
           const destinationAddress = (job as typeof job & CustomerJobWithDestination).destinationAddress;
-          const openJob = () => navigate(`/app/completed/${job.id}`, { state: { from: `/app/customers/${customer.id}` } });
-
           return (
-            <div
+            <JobCard
               key={job.id}
-              className="job-card"
-              onClick={openJob}
-              onKeyDown={(event) => {
-                if (event.target !== event.currentTarget) return;
-                if (event.key === 'Enter' || event.key === ' ') openJob();
-              }}
-              role="link"
-              tabIndex={0}
-            >
-              <div className="job-card-top">
-                <div>
-                  <span className="job-number">Sag-{job.reportNumber}</span>
-                  <h3 className="job-customer">{customer.name}</h3>
-                </div>
-                <span className={`status-badge status-${job.status.toLowerCase()}`}>{formatJobStatus(job.status)}</span>
-              </div>
-              <p className="job-address-row">
-                <MapPin size={14} />
-                <span className="job-address">{destinationAddress || 'Ingen destinationsadresse angivet'}</span>
-                <CopyAddressButton address={destinationAddress} />
-              </p>
-              <div className="job-card-body">
-                {job.contactPerson && <span className="meta-item"><Users size={14} /><span>{job.contactPerson}</span></span>}
-                {job.contactPhone && <span className="meta-item"><Phone size={14} /><span>{job.contactPhone}</span></span>}
-              </div>
-              <div className="job-card-meta">
-                <span className="meta-item"><Clock size={14} /><span className="meta-item">Sidst opdateret: {formatDateLong(job.updatedAt)}</span></span>
-              </div>
-            </div>
+              id={job.id}
+              reportNumber={job.reportNumber}
+              status={job.status}
+              customerName={customer.name}
+              address={destinationAddress}
+              updatedAt={job.updatedAt}
+              onOpen={() => navigate(`/app/completed/${job.id}`, { state: { from: `/app/customers/${customer.id}` } })}
+            />
           );
         })}
 

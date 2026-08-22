@@ -127,16 +127,26 @@ async function main() {
 
   page.on('pageerror', (error) => scenarioReport.pageErrors.push(contractHelpers.redact(error.message)));
   page.on('requestfailed', (request) => {
+    const requestUrl = new URL(request.url());
+    const errorText = request.failure()?.errorText ?? 'unknown';
+    const expectedNavigationAbort = request.method() === 'GET' && errorText === 'net::ERR_ABORTED';
+    const expectedSeenAbort = request.method() === 'POST'
+      && errorText === 'net::ERR_ABORTED'
+      && /^\/api\/jobs\/[^/]+\/seen$/.test(requestUrl.pathname);
     const entry = {
       method: request.method(),
       url: contractHelpers.safeUrl(request.url()),
-      error: contractHelpers.redact(request.failure()?.errorText ?? 'unknown'),
+      error: contractHelpers.redact(errorText),
+      expected: expectedNavigationAbort || expectedSeenAbort,
     };
     scenarioReport.failedRequests.push(entry);
-    if (captureAuthenticatedNetwork && request.url().includes('/api/')) scenarioReport.failedApiResponses.push(entry);
+    if (captureAuthenticatedNetwork && requestUrl.pathname.startsWith('/api/')) {
+      scenarioReport.failedApiResponses.push(entry);
+    }
   });
   page.on('response', (response) => {
-    if (!captureAuthenticatedNetwork || !response.url().includes('/api/') || response.status() < 400) return;
+    const responsePath = new URL(response.url()).pathname;
+    if (!captureAuthenticatedNetwork || !responsePath.startsWith('/api/') || response.status() < 400) return;
     scenarioReport.failedApiResponses.push({
       method: response.request().method(),
       url: contractHelpers.safeUrl(response.url()),
@@ -247,12 +257,16 @@ async function main() {
       await creationDialog.waitFor({ state: 'hidden', timeout: UI_TIMEOUT });
     }
 
-    const accountMenuButton = page.getByRole('button', { name: 'Indstillinger og konto' });
+    let accountMenuButton = page.locator('#account-menu-button');
+    if (!await accountMenuButton.isVisible().catch(() => false)) {
+      await page.goto(`${runtime.appUrl}/app`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+      accountMenuButton = page.locator('#account-menu-button');
+    }
     await accountMenuButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await accountMenuButton.click();
-    const accountMenu = page.getByRole('menu', { name: 'Indstillinger og konto' });
+    const accountMenu = page.locator('#account-menu');
     await accountMenu.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    await accountMenu.getByRole('menuitem', { name: 'Log ud' }).click();
+    await accountMenu.locator('#logout-button').click();
     await page.waitForURL((url) => url.pathname === '/login', { timeout: UI_TIMEOUT });
     auth.token = null;
     auth.user = null;

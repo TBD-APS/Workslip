@@ -6,15 +6,43 @@
 **Review cadence:** whenever Azure, Entra, SQL, GitHub OIDC, monitoring or secret handling changes  
 **Linear:** WOR-190, WOR-212, WOR-223
 
-Workslip has exactly three supported deployment entry points:
+Workslip has exactly three supported deployment entry points, plus one read-only entry point that previews them:
 
 | Script | Purpose |
 |---|---|
 | `deploy.ps1` | Reconcile Entra, deploy Azure infrastructure and reconcile deployment-owned runtime secrets. |
 | `deploy-entra.ps1` | Reconcile only the Microsoft Entra application registrations and service principals. |
 | `deploy-infrastructure.ps1` | Deploy only Azure resources using existing Entra state or read-only Entra discovery. |
+| `plan.ps1` | Preview all four phases. Changes nothing, and has no parameter that lets it. |
 
-Do not add another public deployment wrapper. Helper scripts such as `reconcile-vapid-secret.ps1` are implementation details and must not be presented as operator entry points.
+Do not add another public deployment *wrapper*. `plan.ps1` is admitted as the single exception because it removes a capability rather than adding one: it exists so previewing production cannot be turned into deploying production by a mistyped argument. Any further entry point must deploy nothing that an existing one already deploys.
+
+Helper scripts such as `reconcile-vapid-secret.ps1` are implementation details and must not be presented as operator entry points.
+
+## Previewing before deploying
+
+Every phase accepts `-WhatIf` and reports what it would do without doing it.
+
+```powershell
+./plan.ps1 prod          # preferred: cannot mutate
+./deploy.ps1 prod -WhatIf   # same preview, from the deploying entry point
+```
+
+Per phase:
+
+| Phase | Preview behaviour |
+|---|---|
+| Entra | Lists the Microsoft Graph upserts it would send. Graph has no server-side what-if, so this is the intended writes, not a computed diff. |
+| Azure infrastructure | Runs `az deployment group what-if` and prints the resource diff. |
+| VAPID secret | Reports whether the private key would be created. |
+| GitHub OIDC identity | Runs a subscription-level what-if and skips the GitHub environment write. |
+
+A preview needs neither `sqlcmd` nor the GitHub CLI, because it never reaches the steps that use them.
+
+Two limits worth knowing before trusting the output:
+
+- The infrastructure phase previews against the Entra registrations that exist **now**. In a tenant where the Entra phase has not run yet, the registrations are absent, and both phases stop early and say so. Run the Entra phase for real first, then preview again to get a meaningful infrastructure diff.
+- `what-if` compares against deployed resource state. It does not predict what the deployment scripts do *after* ARM returns — Key Vault writes, App Configuration references, SQL principals and SQL admin group membership are all outside its view. The preview lists those as skipped rather than pretending to diff them.
 
 ## Prerequisites
 
@@ -75,11 +103,11 @@ The script uses the local Entra state when present. Otherwise, it performs read-
 The infrastructure phase:
 
 1. validates the environment and tenant;
-2. writes a temporary compile-time Entra handoff;
-3. deploys `main.bicep` once;
-4. reconciles Azure-owned deployment secrets without exposing them on command lines;
-5. provisions the API user-assigned managed identity in Azure SQL;
-6. restores the committed handoff placeholder.
+2. deploys `main.bicep` once, passing the resolved Entra identifiers and alert recipients as parameters;
+3. reconciles Azure-owned deployment secrets without exposing them on command lines;
+4. provisions the API user-assigned managed identity in Azure SQL.
+
+The template takes no compile-time file input. Everything instance-specific arrives as a deployment parameter, so `main.bicep` describes *a* Workslip environment rather than this one, and a deployment no longer writes to the working tree as a side effect. `monitoring.config.json` remains operator configuration; the deployment script reads it and passes the addresses through.
 
 An infrastructure-only deployment does not generate the VAPID private key. Use the full `deploy.ps1` entry point when establishing a new environment or repairing a missing VAPID secret.
 
@@ -151,6 +179,64 @@ The availability test runs every five minutes from five regions, has retries ena
 Alert recipients are maintained in `monitoring.config.json`. This is intentionally deployment-time operations configuration rather than a query against the Workslip database: alerts must still be deliverable when the API or SQL database is unavailable. Keep the list aligned with the people expected to respond to production incidents. Do not place credentials or notification-service secrets in this file.
 
 After deployment, use Azure Monitor's **Test action group** function to verify delivery. Do not deliberately stop production or generate production errors solely to test an alert. Tune the response-time threshold if the F1 App Service cold-start behaviour creates repeated non-actionable notifications.
+
+## Cost budget
+
+`budgets.bicep` provisions one monthly `Microsoft.Consumption` budget scoped to the resource group. It reuses the action group from `monitoring.bicep`, so cost warnings reach the same mailboxes as health alerts and there is no second recipient list to maintain.
+
+| Notification | Fires when |
+|---|---|
+| Actual 50% | Half the monthly budget is already spent |
+| Actual 80% | Spend is approaching the ceiling |
+| Actual 100% | The budget is exceeded |
+| Forecasted 100% | Azure projects the month to end over budget |
+
+The forecasted threshold is the one worth acting on — it warns before the money is gone. A fresh subscription has no history to project from, so expect it to stay quiet through the first billing period.
+
+The budget alarms; it does not cap. Azure keeps serving traffic after the threshold is passed.
+
+| Parameter | Default | Notes |
+|---|---|---|
+| `-BudgetMonthlyAmount` | `800` | **In the billing currency of the subscription, which is not necessarily DKK.** Confirm the currency before trusting the number. The default leaves headroom over the ~534/month lean production baseline so it alarms on a runaway, not on normal operation. |
+| `-BudgetEnabled` | `$true` | Set `$false` only if the deploying identity cannot write `Microsoft.Consumption` budgets. Cost alerting is then absent — record why. |
+
+`Microsoft.Consumption` is registered by `deploy-infrastructure.ps1` alongside the other providers. Without it the first deployment into a fresh subscription fails on an unregistered provider.
+
+Set the amount from measured consumption once the environment has run for a full billing period, not from an estimate. Related: the standard availability test in `monitoring.bicep` runs from five locations every five minutes and is itself a meaningful line item — measure it before adding environments or locations.
+
+## Platform observability
+
+`observability.bicep` covers the resources the API depends on but that the API alerts cannot see. When SQL saturates or blob storage degrades, the API itself often stays up and healthy, so `apiAvailabilityAlert` and `apiHttp5xxAlert` stay quiet while users experience failures.
+
+### Alerts
+
+| Alert | Condition | Severity |
+|---|---|---|
+| SQL DTU saturation | Average `dtu_consumption_percent` above 80% over fifteen minutes | Warning (2) |
+| SQL storage saturation | Average `storage_percent` above 80% over one hour | Warning (2) |
+| Storage availability | Average `Availability` below 99% over five minutes | Error (1) |
+
+The database is Basic tier — five DTU and a two gigabyte ceiling — so both limits are reachable under ordinary growth, not only under abuse. The DTU window is fifteen minutes rather than five because a single report render spikes the gauge on five DTU; a shorter window would alert on normal use. Database size moves slowly, so the storage window is an hour, which costs nothing in warning time and removes noise.
+
+### Diagnostic streams
+
+| Source | Collected | Not collected |
+|---|---|---|
+| SQL database | All logs, `Basic` metrics | — |
+| Blob service | `StorageWrite`, `StorageDelete`, `Transaction` metrics | `StorageRead` |
+| Communication Services | All logs, all metrics | — |
+
+The workspace is capped at `dailyQuotaGb: 1`. That cap makes log selection more important, not less: a high-volume stream does not merely cost money, it crowds out the signals that matter once the cap is hit. Blob reads are by far the noisiest thing this system produces — every job image view is one — and carry almost no diagnostic value, so they are excluded while writes and deletes are kept.
+
+Communication Services logs matter more than their volume suggests. Invitations and one-time codes go out through that resource, and when delivery stops nothing errors — the mail simply never arrives, and onboarding fails silently.
+
+### Not yet covered
+
+There is no alert on email delivery failure. The diagnostic stream above is the prerequisite, but the alert itself needs the metric or table names read off a live Communication Services resource; they could not be verified when this was written. Tracked separately.
+
+### Dashboards
+
+These streams exist to be reported on, not only alerted on. Everything above lands in the `logAnal-<company>-<env>` workspace and is queryable from day one, which is what a later dashboard will be built from — cost per tenant, email delivery rate, storage growth, database headroom. Keep that in mind before narrowing what is collected: an alert only needs the threshold, a dashboard needs the history behind it.
 
 ## Required post-deployment verification
 

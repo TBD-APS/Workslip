@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, File as FileIcon, FileAudio, FileImage, FileText, Pause, Play, Plus, Trash2 } from 'lucide-react';
 import type { DocumentAttachmentInfoResponse } from '../../api/generated/models';
 import { ConfirmDeleteDialog } from '../../components/common/ConfirmDeleteDialog';
+import { formatDateTime } from '../../lib/formatDate';
+import { formatNumber } from '../../lib/presentation/number';
 import { notify } from '../../lib/toast';
 import { getUploadErrorMessage } from '../../lib/uploadError';
 import {
@@ -22,12 +24,9 @@ const formatBytes = (bytes: number | string): string => {
   if (!Number.isFinite(value) || value < 0) return 'Ukendt størrelse';
   if (value < 1024) return `${value} B`;
   const kb = value / 1024;
-  if (kb < 1024) return `${kb.toLocaleString('da-DK', { maximumFractionDigits: 1 })} KB`;
-  return `${(kb / 1024).toLocaleString('da-DK', { maximumFractionDigits: 1 })} MB`;
+  if (kb < 1024) return `${formatNumber(kb, { maximumFractionDigits: 1 })} KB`;
+  return `${formatNumber(kb / 1024, { maximumFractionDigits: 1 })} MB`;
 };
-
-const formatDate = (value: string): string =>
-  new Intl.DateTimeFormat('da-DK', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 
 const isAudio = (attachment: DocumentAttachmentInfoResponse) => attachment.contentType.startsWith('audio/');
 const isImage = (attachment: DocumentAttachmentInfoResponse) => attachment.contentType.startsWith('image/');
@@ -203,7 +202,7 @@ export function DocumentAttachments({ documentId, canEdit }: DocumentAttachments
                 <div className="docs-attachment-copy">
                   <strong>{attachment.fileName}</strong>
                   <span>
-                    {formatBytes(attachment.sizeBytes)} · {formatDate(attachment.createdAt)}
+                    {formatBytes(attachment.sizeBytes)} · {formatDateTime(attachment.createdAt)}
                     {attachment.uploadedByDisplayName ? ` · ${attachment.uploadedByDisplayName}` : ''}
                   </span>
                 </div>

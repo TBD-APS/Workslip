@@ -81,16 +81,20 @@ services:
       - nuget-cache:/root/.nuget/packages
 
   fe:
-    image: node:22
+    image: node:24
     container_name: workslip-fe
+    depends_on:
+      - api
     working_dir: /app
     command: ["/bin/sh", "-c", "npm ci && npx vite --host 0.0.0.0 --port 5270"]
     ports:
       - "5270:5270"
     environment:
-      # Browser calls the host-mapped API port directly; CORS already allows
-      # the 5270 dev origin, so the vite /api proxy is not needed in compose.
-      - VITE_API_BASE_URL=http://localhost:5262
+      # Same-origin API calls work from localhost and from a phone on the LAN.
+      # Vite runs in this container, so its proxy target must use the Compose
+      # service name instead of localhost (which would point back to the FE container).
+      - VITE_API_BASE_URL=/
+      - VITE_DEV_PROXY_TARGET=http://api:5262
     volumes:
       - ./src/FE:/app
       # Container-native node_modules (esbuild/rollup binaries are OS-specific).

@@ -12,12 +12,10 @@ import { useDeleteApiJobsId, getGetApiJobsQueryKey } from '../../../api/generate
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { DeleteButton } from '../../../components/common/DeleteButton';
 import { ConfirmDeleteDialog } from '../../../components/common/ConfirmDeleteDialog';
-import { useCan, useIsAdmin } from '../../../providers/permissions';
-import { isValidJobForm, isValidWork } from '../utils';
+import { useCan } from '../../../providers/permissions';
 import { formatDateLong } from '../../../lib/formatDate';
-import { formatJobType } from '../statusLabels';
+import { formatJobType } from '../../../lib/statusLabels';
 import { ControlPointsStep } from './steps/ControlPointsStep';
-import { validateControlPoints } from './steps/controlPointsValidation';
 import { JobAttestationStep } from './steps/JobAttestationStep';
 import { JobCompletionStep } from './steps/JobCompletionStep';
 import { JobOverviewStep } from './steps/JobOverviewStep';
@@ -28,7 +26,10 @@ import { JOB_STEPS } from './steps/jobSteps';
 import { JobHistoryDrawer } from './JobHistoryDrawer';
 import { JobConversationLauncher } from './JobConversationLauncher';
 import { JobStatusDots } from './JobStatusDots';
-import { ClosureFlagLabels } from '../closureFlagLabels';
+import {
+  getJobStepValidationIssues,
+  type JobValidationIssue,
+} from '../validation/jobValidation';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -54,7 +55,6 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
   const [isPostSubmitting, setIsPostSubmitting] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const isAdmin = useIsAdmin();
   const deleteMutation = useDeleteApiJobsId({
     mutation: {
       onSuccess: () => {
@@ -136,28 +136,56 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
     );
   }
 
+  const validationContext = {
+    form: details.form,
+    referenceData: details.referenceData ?? null,
+    worksheetCount: details.worksheets.length,
+    reportNumberReadOnly: details.reportNumberReadOnly,
+  };
+  const currentStepIssues = getJobStepValidationIssues(validationContext, details.currentStep);
+  const currentStepIssue = currentStepIssues[0];
   const isLastStep = details.currentStep === JOB_STEPS.length - 1;
-  const disableNext = !canAdvanceCurrentStep(details, isAdmin);
-  const nextDisabledReason = disableNext ? getNextDisabledReason(details, details.currentStep) : undefined;
+  const disableNext = currentStepIssues.length > 0;
+  const nextDisabledReason = currentStepIssue?.message;
   const globalSaveStatus = getGlobalSaveStatus([
     details.saveStatus,
     details.assignmentStatus,
     details.linksStatus,
   ]);
-  const completedSteps = [
-    isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly, requireDestinationAddress: isAdmin }),
-    isValidWork(details.form, details.referenceData!),
-    validateControlPoints(details.form, details.referenceData!).valid,
-    details.worksheets.length > 0,
-    isValidClosureFlags(details.form.work.closureFlags),
-  ];
+  const completedSteps = [0, 1, 2, 3, 4].map(
+    (step) => getJobStepValidationIssues(validationContext, step).length === 0,
+  );
+
+  const goToValidationIssue = (validationIssue: JobValidationIssue, announce = true) => {
+    if (announce) {
+      notify.error(validationIssue.message, { id: 'job-actionable-validation' });
+    }
+
+    details.setCurrentStep(validationIssue.step);
+    window.setTimeout(() => {
+      const target = document.getElementById(validationIssue.targetId)
+        ?? document.querySelector<HTMLElement>(`[data-field-error="${validationIssue.targetId}"]`);
+      if (!target) {
+        document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.add('validation-focus-target');
+      const focusable = target.matches('input, textarea, button, select, [tabindex]')
+        ? target as HTMLElement
+        : target.querySelector<HTMLElement>('input, textarea, button, select, [tabindex]');
+      focusable?.focus({ preventScroll: true });
+      window.setTimeout(() => target.classList.remove('validation-focus-target'), 1500);
+    }, 80);
+  };
+
   const handleStepChange = (nextStep: number) => {
-    // Prevent jumping to any step if previous steps are incomplete
     if (nextStep > details.currentStep) {
-      for (let i = details.currentStep; i < nextStep; i++) {
-        if (!canAdvanceStep(details, i, isAdmin)) {
-          const reason = getNextDisabledReason(details, i);
-          if (reason) notify.error(reason);
+      for (let step = details.currentStep; step < nextStep; step += 1) {
+        const blockingIssue = getJobStepValidationIssues(validationContext, step)[0];
+        if (blockingIssue) {
+          goToValidationIssue(blockingIssue);
           return;
         }
       }
@@ -261,6 +289,7 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
             details={details}
             confirmed={attestationConfirmed}
             onConfirmedChange={setAttestationConfirmed}
+            onValidationAction={(validationIssue) => goToValidationIssue(validationIssue, false)}
             onSubmitted={() => {
               setIsPostSubmitting(true);
               setTimeout(() => {
@@ -285,10 +314,9 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
             details.navigateToStep(details.currentStep - 1);
           }
         }}
-        onNext={() => {
-          if (disableNext) return;
-          details.navigateToStep(details.currentStep + 1);
-        }}
+        onNext={() => details.navigateToStep(details.currentStep + 1)}
+        onNextBlocked={currentStepIssue ? () => goToValidationIssue(currentStepIssue) : undefined}
+        blockedNextLabel={currentStepIssue?.actionLabel}
         disableNext={disableNext}
         nextDisabledReason={nextDisabledReason}
         statusSlot={<SaveStatusIndicator saveStatus={globalSaveStatus} />}
@@ -311,69 +339,6 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
       />
     </div>
   );
-}
-
-function canAdvanceCurrentStep(details: JobDetailsState, isAdmin?: boolean): boolean {
-  // Check if CURRENT step is completed
-  if (details.currentStep === 0) {
-    return isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly, requireDestinationAddress: isAdmin });
-  }
-  if (details.currentStep === 1) {
-    return isValidWork(details.form, details.referenceData!);
-  }
-  if (details.currentStep === 2) {
-    return validateControlPoints(details.form, details.referenceData!).valid;
-  }
-  if (details.currentStep === 3) {
-    return details.worksheets.length > 0;
-  }
-  if (details.currentStep === 4) {
-    return isValidClosureFlags(details.form.work.closureFlags);
-  }
-  return true;
-}
-
-function canAdvanceStep(details: JobDetailsState, step: number, isAdmin?: boolean): boolean {
-  if (step === 0) {
-    return isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly, requireDestinationAddress: isAdmin });
-  }
-  if (step === 1) {
-    return isValidWork(details.form, details.referenceData!);
-  }
-  if (step === 2) {
-    return validateControlPoints(details.form, details.referenceData!).valid;
-  }
-  if (step === 3) {
-    return details.worksheets.length > 0;
-  }
-  if (step === 4) {
-    return isValidClosureFlags(details.form.work.closureFlags) && details.worksheets.length > 0;
-  }
-  return true;
-}
-
-function getNextDisabledReason(details: JobDetailsState, step?: number): string | undefined {
-  const currentStep = step ?? details.currentStep;
-  if (currentStep === 0) return 'Udfyld venligst stamdata';
-  if (step === 1) return 'Vælg venligst anlægstype';
-  if (step === 2) return 'Udfyld venligst alle påkrævede kontrolpunkter';
-  if (step === 3) return 'Tilføj venligst mindst én timeseddel';
-  if (step === 4) {
-    const flags = details.form.work.closureFlags ?? [];
-    if (flags.length === 0) return 'Vælg venligst mindst én afslutningsstatus';
-    if (isOnlyOperationMaintenance(flags)) return 'Vælg også Ikke færdig, Færdig eller Klar til faktura';
-    return 'Vælg venligst mindst én afslutningsstatus';
-  }
-  return undefined;
-}
-
-function isValidClosureFlags(flags: string[] | null | undefined): boolean {
-  if (!flags || flags.length === 0) return false;
-  return !isOnlyOperationMaintenance(flags);
-}
-
-function isOnlyOperationMaintenance(flags: string[]): boolean {
-  return flags.length === 1 && flags[0] === ClosureFlagLabels.OperationMaintenanceInstructions;
 }
 
 type HeaderProps = {

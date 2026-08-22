@@ -5,15 +5,20 @@ import { buildQuickNavigatorCommands, type QuickNavigatorCommand } from './quick
 import { useQuickNavigatorSearch } from './useQuickNavigatorSearch';
 import { QuickNavigatorResults } from './QuickNavigatorResults';
 import type { QuickNavigatorSearchScope } from './quickNavigatorTypes';
-import type { JobListItemViewModel } from '../../api/generated/models';
-import type { CustomerSearchViewModel } from '../../api/generated/models';
+import type {
+  CustomerSearchViewModel,
+  DocumentListItemResponse,
+  JobListItemViewModel,
+} from '../../api/generated/models';
 import { JobStatus } from '../../api/generated/models';
+import { toUiLowerCase } from '../../lib/presentation/text';
 import './QuickNavigator.css';
 
 export type QuickNavigatorResult =
   | { type: 'command'; command: QuickNavigatorCommand }
   | { type: 'job'; job: JobListItemViewModel }
-  | { type: 'customer'; customer: CustomerSearchViewModel };
+  | { type: 'customer'; customer: CustomerSearchViewModel }
+  | { type: 'document'; document: DocumentListItemResponse };
 
 interface QuickNavigatorProps {
   isOpen: boolean;
@@ -35,7 +40,7 @@ interface QuickNavigatorProps {
   showProfile: boolean;
 }
 
-const normalize = (value: string) => value.trim().toLocaleLowerCase('da-DK');
+const normalize = (value: string) => toUiLowerCase(value.trim());
 
 export function QuickNavigator({
   isOpen,
@@ -104,9 +109,10 @@ export function QuickNavigator({
     canViewAllJobs,
     currentUserId,
     canViewCustomers,
+    canViewDocs,
     query,
     isOpen,
-  }), [canSearchJobs, canViewAllJobs, currentUserId, canViewCustomers, query, isOpen]);
+  }), [canSearchJobs, canViewAllJobs, currentUserId, canViewCustomers, canViewDocs, query, isOpen]);
 
   const searchResult = useQuickNavigatorSearch(searchScope);
 
@@ -114,7 +120,8 @@ export function QuickNavigator({
     ...filteredCommands.map((command) => ({ type: 'command' as const, command })),
     ...searchResult.jobs.map((job) => ({ type: 'job' as const, job })),
     ...searchResult.customers.map((customer) => ({ type: 'customer' as const, customer })),
-  ], [filteredCommands, searchResult.jobs, searchResult.customers]);
+    ...searchResult.documents.map((document) => ({ type: 'document' as const, document })),
+  ], [filteredCommands, searchResult.jobs, searchResult.customers, searchResult.documents]);
 
   const safeActiveIndex = Math.min(activeIndex, Math.max(results.length - 1, 0));
 
@@ -126,7 +133,7 @@ export function QuickNavigator({
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === 'k') {
+      if ((event.metaKey || event.ctrlKey) && toUiLowerCase(event.key) === 'k') {
         event.preventDefault();
         onOpen();
       }
@@ -162,6 +169,12 @@ export function QuickNavigator({
       const from = `${location.pathname}${location.search}${location.hash}`;
       resetAndClose();
       navigate(`/app/customers/${result.customer.id}`, { state: { from } });
+      return;
+    }
+    if (result.type === 'document') {
+      const from = `${location.pathname}${location.search}${location.hash}`;
+      resetAndClose();
+      navigate(`/app/docs/${result.document.id}`, { state: { from } });
       return;
     }
     const path = result.job.status === JobStatus.InReview || result.job.status === JobStatus.Approved
@@ -224,6 +237,7 @@ export function QuickNavigator({
       }}
     >
       <div
+        id="quick-nav-dialog"
         ref={dialogRef}
         className="quick-nav-dialog"
         role="dialog"
@@ -232,18 +246,16 @@ export function QuickNavigator({
         onKeyDown={handleDialogKeyDown}
       >
         <div className="quick-nav-header">
-          <div>
-            <div className="quick-nav-kicker">Hurtig navigation</div>
-            <h2 id="quick-nav-title">Hvor vil du hen?</h2>
-          </div>
-          <button type="button" className="quick-nav-close" onClick={resetAndClose} aria-label="Luk hurtig navigation">
+          <h2 id="quick-nav-title">Søg</h2>
+          <button id="quick-nav-close" type="button" className="quick-nav-close" onClick={resetAndClose} aria-label="Luk søgning">
             <X size={18} />
           </button>
         </div>
 
-        <div className="quick-nav-search-wrap">
+        <div id="quick-nav-search-wrap" className="quick-nav-search-wrap">
           <Search size={19} aria-hidden="true" />
           <input
+            id="quick-nav-search-input"
             ref={inputRef}
             type="search"
             value={query}
@@ -252,16 +264,16 @@ export function QuickNavigator({
               setActiveIndex(0);
             }}
             onKeyDown={handleInputKeyDown}
-            placeholder="Søg efter side, sag eller kunde…"
-            aria-label="Søg i Workslip"
+            placeholder="Søg efter sag, kunde eller funktion…"
+            aria-label="Søg i hele Workslip"
             autoComplete="off"
             spellCheck={false}
           />
-          <kbd>Esc</kbd>
+          <kbd id="quick-nav-escape-hint">Esc</kbd>
         </div>
 
         <div className="quick-nav-meta" aria-live="polite">
-          <span>{hasSearchQuery ? resultCountText : 'Genveje'}</span>
+          <span>{hasSearchQuery ? resultCountText : 'Sager · kunder · adresser · dokumenter · funktioner'}</span>
           {searchResult.isLoading && (
             <span className="quick-nav-searching">Søger…</span>
           )}
@@ -269,6 +281,7 @@ export function QuickNavigator({
 
         <QuickNavigatorResults
           results={results}
+          query={query}
           safeActiveIndex={safeActiveIndex}
           hasSearchQuery={hasSearchQuery}
           searchResult={searchResult}
@@ -276,7 +289,7 @@ export function QuickNavigator({
           onHoverIndex={setActiveIndex}
         />
 
-        <div className="quick-nav-footer">
+        <div id="quick-nav-footer" className="quick-nav-footer">
           <span><kbd>↑</kbd><kbd>↓</kbd> vælg</span>
           <span><kbd>Enter</kbd> åbn</span>
           <span className="quick-nav-shortcut"><kbd>Ctrl</kbd>/<kbd>⌘</kbd><kbd>K</kbd></span>

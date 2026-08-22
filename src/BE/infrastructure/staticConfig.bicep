@@ -1,5 +1,9 @@
 param appConfigurationName string
 
+@description('Default verified Entra domain of the tenant this environment is deployed into. UserEntraService builds userPrincipalName as <mailNickname>@<this domain> when it looks for an existing directory user, so a wrong or empty value makes every lookup miss and the service creates duplicates instead of reusing accounts.')
+@minLength(3)
+param entraDefaultDomain string
+
 resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' existing = {
   name: appConfigurationName
 }
@@ -21,6 +25,7 @@ var appConfigValues = {
 
   'Azure:AdOAuth:TenantId': az.tenant().tenantId
   'Azure:AdOAuth:Instance': az.environment().authentication.loginEndpoint
+  'Azure:AdOAuth:Domain': entraDefaultDomain
 
   'Jwt:Issuer': 'WorkslipApi'
   'Jwt:Audience': 'WorkslipClient'

@@ -8,6 +8,8 @@ import {
   formatRelativeActivityTime,
   getActivityInitials,
 } from '../../../components/common/activityFeed';
+import { formatDateTime } from '../../../lib/formatDate';
+import { toUiLowerCase } from '../../../lib/presentation/text';
 import '../../../components/common/ActivityFeed.css';
 import './JobHistoryDrawer.css';
 
@@ -106,12 +108,12 @@ function HistoryEventItem({ event }: { event: JobHistoryResponse }) {
         <strong className="activity-title">
           <span className="job-history-actor">{actorName}</span>
           {' · '}
-          {eventLabel.toLocaleLowerCase('da-DK')}
+          {toUiLowerCase(eventLabel)}
         </strong>
         <time
           className="activity-time"
           dateTime={event.createdAt}
-          title={new Date(event.createdAt).toLocaleString('da-DK')}
+          title={formatDateTime(event.createdAt) ?? undefined}
         >
           {formatRelativeActivityTime(event.createdAt)}
         </time>
@@ -196,7 +198,7 @@ function HistoryChangeValues({
   before: string | null | undefined;
   after: string | null | undefined;
 }) {
-  const normalizedType = eventType.toLocaleLowerCase('da-DK');
+  const normalizedType = toUiLowerCase(eventType);
 
   if (normalizedType === 'added') {
     return (
@@ -223,7 +225,7 @@ function HistoryChangeValues({
 }
 
 function getEventIcon(type: string): ReactNode {
-  switch (type.toLocaleLowerCase('da-DK')) {
+  switch (toUiLowerCase(type)) {
     case 'added': return <Plus size={13} />;
     case 'modified': return <Pencil size={13} />;
     case 'deleted': return <Trash2 size={13} />;
@@ -232,7 +234,7 @@ function getEventIcon(type: string): ReactNode {
 }
 
 function getEventTone(type: string) {
-  switch (type.toLocaleLowerCase('da-DK')) {
+  switch (toUiLowerCase(type)) {
     case 'added': return 'activity-avatar-success';
     case 'deleted': return 'activity-avatar-danger';
     default: return 'activity-avatar-primary';
@@ -240,7 +242,7 @@ function getEventTone(type: string) {
 }
 
 function formatEventType(type: string) {
-  switch (type.toLocaleLowerCase('da-DK')) {
+  switch (toUiLowerCase(type)) {
     case 'added': return 'Oprettet';
     case 'modified': return 'Ændret';
     case 'deleted': return 'Slettet';
@@ -249,7 +251,7 @@ function formatEventType(type: string) {
 }
 
 function getFallbackSummary(type: string) {
-  switch (type.toLocaleLowerCase('da-DK')) {
+  switch (toUiLowerCase(type)) {
     case 'added': return 'Sagen blev oprettet.';
     case 'modified': return 'Sagen blev opdateret.';
     case 'deleted': return 'Data blev slettet fra sagen.';

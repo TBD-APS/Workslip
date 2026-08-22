@@ -14,7 +14,7 @@ import { usePaginatedList } from '../../../hooks/usePaginatedList';
 import { useColumnResize } from '../../../hooks/useColumnResize';
 import { apiClient } from '../../../lib/axios';
 import { useCustomerActions } from '../components/CustomerActions';
-import { getApiCustomersFavorite } from '../../jobs/customerApi';
+import { getApiCustomersFavorite } from '../../../api/generated/customers/customers';
 import { getGetApiCustomersQueryKey } from '../../../api/generated/customers/customers';
 import { notify } from '../../../lib/toast';
 
@@ -154,7 +154,7 @@ export const CustomerList = () => {
         )}
       </div>
 
-      <SearchBar value={search} onChange={handleSearchChange} placeholder="Søg kunder..." />
+      <SearchBar inputId="customer-search-input" value={search} onChange={handleSearchChange} placeholder="Søg kunder..." />
 
       {favoriteCustomers.length > 0 && !search && (
         <div className="favorite-customers-section">
@@ -274,6 +274,7 @@ export const CustomerList = () => {
                 <tbody>
                   {pageItems.map((customer) => (
                     <tr
+                      id={`customer-list-item-${customer.id}`}
                       key={customer.id}
                       className="clickable"
                       tabIndex={0}
@@ -346,6 +347,7 @@ export const CustomerList = () => {
                 return (
                   <div key={customer.id} className="job-card-wrapper">
                     <div
+                      id={`customer-list-item-${customer.id}`}
                       className="job-card"
                       onClick={openCustomer}
                       onKeyDown={(event) => {

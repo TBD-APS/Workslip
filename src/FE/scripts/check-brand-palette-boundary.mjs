@@ -8,8 +8,9 @@ const themeProviderPath = new URL('../src/providers/ThemeProvider.tsx', import.m
 const indexPath = new URL('../index.html', import.meta.url);
 const activityFeedPath = new URL('../src/components/common/ActivityFeed.css', import.meta.url);
 const quickNavigatorPath = new URL('../src/components/common/QuickNavigator.css', import.meta.url);
+const viteConfigPath = new URL('../vite.config.ts', import.meta.url);
 
-const [refinement, brand, app, themeProvider, index, activityFeed, quickNavigator] = await Promise.all([
+const [refinement, brand, app, themeProvider, index, activityFeed, quickNavigator, viteConfig] = await Promise.all([
   readFile(refinementPath, 'utf8'),
   readFile(brandPath, 'utf8'),
   readFile(appPath, 'utf8'),
@@ -17,6 +18,7 @@ const [refinement, brand, app, themeProvider, index, activityFeed, quickNavigato
   readFile(indexPath, 'utf8'),
   readFile(activityFeedPath, 'utf8'),
   readFile(quickNavigatorPath, 'utf8'),
+  readFile(viteConfigPath, 'utf8'),
 ]);
 
 const paletteTokens = [
@@ -106,6 +108,23 @@ for (const [fileName, source] of [
       console.error(`${fileName} is not aligned with canonical browser theme color ${expected}.`);
       process.exit(1);
     }
+  }
+}
+
+// The installed PWA launches from the manifest before any stylesheet or script
+// runs, so its colours must match the canonical pre-JS identity in index.html.
+for (const field of ['theme_color', 'background_color']) {
+  const declared = new RegExp(`${field}:\\s*'([^']+)'`).exec(viteConfig);
+  if (!declared) {
+    console.error(`vite.config.ts PWA manifest is missing ${field}.`);
+    process.exit(1);
+  }
+  if (declared[1].toUpperCase() !== '#FFF7E8') {
+    console.error(
+      `vite.config.ts PWA manifest ${field} is ${declared[1]}, not the canonical #FFF7E8. ` +
+        'The installed app would launch in a palette Workslip no longer uses.',
+    );
+    process.exit(1);
   }
 }
 

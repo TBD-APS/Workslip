@@ -24,8 +24,17 @@
           theme = window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'night' : 'day';
         }
 
+        const authParams = new URLSearchParams(window.location.search);
+        const isAuthRouteTransition = window.location.pathname === '/login' && (
+          authParams.has('code')
+          || authParams.has('error')
+          || authParams.get('reauth') === '1'
+        );
+
         document.documentElement.setAttribute('data-theme', theme);
-        if (hasAuthToken) document.documentElement.setAttribute('data-auth-transition', '');
+        if (hasAuthToken || isAuthRouteTransition) {
+          document.documentElement.setAttribute('data-auth-transition', '');
+        }
 
         const themeColor = document.querySelector('meta[name="theme-color"]');
         if (themeColor) {

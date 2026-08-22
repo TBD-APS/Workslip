@@ -28,13 +28,15 @@ public sealed class JobValidationServiceTests
     }
 
     [Fact]
-    public void ValidateSubmitReady_rejects_relevant_category_without_selected_control_point()
+    public void ValidateSubmitReady_rejects_relevant_category_with_structured_control_point_path()
     {
         var result = _service.ValidateSubmitReady(CreateJob(controlPointChecked: false), CreateReferenceData());
 
         Assert.Equal(ResultStatus.Invalid, result.Status);
         Assert.Contains(result.ValidationErrors, error =>
-            error.Identifier == nameof(JobReportResponse.InstallationTypes)
+            error.Identifier.StartsWith($"{nameof(JobReportResponse.InstallationTypes)}.", StringComparison.Ordinal)
+            && error.Identifier.Contains(".Categories.", StringComparison.Ordinal)
+            && error.Identifier.EndsWith(".ControlPoints", StringComparison.Ordinal)
             && error.ErrorMessage.Contains("Mindst et kontrolpunkt", StringComparison.OrdinalIgnoreCase));
     }
 

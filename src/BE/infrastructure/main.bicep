@@ -3,12 +3,20 @@ extension microsoftGraphV1
 param companyName string = ''
 param environment string = ''
 param globalAdminId string = ''
+@description('Default verified Entra domain of the tenant this environment is deployed into, for example contoso.onmicrosoft.com. Tenant-bound: it must be supplied per tenant and cannot be derived from the resource group. deploy-infrastructure.ps1 resolves it from Microsoft Graph when not passed explicitly.')
+@minLength(3)
+param entraDefaultDomain string
 @description('Microsoft Entra object ID for the Power BI report reader. Leave empty until the processor/privacy gate is approved.')
 param powerBiReaderPrincipalId string = ''
 @description('Workslip login email whose organization owns the exported worksheet data.')
 param powerBiReaderEmail string = ''
 @description('Explicit production activation switch for the worksheet export.')
 param powerBiExportEnabled bool = false
+@description('Monthly cost budget in the billing currency of the subscription. Notifications reuse the API alert action group.')
+@minValue(1)
+param budgetMonthlyAmount int = 800
+@description('Set false only if the deploying identity cannot write Microsoft.Consumption budgets. Cost alerting is then absent, so record why.')
+param budgetEnabled bool = true
 param location string = resourceGroup().location
 param storageAccountName string       = take('st${companyName}${toLower(environment)}', 24)
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
@@ -36,6 +44,23 @@ param githubRepository string       = 'Workslip-v2.0'
 param githubRepositoryId string     = '1245555609'
 param githubEnvironment string        = environment
 param sqlAdminGroupName string        = 'sql${companyName}${toLower(environment)}group'
+
+// ── Entra handoff ─────────────────────────────────────────────────────────────
+// Resolved by deploy-entra.ps1 and passed through by deploy-infrastructure.ps1.
+// Parameters rather than a compile-time file load, so this template describes a
+// Workslip environment rather than one specific instance of it.
+@description('Application (client) ID of the OAuth server registration.')
+param oauthClientId string
+@description('Directory object ID of the OAuth server registration.')
+param oauthAppObjectId string
+@description('Application (client) ID of the browser client registration.')
+param clientAppId string
+@description('Directory object ID of the browser client registration.')
+param clientAppObjectId string
+
+@description('Mailboxes that receive operational alerts. Supplied from monitoring.config.json by the deployment script.')
+@minLength(1)
+param alertEmailAddressList array
 
 // ── SQL admin password ────────────────────────────────────────────────────────
 // SECURITY: was previously hardcoded as 'Num64bqe!' in this file. Moved to
@@ -73,7 +98,7 @@ var tags = {
 var appInsightsConnectionString = appInsights.properties.ConnectionString
 var appInsightsInstrumentationKey = appInsights.properties.InstrumentationKey
 var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)
-var isProduction = toLower(environment) == 'prod'
+var isProduction = toLower(environment) == 'live'
 var acsSenderAddress = isProduction
   ? '${customEmailSenderUsername}@${customEmailDomainName}'
   : 'DoNotReply@${azureManagedEmailDomain.properties.mailFromSenderDomain}'
@@ -295,6 +320,7 @@ module apiMonitoring './monitoring.bicep' = {
     appInsightsResourceId: appInsights.id
     webApiResourceId: webApi.id
     healthEndpointUrl: 'https://${webApi.properties.defaultHostName}/health'
+    alertEmailAddressList: alertEmailAddressList
     tags: tags
   }
 }
@@ -327,6 +353,32 @@ module staticConfig './staticConfig.bicep' = {
   name: 'static-config-values'
   params: {
     appConfigurationName: appConfiguration.name
+    entraDefaultDomain: entraDefaultDomain
+  }
+}
+
+module platformObservability './observability.bicep' = {
+  name: 'platform-observability'
+  params: {
+    companyName: companyName
+    environment: environment
+    logAnalyticsWorkspaceId: logAnalyticsWorkspace.id
+    actionGroupId: apiMonitoring.outputs.ACTION_GROUP_ID
+    sqlServerName: sqlServer.name
+    sqlDatabaseName: sqlDatabase.name
+    storageAccountName: storageAccount.name
+    communicationServiceName: communicationService.name
+    tags: tags
+  }
+}
+
+module costBudget './budgets.bicep' = if (budgetEnabled) {
+  name: 'cost-budget'
+  params: {
+    companyName: companyName
+    environment: environment
+    actionGroupId: apiMonitoring.outputs.ACTION_GROUP_ID
+    monthlyAmount: budgetMonthlyAmount
   }
 }
 
@@ -446,6 +498,10 @@ module EntraAppRegistrations './entraRegistrations.bicep' = {
   name: 'entraApps'
   params: {
     environment: environment
+    oauthClientId: oauthClientId
+    oauthAppObjectId: oauthAppObjectId
+    clientAppId: clientAppId
+    clientAppObjectId: clientAppObjectId
   }
 }
 

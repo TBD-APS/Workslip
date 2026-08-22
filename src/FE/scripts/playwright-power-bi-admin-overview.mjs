@@ -58,22 +58,19 @@ async function exerciseAdmin(contextOptions, label) {
   assert.ok(navigation?.ok(), `${label} Overview returned HTTP ${navigation?.status() ?? 'unknown'}.`);
   assert.equal((await analyticsResponse).status(), 200, `${label} analytics endpoint must return 200 for Admin.`);
 
-  await page.getByTestId('admin-power-bi-job-status').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await page.getByRole('heading', { name: 'Virksomhedsstatistik' }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await page.getByRole('heading', { name: 'Seneste sager' }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await page.getByRole('heading', { name: 'Favoritkunder' }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await page.getByRole('heading', { name: 'Nyeste dokumenter' }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.locator('#admin-power-bi-job-status').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.locator('#overview-power-bi-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.locator('#recent-jobs-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.locator('#favorite-customers-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.locator('#recent-documents-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
-  const rejectedCard = page.getByRole('button', { name: /Afviste sager/i });
-  await rejectedCard.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.locator('#overview-analytics-tab-employees').click();
+  const employeePanel = page.locator('#overview-analytics-panel-employees');
+  await employeePanel.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  assert.match(await employeePanel.textContent() ?? '', /fakturerbar værdi/i, `${label} employee analytics must explain billable value.`);
 
-  const employeeTab = page.getByRole('tab', { name: /Medarbejderøkonomi/i });
-  await employeeTab.click();
-  await page.getByText(/fakturerbar værdi/i).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-
-  const customersTab = page.getByRole('tab', { name: /Nye kunder/i });
-  await customersTab.click();
-  await page.getByRole('tabpanel', { name: 'Nye kunder pr. måned' }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.locator('#overview-analytics-tab-customers').click();
+  await page.locator('#overview-analytics-panel-customers').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
   if (label === 'admin-mobile') {
     const viewport = page.viewportSize();
@@ -84,7 +81,8 @@ async function exerciseAdmin(contextOptions, label) {
 
   await page.goto(`${APP_URL}/app/timer`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
   await page.waitForLoadState('networkidle', { timeout: UI_TIMEOUT });
-  assert.equal(await page.getByText(/Power BI/i).count(), 0, `${label} Timer must not expose Power BI UI.`);
+  const timerText = await page.evaluate(() => document.body.textContent ?? '');
+  assert.doesNotMatch(timerText, /Power BI/i, `${label} Timer must not expose Power BI UI.`);
 
   verifyErrors();
   await context.close();
@@ -117,11 +115,11 @@ async function exerciseNormalUser() {
     timeout: UI_TIMEOUT,
   });
   assert.ok(navigation?.ok(), `Normal-user Overview returned HTTP ${navigation?.status() ?? 'unknown'}.`);
-  await page.getByRole('heading', { name: 'Overblik' }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await page.waitForTimeout(500);
-  assert.equal(await page.getByTestId('admin-power-bi-job-status').count(), 0, 'Normal user must not render the Admin analytics dashboard.');
-  assert.equal(await page.getByRole('heading', { name: 'Favoritkunder' }).count(), 0, 'Normal user must not render Admin favorite customers.');
-  assert.equal(await page.getByRole('heading', { name: 'Nyeste dokumenter' }).count(), 0, 'Normal user must not render Admin latest documents.');
+  await page.locator('#recent-jobs-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.waitForLoadState('networkidle', { timeout: UI_TIMEOUT });
+  assert.equal(await page.locator('#admin-power-bi-job-status').count(), 0, 'Normal user must not render the Admin analytics dashboard.');
+  assert.equal(await page.locator('#favorite-customers-heading').count(), 0, 'Normal user must not render Admin favorite customers.');
+  assert.equal(await page.locator('#recent-documents-heading').count(), 0, 'Normal user must not render Admin latest documents.');
   assert.equal(analyticsRequests, 0, 'Normal user must not request the Admin analytics endpoint.');
 
   verifyErrors();

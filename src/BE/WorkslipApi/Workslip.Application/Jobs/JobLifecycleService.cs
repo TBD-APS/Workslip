@@ -46,7 +46,6 @@ public sealed class JobLifecycleService(
         }
 
         var job = await jobRepository.GetSingleJobAsync(id, organizationId.Value, cancellationToken);
-        var referenceData = await referenceDataRepository.GetAsync(organizationId.Value, cancellationToken);
 
         if (job is null)
         {
@@ -57,10 +56,18 @@ public sealed class JobLifecycleService(
             return Result<JobReportSummaryResponse>.NotFound();
         }
 
-        var isValidResponse = jobValidationService.ValidateSubmitReady(job, referenceData);
-        if (!isValidResponse.IsSuccess)
+        // Reopening is an administrative lifecycle action, not a new submission.
+        // Approved jobs may contain legacy data that no longer satisfies today's
+        // submit-ready rules; blocking the reopen on those rules leaves admins
+        // unable to correct exactly that data.
+        if (request.Status != JobStatus.Reopened)
         {
-            return isValidResponse;
+            var referenceData = await referenceDataRepository.GetAsync(organizationId.Value, cancellationToken);
+            var isValidResponse = jobValidationService.ValidateSubmitReady(job, referenceData);
+            if (!isValidResponse.IsSuccess)
+            {
+                return isValidResponse;
+            }
         }
 
         return await TransitionAsync(id, request.Status, request.RejectionNote, cancellationToken);

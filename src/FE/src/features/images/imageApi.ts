@@ -33,11 +33,12 @@ export function deleteJobImage(jobId: string, imageId: string) {
   });
 }
 
-export async function fetchJobImageBlob(jobId: string, imageId: string) {
+export async function fetchJobImageBlob(jobId: string, imageId: string, signal?: AbortSignal) {
   const response = await AXIOS_INSTANCE.get<Blob>(`/api/jobs/${jobId}/images/${imageId}`, {
     responseType: 'blob',
     headers: { Accept: 'image/*' },
     skipGlobalErrorToast: true,
+    signal,
   });
 
   return response.data;

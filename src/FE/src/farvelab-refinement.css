@@ -144,6 +144,18 @@ html body:has(.app-shell) .quick-nav-search-wrap {
   border-color: var(--border-strong);
 }
 
+/* QuickNavigator owns its focus affordance on the wrapper. Never let the
+ * native search input or a broader form-focus rule draw a second teal box. */
+html body:has(.app-shell) .quick-nav-search-wrap input,
+html body:has(.app-shell) .quick-nav-search-wrap input:focus,
+html body:has(.app-shell) .quick-nav-search-wrap input:focus-visible {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
 html body:has(.app-shell) .quick-nav-result {
   border-color: transparent;
 }

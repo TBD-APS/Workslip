@@ -1,0 +1,592 @@
+.admin-case-reference-page {
+  --admin-case-panel: var(--surface-floating);
+  --admin-case-line: var(--border);
+  --admin-case-muted: var(--text-secondary);
+  --admin-case-soft: var(--surface-raised);
+  display: grid;
+  gap: 1.25rem;
+  padding-top: 0.25rem;
+}
+
+.admin-case-reference-back {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--color-primary);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  gap: 0.45rem;
+  justify-self: start;
+  min-height: 2.75rem;
+  padding: 0.35rem 0;
+}
+
+.admin-case-reference-back:focus-visible,
+.admin-case-reference-action:focus-visible,
+.admin-case-reference-history:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.admin-case-reference-layout {
+  display: grid;
+  gap: 1.2rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.admin-case-reference-main,
+.admin-case-reference-sidebar {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.admin-case-reference-hero {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 0.1rem 0.2rem 0.45rem;
+}
+
+.admin-case-reference-heading {
+  min-width: 0;
+}
+
+.admin-case-reference-number {
+  color: var(--color-primary);
+  display: inline-block;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  margin-bottom: 0.55rem;
+}
+
+.admin-case-reference-hero h1 {
+  color: var(--text);
+  font-size: clamp(1.8rem, 3vw, 2.45rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+  margin: 0;
+  max-width: 15ch;
+}
+
+.admin-case-reference-meta {
+  align-items: center;
+  color: var(--admin-case-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--fs-sm);
+  gap: 0.45rem;
+  margin-top: 0.8rem;
+}
+
+.admin-case-reference-meta-separator {
+  color: var(--text-dim);
+}
+
+.admin-case-reference-status {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-weight: 600;
+  gap: 0.35rem;
+  min-height: 1.9rem;
+  padding: 0.2rem 0.65rem;
+}
+
+.admin-case-reference-status--danger {
+  background: var(--status-red-bg);
+  color: var(--status-red-text);
+}
+
+.admin-case-reference-status--success {
+  background: var(--status-green-bg);
+  color: var(--status-green-text);
+}
+
+.admin-case-reference-status--warning {
+  background: var(--status-amber-bg);
+  color: var(--status-amber-text);
+}
+
+.admin-case-reference-status--info {
+  background: var(--status-blue-bg);
+  color: var(--status-blue-text);
+}
+
+.admin-case-reference-progress {
+  align-items: center;
+  display: flex;
+  justify-content: flex-end;
+  min-width: 9rem;
+  padding-top: 0.35rem;
+}
+
+.admin-case-reference-actions {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-case-reference-action,
+.admin-case-reference-actions .job-conversation-launcher-button.admin-case-reference-action {
+  align-items: center;
+  appearance: none;
+  background: var(--admin-case-panel);
+  border: 1px solid var(--admin-case-line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm-raw);
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  gap: 0.45rem;
+  justify-content: center;
+  min-height: 5.3rem;
+  padding: 0.8rem 0.9rem;
+  text-decoration: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.admin-case-reference-actions .job-conversation-launcher-button.admin-case-reference-action span:not(.job-conversation-unread) {
+  display: inline;
+}
+
+.admin-case-reference-action:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.admin-case-reference-action--approve {
+  border-color: var(--status-green-text);
+  color: var(--status-green-text);
+}
+
+.admin-case-reference-action--reject {
+  border-color: var(--status-red-text);
+  color: var(--status-red-text);
+}
+
+.admin-case-reference-card {
+  background: var(--admin-case-panel);
+  border: 1px solid var(--admin-case-line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm-raw);
+  min-width: 0;
+}
+
+.admin-case-reference-card > h2 {
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.admin-case-reference-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem 1.1rem;
+}
+
+.admin-case-reference-section > h2 {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.admin-case-reference-media {
+  order: 6;
+}
+
+.admin-case-reference-information {
+  padding: 1rem 1rem 0.55rem;
+}
+
+.admin-case-reference-information > h2 {
+  margin-bottom: 0.75rem;
+}
+
+.admin-case-reference-information dl {
+  margin: 0;
+}
+
+.admin-case-reference-info-row {
+  align-items: center;
+  border-top: 1px solid var(--admin-case-line);
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  min-height: 3rem;
+  padding: 0.6rem 0.1rem;
+}
+
+.admin-case-reference-info-row:first-child {
+  border-top: 0;
+}
+
+.admin-case-reference-info-row dt,
+.admin-case-reference-info-row dd {
+  margin: 0;
+}
+
+.admin-case-reference-info-row dt {
+  align-items: center;
+  color: var(--text-secondary);
+  display: flex;
+  font-size: var(--fs-sm);
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.admin-case-reference-info-row dd {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-case-reference-info-icon {
+  align-items: center;
+  color: var(--text-muted);
+  display: inline-flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  width: 1.3rem;
+}
+
+.admin-case-reference-description {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1.1rem;
+}
+
+.admin-case-reference-description > p,
+.admin-case-reference-notes p,
+.admin-case-reference-manager-note p,
+.admin-case-reference-history-empty {
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.admin-case-reference-notes {
+  border-top: 1px solid var(--admin-case-line);
+  display: grid;
+  gap: 0.9rem;
+  padding-top: 0.8rem;
+}
+
+.admin-case-reference-notes > div {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.admin-case-reference-notes strong {
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+
+.admin-case-reference-document-note {
+  align-items: center;
+  background: var(--admin-case-soft);
+  border: 1px solid var(--admin-case-line);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  display: flex;
+  font-size: var(--fs-sm);
+  gap: 0.55rem;
+  margin-top: 0.25rem;
+  padding: 0.7rem 0.8rem;
+}
+
+.admin-case-reference-history {
+  padding: 1.05rem 1rem 1.15rem;
+}
+
+.admin-case-reference-history > h2 {
+  margin-bottom: 1.1rem;
+}
+
+.admin-case-reference-history-loading {
+  align-items: center;
+  color: var(--text-secondary);
+  display: flex;
+  gap: 0.55rem;
+  padding: 1rem 0;
+}
+
+.admin-case-reference-timeline {
+  display: grid;
+  position: relative;
+}
+
+.admin-case-reference-timeline::before {
+  background: var(--border-strong);
+  bottom: 1.25rem;
+  content: '';
+  left: 1.05rem;
+  position: absolute;
+  top: 1.1rem;
+  width: 1px;
+}
+
+.admin-case-reference-timeline-event {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: 2.15rem minmax(0, 1fr);
+  padding: 0 0 1.25rem;
+  position: relative;
+}
+
+.admin-case-reference-timeline-event:last-child {
+  padding-bottom: 0;
+}
+
+.admin-case-reference-timeline-marker {
+  align-items: center;
+  border-radius: 999px;
+  box-shadow: 0 0 0 4px var(--admin-case-panel);
+  color: var(--on-primary);
+  display: inline-flex;
+  font-size: 0.95rem;
+  font-weight: 800;
+  height: 2.1rem;
+  justify-content: center;
+  position: relative;
+  width: 2.1rem;
+  z-index: 1;
+}
+
+.admin-case-reference-timeline-event--danger .admin-case-reference-timeline-marker {
+  background: var(--danger);
+}
+
+.admin-case-reference-timeline-event--warning .admin-case-reference-timeline-marker {
+  background: var(--warning);
+}
+
+.admin-case-reference-timeline-event--success .admin-case-reference-timeline-marker {
+  background: var(--success);
+}
+
+.admin-case-reference-timeline-event--info .admin-case-reference-timeline-marker {
+  background: var(--color-info);
+}
+
+.admin-case-reference-timeline-event--neutral .admin-case-reference-timeline-marker {
+  background: var(--status-neutral-bg);
+  color: var(--status-neutral-text);
+}
+
+.admin-case-reference-timeline-event h3 {
+  color: var(--text);
+  font-size: var(--fs-base);
+  font-weight: 700;
+  margin: 0 0 0.15rem;
+}
+
+.admin-case-reference-timeline-event time,
+.admin-case-reference-timeline-event strong,
+.admin-case-reference-timeline-event p {
+  display: block;
+  font-size: var(--fs-sm);
+}
+
+.admin-case-reference-timeline-event time {
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.admin-case-reference-timeline-event strong {
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-bottom: 0.35rem;
+}
+
+.admin-case-reference-timeline-event p {
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.admin-case-reference-manager-note {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+}
+
+.admin-case-reference-manager-note strong {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  margin-top: 0.2rem;
+}
+
+.admin-case-reference-manager-note time {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .admin-case-reference-action:hover,
+  .admin-case-reference-actions .job-conversation-launcher-button.admin-case-reference-action:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
+  }
+
+  .admin-case-reference-back:hover {
+    text-decoration: underline;
+  }
+}
+
+@media (min-width: 760px) {
+  .admin-case-reference-actions {
+    grid-template-columns: repeat(4, minmax(0, 8rem));
+  }
+
+  .admin-case-reference-information,
+  .admin-case-reference-description,
+  .admin-case-reference-history,
+  .admin-case-reference-manager-note {
+    padding: 1.2rem 1.35rem;
+  }
+}
+
+@media (min-width: 1100px) {
+  .admin-case-reference-page {
+    gap: 1rem;
+  }
+
+  .admin-case-reference-layout {
+    align-items: start;
+    grid-template-columns: minmax(0, 1.7fr) minmax(19rem, 0.95fr);
+  }
+
+  .admin-case-reference-sidebar {
+    position: sticky;
+    top: 1rem;
+  }
+
+  .admin-case-reference-hero {
+    min-height: 10.5rem;
+    padding: 1.35rem 0.6rem 0.6rem;
+  }
+
+  .admin-case-reference-actions {
+    margin-top: -1.8rem;
+    padding-left: 0.2rem;
+  }
+
+  .admin-case-reference-information {
+    margin-top: 0.15rem;
+  }
+
+  .admin-case-reference-media {
+    order: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .admin-case-reference-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-case-reference-progress {
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .admin-case-reference-hero h1 {
+    font-size: 1.75rem;
+    max-width: none;
+  }
+
+  .admin-case-reference-info-row {
+    align-items: start;
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+
+  .admin-case-reference-info-row dd {
+    padding-left: 1.95rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-case-reference-action,
+  .admin-case-reference-actions .job-conversation-launcher-button.admin-case-reference-action {
+    transition: none;
+  }
+}
+
+/* Desktop composition: keep the case identity and action bar together across the
+   full content width, then align case information and history as one balanced row. */
+@media (min-width: 1100px) {
+  .admin-case-reference-layout {
+    column-gap: 1.25rem;
+    row-gap: 1rem;
+    grid-template-columns: minmax(0, 1.75fr) minmax(20rem, 0.95fr);
+  }
+
+  .admin-case-reference-main {
+    display: contents;
+  }
+
+  .admin-case-reference-main > * {
+    grid-column: 1;
+  }
+
+  .admin-case-reference-hero {
+    grid-column: 1 / -1;
+    min-height: 0;
+    padding: 0.85rem 0.25rem 0.35rem;
+  }
+
+  .admin-case-reference-actions {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    margin-top: 0;
+    padding: 0;
+  }
+
+  .admin-case-reference-action,
+  .admin-case-reference-actions .job-conversation-launcher-button.admin-case-reference-action {
+    flex-direction: row;
+    justify-content: flex-start;
+    min-height: 3.75rem;
+    padding: 0.75rem 0.9rem;
+    text-align: left;
+  }
+
+  .admin-case-reference-action svg,
+  .admin-case-reference-actions .job-conversation-launcher-button.admin-case-reference-action svg {
+    flex: 0 0 auto;
+  }
+
+  .admin-case-reference-information {
+    grid-row: 3;
+    margin-top: 0;
+  }
+
+  .admin-case-reference-sidebar {
+    grid-column: 2;
+    grid-row: 3 / span 20;
+    position: sticky;
+    top: 1rem;
+  }
+
+  .admin-case-reference-history {
+    min-height: 100%;
+  }
+}
