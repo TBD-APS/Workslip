@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import process from 'node:process';
 
 const API_TIMEOUT = 30_000;
@@ -203,7 +204,9 @@ async function verifyCustomer(config, admin, customer, viewportName) {
       { selector: `#customer-list-phone-${customer.id}-call`, href: `tel:${customer.phone}` },
     );
 
-    await session.page.goto(`${config.appUrl}/app/customers/${customer.id}`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+    const customerOpen = session.page.locator(`#customer-list-open-${customer.id}`);
+    await customerOpen.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await customerOpen.click();
     await session.page.locator('#customer-detail-page').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await assertDirectClipboardCopy(session.page, '#customer-detail-name', customer.name, `${viewportName} customer detail name`);
     await assertActionMenuCopy(
@@ -301,7 +304,7 @@ async function main() {
   const admin = await identity(config, config.adminEmail, 'Admin');
   const user = await identity(config, config.userEmail, 'User');
   const originalUser = await api(config, admin, 'GET', `/api/users/${user.user.id}`, undefined, [200]);
-  const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const unique = `${Date.now()}-${randomUUID().slice(0, 8)}`;
   const customerName = `Copyability kunde ${unique}`;
   const customerPhone = '11223344';
   const customerEmail = `copy-${unique}@example.test`;

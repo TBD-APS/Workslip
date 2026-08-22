@@ -276,7 +276,9 @@ export async function runCustomerWave1Acceptance(viewportName) {
     await searchResponsePromise;
     const customerResult = page.locator(`#customer-list-item-${customerId}`);
     await customerResult.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    await customerResult.click();
+    const customerOpen = page.locator(`#customer-list-open-${customerId}`);
+    await customerOpen.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await customerOpen.click();
     await page.locator('#customer-detail-page').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
     const favoriteResponsePromise = page.waitForResponse((response) => {
