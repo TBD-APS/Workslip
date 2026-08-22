@@ -50,23 +50,22 @@ public sealed class JobLifecycleService(
         if (job is null)
         {
             logger.LogWarning(
-                "Job submit returned not found. JobId: {JobId} with orgId {OrgId}.",
+                "Job transition returned not found before lifecycle validation. JobId: {JobId} with orgId {OrgId}.",
                 id,
                 organizationId.Value);
             return Result<JobReportSummaryResponse>.NotFound();
         }
 
-        // Reopening is an administrative lifecycle action, not a new submission.
-        // Approved jobs may contain legacy data that no longer satisfies today's
-        // submit-ready rules; blocking the reopen on those rules leaves admins
-        // unable to correct exactly that data.
-        if (request.Status != JobStatus.Reopened)
+        // Submit readiness belongs only to actual entry into review. Reviewer
+        // decisions and same-status retries operate on an already-submitted snapshot
+        // and must not become impossible because reference data or rules changed later.
+        if (request.Status == JobStatus.InReview && job.Status != JobStatus.InReview)
         {
             var referenceData = await referenceDataRepository.GetAsync(organizationId.Value, cancellationToken);
-            var isValidResponse = jobValidationService.ValidateSubmitReady(job, referenceData);
-            if (!isValidResponse.IsSuccess)
+            var submitReady = jobValidationService.ValidateSubmitReady(job, referenceData);
+            if (!submitReady.IsSuccess)
             {
-                return isValidResponse;
+                return submitReady;
             }
         }
 

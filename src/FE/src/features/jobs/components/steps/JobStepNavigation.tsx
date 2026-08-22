@@ -33,6 +33,7 @@ export function StepIndicators({ currentStep, onStepChange, completedSteps }: St
           const isDisabled = index > 0 && !completedSteps[index - 1];
           return (
             <button
+              id={`job-step-${index}`}
               key={step.label}
               className={`step-dot ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
               onClick={() => onStepChange(index)}
@@ -142,6 +143,7 @@ export function StepNavigation({
   const bar = (
     <div className="step-nav">
       <button
+        id="job-step-back"
         className="step-nav-btn step-nav-btn-back"
         onClick={onBack}
         aria-label="Tilbage"
@@ -154,6 +156,7 @@ export function StepNavigation({
 
       {!isLastStep ? (
         <button
+          id="job-step-next"
           className="step-nav-btn step-nav-btn-next"
           onClick={() => {
             if (actionableBlockedNext) {
@@ -172,6 +175,7 @@ export function StepNavigation({
         </button>
       ) : !hideDoneButton ? (
         <button
+          id="job-step-done"
           className="step-nav-btn step-nav-btn-next"
           onClick={onDone}
           disabled={disableDone}

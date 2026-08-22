@@ -11,6 +11,9 @@ type ConfirmDialogProps = {
   pendingLabel?: string;
   cancelLabel?: string;
   variant?: 'primary' | 'danger';
+  dialogId?: string;
+  confirmId?: string;
+  cancelId?: string;
   onConfirm: () => void | Promise<void>;
   onClose: () => void;
 };
@@ -23,6 +26,9 @@ export function ConfirmDialog({
   pendingLabel = confirmLabel,
   cancelLabel = 'Annuller',
   variant = 'primary',
+  dialogId,
+  confirmId,
+  cancelId,
   onConfirm,
   onClose,
 }: ConfirmDialogProps) {
@@ -54,6 +60,7 @@ export function ConfirmDialog({
   return createPortal(
     <div className="modal-backdrop" onClick={handleClose}>
       <div
+        id={dialogId}
         ref={dialogRef}
         className="modal-card"
         onClick={(event) => event.stopPropagation()}
@@ -67,6 +74,7 @@ export function ConfirmDialog({
         <p>{message}</p>
         <div className="modal-actions">
           <button
+            id={confirmId}
             type="button"
             className={variant === 'danger' ? 'btn btn-danger' : 'btn btn-primary'}
             onClick={() => void handleConfirm()}
@@ -76,6 +84,7 @@ export function ConfirmDialog({
             <span>{isPending ? pendingLabel : confirmLabel}</span>
           </button>
           <button
+            id={cancelId}
             ref={cancelButtonRef}
             type="button"
             className="btn btn-secondary"

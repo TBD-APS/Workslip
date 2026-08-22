@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { ClipboardCopy } from 'lucide-react';
 import { useSyncExternalStore, useState } from 'react';
+import { copyTextToClipboard } from '../../../lib/clipboard';
 import { notify } from '../../../lib/toast';
 import { errorDiagnosticsQueryPrefix } from './queryKeys';
 import { serializeErrorDiagnosticsSupportSnapshot } from './supportSnapshot';
@@ -65,16 +66,13 @@ export function DiagnosticsSupportCopyButton() {
 
     setIsCopying(true);
     try {
-      if (!navigator.clipboard?.writeText) {
-        throw new Error('clipboard_unavailable');
-      }
-
-      await navigator.clipboard.writeText(
+      await copyTextToClipboard(
         serializeErrorDiagnosticsSupportSnapshot(
           activeSnapshot.dashboard,
           activeSnapshot.range,
           activeSnapshot.source,
         ),
+        { allowLegacyFallback: false },
       );
       notify.success('Sanitiseret diagnostik er kopieret');
     } catch {

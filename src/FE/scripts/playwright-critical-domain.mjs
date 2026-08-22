@@ -287,11 +287,11 @@ async function createMinimalJobFixtureViaApi(session, customer) {
 
 async function addWorksheetViaUi(session, user, hours) {
   const page = session.page;
-  const add = page.getByRole('button', { name: 'Tilføj timeseddel', exact: true });
+  const add = page.locator('#job-worksheet-add-trigger');
   await add.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await waitForEnabled(add, 'Tilføj timeseddel');
+  await waitForEnabled(add, 'worksheet add trigger');
   await add.click();
-  const form = page.locator('.worksheet-form');
+  const form = page.locator('#worksheet-add-form');
   const trigger = page.locator('#worksheet-assignee-trigger');
   if (await trigger.isVisible().catch(() => false)) {
     await waitForEnabled(trigger, 'worksheet assignee selector');
