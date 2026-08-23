@@ -1,0 +1,110 @@
+name: Grok Clippy Content
+
+on:
+  push:
+    branches:
+      - chore/grok-clippy-content
+    paths:
+      - .github/workflows/grok-clippy-content.yml
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+      XAI_MODEL: ${{ vars.XAI_REVIEW_MODEL || 'grok-4.6' }}
+    steps:
+      - name: Generate Clippy content with Grok
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${XAI_API_KEY:-}" ]; then
+            echo "::error::XAI_API_KEY is not configured"
+            exit 1
+          fi
+
+          cat > /tmp/request.mjs <<'NODE'
+          import fs from 'node:fs';
+
+          const endpoint = 'https://api.x.ai/v1/chat/completions';
+          const apiKey = process.env.XAI_API_KEY;
+          const model = process.env.XAI_MODEL || 'grok-4.6';
+
+          const system = `You are the product copywriter for MR SAASSY. Create the content system for Clippy, the contextual in-product helper inside SAASSY Control Center.
+
+Product intent:
+- SAASSY is an agent orchestration/control product for teams using AI agents, GitHub, Linear, Azure and other tools.
+- The UI should make advanced agent features feel playful, tangible and safe to explore rather than like enterprise configuration.
+- Clippy should make users curious enough to interact with deeper features and understand what they unlock.
+- Never pressure users to grant broader access. Explain the benefit, scope, and safety tradeoff plainly.
+- Security/Prison capabilities should be framed as controlled unlocks, not "more access is always better".
+
+Voice:
+- memorable, slightly cheeky, concise, confident
+- helpful rather than annoying
+- no corporate filler, no fake enthusiasm, no baby-talk
+- short enough for small floating cards on desktop and phone
+- use technical terms only when they help; explain them in ordinary language
+
+Return only valid JSON matching this shape:
+{
+  "persona": {"name":"Clippy","oneLiner":"...","voiceRules":["..."]},
+  "firstRun": [{"id":"...","headline":"...","body":"...","cta":"..."}],
+  "contextual": [
+    {"surface":"overview|agents|tasks|prison|compute|deployments|activity|projects|ci","trigger":"...","headline":"...","body":"...","cta":"...","safetyNote":"..."}
+  ],
+  "unlocks": [
+    {"capability":"...","lockedCopy":"...","unlockedCopy":"...","riskCopy":"..."}
+  ],
+  "states": {
+    "idle":["..."],
+    "success":["..."],
+    "blocked":["..."],
+    "approvalRequired":["..."],
+    "conflict":["..."]
+  }
+}
+
+Create enough copy to make Clippy useful across the product: 5 first-run messages, at least 18 contextual messages, at least 8 unlock examples, and 8 lines for every state array. Keep each headline under 45 characters and each body under 180 characters.`;
+
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              authorization: `Bearer ${apiKey}`,
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+              model,
+              temperature: 0.8,
+              messages: [
+                { role: 'system', content: system },
+                { role: 'user', content: 'Write the complete Clippy content bundle for MR SAASSY now.' },
+              ],
+              response_format: { type: 'json_object' },
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Grok returned HTTP ${response.status}: ${(await response.text()).slice(0, 1200)}`);
+          }
+
+          const payload = await response.json();
+          const raw = payload?.choices?.[0]?.message?.content;
+          if (!raw) throw new Error('Grok returned no content');
+          const parsed = JSON.parse(raw);
+          fs.writeFileSync('clippy-content.json', JSON.stringify(parsed, null, 2));
+          console.log(`Generated Clippy content with ${model}`);
+          NODE
+
+          node /tmp/request.mjs
+
+      - name: Upload Clippy content
+        uses: actions/upload-artifact@v4
+        with:
+          name: grok-clippy-content
+          path: clippy-content.json
+          retention-days: 3
