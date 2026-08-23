@@ -74,9 +74,8 @@ async function main() {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  let response;
   try {
-    response = await fetch(XAI_ENDPOINT, {
+    const response = await fetch(XAI_ENDPOINT, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${apiKey}`,
@@ -85,18 +84,20 @@ async function main() {
       body: JSON.stringify(buildRequest({ model, prompt, context, schema })),
       signal: controller.signal,
     });
+
+    if (!response.ok) {
+      const body = (await response.text()).slice(0, 1_500);
+      throw new Error(`Grok returned HTTP ${response.status}: ${body}`);
+    }
+
+    const structured = extractStructured(await response.json());
+    fs.writeFileSync('grok-raw.json', JSON.stringify(structured), 'utf8');
+    console.log(`Grok review completed with ${model}.`);
   } finally {
+    // Keep the abort signal live through response body consumption. fetch()
+    // resolves when headers arrive, while response.text()/json() may still stall.
     clearTimeout(timer);
   }
-
-  if (!response.ok) {
-    const body = (await response.text()).slice(0, 1_500);
-    throw new Error(`Grok returned HTTP ${response.status}: ${body}`);
-  }
-
-  const structured = extractStructured(await response.json());
-  fs.writeFileSync('grok-raw.json', JSON.stringify(structured), 'utf8');
-  console.log(`Grok review completed with ${model}.`);
 }
 
 const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
