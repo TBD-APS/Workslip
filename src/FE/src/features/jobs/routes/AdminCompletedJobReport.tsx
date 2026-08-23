@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -392,7 +392,9 @@ export function AdminCompletedJobReport() {
             <JobImagesSection jobId={job.id} allowManage={canEdit} />
             <div className="admin-case-reference-document-note">
               <FileText size={18} aria-hidden="true" />
-              <span>Øvrige sagsfiler bevares i Workslips eksisterende dokumentationsflow.</span>
+              <Link id="job-report-open-docs" className="admin-case-reference-document-link" to="/app/docs">
+                Øvrige sagsfiler bevares i Workslips eksisterende dokumentationsflow.
+              </Link>
             </div>
           </section>
 
