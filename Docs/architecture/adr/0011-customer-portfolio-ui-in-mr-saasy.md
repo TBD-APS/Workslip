@@ -1,9 +1,14 @@
 # ADR 0011: Customer portfolio UI belongs in MR SAAS'y, not product SuperAdmin
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-08-16
 - Tracking: WOR-635
-- Related: WOR-447, WOR-552, WOR-591, WOR-592; ADR 0009, ADR 0010, ADR 0007
+- Superseded by: ADR 0013
+- Related: WOR-447, WOR-552, WOR-591, WOR-592, WOR-694; ADR 0009, ADR 0010, ADR 0007, ADR 0013
+
+## Supersession note
+
+ADR 0013 supersedes the part of this decision that retained product-owned SuperAdmin surfaces. The customer-portfolio ownership and adapter/projection boundaries below remain useful historical context, but the privileged cross-product/cross-tenant SuperAdmin/Admin operating surface is now owned by MR SAAS'y Spacecenter.
 
 ## Context
 
@@ -20,7 +25,7 @@ Without an explicit placement decision, portfolio features risk landing in Works
 ## Decision
 
 1. The canonical **customer portfolio** — accounts/customers, projects/product instances, entitlements/modules purchased or enabled, and managed websites/properties — is owned by **MR SAAS'y**.
-2. Product SuperAdmin UIs (including Workslip SuperAdmin) remain limited to **in-product** administration for that product’s tenants, users and operational tools.
+2. Product SuperAdmin UIs (including Workslip SuperAdmin) remain limited to **in-product** administration for that product’s tenants, users and operational tools. **This item is superseded by ADR 0013 for the privileged SuperAdmin/Admin operating surface.**
 3. Products contribute portfolio data only through **adapters / projections**. The platform must not import product domain schemas, repositories or DTOs as the portfolio source of truth (consistent with ADR 0009 and ADR 0010).
 4. Platform **Account** identity may correlate to product tenants (for Workslip: `OrganizationId` per ADR 0007) without becoming a second authorization boundary inside the product.
 5. v1 portfolio is **read-oriented** where possible. Write paths (enable module, publish site, change entitlement) stay in the owning system or become explicit, authorized platform actions — not silent dual-writes of product state.
@@ -45,7 +50,7 @@ Without an explicit placement decision, portfolio features risk landing in Works
 
 ## Non-goals
 
-- replacing Workslip SuperAdmin for in-product org/user admin;
+- replacing Workslip SuperAdmin for in-product org/user admin; **superseded by ADR 0013 where this refers to the privileged SuperAdmin/Admin platform entry point**;
 - turning Control Center into a CRM, billing system or universal business warehouse (ADR 0009 non-goals still apply);
 - copying customer PII or full product tables into the platform domain model;
 - full invoicing or commercial quote-to-cash in v1;
@@ -67,5 +72,6 @@ Website branding configuration (WOR-447) remains product/site data work. **Listi
 - `Docs/architecture/adr/0007-filial-under-organization.md`
 - `Docs/architecture/adr/0009-platform-control-center-read-model.md`
 - `Docs/architecture/adr/0010-mr-saasy-control-plane-bootstrap-boundary.md`
+- `Docs/architecture/adr/0013-mr-saasy-spacecenter-privileged-admin-surface.md`
 - `Docs/agents/CONTROL_CENTER_OPERATING_MODEL.md`
-- Linear: WOR-635, WOR-447, WOR-552, WOR-591, WOR-592
+- Linear: WOR-635, WOR-447, WOR-552, WOR-591, WOR-592, WOR-694
