@@ -145,6 +145,8 @@ jobs:
           grep -Fq "inputs.execution_mode == 'emergency'" "${infrastructure}"
           grep -Fq 'EMERGENCY_ACKNOWLEDGED' "${infrastructure}"
           grep -Fq 'Record emergency CI waiver' "${infrastructure}"
+          grep -Fq 'Re-verify current main immediately before reconcile' "${infrastructure}"
+          grep -Fq 'Emergency candidate ${sha} is stale' "${infrastructure}"
           grep -Fq 'plan.ps1' "${infrastructure}"
           grep -Fq "inputs.operation == 'reconcile'" "${infrastructure}"
           grep -Fq 'verify-deployment-environment.mjs' "${infrastructure}"

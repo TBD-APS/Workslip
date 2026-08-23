@@ -367,6 +367,45 @@ jobs:
           }
           Get-Command sqlcmd -ErrorAction Stop | Out-Null
 
+      - name: Re-verify current main immediately before reconcile
+        if: ${{ inputs.operation == 'reconcile' }}
+        shell: bash
+        env:
+          EXECUTION_MODE: ${{ inputs.execution_mode }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ "${EXECUTION_MODE}" == 'standard' ]]; then
+            node tools/release/verify-production-eligibility.mjs --sha "${GITHUB_SHA}"
+            exit 0
+          fi
+
+          node <<'NODE'
+          (async () => {
+            const repository = process.env.GITHUB_REPOSITORY;
+            const sha = process.env.GITHUB_SHA;
+            const response = await fetch(`https://api.github.com/repos/${repository}/git/ref/heads/main`, {
+              headers: {
+                Accept: 'application/vnd.github+json',
+                Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+                'X-GitHub-Api-Version': '2022-11-28',
+              },
+            });
+            if (!response.ok) {
+              throw new Error(`Unable to read main: GitHub API ${response.status}.`);
+            }
+            const main = await response.json();
+            if (main?.object?.sha !== sha) {
+              throw new Error(`Emergency candidate ${sha} is stale; current main is ${main?.object?.sha || 'unknown'}.`);
+            }
+            console.log(`[release] emergency candidate is current main @ ${sha}.`);
+          })().catch((error) => {
+            console.error(`[release] emergency main check blocked: ${error.message}`);
+            process.exitCode = 1;
+          });
+          NODE
+
       - name: Reconcile approved Azure infrastructure
         if: ${{ inputs.operation == 'reconcile' }}
         shell: pwsh
