@@ -44,7 +44,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
+resource appServicePlan 'Microsoft.Web/serverfarms@2025-03-01' = {
   name: appServicePlanName
   location: location
   tags: tags
@@ -53,7 +53,9 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
     tier: 'Basic'
     capacity: 1
   }
-  properties: {}
+  properties: {
+    asyncScalingEnabled: true
+  }
 }
 
 resource appConfig 'Microsoft.AppConfiguration/configurationStores@2023-03-01' = {

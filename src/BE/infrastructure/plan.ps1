@@ -34,6 +34,7 @@ param(
     [string]$PowerBiReaderPrincipalId = '',
     [string]$PowerBiReaderEmail = '',
     [switch]$EnablePowerBiExport,
+    [switch]$EnableCustomEmailDomain,
     [string]$EntraStatePath = ''
 )
 
@@ -54,5 +55,6 @@ if (-not (Test-Path $DeployScript)) {
     -PowerBiReaderPrincipalId $PowerBiReaderPrincipalId `
     -PowerBiReaderEmail $PowerBiReaderEmail `
     -EnablePowerBiExport:$EnablePowerBiExport `
+    -EnableCustomEmailDomain:$EnableCustomEmailDomain `
     -EntraStatePath $EntraStatePath `
     -WhatIf
