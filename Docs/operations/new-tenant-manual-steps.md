@@ -31,9 +31,12 @@ Four records must be published at the authoritative DNS zone:
 **The values are different in the new tenant.** Verification tokens and DKIM selectors are issued per ACS resource, so the records currently in DNS belong to the old tenant's ACS and will not satisfy the new one. Read the new values after deployment:
 
 ```powershell
+$resourceGroup = 'rg-mrsoftwarev2-live'
+$emailService = 'email-mrsoftwarev2-live'
+
 az communication email domain show `
-  --resource-group rg-mrsoftware-prod `
-  --email-service-name email-mrsoftware-prod `
+  --resource-group $resourceGroup `
+  --email-service-name $emailService `
   --domain-name mrsoftware.dk `
   --query "{records:properties.verificationRecords,states:properties.verificationStates}" `
   --output json
@@ -44,8 +47,8 @@ Publish them, then initiate verification for each type:
 ```powershell
 foreach ($type in @('Domain','SPF','DKIM','DKIM2')) {
   az communication email domain initiate-verification `
-    --resource-group rg-mrsoftware-prod `
-    --email-service-name email-mrsoftware-prod `
+    --resource-group $resourceGroup `
+    --email-service-name $emailService `
     --domain-name mrsoftware.dk `
     --verification-type $type
 }
@@ -104,7 +107,16 @@ The API keeps its default `api-<company>-<env>.azurewebsites.net` hostname. No c
 
 ## 5. GitHub environment
 
-Three values are tenant- or subscription-bound and must be updated by hand before CI can deploy:
+The protected GitHub environment for the new boundary is `live`. Three values
+are tenant- or subscription-bound and must be updated by hand before CI can
+deploy there:
+
+Create `live` explicitly before any workflow references it. Configure exactly
+the `main` deployment branch, repository owner `rasm105k` (GitHub user ID
+`31623093`) as a required reviewer, and disable administrator bypass.
+Repository validation fails closed when that external configuration is absent
+or weaker; it must not rely on GitHub auto-creating an empty environment during
+a deployment run.
 
 | Name | Kind | Set by |
 |---|---|---|
@@ -113,7 +125,7 @@ Three values are tenant- or subscription-bound and must be updated by hand befor
 | `AZURE_CLIENT_ID` | secret | you |
 | `AZURE_INFRA_CLIENT_ID` | variable | `deploy.ps1` phase 4, via `gh` |
 
-The first deployment cannot run from CI. `infrastructure-production-reconcile.yml` authenticates with `AZURE_INFRA_CLIENT_ID`, and that identity is created by the deployment itself. Run locally first, then let CI take over.
+The first deployment cannot run from CI. `infrastructure-production-reconcile.yml` authenticates with `AZURE_INFRA_CLIENT_ID`, and that identity is created by the deployment itself. Run locally first, then let CI take over. The controlled sequence, approval phrases, data movement, and rollback boundary are in [the new-tenant cutover runbook](new-tenant-cutover.md).
 
 The remaining repository secrets — `ANTHROPIC_API_KEY`, `KIMI_API_KEY`, `LINEAR_ACCESS_KEY`, `OPENAI_API_KEY`, `OLLAMA_API_KEY` — are not tenant-bound and need no action.
 

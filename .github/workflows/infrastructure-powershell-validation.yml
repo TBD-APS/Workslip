@@ -1,0 +1,59 @@
+name: Infrastructure · PowerShell validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/BE/infrastructure/*.ps1'
+      - '.github/workflows/infrastructure-powershell-validation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/BE/infrastructure/*.ps1'
+      - '.github/workflows/infrastructure-powershell-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  parse:
+    name: Infrastructure · Parse PowerShell
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Parse every infrastructure PowerShell script
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $failed = $false
+
+          Get-ChildItem 'src/BE/infrastructure' -Filter '*.ps1' -File |
+            Sort-Object FullName |
+            ForEach-Object {
+              $tokens = $null
+              $errors = $null
+              [System.Management.Automation.Language.Parser]::ParseFile(
+                $_.FullName,
+                [ref]$tokens,
+                [ref]$errors
+              ) | Out-Null
+
+              if ($errors.Count -eq 0) {
+                Write-Host "PASS $($_.Name)"
+                return
+              }
+
+              $failed = $true
+              foreach ($parseError in $errors) {
+                Write-Error "$($_.Name):$($parseError.Extent.StartLineNumber):$($parseError.Extent.StartColumnNumber) $($parseError.Message)" -ErrorAction Continue
+              }
+            }
+
+          if ($failed) {
+            throw 'One or more infrastructure PowerShell scripts failed parser validation.'
+          }

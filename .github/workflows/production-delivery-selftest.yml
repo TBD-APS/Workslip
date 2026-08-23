@@ -10,9 +10,12 @@ on:
       - '.github/workflows/infrastructure-production-reconcile.yml'
       - '.github/workflows/production-readiness-smoke.yml'
       - '.github/workflows/production-delivery-selftest.yml'
+      - 'src/BE/infrastructure/*.bicep'
       - 'tools/release/configure-github-branch-rules.ps1'
       - 'tools/release/verify-production-eligibility.mjs'
       - 'tools/release/verify-production-eligibility.test.mjs'
+      - 'tools/release/verify-deployment-environment.mjs'
+      - 'tools/release/verify-deployment-environment.test.mjs'
       - 'src/FE/scripts/vercel-production-eligibility.mjs'
       - 'src/FE/scripts/vercel-production-eligibility.test.mjs'
       - 'src/FE/vercel.json'
@@ -28,9 +31,12 @@ on:
       - '.github/workflows/infrastructure-production-reconcile.yml'
       - '.github/workflows/production-readiness-smoke.yml'
       - '.github/workflows/production-delivery-selftest.yml'
+      - 'src/BE/infrastructure/*.bicep'
       - 'tools/release/configure-github-branch-rules.ps1'
       - 'tools/release/verify-production-eligibility.mjs'
       - 'tools/release/verify-production-eligibility.test.mjs'
+      - 'tools/release/verify-deployment-environment.mjs'
+      - 'tools/release/verify-deployment-environment.test.mjs'
       - 'src/FE/scripts/vercel-production-eligibility.mjs'
       - 'src/FE/scripts/vercel-production-eligibility.test.mjs'
       - 'src/FE/vercel.json'
@@ -57,8 +63,17 @@ jobs:
           set -Eeuo pipefail
           node --check tools/release/verify-production-eligibility.mjs
           node --test tools/release/verify-production-eligibility.test.mjs
+          node --check tools/release/verify-deployment-environment.mjs
+          node --test tools/release/verify-deployment-environment.test.mjs
           node --check src/FE/scripts/vercel-production-eligibility.mjs
           node --test src/FE/scripts/vercel-production-eligibility.test.mjs
+
+      - name: Compile authoritative Bicep templates
+        run: |
+          set -Eeuo pipefail
+          for template in src/BE/infrastructure/*.bicep; do
+            az bicep build --file "${template}" --stdout >/dev/null
+          done
 
       - name: Verify Vercel production is green-gated and deterministic
         run: |
@@ -93,14 +108,40 @@ jobs:
           for workflow in "${workflows[@]}"; do
             grep -Fq 'verify-production-eligibility.mjs' "${workflow}"
             grep -Fq 'group: workslip-production' "${workflow}"
-            grep -Fq 'environment: prod' "${workflow}"
           done
 
-          grep -Fq -- '--ci-run-id "${CI_RUN_ID}"' .github/workflows/backend-production-deploy.yml
-          grep -Fq 'actions: read' .github/workflows/backend-production-deploy.yml
-          grep -Fq 'Re-verify green current main before mutation' .github/workflows/backend-production-deploy.yml
+          backend=.github/workflows/backend-production-deploy.yml
+          grep -Fq 'environment:' "${backend}"
+          grep -Fq "github.event_name == 'workflow_dispatch' && 'live' || 'prod'" "${backend}"
+          grep -Fq 'DEPLOY NEW TENANT AFTER DATA VERIFIED' "${backend}"
+          grep -Fq 'data_manifest_sha256' "${backend}"
+          grep -Fq 'data_manifest_evidence_url' "${backend}"
+          grep -Fq 'issue/WOR-430/' "${backend}"
+          grep -Fq 'api-mrsoftwarev2-live' "${backend}"
+          grep -Fq 'api-mrsoftware-prod' "${backend}"
+          grep -Fq 'verify-deployment-environment.mjs' "${backend}"
+          grep -Fq -- '--require-reviewers' "${backend}"
+          grep -Fq -- '--required-reviewer-id 31623093' "${backend}"
+          grep -Fq -- '--require-no-admin-bypass' "${backend}"
+          grep -Fq 'environment: prod' .github/workflows/database-production-migrations.yml
 
-          if grep -Fq 'merge-base --is-ancestor' .github/workflows/backend-production-deploy.yml; then
+          infrastructure=.github/workflows/infrastructure-production-reconcile.yml
+          grep -Fq 'name: $'"{{ needs.select-target.outputs.github_environment }}" "${infrastructure}"
+          grep -Fq "echo 'github_environment=prod'" "${infrastructure}"
+          grep -Fq "echo 'github_environment=live'" "${infrastructure}"
+          grep -Fq "echo 'resource_group=rg-mrsoftware-prod'" "${infrastructure}"
+          grep -Fq "echo 'resource_group=rg-mrsoftwarev2-live'" "${infrastructure}"
+          grep -Fq "expected='PLAN NEW TENANT'" "${infrastructure}"
+          grep -Fq "expected='RECONCILE NEW TENANT'" "${infrastructure}"
+          grep -Fq 'plan.ps1' "${infrastructure}"
+          grep -Fq "inputs.operation == 'reconcile'" "${infrastructure}"
+          grep -Fq 'verify-deployment-environment.mjs' "${infrastructure}"
+
+          grep -Fq -- '--ci-run-id "${CI_RUN_ID}"' "${backend}"
+          grep -Fq 'actions: read' "${backend}"
+          grep -Fq 'Re-verify green current main before mutation' "${backend}"
+
+          if grep -Fq 'merge-base --is-ancestor' "${backend}"; then
             echo 'Backend production deploy must not accept an older green ancestor SHA.' >&2
             exit 1
           fi

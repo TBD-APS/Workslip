@@ -2,7 +2,7 @@
 
 **Status:** Accepted  
 **Date:** 2026-08-08  
-**Last amended:** 2026-08-15  
+**Last amended:** 2026-08-22
 **Decision owners:** Workslip maintainers
 
 ## Context
@@ -68,7 +68,8 @@ Production Vercel builds do not regenerate the API client against a remote devel
 
 ### Backend production
 
-Backend production is triggered by a completed `CI` workflow run on `main`.
+Normal backend production is triggered by a completed `CI` workflow run on
+`main` and remains pinned to the current `prod` Azure boundary.
 
 The backend workflow verifies that exact triggering CI run and its `CI Gate`, builds an artifact from exactly that SHA, then **re-validates current-main eligibility immediately before migrations or application deployment**. If `main` advanced during artifact construction, the older release is stale and cannot mutate production.
 
@@ -76,11 +77,30 @@ The previous `git merge-base --is-ancestor` acceptance is intentionally retired.
 
 Azure deployment continues to use the protected `prod` environment, GitHub OIDC, a dedicated migration identity, bounded retries, deployment failure diagnostics and post-deploy health verification.
 
+During the tenant cutover, the same workflow also exposes one manual path to the
+new boundary. It has no free-form target: a manual dispatch means
+`api-mrsoftwarev2-live` in the protected `live` environment. It requires the
+exact current green `main`, the typed confirmation
+`DEPLOY NEW TENANT AFTER DATA VERIFIED`, and the SHA-256 plus allowlisted
+evidence URL of the reviewed non-personal SQL/blob comparison manifest. The
+environment reviewer verifies the referenced evidence; the workflow records it
+without pretending that hash syntax proves data correctness. It deploys and
+verifies the direct API but does not move Vercel traffic. The automatic path
+remains on `prod` until traffic cutover is approved separately.
+
 ### Privileged manual production operations
 
 A manual dispatch is operator intent, not a CI bypass.
 
-Production database migrations and production infrastructure reconciliation may only be dispatched from `main` and must pass the exact-SHA Actions production eligibility adapter **before** acquiring Azure credentials or mutating resources. Both workflows explicitly set up Node 24 for the gate instead of relying on runner-image defaults. The production public readiness smoke is read-only but also requires exact green `main` so its evidence is attached to a validated revision.
+Production database migrations, production infrastructure reconciliation, and
+the manual new-tenant API deployment may only be dispatched from `main` and
+must pass the exact-SHA Actions production eligibility adapter **before**
+acquiring Azure credentials or mutating resources. Infrastructure targets are
+selected from a fixed current/new allowlist. Preview is the default operation;
+reconcile requires a target-specific confirmation and the corresponding
+protected `prod` or `live` environment. The production public readiness smoke
+is read-only but also requires exact green `main` so its evidence is attached
+to a validated revision.
 
 ### Concurrency
 
@@ -113,7 +133,7 @@ Workflow and job names use a surface-first production convention such as:
 - `Infrastructure · Production reconcile`
 - `Production · Readiness smoke`
 
-Stable external environment/resource identifiers are not renamed solely for presentation. The GitHub `prod` environment remains the Azure protected environment while it owns existing production variables/secrets and a `main` deployment policy. Vercel-created GitHub `Production` and `Preview` environments are distinct integration-owned deployment records, not duplicates of Azure `prod`.
+Stable external environment/resource identifiers are not renamed solely for presentation. The GitHub `prod` environment remains the protected current Azure boundary while it owns existing production variables/secrets and a `main` deployment policy. `live` is the reserved environment name for the new tenant boundary during cutover; workflows refuse to reference it unless external read-back proves it exists, allows exactly `main`, requires repository owner `rasm105k` (GitHub user ID `31623093`) as reviewer, and disables administrator bypass. Selecting it never aliases or rewrites `prod`. Vercel-created GitHub `Production` and `Preview` environments are distinct integration-owned deployment records, not duplicates of either Azure environment.
 
 An environment may be renamed or removed only after its integrations, deployment history, variables/secrets and dependent workflows have been verified and migrated.
 
@@ -128,6 +148,7 @@ An environment may be renamed or removed only after its integrations, deployment
 - Vercel production no longer depends on a remote development OpenAPI endpoint or access to files outside its configured Root Directory.
 - Frontend/backend contract generation is proved against the same revision that Vercel builds.
 - Manual migrations and infrastructure reconciliation cannot become hidden production bypasses.
+- New-tenant package deployment is explicit, records a reviewed data-manifest hash and evidence URL, and cannot silently move customer traffic.
 - Ruleset verification now checks external bypass state instead of trusting only the desired payload.
 - Deployment evidence can identify the exact SHA, CI run/gate and target.
 - Issue-specific, release-branch-only and duplicate delivery automation can continue to be retired.

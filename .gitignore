@@ -80,6 +80,7 @@ UploadedFiles/
 **/[Oo]bj/
 **/[Dd]ebug/
 **/[Rr]elease/
+!/tools/release/
 TestResults/
 *.trx
 *.coverage

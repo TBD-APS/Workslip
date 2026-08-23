@@ -1,37 +1,95 @@
 name: Infrastructure · Production reconcile
 
+run-name: >-
+  Infrastructure · ${{ inputs.operation }} · ${{ inputs.target }} ·
+  ${{ github.sha }}
+
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Preview only, or reconcile the selected production boundary
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - reconcile
+      target:
+        description: Select the exact protected Azure boundary
+        required: true
+        default: new-tenant
+        type: choice
+        options:
+          - new-tenant
+          - current-production
+      confirmation:
+        description: Type the confirmation phrase shown in the runbook
+        required: true
+        type: string
 
 permissions:
-  id-token: write
   contents: read
-  actions: read
 
 concurrency:
   group: workslip-production
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Infrastructure · Reconcile production
-    runs-on: windows-2022
-    timeout-minutes: 75
-    environment: prod
-    env:
-      AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
-      AZURE_WEBAPP_NAME: api-mrsoftware-prod
-      API_IDENTITY_NAME: id-mrsoftware-prod
-      LOG_ANALYTICS_WORKSPACE_NAME: logAnal-mrsoftware-prod
-      INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID }}
+  select-target:
+    name: Infrastructure · Validate operator intent
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      github_environment: ${{ steps.target.outputs.github_environment }}
+      environment: ${{ steps.target.outputs.environment }}
+      company_name: ${{ steps.target.outputs.company_name }}
+      location: ${{ steps.target.outputs.location }}
+      resource_group: ${{ steps.target.outputs.resource_group }}
+      webapp_name: ${{ steps.target.outputs.webapp_name }}
+      api_identity_name: ${{ steps.target.outputs.api_identity_name }}
+      log_analytics_workspace_name: ${{ steps.target.outputs.log_analytics_workspace_name }}
     steps:
-      - name: Verify operator selected main
-        shell: pwsh
+      - name: Verify operator selected exact green main
+        shell: bash
+        env:
+          OPERATION: ${{ inputs.operation }}
+          TARGET: ${{ inputs.target }}
+          CONFIRMATION: ${{ inputs.confirmation }}
         run: |
-          $ErrorActionPreference = 'Stop'
-          if ($env:GITHUB_REF -ne 'refs/heads/main') {
-            throw "Production infrastructure may only be reconciled from main. Selected ref: $env:GITHUB_REF"
-          }
+          set -Eeuo pipefail
+
+          if [[ "${GITHUB_REF}" != 'refs/heads/main' ]]; then
+            echo "::error::Production infrastructure may only be operated from main. Selected ref: ${GITHUB_REF}"
+            exit 1
+          fi
+
+          case "${OPERATION}:${TARGET}" in
+            plan:new-tenant)
+              expected='PLAN NEW TENANT'
+              ;;
+            plan:current-production)
+              expected='PLAN CURRENT PRODUCTION'
+              ;;
+            reconcile:new-tenant)
+              expected='RECONCILE NEW TENANT'
+              ;;
+            reconcile:current-production)
+              expected='RECONCILE CURRENT PRODUCTION'
+              ;;
+            *)
+              echo "::error::Unsupported production operation/target: ${OPERATION}:${TARGET}"
+              exit 1
+              ;;
+          esac
+
+          if [[ "${CONFIRMATION}" != "${expected}" ]]; then
+            echo "::error::Confirmation must be exactly: ${expected}"
+            exit 1
+          fi
 
       - name: Checkout exact selected main revision
         uses: actions/checkout@v7
@@ -44,31 +102,174 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Require exact green main CI Gate before mutation
-        shell: pwsh
+      - name: Require exact green main CI Gate before Azure credentials
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          node tools/release/verify-production-eligibility.mjs --sha $env:GITHUB_SHA
-          if ($LASTEXITCODE -ne 0) { throw 'Production eligibility verification failed.' }
+        run: node tools/release/verify-production-eligibility.mjs --sha "${GITHUB_SHA}"
 
-      - name: Verify protected infrastructure identity
+      - name: Resolve immutable target boundary
+        id: target
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -Eeuo pipefail
+
+          case "${TARGET}" in
+            current-production)
+              {
+                echo 'github_environment=prod'
+                echo 'environment=prod'
+                echo 'company_name=mrsoftware'
+                echo 'location=westeurope'
+                echo 'resource_group=rg-mrsoftware-prod'
+                echo 'webapp_name=api-mrsoftware-prod'
+                echo 'api_identity_name=id-mrsoftware-prod'
+                echo 'log_analytics_workspace_name=logAnal-mrsoftware-prod'
+              } >> "${GITHUB_OUTPUT}"
+              ;;
+            new-tenant)
+              {
+                echo 'github_environment=live'
+                echo 'environment=live'
+                echo 'company_name=mrsoftwarev2'
+                echo 'location=swedencentral'
+                echo 'resource_group=rg-mrsoftwarev2-live'
+                echo 'webapp_name=api-mrsoftwarev2-live'
+                echo 'api_identity_name=id-mrsoftwarev2-live'
+                echo 'log_analytics_workspace_name=logAnal-mrsoftwarev2-live'
+              } >> "${GITHUB_OUTPUT}"
+              ;;
+            *)
+              echo "::error::Unsupported production target: ${TARGET}"
+              exit 1
+              ;;
+          esac
+
+      - name: Verify selected GitHub deployment environment
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_ENVIRONMENT: ${{ steps.target.outputs.github_environment }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -Eeuo pipefail
+          args=(
+            --repository "${GITHUB_REPOSITORY}"
+            --environment "${GITHUB_ENVIRONMENT}"
+            --branch main
+          )
+          if [[ "${TARGET}" == 'new-tenant' ]]; then
+            args+=(
+              --require-reviewers
+              --required-reviewer-id 31623093
+              --require-no-admin-bypass
+            )
+          fi
+          node tools/release/verify-deployment-environment.mjs "${args[@]}"
+
+  operate:
+    name: Infrastructure · ${{ inputs.operation }} · ${{ inputs.target }}
+    needs: select-target
+    runs-on: windows-2022
+    timeout-minutes: 75
+    environment:
+      name: ${{ needs.select-target.outputs.github_environment }}
+    permissions:
+      id-token: write
+      contents: read
+      actions: read
+    env:
+      TARGET_ENVIRONMENT: ${{ needs.select-target.outputs.environment }}
+      TARGET_COMPANY_NAME: ${{ needs.select-target.outputs.company_name }}
+      TARGET_LOCATION: ${{ needs.select-target.outputs.location }}
+      AZURE_RESOURCE_GROUP: ${{ needs.select-target.outputs.resource_group }}
+      AZURE_WEBAPP_NAME: ${{ needs.select-target.outputs.webapp_name }}
+      API_IDENTITY_NAME: ${{ needs.select-target.outputs.api_identity_name }}
+      LOG_ANALYTICS_WORKSPACE_NAME: ${{ needs.select-target.outputs.log_analytics_workspace_name }}
+      INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID }}
+    steps:
+      - name: Checkout exact validated main revision
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify protected Azure credentials are configured
         shell: pwsh
+        env:
+          TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
           $ErrorActionPreference = 'Stop'
-          if ([string]::IsNullOrWhiteSpace($env:INFRA_CLIENT_ID)) {
-            throw 'GitHub environment prod is missing AZURE_INFRA_CLIENT_ID for the privileged infrastructure OIDC identity.'
+          $missing = @()
+          if ([string]::IsNullOrWhiteSpace($env:INFRA_CLIENT_ID)) { $missing += 'AZURE_INFRA_CLIENT_ID' }
+          if ([string]::IsNullOrWhiteSpace($env:TENANT_ID)) { $missing += 'AZURE_TENANT_ID' }
+          if ([string]::IsNullOrWhiteSpace($env:SUBSCRIPTION_ID)) { $missing += 'AZURE_SUBSCRIPTION_ID' }
+          if ($missing.Count -gt 0) {
+            throw "GitHub environment '${{ needs.select-target.outputs.github_environment }}' is missing protected Azure configuration: $($missing -join ', ')."
           }
 
-      - name: Azure login
+      - name: Azure login to selected protected boundary
         uses: azure/login@v3
         with:
           client-id: ${{ vars.AZURE_INFRA_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Ensure sqlcmd
+      - name: Verify immutable Azure target boundary
+        shell: pwsh
+        env:
+          EXPECTED_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          EXPECTED_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $account = & az account show --query '{tenantId:tenantId,subscriptionId:id}' --output json |
+            ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $null -eq $account) {
+            throw 'Azure CLI did not return the authenticated account boundary.'
+          }
+          if ([string]$account.tenantId -ne $env:EXPECTED_TENANT_ID) {
+            throw 'Authenticated Azure tenant does not match the selected protected GitHub environment.'
+          }
+          if ([string]$account.subscriptionId -ne $env:EXPECTED_SUBSCRIPTION_ID) {
+            throw 'Authenticated Azure subscription does not match the selected protected GitHub environment.'
+          }
+
+          $resourceGroupId = & az group show `
+            --name $env:AZURE_RESOURCE_GROUP `
+            --query id `
+            --output tsv
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($resourceGroupId -join '').Trim())) {
+            throw "Expected target resource group '$env:AZURE_RESOURCE_GROUP' was not found. Initial tenant bootstrap remains a local administrator operation."
+          }
+
+      - name: Preview all infrastructure phases without mutation
+        if: ${{ inputs.operation == 'plan' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\src\BE\infrastructure\plan.ps1 `
+            -Environment $env:TARGET_ENVIRONMENT `
+            -Location $env:TARGET_LOCATION `
+            -COMPANY_NAME $env:TARGET_COMPANY_NAME
+
+      - name: Record plan evidence
+        if: ${{ inputs.operation == 'plan' && success() }}
+        shell: pwsh
+        run: |
+          @"
+          ## Infrastructure production preview
+
+          - SHA: ``$env:GITHUB_SHA``
+          - Target: ``${{ inputs.target }}`` / ``$env:AZURE_RESOURCE_GROUP``
+          - Mode: read-only ``plan.ps1``
+          - Result: preview completed; no phase was allowed to mutate
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Ensure sqlcmd for approved reconcile
+        if: ${{ inputs.operation == 'reconcile' }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -80,21 +281,27 @@ jobs:
           }
           Get-Command sqlcmd -ErrorAction Stop | Out-Null
 
-      - name: Reconcile Azure infrastructure
+      - name: Reconcile approved Azure infrastructure
+        if: ${{ inputs.operation == 'reconcile' }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          & .\src\BE\infrastructure\deploy-infrastructure.ps1 prod
+          & .\src\BE\infrastructure\deploy-infrastructure.ps1 `
+            -Environment $env:TARGET_ENVIRONMENT `
+            -Location $env:TARGET_LOCATION `
+            -COMPANY_NAME $env:TARGET_COMPANY_NAME
 
-      - name: Reconcile database migration identity
+      - name: Reconcile approved database migration identity
+        if: ${{ inputs.operation == 'reconcile' }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           & .\src\BE\infrastructure\reconcile-database-migration-identity.ps1 `
-            -Environment prod `
-            -CompanyName mrsoftware
+            -Environment $env:TARGET_ENVIRONMENT `
+            -CompanyName $env:TARGET_COMPANY_NAME
 
-      - name: Verify diagnostics configuration and API health
+      - name: Verify reconciled diagnostics boundary
+        if: ${{ inputs.operation == 'reconcile' }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -129,7 +336,7 @@ jobs:
           )
 
           if ($configuredWorkspaceId -ne $workspaceId) {
-            throw 'The API workspace setting does not match the production Log Analytics workspace.'
+            throw 'The API workspace setting does not match the selected Log Analytics workspace.'
           }
 
           $apiPrincipalId = Invoke-AzureTsv -Arguments @(
@@ -147,29 +354,31 @@ jobs:
           )
 
           if ([string]::IsNullOrWhiteSpace($readerAssignment)) {
-            throw 'The API managed identity is missing Log Analytics Data Reader on the production workspace.'
+            throw 'The API managed identity is missing Log Analytics Data Reader on the selected workspace.'
           }
 
+      - name: Require current production API health after reconcile
+        if: ${{ inputs.operation == 'reconcile' && inputs.target == 'current-production' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
           & az webapp restart --resource-group $env:AZURE_RESOURCE_GROUP --name $env:AZURE_WEBAPP_NAME --output none
           if ($LASTEXITCODE -ne 0) { throw "API restart failed with exit code $LASTEXITCODE." }
 
-          $hostName = Invoke-AzureTsv -Arguments @(
-            'webapp', 'show', '--resource-group', $env:AZURE_RESOURCE_GROUP,
-            '--name', $env:AZURE_WEBAPP_NAME, '--query', 'defaultHostName', '--output', 'tsv'
-          )
-          $healthUrl = "https://$hostName/health"
+          $hostName = (& az webapp show `
+            --resource-group $env:AZURE_RESOURCE_GROUP `
+            --name $env:AZURE_WEBAPP_NAME `
+            --query defaultHostName `
+            --output tsv).Trim()
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($hostName)) {
+            throw 'Azure did not return the current production API hostname.'
+          }
 
+          $healthUrl = "https://$hostName/health"
           for ($attempt = 1; $attempt -le 15; $attempt++) {
             try {
               Invoke-WebRequest -Uri $healthUrl -Method Get -TimeoutSec 10 -UseBasicParsing | Out-Null
-              @"
-              ## Infrastructure production reconcile
-
-              - SHA: ``$env:GITHUB_SHA``
-              - Target: ``prod`` / ``$env:AZURE_RESOURCE_GROUP``
-              - API health: passed at ``$healthUrl``
-              "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-              break
+              exit 0
             }
             catch {
               if ($attempt -eq 15) {
@@ -178,3 +387,21 @@ jobs:
               Start-Sleep -Seconds 10
             }
           }
+
+      - name: Record reconcile evidence
+        if: ${{ inputs.operation == 'reconcile' && success() }}
+        shell: pwsh
+        run: |
+          $runtimeState = if ('${{ inputs.target }}' -eq 'current-production') {
+            'existing API health passed'
+          } else {
+            'foundation verified; API package and data readiness are separate gates'
+          }
+          @"
+          ## Infrastructure production reconcile
+
+          - SHA: ``$env:GITHUB_SHA``
+          - Target: ``${{ inputs.target }}`` / ``$env:AZURE_RESOURCE_GROUP``
+          - Result: infrastructure and migration identity reconciled
+          - Runtime: $runtimeState
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
