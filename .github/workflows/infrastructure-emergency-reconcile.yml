@@ -1,0 +1,59 @@
+name: Infrastructure · Emergency reconcile
+
+run-name: >-
+  Emergency reconcile · ${{ inputs.target }} · ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Select the exact protected Azure boundary that needs emergency reconciliation
+        required: true
+        default: new-tenant
+        type: choice
+        options:
+          - new-tenant
+          - current-production
+      reason:
+        description: 20–280 characters, one line. Do not include secrets or customer data.
+        required: true
+        type: string
+      acknowledge:
+        description: I understand this waives only CI for this run; live/prod approval and Azure boundary checks still apply.
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+jobs:
+  acknowledge-emergency:
+    name: Infrastructure · Confirm emergency intent
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require explicit emergency acknowledgement
+        shell: bash
+        env:
+          ACKNOWLEDGED: ${{ inputs.acknowledge }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "${ACKNOWLEDGED}" != 'true' ]]; then
+            echo '::error::Select the emergency acknowledgement checkbox before running this operation.'
+            exit 1
+          fi
+
+  reconcile:
+    name: Infrastructure · Emergency reconcile · ${{ inputs.target }}
+    needs: acknowledge-emergency
+    uses: ./.github/workflows/infrastructure-production-reconcile.yml
+    with:
+      operation: reconcile
+      target: ${{ inputs.target }}
+      confirmation: ${{ inputs.target == 'new-tenant' && 'BREAK GLASS RECONCILE NEW TENANT' || 'BREAK GLASS RECONCILE CURRENT PRODUCTION' }}
+      execution_mode: emergency
+      emergency_reason: ${{ inputs.reason }}
+      emergency_acknowledge: true

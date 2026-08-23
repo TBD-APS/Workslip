@@ -1,0 +1,52 @@
+name: Infrastructure · New tenant
+
+run-name: >-
+  New tenant · ${{ inputs.operation }} · ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Choose a read-only plan or an approved reconcile for the new tenant
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - reconcile
+      acknowledge:
+        description: I understand that reconcile changes the protected live Azure boundary after approval
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+jobs:
+  acknowledge-operation:
+    name: Infrastructure · Confirm new-tenant intent
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require explicit acknowledgement
+        shell: bash
+        env:
+          ACKNOWLEDGED: ${{ inputs.acknowledge }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "${ACKNOWLEDGED}" != 'true' ]]; then
+            echo '::error::Select the acknowledgement checkbox before running this operation.'
+            exit 1
+          fi
+
+  operate:
+    name: Infrastructure · ${{ inputs.operation }} · new tenant
+    needs: acknowledge-operation
+    uses: ./.github/workflows/infrastructure-production-reconcile.yml
+    with:
+      operation: ${{ inputs.operation }}
+      target: new-tenant
+      confirmation: ${{ inputs.operation == 'plan' && 'PLAN NEW TENANT' || 'RECONCILE NEW TENANT' }}
