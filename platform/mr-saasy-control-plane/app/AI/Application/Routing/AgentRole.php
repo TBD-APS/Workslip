@@ -20,6 +20,7 @@ enum AgentRole: string
     case SecurityReviewer = 'security_reviewer';
     case QaVerification = 'qa_verification';
     case TriageSummary = 'triage_summary';
+    case DocumentationSteward = 'documentation_steward';
 
     case ContentStrategist = 'content_strategist';
     case ContentResearcher = 'content_researcher';
