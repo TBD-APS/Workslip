@@ -1,0 +1,76 @@
+name: Copilot PR Review
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: copilot-pr-review-${{ github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_sha }}
+  cancel-in-progress: true
+
+jobs:
+  request-review:
+    name: Request Copilot review
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Resolve exact-head trusted PR and request Copilot
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          trigger_head="$(jq -r '.workflow_run.head_sha // ""' "$GITHUB_EVENT_PATH")"
+          pr_number="$(jq -r '.workflow_run.pull_requests[0].number // ""' "$GITHUB_EVENT_PATH")"
+
+          if [ -z "$trigger_head" ]; then
+            echo 'CI workflow did not expose a head SHA.' >&2
+            exit 1
+          fi
+
+          if [ -z "$pr_number" ]; then
+            pr_number="$(gh api -H 'Accept: application/vnd.github+json' \
+              "/repos/${GITHUB_REPOSITORY}/commits/${trigger_head}/pulls" --jq '.[0].number // empty')"
+          fi
+
+          if ! [[ "$pr_number" =~ ^[0-9]+$ ]]; then
+            echo 'No pull request is associated with the successful CI head; skipping Copilot review.'
+            exit 0
+          fi
+
+          pr_json="$(gh api "/repos/${GITHUB_REPOSITORY}/pulls/${pr_number}")"
+          current_head="$(printf '%s' "$pr_json" | jq -r '.head.sha // ""')"
+          association="$(printf '%s' "$pr_json" | jq -r '.author_association // "NONE"')"
+          draft="$(printf '%s' "$pr_json" | jq -r '.draft // false')"
+
+          if [ "$current_head" != "$trigger_head" ]; then
+            echo "Skipping stale CI head ${trigger_head}; PR #${pr_number} now points to ${current_head}."
+            exit 0
+          fi
+
+          if [ "$draft" = 'true' ]; then
+            echo "PR #${pr_number} is still draft; skipping Copilot review."
+            exit 0
+          fi
+
+          case "$association" in
+            OWNER|MEMBER|COLLABORATOR) ;;
+            *)
+              echo "Skipping automatic Copilot review for untrusted author association ${association}."
+              exit 0
+              ;;
+          esac
+
+          gh api --method POST "/repos/${GITHUB_REPOSITORY}/pulls/${pr_number}/requested_reviewers" \
+            --input - <<'JSON'
+          {"reviewers":["copilot-pull-request-reviewer[bot]"]}
+          JSON
+
+          echo "Requested GitHub Copilot review for PR #${pr_number} at exact head ${trigger_head}."
