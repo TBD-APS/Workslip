@@ -8,6 +8,7 @@ import {
   subscribeClippyCommands,
   type ClippyReaction,
 } from './clippyController';
+import { getClippyBubbleCopy } from './clippyContent';
 import { evaluateHelpWizard } from './evaluateHelpWizard';
 import { readHelpWizardAssignment } from './readHelpWizardAssignment';
 import './help-wizard.css';
@@ -23,40 +24,45 @@ const reactionAnimations: Record<ClippyReaction, Record<string, number | number[
   thinking: { rotate: [0, -3, 0, -3, 0] },
 };
 
-function ClippyWizard() {
+function GoldClippyWizard() {
   return (
     <svg
-      className="clippy-wizard"
-      viewBox="0 0 72 80"
-      width="62"
-      height="68"
+      className="clippy-wizard clippy-gold-clip"
+      viewBox="0 0 92 96"
+      width="68"
+      height="72"
       aria-hidden="true"
     >
+      <ellipse className="clippy-wizard-shadow" cx="39" cy="88" rx="27" ry="5" />
+
       <path
-        className="clippy-wizard-shadow"
-        d="M15 69c6 5 36 5 43 0-6-4-36-4-43 0Z"
+        className="clippy-wizard-clip clippy-wizard-clip-outer"
+        d="M34 11c-14 0-24 11-24 25v30c0 15 12 27 27 27s27-12 27-27V35c0-12-9-21-21-21S22 23 22 35v27c0 8 6 14 14 14s14-6 14-14V40"
       />
       <path
-        className="clippy-wizard-body"
-        d="M20 30c2-9 10-14 19-14 11 0 20 8 20 20v17c0 12-9 20-22 20-13 0-23-8-23-20V39c0-4 2-7 6-9Z"
+        className="clippy-wizard-clip-highlight"
+        d="M33 17c-10 0-17 8-17 19v29c0 11 8 20 19 21"
       />
-      <path
-        className="clippy-wizard-hat"
-        d="m18 28 13-21 8 10 12-7 5 19c-10-4-28-4-38-1Z"
-      />
-      <path
-        className="clippy-wizard-hat-band"
-        d="M19 27c10-4 28-4 37 1l-2 6c-10-4-25-4-35-1Z"
-      />
+
       <g className="clippy-wizard-face">
-        <ellipse className="clippy-wizard-eye clippy-wizard-eye-left" cx="30" cy="42" rx="2.7" ry="3.3" />
-        <ellipse className="clippy-wizard-eye clippy-wizard-eye-right" cx="45" cy="42" rx="2.7" ry="3.3" />
-        <path className="clippy-wizard-smile" d="M32 51c4 3 8 3 12 0" />
+        <ellipse className="clippy-wizard-eye clippy-wizard-eye-left" cx="34" cy="41" rx="2.6" ry="3.2" />
+        <ellipse className="clippy-wizard-eye clippy-wizard-eye-right" cx="47" cy="41" rx="2.6" ry="3.2" />
+        <path className="clippy-wizard-smile" d="M35 50c4 3 8 3 12 0" />
       </g>
-      <path className="clippy-wizard-arm" d="M20 51c-6 1-9 5-10 10" />
+
+      <g className="clippy-wizard-finger-gun">
+        <path className="clippy-wizard-arm" d="M18 53c-6 1-10 5-12 10" />
+        <path className="clippy-wizard-finger" d="m6 63 8-1" />
+        <path className="clippy-wizard-thumb" d="m9 63 4 5" />
+      </g>
+
+      <path className="clippy-wizard-arm" d="M61 52c6 1 9 4 11 8" />
       <g className="clippy-wizard-wand">
-        <path className="clippy-wizard-wand-stick" d="m53 49 11-19" />
-        <path className="clippy-wizard-spark" d="m66 25 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5Z" />
+        <path className="clippy-wizard-wand-stick" d="m70 59 12-28" />
+        <path className="clippy-wizard-spark" d="m83 23 1.7 4.6 4.6 1.7-4.6 1.7-1.7 4.6-1.7-4.6-4.6-1.7 4.6-1.7Z" />
+        <circle className="clippy-wizard-dust clippy-wizard-dust-one" cx="76" cy="22" r="1.3" />
+        <circle className="clippy-wizard-dust clippy-wizard-dust-two" cx="88" cy="19" r="1.1" />
+        <circle className="clippy-wizard-dust clippy-wizard-dust-three" cx="90" cy="35" r="1.2" />
       </g>
     </svg>
   );
@@ -231,6 +237,7 @@ export function HelpWizard() {
   const characterAnimation = shouldReduceMotion
     ? reactionAnimations.idle
     : reactionAnimations[reaction];
+  const bubbleCopy = getClippyBubbleCopy(window.location.pathname, reaction);
 
   return (
     <motion.div
@@ -244,7 +251,8 @@ export function HelpWizard() {
     >
       {open && (
         <div id="help-wizard-message" className="help-wizard-bubble" role="status">
-          Skal jeg hjælpe?
+          <strong className="help-wizard-bubble-title">{bubbleCopy.headline}</strong>
+          <span className="help-wizard-bubble-body">{bubbleCopy.body}</span>
         </div>
       )}
       <button
@@ -261,7 +269,7 @@ export function HelpWizard() {
           animate={characterAnimation}
           transition={{ duration: shouldReduceMotion ? 0 : 0.5, ease: 'easeOut' }}
         >
-          <ClippyWizard />
+          <GoldClippyWizard />
         </motion.span>
       </button>
     </motion.div>
