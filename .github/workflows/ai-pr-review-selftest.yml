@@ -56,6 +56,7 @@ jobs:
           workflow=.github/workflows/ai-pr-review.yml
           publisher=.github/ai-review/post-review.mjs
           grok=.github/ai-review/grok-review.mjs
+          context_builder=.github/ai-review/build-context.py
 
           grep -Fq 'TRUSTED_BRANCH: main' "$workflow"
           grep -Fq 'persist-credentials: false' "$workflow"
@@ -74,6 +75,13 @@ jobs:
           grep -Fq "https://api.x.ai/v1/chat/completions" "$grok"
           grep -Fq "response_format" "$grok"
           grep -Fq "json_schema" "$grok"
+          grep -Fq "AGENT_HANDBOOK.md" "$context_builder"
+          grep -Fq "VALIDATION.md" "$context_builder"
+          grep -Fq "DELIVERY_HANDOFFS.md" "$context_builder"
+          grep -Fq "Docs/architecture/owners.json" "$context_builder"
+          grep -Fq "closest_scoped_agents" "$context_builder"
+          grep -Fq "Trusted default-branch source around affected paths" "$context_builder"
+          grep -Fq "GDPR_AI_ACT_BASELINE.md" "$context_builder"
           grep -Fq 'ollama_review:' "$workflow"
           grep -Fq 'OLLAMA_API_KEY:' "$workflow"
           grep -Fq 'OLLAMA_BASE_URL:' "$workflow"
