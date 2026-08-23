@@ -105,6 +105,7 @@ These are routing defaults, not hard architecture dependencies:
 - **Grok:** product, market, content and adversarial commercial critique; not a default security/code approval authority.
 - **Ollama/local models:** private/local, repetitive and cost-sensitive workloads where the selected local model has sufficient capability; examples include classification, summarization, metadata extraction, lint-like repository scans, checkpoint summarization and offline/internal processing. Local execution does not waive validation, security or evidence requirements.
 - **Linear Agent:** planning/triage/checkpoint coordination where available.
+- **Documentation Steward:** source-backed technical-documentation maintenance within a bounded PR write scope; it never writes policy/strategy/ADR/compliance material, code, or customer-facing content.
 
 ### Ollama as a runtime, not a single agent
 
@@ -143,6 +144,14 @@ Use measurable dependency/ownership evidence. A refactor that only moves code wh
 
 ### Research / Product
 Distinguish evidence, assumptions and recommendations. Research does not override repository technical truth or Linear delivery state.
+
+### Documentation Steward
+Use only verified repository evidence such as the PR diff, code/configuration,
+tests and completed checks. Emit a structured documentation delta with exact
+source references, confidence and an explicit `NO_CHANGE`, `UPDATED`,
+`HUMAN_REVIEW` or `BLOCKED` result. It may update only the runtime's
+permitted technical documentation paths; strategy, compliance, ADRs, agent
+rules, generated artifacts and customer-facing content require human ownership.
 
 ## 8. Control Center checkpoint contract
 

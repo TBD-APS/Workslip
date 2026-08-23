@@ -57,7 +57,10 @@
         "agent-routing",
         "ai-provider",
         "model-routing",
-        "agent-orchestration"
+        "agent-orchestration",
+        "documentation-agent",
+        "documentation-steward",
+        "documentation-automation"
       ],
       "summary": "Provider-neutral MR SAAS'y agent/control-plane runtime boundary."
     }
