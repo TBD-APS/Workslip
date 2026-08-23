@@ -130,8 +130,7 @@ public sealed class SqlJobConversationRepository(
                 m.CreatedUtc
             FROM {messages} m
             INNER JOIN {users} author
-                ON author.OrganizationId = m.OrganizationId
-                AND author.Id = m.AuthorUserId
+                ON author.Id = m.AuthorUserId
             LEFT JOIN {users} target
                 ON target.OrganizationId = m.OrganizationId
                 AND target.Id = m.ActionTargetUserId
@@ -267,8 +266,7 @@ public sealed class SqlJobConversationRepository(
                 m.CreatedUtc
             FROM {messages} m
             INNER JOIN {users} author
-                ON author.OrganizationId = m.OrganizationId
-                AND author.Id = m.AuthorUserId
+                ON author.Id = m.AuthorUserId
             LEFT JOIN {users} target
                 ON target.OrganizationId = m.OrganizationId
                 AND target.Id = m.ActionTargetUserId
