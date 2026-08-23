@@ -7,6 +7,8 @@ on:
       - '.github/actions/generate-frontend-api/**'
       - '.github/workflows/backend-production-deploy.yml'
       - '.github/workflows/database-production-migrations.yml'
+      - '.github/workflows/infrastructure-current-production.yml'
+      - '.github/workflows/infrastructure-new-tenant.yml'
       - '.github/workflows/infrastructure-production-reconcile.yml'
       - '.github/workflows/production-readiness-smoke.yml'
       - '.github/workflows/production-delivery-selftest.yml'
@@ -28,6 +30,8 @@ on:
       - '.github/actions/generate-frontend-api/**'
       - '.github/workflows/backend-production-deploy.yml'
       - '.github/workflows/database-production-migrations.yml'
+      - '.github/workflows/infrastructure-current-production.yml'
+      - '.github/workflows/infrastructure-new-tenant.yml'
       - '.github/workflows/infrastructure-production-reconcile.yml'
       - '.github/workflows/production-readiness-smoke.yml'
       - '.github/workflows/production-delivery-selftest.yml'
@@ -136,6 +140,24 @@ jobs:
           grep -Fq 'plan.ps1' "${infrastructure}"
           grep -Fq "inputs.operation == 'reconcile'" "${infrastructure}"
           grep -Fq 'verify-deployment-environment.mjs' "${infrastructure}"
+          grep -Fq 'workflow_call:' "${infrastructure}"
+
+          new_tenant_control=.github/workflows/infrastructure-new-tenant.yml
+          current_production_control=.github/workflows/infrastructure-current-production.yml
+          for control in "${new_tenant_control}" "${current_production_control}"; do
+            grep -Fq 'workflow_dispatch:' "${control}"
+            grep -Fq 'acknowledge:' "${control}"
+            grep -Fq 'ACKNOWLEDGED:' "${control}"
+            grep -Fq 'actions: read' "${control}"
+            grep -Fq 'id-token: write' "${control}"
+            grep -Fq 'uses: ./.github/workflows/infrastructure-production-reconcile.yml' "${control}"
+          done
+          grep -Fq 'target: new-tenant' "${new_tenant_control}"
+          grep -Fq 'PLAN NEW TENANT' "${new_tenant_control}"
+          grep -Fq 'RECONCILE NEW TENANT' "${new_tenant_control}"
+          grep -Fq 'target: current-production' "${current_production_control}"
+          grep -Fq 'PLAN CURRENT PRODUCTION' "${current_production_control}"
+          grep -Fq 'RECONCILE CURRENT PRODUCTION' "${current_production_control}"
 
           grep -Fq -- '--ci-run-id "${CI_RUN_ID}"' "${backend}"
           grep -Fq 'actions: read' "${backend}"

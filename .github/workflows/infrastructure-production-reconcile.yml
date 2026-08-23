@@ -27,6 +27,20 @@ on:
         description: Type the confirmation phrase shown in the runbook
         required: true
         type: string
+  workflow_call:
+    inputs:
+      operation:
+        description: The selected infrastructure operation
+        required: true
+        type: string
+      target:
+        description: The immutable protected target
+        required: true
+        type: string
+      confirmation:
+        description: The action-specific confirmation phrase
+        required: true
+        type: string
 
 permissions:
   contents: read
