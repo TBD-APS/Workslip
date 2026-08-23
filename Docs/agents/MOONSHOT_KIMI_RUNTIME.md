@@ -46,6 +46,12 @@ Initial runtime preference:
 
 Provider selection does not grant additional data/tool permissions. The same sanitized Context/Policy boundary applies to cloud and local runtimes.
 
+The Documentation Steward runs as a bounded role in the existing AI Delivery
+State workflow; it does not add a separate Kimi execution runtime. Its runner
+receives limited pull-request metadata and diffs, names its source paths in the
+result, and can write only the technical Markdown scope defined in
+[`DOCUMENTATION_STEWARD.md`](DOCUMENTATION_STEWARD.md).
+
 ## Verification
 
 From a PowerShell shell with the key set only in the operator environment:

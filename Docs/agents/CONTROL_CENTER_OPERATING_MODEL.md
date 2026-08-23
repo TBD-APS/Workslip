@@ -233,6 +233,21 @@ Use:
 
 Agents must preserve issue/PR/release/docs correlation when available and surface known drift rather than hiding it in conversational summaries.
 
+The Documentation Steward is a bounded PR worker: it publishes a source-backed
+documentation delta and can update only an allowed technical Markdown document
+on the same trusted PR branch. It never merges the PR or edits strategy,
+compliance, ADR, governance or customer-facing material.
+
+Where useful for drift/release checks, maintained artifacts should expose or be correlatable to:
+
+- owner;
+- related issue/feature/release;
+- document/content state;
+- last verified revision/release;
+- source/evidence references;
+- superseded/stale pointer.
+
+Do not copy every repository document into Control Center storage. Repository documents remain authoritative; Control Center keeps normalized references and freshness/drift state.
 Do not copy every repository document into Spacecenter storage. Repository documents remain authoritative; the platform keeps normalized references and freshness/drift state.
 
 ## 11. Handbook/context freshness
@@ -255,6 +270,7 @@ A governance/context update is not complete merely because the chat that created
 - Product Delivery Drift is a projection over source evidence, not a duplicate tracker.
 - Action Queue is the common prioritized attention surface.
 - Raw private transcripts, secrets and customer PII are excluded from the central projection by default.
+- Documentation Steward is a Kimi-first, source-backed PR worker with a narrow technical-documentation write scope.
 
 ### Planned implementation
 

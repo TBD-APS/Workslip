@@ -11,7 +11,7 @@ return [
             'provider' => 'openai',
             'model' => env('OPENAI_FRONTIER_MODEL'),
             'capabilities' => ['reasoning', 'coding', 'large_context', 'structured_output', 'tool_calling', 'security_analysis'],
-            'tools' => ['repository_read', 'pull_request_read', 'web_search'],
+            'tools' => ['repository_read', 'pull_request_read', 'web_search', 'documentation_write'],
         ],
         'anthropic_frontier' => [
             'provider' => 'anthropic',
@@ -23,7 +23,7 @@ return [
             'provider' => 'kimi',
             'model' => env('KIMI_FLAGSHIP_MODEL'),
             'capabilities' => ['reasoning', 'coding', 'large_context', 'structured_output', 'tool_calling'],
-            'tools' => ['repository_read', 'pull_request_read', 'web_search'],
+            'tools' => ['repository_read', 'pull_request_read', 'web_search', 'documentation_write'],
         ],
         'kimi_code' => [
             'provider' => 'kimi',
@@ -184,6 +184,14 @@ return [
             'required_tools' => [],
             'permissions' => ['execute_write' => false, 'review' => false, 'approve' => false],
             'preference' => 'cost',
+        ],
+        'documentation_steward' => [
+            'primary' => 'kimi_flagship',
+            'fallback' => 'openai_frontier',
+            'required_capabilities' => ['reasoning', 'large_context', 'structured_output'],
+            'required_tools' => ['repository_read', 'pull_request_read', 'documentation_write'],
+            'permissions' => ['execute_write' => true, 'review' => false, 'approve' => false],
+            'preference' => 'quality',
         ],
         'content_strategist' => [
             'primary' => 'xai_growth',

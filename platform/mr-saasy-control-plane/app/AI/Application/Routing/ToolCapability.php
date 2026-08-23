@@ -9,4 +9,5 @@ enum ToolCapability: string
     case WebSearch = 'web_search';
     case SocialSearch = 'social_search';
     case Browser = 'browser';
+    case DocumentationWrite = 'documentation_write';
 }

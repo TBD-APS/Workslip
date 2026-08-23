@@ -54,6 +54,7 @@ final class ExecutiveHierarchy
                 AgentRole::IndependentPrReviewer,
                 AgentRole::SecurityReviewer,
                 AgentRole::QaVerification,
+                AgentRole::DocumentationSteward,
             ],
             AgentRole::ChiefProductOfficer => [
                 AgentRole::ProductMarketing,

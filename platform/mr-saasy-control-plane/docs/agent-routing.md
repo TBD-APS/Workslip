@@ -40,6 +40,18 @@ Examples:
 - `independent_pr_reviewer` requires reasoning/coding + PR read access;
 - content/market roles can require web research without teaching core anything about xAI/Grok payloads.
 
+## Documentation Steward
+
+`documentation_steward` is a bounded implementation role for keeping technical
+repository documentation aligned with a successful pull request. Its primary
+target is Kimi and its fallback is the configured OpenAI frontier target.
+
+The role requires `repository_read`, `pull_request_read` and
+`documentation_write`. The last capability is not general repository write
+access: a runtime must independently restrict it to the allowed documentation
+paths and reject every non-documentation, governance and customer-facing write.
+The role cannot approve or merge a pull request.
+
 ## Separation of duties
 
 Run provenance records role, agent ID, provider, model, timestamps and evidence references.
