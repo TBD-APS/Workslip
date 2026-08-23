@@ -2,7 +2,7 @@ name: Linear Stale Backlog
 
 on:
   schedule:
-    - cron: "0 9 * * 1"
+    - cron: "0 9 * * *"
       timezone: "Europe/Copenhagen"
   workflow_dispatch:
 
