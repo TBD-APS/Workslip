@@ -79,10 +79,38 @@ async function exerciseAdmin(contextOptions, label) {
     assert.ok(bodyWidth <= viewport.width + 2, `${label} must not introduce horizontal page overflow.`);
   }
 
-  await page.goto(`${APP_URL}/app/timer`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
-  await page.waitForLoadState('networkidle', { timeout: UI_TIMEOUT });
-  const timerText = await page.evaluate(() => document.body.textContent ?? '');
-  assert.doesNotMatch(timerText, /Power BI/i, `${label} Timer must not expose Power BI UI.`);
+  const reportConfigResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return response.request().method() === 'GET'
+      && url.pathname === '/api/worksheets/all/report/power-bi';
+  }, { timeout: UI_TIMEOUT });
+
+  const timerNavigation = await page.goto(`${APP_URL}/app/timer`, {
+    waitUntil: 'domcontentloaded',
+    timeout: UI_TIMEOUT,
+  });
+  assert.ok(timerNavigation?.ok(), `${label} Timer returned HTTP ${timerNavigation?.status() ?? 'unknown'}.`);
+  assert.equal((await reportConfigResponse).status(), 200, `${label} Power BI report config must return 200 for Admin.`);
+  await page.locator('#timer-power-bi-report').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.locator('#power-bi-report-title').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+  const embeddedFrame = page.locator('#timer-power-bi-frame');
+  if (await embeddedFrame.count()) {
+    const src = await embeddedFrame.getAttribute('src');
+    assert.match(src ?? '', /^https:\/\/app\.powerbi\.com\/reportEmbed\?/i, `${label} Timer must use the secure Power BI embed endpoint.`);
+  } else {
+    assert.match(
+      await page.locator('#timer-power-bi-report').textContent() ?? '',
+      /Power BI er ikke konfigureret endnu|Rapporten kan ikke indlejres sikkert/i,
+      `${label} Timer must explain why an embed is unavailable.`,
+    );
+  }
+
+  if (label === 'admin-mobile') {
+    const viewport = page.viewportSize();
+    const bodyWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    assert.ok(viewport && bodyWidth <= viewport.width + 2, `${label} Timer Power BI surface must not introduce horizontal overflow.`);
+  }
 
   verifyErrors();
   await context.close();
@@ -130,7 +158,7 @@ try {
   await exerciseAdmin({ viewport: { width: 1280, height: 800 } }, 'admin-desktop');
   await exerciseAdmin(devices['iPhone 13'], 'admin-mobile');
   await exerciseNormalUser();
-  console.log('[playwright] Live Admin Overview dashboard + Timer isolation passed on desktop/mobile.');
+  console.log('[playwright] Live Admin Overview dashboard + Timer Power BI integration passed on desktop/mobile.');
 } finally {
   await browser.close();
 }
