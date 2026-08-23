@@ -9,7 +9,7 @@ description: Saml planlægning, registrering og godkendelse af arbejde ét sted.
   <div class="container hero-grid">
     <div class="hero-copy">
       <p class="eyebrow"><span class="pulse-dot" aria-hidden="true"></span> Workslip for virksomheder i marken</p>
-      <h1>Superpower <span>your business</span> now.</h1>
+      <h1>Giv din <span>forretning</span> superkræfter nu.</h1>
       <p class="lead">Saml opgaver, timer, noter og godkendelser i én enkel arbejdsgang – så dit team kan bruge mindre tid på administration og mere tid på arbejdet, der flytter forretningen.</p>
       <div class="actions">
         <a class="button" href="{{ '/features/' | relative_url }}">Udforsk Workslip <span aria-hidden="true">→</span></a>
