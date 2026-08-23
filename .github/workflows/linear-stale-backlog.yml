@@ -1,0 +1,35 @@
+name: Linear Stale Backlog
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+      timezone: "Europe/Copenhagen"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mark-stale:
+    name: Mark stale Linear backlog issues
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install bot dependencies
+        working-directory: tools/linear-stale-bot
+        run: npm install --omit=dev --ignore-scripts --no-audit --no-fund
+
+      - name: Mark stale Backlog issues
+        working-directory: tools/linear-stale-bot
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: npm start
