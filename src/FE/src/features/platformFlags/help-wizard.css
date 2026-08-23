@@ -1,0 +1,39 @@
+.help-wizard {
+  position: fixed;
+  right: 16px;
+  bottom: 20px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.help-wizard-clip,
+.help-wizard-bubble {
+  pointer-events: auto;
+}
+
+.help-wizard-clip {
+  border: 0;
+  background: var(--surface-floating);
+  color: var(--text-muted);
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.help-wizard-bubble {
+  max-width: 220px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--brand-marine);
+  color: var(--brand-cream);
+  font-size: 13px;
+  line-height: 1.35;
+}
