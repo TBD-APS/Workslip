@@ -254,7 +254,8 @@ jobs:
           & .\src\BE\infrastructure\plan.ps1 `
             -Environment $env:TARGET_ENVIRONMENT `
             -Location $env:TARGET_LOCATION `
-            -COMPANY_NAME $env:TARGET_COMPANY_NAME
+            -COMPANY_NAME $env:TARGET_COMPANY_NAME `
+            -EnableCustomEmailDomain:($env:CUSTOM_EMAIL_DOMAIN_ENABLED -eq 'true')
 
       - name: Record plan evidence
         if: ${{ inputs.operation == 'plan' && success() }}
