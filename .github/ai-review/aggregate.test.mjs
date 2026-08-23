@@ -31,7 +31,7 @@ function finding(title, confidence = 0.91) {
   };
 }
 
-function run({ openai = '', claude = '', ollama = '', truncated = false } = {}) {
+function run({ openai = '', claude = '', grok = '', ollama = '', truncated = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'workslip-ai-review-'));
   const output = path.join(dir, 'output.txt');
   const result = spawnSync(process.execPath, [script], {
@@ -41,6 +41,7 @@ function run({ openai = '', claude = '', ollama = '', truncated = false } = {}) 
       ...process.env,
       OPENAI_REVIEW_B64: openai,
       CLAUDE_REVIEW_B64: claude,
+      GROK_REVIEW_B64: grok,
       OLLAMA_REVIEW_B64: ollama,
       CONTEXT_TRUNCATED: String(truncated),
       PR_NUMBER: '123',
@@ -65,13 +66,13 @@ assert.equal(
 assert.equal(
   run({
     openai: encoded('OpenAI', [finding('Tenant authorization can be bypassed')]),
-    ollama: encoded('Ollama', [finding('Tenant authorization bypass on update')]),
+    grok: encoded('Grok', [finding('Tenant authorization bypass on update')]),
   }).values.blocking,
   'true',
 );
 assert.equal(
   run({
-    claude: encoded('Claude', [finding('Tenant authorization can be bypassed')]),
+    grok: encoded('Grok', [finding('Tenant authorization can be bypassed')]),
     ollama: encoded('Ollama', [finding('Tenant authorization bypass on update')]),
   }).values.blocking,
   'true',
@@ -82,7 +83,7 @@ assert.equal(
 );
 assert.equal(
   run({
-    openai: encoded('OpenAI', [finding('Tenant authorization can be bypassed')]),
+    grok: encoded('Grok', [finding('Tenant authorization can be bypassed')]),
     ollama: encoded('Ollama', [finding('Tenant authorization bypass on update')]),
     truncated: true,
   }).values.blocking,
@@ -90,31 +91,30 @@ assert.equal(
 );
 assert.equal(run({}).values.providers, '0');
 
-const ollamaOnly = run({
+const grokOnly = run({
   openai: disabled('OpenAI'),
   claude: disabled('Claude'),
-  ollama: encoded('Ollama', [finding('Tenant authorization bypass on update')]),
+  grok: encoded('Grok', [finding('Tenant authorization bypass on update')]),
+  ollama: disabled('Ollama'),
 });
-assert.equal(ollamaOnly.values.blocking, 'false');
-assert.equal(ollamaOnly.values.providers, '1');
-assert.equal(ollamaOnly.values.enabled, '1');
+assert.equal(grokOnly.values.blocking, 'false');
+assert.equal(grokOnly.values.providers, '1');
+assert.equal(grokOnly.values.enabled, '1');
+assert.match(grokOnly.body, /Grok/);
 
-const claudeOnly = run({ openai: disabled('OpenAI'), claude: encoded('Claude', [finding('Tenant authorization bypass on update')]) });
-assert.equal(claudeOnly.values.blocking, 'false');
-assert.equal(claudeOnly.values.providers, '1');
-assert.equal(claudeOnly.values.enabled, '1');
-
-const threeProviders = run({
+const fourProviders = run({
   openai: encoded('OpenAI', []),
   claude: encoded('Claude', []),
+  grok: encoded('Grok', []),
   ollama: encoded('Ollama', []),
 });
-assert.equal(threeProviders.values.providers, '3');
-assert.equal(threeProviders.values.enabled, '3');
+assert.equal(fourProviders.values.providers, '4');
+assert.equal(fourProviders.values.enabled, '4');
 
 const degraded = run({
   openai: unavailable('OpenAI', 'configured model unavailable'),
   claude: encoded('Claude', []),
+  grok: disabled('Grok'),
   ollama: disabled('Ollama'),
 });
 assert.equal(degraded.values.providers, '1');
@@ -124,12 +124,13 @@ assert.match(degraded.body, /configured model unavailable/);
 const nothingConfigured = run({
   openai: disabled('OpenAI'),
   claude: disabled('Claude'),
+  grok: disabled('Grok'),
   ollama: disabled('Ollama'),
 });
 assert.equal(nothingConfigured.values.blocking, 'false');
 assert.equal(nothingConfigured.values.providers, '0');
 assert.equal(nothingConfigured.values.enabled, '0');
 
-assert.doesNotMatch(threeProviders.body, /GitHub Models/);
+assert.doesNotMatch(fourProviders.body, /GitHub Models/);
 
 console.log('AI review supported-provider consensus tests passed');
