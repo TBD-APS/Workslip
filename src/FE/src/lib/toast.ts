@@ -1,4 +1,5 @@
 import { toast, type ExternalToast } from 'sonner';
+import { emitWorkslipUiFeedback } from './uiFeedback';
 
 type ToastId = string | number;
 
@@ -26,6 +27,7 @@ function error(message: string, options?: ExternalToast): ToastId {
   const isDuplicate = activeErrors.has(id);
   const nextCount = (activeErrors.get(id) ?? 0) + 1;
   activeErrors.set(id, nextCount);
+  emitWorkslipUiFeedback({ kind: 'error' });
 
   const classes = [options?.className, isDuplicate ? shakeClass(nextCount) : undefined]
     .filter(Boolean)
@@ -47,14 +49,17 @@ function error(message: string, options?: ExternalToast): ToastId {
 }
 
 function success(message: string, options?: ExternalToast): ToastId {
+  emitWorkslipUiFeedback({ kind: 'success' });
   return toast.success(message, options);
 }
 
 function info(message: string, options?: ExternalToast): ToastId {
+  emitWorkslipUiFeedback({ kind: 'info' });
   return toast.info(message, options);
 }
 
 function warning(message: string, options?: ExternalToast): ToastId {
+  emitWorkslipUiFeedback({ kind: 'warning' });
   return toast.warning(message, options);
 }
 

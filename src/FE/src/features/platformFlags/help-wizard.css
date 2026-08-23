@@ -1,39 +1,156 @@
 .help-wizard {
   position: fixed;
-  right: 16px;
-  bottom: 20px;
-  z-index: 40;
+  left: max(10px, env(safe-area-inset-left, 0px));
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  z-index: 120;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 6px;
   pointer-events: none;
 }
 
-.help-wizard-clip,
+.help-wizard-toggle,
 .help-wizard-bubble {
   pointer-events: auto;
 }
 
-.help-wizard-clip {
-  border: 0;
-  background: var(--surface-floating);
-  color: var(--text-muted);
-  width: 56px;
-  height: 56px;
-  border-radius: 999px;
-  box-shadow: var(--shadow-sm);
+.help-wizard-toggle {
+  width: 72px;
+  height: 78px;
   display: grid;
-  place-items: center;
+  place-items: end start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--brand-marine);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.help-wizard-toggle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+.clippy-character-stage {
+  display: inline-flex;
+  transform-origin: 50% 100%;
+}
+
+.clippy-wizard {
+  display: block;
+  overflow: visible;
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 5px 7px var(--overlay-subtle));
+}
+
+.clippy-wizard-shadow {
+  fill: var(--overlay-subtle);
+}
+
+.clippy-wizard-body {
+  fill: var(--brand-cream);
+  stroke: var(--brand-marine);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.clippy-wizard-hat {
+  fill: var(--primary);
+  stroke: var(--brand-marine);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.clippy-wizard-hat-band {
+  fill: var(--brand-marine);
+}
+
+.clippy-wizard-eye {
+  fill: var(--brand-marine);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: clippy-blink 7s ease-in-out infinite;
+}
+
+.clippy-wizard-smile,
+.clippy-wizard-arm,
+.clippy-wizard-wand-stick {
+  fill: none;
+  stroke: var(--brand-marine);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.clippy-wizard-wand {
+  transform-box: fill-box;
+  transform-origin: 15% 85%;
+  animation: clippy-wand-idle 5.5s ease-in-out infinite;
+}
+
+.clippy-wizard-spark {
+  fill: var(--primary);
+  stroke: var(--brand-marine);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
 }
 
 .help-wizard-bubble {
-  max-width: 220px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: var(--brand-marine);
-  color: var(--brand-cream);
-  font-size: 13px;
-  line-height: 1.35;
+  max-width: 180px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-floating);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+@media (hover: hover) {
+  .help-wizard-toggle:hover .clippy-wizard {
+    transform: translateY(-2px);
+  }
+}
+
+@media (min-width: 1120px) {
+  body:has(.app-shell) .help-wizard {
+    left: calc(13.5rem + 14px);
+    bottom: max(16px, env(safe-area-inset-bottom, 0px));
+    transition: left 160ms ease;
+  }
+
+  body:has(.app-shell .desktop-rail-toggle-input:checked) .help-wizard {
+    left: calc(4.75rem + 14px);
+  }
+}
+
+@keyframes clippy-blink {
+  0%, 46%, 48%, 100% { transform: scaleY(1); }
+  47% { transform: scaleY(0.08); }
+}
+
+@keyframes clippy-wand-idle {
+  0%, 72%, 100% { transform: rotate(0deg); }
+  78% { transform: rotate(-8deg); }
+  84% { transform: rotate(5deg); }
+  90% { transform: rotate(0deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clippy-character-stage,
+  .clippy-wizard,
+  .clippy-wizard-eye,
+  .clippy-wizard-wand,
+  body:has(.app-shell) .help-wizard {
+    animation: none;
+    transition: none;
+  }
+
+  .help-wizard-toggle:hover .clippy-wizard {
+    transform: none;
+  }
 }

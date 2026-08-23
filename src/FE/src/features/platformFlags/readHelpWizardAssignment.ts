@@ -2,6 +2,12 @@ import type { HelpWizardAssignment } from './evaluateHelpWizard';
 
 const IDENTITY_KEY = 'workslip.flag.help-wizard';
 
+function parseOptionalBoolean(value: string | undefined): boolean | null {
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return null;
+}
+
 export function readHelpWizardAssignment(): HelpWizardAssignment {
   if (import.meta.env.VITE_HELP_WIZARD_KILL === 'true') {
     return { killed: true };
@@ -12,7 +18,7 @@ export function readHelpWizardAssignment(): HelpWizardAssignment {
     : localStorage.getItem(IDENTITY_KEY);
 
   return {
-    application: import.meta.env.VITE_HELP_WIZARD === 'true',
+    application: parseOptionalBoolean(import.meta.env.VITE_HELP_WIZARD),
     identity: identityRaw === 'on' ? true : identityRaw === 'off' ? false : null,
   };
 }
