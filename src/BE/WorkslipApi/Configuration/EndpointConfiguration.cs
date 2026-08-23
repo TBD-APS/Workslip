@@ -24,6 +24,7 @@ public static class EndpointConfiguration
         app.MapImageEndpoints();
         app.MapCustomerEndpoints();
         app.MapDocumentEndpoints();
+        app.MapInventoryEndpoints();
         app.MapJobLinkEndpoints();
         app.MapWorkSheetEndpoints();
         app.MapPowerBiOverviewEndpoints();
