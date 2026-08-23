@@ -4,7 +4,6 @@ const baseUrl = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replac
 const model = process.env.OLLAMA_MODEL || 'qwen3-coder:30b';
 const apiKey = process.env.OLLAMA_API_KEY || '';
 const timeoutMs = Math.max(1_000, Number(process.env.OLLAMA_TIMEOUT_MS) || 12 * 60 * 1000);
-const UNTRUSTED_MARKER = '# Untrusted pull-request data';
 
 function readRequired(path) {
   try {
@@ -33,18 +32,6 @@ function assertSafeBaseUrl(value) {
   return parsed.toString().replace(/\/$/, '');
 }
 
-function splitReviewContext(context) {
-  const markerIndex = context.indexOf(UNTRUSTED_MARKER);
-  if (markerIndex < 0) {
-    throw new Error('Review context is missing the trusted/untrusted boundary marker.');
-  }
-
-  return {
-    trustedContext: context.slice(0, markerIndex).trim(),
-    untrustedContext: context.slice(markerIndex + UNTRUSTED_MARKER.length).trim(),
-  };
-}
-
 function buildRequest(prompt, trustedContext, untrustedContext, schema) {
   const schemaText = JSON.stringify(schema);
   const messages = [
@@ -53,7 +40,7 @@ function buildRequest(prompt, trustedContext, untrustedContext, schema) {
       content: [
         prompt,
         '',
-        'The following repository instructions and surrounding source were collected from the checked-out trusted default branch. Apply them as trusted policy/source context:',
+        'The following repository instructions and base-source snapshots were collected independently from trusted repository revisions. Apply them as trusted policy/source context:',
         '',
         '--- BEGIN TRUSTED_REPOSITORY_CONTEXT ---',
         trustedContext,
@@ -100,8 +87,8 @@ function buildRequest(prompt, trustedContext, untrustedContext, schema) {
 async function main() {
   const endpoint = `${assertSafeBaseUrl(baseUrl)}/api/chat`;
   const prompt = readRequired('.github/ai-review/review-prompt.md');
-  const context = readRequired('.ai-review/review-context.md');
-  const { trustedContext, untrustedContext } = splitReviewContext(context);
+  const trustedContext = readRequired('.ai-review/trusted-context.md');
+  const untrustedContext = readRequired('.ai-review/untrusted-context.md');
   const schema = JSON.parse(readRequired('.github/ai-review/schema.json'));
 
   const headers = { 'content-type': 'application/json' };
