@@ -3,6 +3,12 @@ extension microsoftGraphV1
 param companyName string = ''
 param environment string = ''
 param globalAdminId string = ''
+@description('Directory object type for globalAdminId. CI/OIDC resolves to ServicePrincipal; interactive bootstrap normally resolves to User.')
+@allowed([
+  'User'
+  'ServicePrincipal'
+])
+param globalAdminPrincipalType string = 'User'
 @description('Default verified Entra domain of the tenant this environment is deployed into, for example contoso.onmicrosoft.com. Tenant-bound: it must be supplied per tenant and cannot be derived from the resource group. deploy-infrastructure.ps1 resolves it from Microsoft Graph when not passed explicitly.')
 @minLength(3)
 param entraDefaultDomain string
@@ -38,6 +44,8 @@ param emailServiceName string         = take('email-${companyName}-${toLower(env
 param customEmailDomainName string = 'mrsoftware.dk'
 @description('Sender username used on the verified customer-managed email domain.')
 param customEmailSenderUsername string = 'noreply'
+@description('Link and use the customer-managed ACS email domain only after every required DNS verification state is complete.')
+param customEmailDomainEnabled bool = false
 param githubOwner string            = 'rasm105k'
 param githubOwnerId string          = '31623093'
 param githubRepository string       = 'Workslip-v2.0'
@@ -99,7 +107,8 @@ var appInsightsConnectionString = appInsights.properties.ConnectionString
 var appInsightsInstrumentationKey = appInsights.properties.InstrumentationKey
 var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)
 var isProduction = toLower(environment) == 'live'
-var acsSenderAddress = isProduction
+var useCustomEmailDomain = isProduction && customEmailDomainEnabled
+var acsSenderAddress = useCustomEmailDomain
   ? '${customEmailSenderUsername}@${customEmailDomainName}'
   : 'DoNotReply@${azureManagedEmailDomain.properties.mailFromSenderDomain}'
 var powerBiContainerName = empty(powerBiReaderPrincipalId)
@@ -217,7 +226,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 // The API reads App Configuration + Key Vault references through that identity.
 // ──────────────────────────────────────────────────────────────────────────────
 
-resource webApiServer 'Microsoft.Web/serverfarms@2023-12-01' = {
+resource webApiServer 'Microsoft.Web/serverfarms@2025-03-01' = {
   name: webApiServerName
   location: location
   tags: tags
@@ -232,7 +241,12 @@ resource webApiServer 'Microsoft.Web/serverfarms@2023-12-01' = {
         tier: 'Free'
         capacity: 1
       }
-  properties: {}
+  properties: {
+    // Azure can temporarily lack synchronous B1 capacity in a region. Allow the
+    // platform to fulfil the requested worker asynchronously instead of failing
+    // the entire idempotent reconcile with ExtendedCode 03029.
+    asyncScalingEnabled: isProduction
+  }
 }
 
 resource webApi 'Microsoft.Web/sites@2023-12-01' = {
@@ -450,7 +464,7 @@ resource appConfigurationDataOwnerForAdmin 'Microsoft.Authorization/roleAssignme
   scope: appConfiguration
   properties: {
     principalId: globalAdminId
-    principalType: 'User'
+    principalType: globalAdminPrincipalType
     roleDefinitionId: subscriptionResourceId(
       'Microsoft.Authorization/roleDefinitions',
       roles.appConfigurationDataOwnerRole
@@ -491,7 +505,7 @@ resource keyVaultSecretsOfficerForAdmin 'Microsoft.Authorization/roleAssignments
   scope: keyVault
   properties: {
     principalId: globalAdminId
-    principalType: 'User'
+    principalType: globalAdminPrincipalType
     roleDefinitionId: subscriptionResourceId(
       'Microsoft.Authorization/roleDefinitions',
       roles.keyVaultAdministrator
@@ -806,7 +820,7 @@ resource communicationService 'Microsoft.Communication/communicationServices@202
   }
   properties: {
     dataLocation: 'europe'
-    linkedDomains: isProduction
+    linkedDomains: useCustomEmailDomain
       ? [
           azureManagedEmailDomain.id
           customEmailDomain.id
@@ -846,8 +860,9 @@ resource azureManagedSenderUsername 'Microsoft.Communication/emailServices/domai
   }
 }
 
-// Production DNS verification is complete. Non-production environments use the
-// Azure-managed domain and do not depend on production DNS ownership.
+// Create the customer-managed domain in live so Azure exposes its DNS records.
+// Linking and sender activation remain disabled until the operator has verified
+// Domain, SPF, DKIM and DKIM2 and explicitly enables the deployment parameter.
 resource customEmailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' = if (isProduction) {
   name: customEmailDomainName
   parent: emailService
@@ -859,7 +874,7 @@ resource customEmailDomain 'Microsoft.Communication/emailServices/domains@2023-0
   }
 }
 
-resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-04-01' = if (isProduction) {
+resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-04-01' = if (useCustomEmailDomain) {
   parent: customEmailDomain
   name: customEmailSenderUsername
   properties: {

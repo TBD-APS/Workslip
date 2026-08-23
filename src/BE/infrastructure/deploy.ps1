@@ -7,6 +7,7 @@ param(
     [string]$PowerBiReaderPrincipalId = '',
     [string]$PowerBiReaderEmail = '',
     [switch]$EnablePowerBiExport,
+    [switch]$EnableCustomEmailDomain,
     [string]$EntraStatePath = '',
     # Preview all four phases without changing anything. Each phase reports what it
     # would do and returns; nothing is written to Entra, Azure, Key Vault, SQL or
@@ -70,6 +71,7 @@ Write-Host "Phase 2/4: $(if ($WhatIf) { 'previewing' } else { 'deploying' }) Azu
     -PowerBiReaderPrincipalId $PowerBiReaderPrincipalId `
     -PowerBiReaderEmail $PowerBiReaderEmail `
     -EnablePowerBiExport:$EnablePowerBiExport `
+    -EnableCustomEmailDomain:$EnableCustomEmailDomain `
     -EntraStatePath $EntraStatePath `
     -WhatIf:$WhatIf
 

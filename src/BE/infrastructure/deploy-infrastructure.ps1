@@ -8,6 +8,10 @@ param(
     # alone here — the script verifies it exists in the signed-in tenant and
     # falls back to the deploying principal when it does not.
     [string]$GlobalAdminId = '9ea4bcd3-bf90-4249-93e0-f45070d140f7',
+    # Enable only after Domain, SPF, DKIM and DKIM2 are verified for this exact
+    # Email Communication Services domain. Foundation deploys keep the
+    # Azure-managed sender linked so an unverified custom domain cannot block IaC.
+    [switch]$EnableCustomEmailDomain,
     # Default verified domain of the signed-in tenant. Resolved from Microsoft
     # Graph when omitted, so a fresh tenant needs no hand-set value.
     [string]$EntraDefaultDomain = '',
@@ -593,6 +597,26 @@ function Test-GraphObjectExists {
     return $result.ExitCode -eq 0
 }
 
+function Resolve-GraphPrincipalType {
+    param([Parameter(Mandatory = $true)][string]$ObjectId)
+
+    $result = Invoke-AzureCli `
+        -Arguments @(
+            'rest',
+            '--method', 'GET',
+            '--uri', "$GraphRoot/directoryObjects/$ObjectId",
+            '--query', '"@odata.type"',
+            '--only-show-errors',
+            '-o', 'tsv'
+        )
+
+    switch ($result.Output.Trim()) {
+        '#microsoft.graph.user' { return 'User' }
+        '#microsoft.graph.servicePrincipal' { return 'ServicePrincipal' }
+        default { throw "Directory object '$ObjectId' has unsupported type '$($result.Output.Trim())'." }
+    }
+}
+
 function Resolve-DeployingPrincipalObjectId {
     # Interactive/device login: a real user is signed in.
     $userResult = Invoke-AzureCli `
@@ -777,6 +801,8 @@ try {
     Write-Host "Entra default domain: $resolvedEntraDefaultDomain" -ForegroundColor Cyan
 
     $resolvedGlobalAdminId = Resolve-GlobalAdminId -RequestedGlobalAdminId $GlobalAdminId
+    $resolvedGlobalAdminPrincipalType = Resolve-GraphPrincipalType -ObjectId $resolvedGlobalAdminId
+    Write-Host "Resolved infrastructure administrator principal type: $resolvedGlobalAdminPrincipalType" -ForegroundColor Cyan
 
     # Operator configuration, not template content. Read here and passed as a
     # parameter so main.bicep stays independent of what sits next to it on disk.
@@ -855,6 +881,8 @@ Run without -WhatIf to create it, or create the group first:
             companyName = @{ value = $COMPANY_NAME }
             environment = @{ value = $Environment }
             globalAdminId = @{ value = $resolvedGlobalAdminId }
+            globalAdminPrincipalType = @{ value = $resolvedGlobalAdminPrincipalType }
+            customEmailDomainEnabled = @{ value = [bool]$EnableCustomEmailDomain }
             entraDefaultDomain = @{ value = $resolvedEntraDefaultDomain }
             powerBiReaderPrincipalId = @{ value = $PowerBiReaderPrincipalId }
             powerBiReaderEmail = @{ value = $PowerBiReaderEmail }
