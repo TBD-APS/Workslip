@@ -2,6 +2,7 @@ import {
   Building2,
   CalendarDays,
   ClipboardList,
+  FileSpreadsheet,
   PackageSearch,
   PlusCircle,
   Settings,
@@ -87,10 +88,20 @@ export function buildQuickNavigatorCommands({
     id: 'new-customer', label: 'Opret kunde', description: 'Opret en ny kunde', path: '/app/customers/new',
     keywords: ['ny kunde', 'opret kunde', 'firma', 'virksomhed'], icon: Building2,
   });
-  if (canManageUsers) commands.push({
-    id: 'settings', label: 'Indstillinger', description: 'Åbn indstillinger', path: '/app/settings',
-    keywords: ['indstillinger', 'settings', 'administration', 'admin'], icon: Settings,
-  });
+  if (canManageUsers) {
+    commands.push({
+      id: 'inventory-onboarding',
+      label: 'Lageropsætning',
+      description: 'Importér vareliste og print QR-labels',
+      path: '/app/lager/opsaetning',
+      keywords: ['lager', 'csv', 'excel', 'import', 'qr', 'labels', 'print', 'varer'],
+      icon: FileSpreadsheet,
+    });
+    commands.push({
+      id: 'settings', label: 'Indstillinger', description: 'Åbn indstillinger', path: '/app/settings',
+      keywords: ['indstillinger', 'settings', 'administration', 'admin'], icon: Settings,
+    });
+  }
   if (showProfile) commands.push({
     id: 'profile', label: 'Profil', description: 'Åbn din profil', path: '/app/profil',
     keywords: ['profil', 'mig', 'konto'], icon: UserCircle,
