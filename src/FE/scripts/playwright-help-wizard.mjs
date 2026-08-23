@@ -20,7 +20,7 @@ try {
   for (const testCase of cases) {
     await verifyHelpWizard(testCase);
   }
-  console.log('[playwright] help wizard flag + interaction evidence passed on desktop and mobile.');
+  console.log('[playwright] Clippy 2.0 default-on + animated movement evidence passed on desktop and mobile.');
 } finally {
   await browser.close();
 }
@@ -47,34 +47,101 @@ async function verifyHelpWizard({ name, context: contextOptions }) {
     });
     assert.ok(navigation?.ok(), `${name}: /login returned HTTP ${navigation?.status() ?? 'unknown'}.`);
     await page.locator('#login-card').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    assert.equal(await page.locator('#help-wizard').count(), 0, `${name}: help wizard must fail closed without an assignment.`);
 
-    await page.evaluate(() => localStorage.setItem('workslip.flag.help-wizard', 'on'));
-    await page.reload({ waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
-
+    const wizard = page.locator('#help-wizard');
     const toggle = page.locator('#help-wizard-toggle');
     await toggle.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    assert.equal(await toggle.getAttribute('aria-expanded'), 'false', `${name}: help wizard must start collapsed.`);
-    assert.equal(await page.locator('#help-wizard-message').count(), 0, `${name}: collapsed help wizard must not render its message.`);
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'false', `${name}: Clippy 2.0 must start collapsed.`);
+    assert.equal(await page.locator('#help-wizard-message').count(), 0, `${name}: collapsed Clippy 2.0 must stay quiet.`);
+
+    const homeBounds = await wizard.boundingBox();
+    const viewport = page.viewportSize();
+    assert.ok(homeBounds && viewport, `${name}: Clippy 2.0 must have visible bounds.`);
+    assert.ok(homeBounds.x >= 0, `${name}: Clippy 2.0 must not overflow the left viewport edge.`);
+    assert.ok(homeBounds.x < viewport.width / 3, `${name}: Clippy 2.0 must start on the left side of the UI.`);
+    assert.ok(homeBounds.y + homeBounds.height <= viewport.height + 0.5, `${name}: Clippy 2.0 must not overflow the bottom viewport edge.`);
+    assert.equal(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      true,
+      `${name}: Clippy 2.0 must not introduce horizontal page overflow.`,
+    );
+
+    await page.evaluate(() => {
+      const target = document.createElement('button');
+      target.id = 'clippy-motion-target';
+      target.type = 'button';
+      target.textContent = 'Target';
+      Object.assign(target.style, {
+        position: 'fixed',
+        right: '24px',
+        top: '120px',
+        width: '112px',
+        height: '40px',
+        zIndex: '-1',
+      });
+      document.body.appendChild(target);
+      window.dispatchEvent(new CustomEvent('workslip:clippy-command', {
+        detail: { type: 'go-to', targetId: 'clippy-motion-target' },
+      }));
+    });
+
+    await page.waitForFunction(
+      ({ homeX }) => {
+        const element = document.getElementById('help-wizard');
+        if (!element || element.dataset.clippyMode !== 'target') return false;
+        return element.getBoundingClientRect().left > homeX + 80;
+      },
+      { homeX: homeBounds.x },
+      { timeout: UI_TIMEOUT },
+    );
+
+    const targetBounds = await wizard.boundingBox();
+    assert.ok(targetBounds, `${name}: Clippy 2.0 must remain visible at a target.`);
+    assert.ok(targetBounds.x >= 0, `${name}: moving Clippy must stay inside the left viewport edge.`);
+    assert.ok(targetBounds.x + targetBounds.width <= viewport.width + 0.5, `${name}: moving Clippy must stay inside the right viewport edge.`);
+    assert.ok(targetBounds.y >= 0, `${name}: moving Clippy must stay inside the top viewport edge.`);
+    assert.ok(targetBounds.y + targetBounds.height <= viewport.height + 0.5, `${name}: moving Clippy must stay inside the bottom viewport edge.`);
+
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('workslip:clippy-command', {
+      detail: { type: 'point-at', targetId: 'clippy-motion-target' },
+    })));
+    await page.waitForFunction(
+      () => document.getElementById('help-wizard')?.dataset.clippyReaction === 'attention',
+      null,
+      { timeout: UI_TIMEOUT },
+    );
+
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('workslip:clippy-command', {
+      detail: { type: 'go-home' },
+    })));
+    await page.waitForFunction(
+      ({ homeX, homeY }) => {
+        const element = document.getElementById('help-wizard');
+        if (!element || element.dataset.clippyMode !== 'home') return false;
+        const rect = element.getBoundingClientRect();
+        return Math.abs(rect.left - homeX) < 3 && Math.abs(rect.top - homeY) < 3;
+      },
+      { homeX: homeBounds.x, homeY: homeBounds.y },
+      { timeout: UI_TIMEOUT },
+    );
 
     await toggle.click();
     const message = page.locator('#help-wizard-message');
     await message.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    assert.equal(await toggle.getAttribute('aria-expanded'), 'true', `${name}: help wizard toggle must expose its open state.`);
-
-    const bounds = await page.locator('#help-wizard').boundingBox();
-    assert.ok(bounds, `${name}: help wizard must have visible bounds.`);
-    assert.ok(bounds.x >= 0, `${name}: help wizard must not overflow the left viewport edge.`);
-    assert.ok(bounds.x + bounds.width <= page.viewportSize().width + 0.5, `${name}: help wizard must not overflow the right viewport edge.`);
-    assert.equal(
-      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-      true,
-      `${name}: help wizard must not introduce horizontal page overflow.`,
-    );
+    assert.equal(await message.textContent(), 'Skal jeg hjælpe?', `${name}: Clippy 2.0 copy must stay concise.`);
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'true', `${name}: Clippy 2.0 must expose its open state.`);
 
     await toggle.click();
     await message.waitFor({ state: 'detached', timeout: UI_TIMEOUT });
-    assert.equal(await toggle.getAttribute('aria-expanded'), 'false', `${name}: second activation must collapse the help wizard.`);
+
+    await page.evaluate(() => localStorage.setItem('workslip.flag.help-wizard', 'off'));
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+    assert.equal(await page.locator('#help-wizard').count(), 0, `${name}: explicit identity off must hide Clippy 2.0.`);
+
+    await page.evaluate(() => localStorage.removeItem('workslip.flag.help-wizard'));
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+    await page.locator('#help-wizard-toggle').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
     assert.deepEqual(pageErrors, [], `${name}: browser page errors: ${pageErrors.join(' | ')}`);
     assert.deepEqual(consoleErrors, [], `${name}: browser console errors: ${consoleErrors.join(' | ')}`);
   } finally {
