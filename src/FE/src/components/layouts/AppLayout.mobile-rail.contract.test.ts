@@ -1,9 +1,7 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const cssPath = path.resolve(__dirname, 'AppLayout.focus.css');
-const css = fs.readFileSync(cssPath, 'utf8');
+const css = fs.readFileSync(new URL('./AppLayout.focus.css', import.meta.url), 'utf8');
 
 describe('AppLayout mobile navigation rail contract', () => {
   it('renders the phone navigation as a left rail instead of a bottom bar', () => {
