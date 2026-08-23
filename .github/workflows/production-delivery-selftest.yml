@@ -8,6 +8,7 @@ on:
       - '.github/workflows/backend-production-deploy.yml'
       - '.github/workflows/database-production-migrations.yml'
       - '.github/workflows/infrastructure-current-production.yml'
+      - '.github/workflows/infrastructure-emergency-reconcile.yml'
       - '.github/workflows/infrastructure-new-tenant.yml'
       - '.github/workflows/infrastructure-production-reconcile.yml'
       - '.github/workflows/production-readiness-smoke.yml'
@@ -31,6 +32,7 @@ on:
       - '.github/workflows/backend-production-deploy.yml'
       - '.github/workflows/database-production-migrations.yml'
       - '.github/workflows/infrastructure-current-production.yml'
+      - '.github/workflows/infrastructure-emergency-reconcile.yml'
       - '.github/workflows/infrastructure-new-tenant.yml'
       - '.github/workflows/infrastructure-production-reconcile.yml'
       - '.github/workflows/production-readiness-smoke.yml'
@@ -137,10 +139,24 @@ jobs:
           grep -Fq "echo 'resource_group=rg-mrsoftwarev2-live'" "${infrastructure}"
           grep -Fq "expected='PLAN NEW TENANT'" "${infrastructure}"
           grep -Fq "expected='RECONCILE NEW TENANT'" "${infrastructure}"
+          grep -Fq "expected='BREAK GLASS RECONCILE NEW TENANT'" "${infrastructure}"
+          grep -Fq "expected='BREAK GLASS RECONCILE CURRENT PRODUCTION'" "${infrastructure}"
+          grep -Fq "inputs.execution_mode == 'standard'" "${infrastructure}"
+          grep -Fq "inputs.execution_mode == 'emergency'" "${infrastructure}"
+          grep -Fq 'EMERGENCY_ACKNOWLEDGED' "${infrastructure}"
+          grep -Fq 'Record emergency CI waiver' "${infrastructure}"
           grep -Fq 'plan.ps1' "${infrastructure}"
           grep -Fq "inputs.operation == 'reconcile'" "${infrastructure}"
           grep -Fq 'verify-deployment-environment.mjs' "${infrastructure}"
           grep -Fq 'workflow_call:' "${infrastructure}"
+
+          bootstrap_template=src/BE/infrastructure/githubInfrastructureBootstrap.bicep
+          grep -Fq "'Microsoft.Web/register/action'" "${bootstrap_template}"
+          grep -Fq "'Microsoft.Consumption/register/action'" "${bootstrap_template}"
+          if grep -Fq 'Microsoft.Resources/subscriptions/providers/register/action' "${bootstrap_template}"; then
+            echo 'Provider registration must use the supported action for each resource provider.' >&2
+            exit 1
+          fi
 
           new_tenant_control=.github/workflows/infrastructure-new-tenant.yml
           current_production_control=.github/workflows/infrastructure-current-production.yml
@@ -158,6 +174,18 @@ jobs:
           grep -Fq 'target: current-production' "${current_production_control}"
           grep -Fq 'PLAN CURRENT PRODUCTION' "${current_production_control}"
           grep -Fq 'RECONCILE CURRENT PRODUCTION' "${current_production_control}"
+
+          emergency_control=.github/workflows/infrastructure-emergency-reconcile.yml
+          grep -Fq 'workflow_dispatch:' "${emergency_control}"
+          grep -Fq 'target:' "${emergency_control}"
+          grep -Fq 'reason:' "${emergency_control}"
+          grep -Fq 'acknowledge:' "${emergency_control}"
+          grep -Fq 'ACKNOWLEDGED:' "${emergency_control}"
+          grep -Fq 'execution_mode: emergency' "${emergency_control}"
+          grep -Fq 'emergency_acknowledge: true' "${emergency_control}"
+          grep -Fq 'BREAK GLASS RECONCILE NEW TENANT' "${emergency_control}"
+          grep -Fq 'BREAK GLASS RECONCILE CURRENT PRODUCTION' "${emergency_control}"
+          grep -Fq 'uses: ./.github/workflows/infrastructure-production-reconcile.yml' "${emergency_control}"
 
           grep -Fq -- '--ci-run-id "${CI_RUN_ID}"' "${backend}"
           grep -Fq 'actions: read' "${backend}"

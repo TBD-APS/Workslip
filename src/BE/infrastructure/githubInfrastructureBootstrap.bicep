@@ -15,6 +15,18 @@ var identityName = take('id-${companyName}-${normalizedEnvironment}-infra-github
 var identityResourceId = resourceId(subscription().subscriptionId, resourceGroupName, 'Microsoft.ManagedIdentity/userAssignedIdentities', identityName)
 var providerRegistrationRoleName = 'Workslip Resource Provider Registration'
 var providerRegistrationRoleId = guid(subscription().id, providerRegistrationRoleName)
+var providerRegistrationActions = [
+  'Microsoft.Web/register/action'
+  'Microsoft.Storage/register/action'
+  'Microsoft.OperationalInsights/register/action'
+  'Microsoft.Insights/Register/Action'
+  'Microsoft.KeyVault/register/action'
+  'Microsoft.AppConfiguration/register/action'
+  'Microsoft.Sql/register/action'
+  'Microsoft.ManagedIdentity/register/action'
+  'Microsoft.Communication/Register/Action'
+  'Microsoft.Consumption/register/action'
+]
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' existing = {
   name: resourceGroupName
@@ -43,10 +55,9 @@ resource providerRegistrationRole 'Microsoft.Authorization/roleDefinitions@2022-
     type: 'CustomRole'
     permissions: [
       {
-        actions: [
+        actions: concat([
           'Microsoft.Resources/subscriptions/providers/read'
-          'Microsoft.Resources/subscriptions/providers/register/action'
-        ]
+        ], providerRegistrationActions)
         notActions: []
         dataActions: []
         notDataActions: []

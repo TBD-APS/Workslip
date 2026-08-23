@@ -678,8 +678,7 @@ function Ensure-ResourceProviders {
         'Microsoft.Communication',
         # Required by the cost budget in budgets.bicep. Without it the first
         # deployment into a fresh subscription fails on an unregistered provider.
-        'Microsoft.Consumption',
-        'Microsoft.Resources'
+        'Microsoft.Consumption'
     )) {
         $state = Invoke-AzureCli `
             -Arguments @('provider', 'show', '--namespace', $provider, '--query', 'registrationState', '-o', 'tsv') `
