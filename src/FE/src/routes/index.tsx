@@ -27,6 +27,7 @@ const EditCustomerPage = lazy(() => import('../features/customers/routes/EditCus
 const MyWorksheets = lazy(() => import('../features/worksheets/routes/MyWorksheets').then((module) => ({ default: module.MyWorksheets })));
 const CustomerDetail = lazy(() => import('../features/customers/routes/CustomerDetail').then((module) => ({ default: module.CustomerDetail })));
 const InventoryPage = lazy(() => import('../features/inventory/routes/InventoryPage').then((module) => ({ default: module.InventoryPage })));
+const InventoryOnboarding = lazy(() => import('../features/inventory/routes/InventoryOnboarding').then((module) => ({ default: module.InventoryOnboarding })));
 const docsPageElement = createElement(lazy(() => import('../features/docs/DocsPage').then((module) => ({ default: module.DocsPage }))));
 const Settings = lazy(() => import('../features/settings/routes/Settings').then((module) => ({ default: module.Settings })));
 const billingGuidePageElement = createElement(lazy(() => import('../features/settings/routes/BillingGuide').then((module) => ({ default: module.BillingGuide }))));
@@ -104,6 +105,7 @@ export const router = createBrowserRouter([{
         { path: 'overblik', element: <Overview /> },
         { path: 'timer', element: <RoleGuard permission="worksheet:view"><MyWorksheets /></RoleGuard> },
         { path: 'lager', element: <InventoryPage /> },
+        { path: 'lager/opsaetning', element: <RoleGuard permission="user:manage"><InventoryOnboarding /></RoleGuard> },
         { path: 'create', element: <Create /> },
         { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
         { path: 'job/simple/new', element: <RoleGuard permission="job:create"><SimpleJobCreate /></RoleGuard> },
