@@ -1,0 +1,52 @@
+name: Infrastructure · Current production
+
+run-name: >-
+  Current production · ${{ inputs.operation }} · ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Choose a read-only plan or an approved reconcile for current production
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - reconcile
+      acknowledge:
+        description: I understand that reconcile changes the protected production Azure boundary after approval
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+jobs:
+  acknowledge-operation:
+    name: Infrastructure · Confirm current-production intent
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require explicit acknowledgement
+        shell: bash
+        env:
+          ACKNOWLEDGED: ${{ inputs.acknowledge }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "${ACKNOWLEDGED}" != 'true' ]]; then
+            echo '::error::Select the acknowledgement checkbox before running this operation.'
+            exit 1
+          fi
+
+  operate:
+    name: Infrastructure · ${{ inputs.operation }} · current production
+    needs: acknowledge-operation
+    uses: ./.github/workflows/infrastructure-production-reconcile.yml
+    with:
+      operation: ${{ inputs.operation }}
+      target: current-production
+      confirmation: ${{ inputs.operation == 'plan' && 'PLAN CURRENT PRODUCTION' || 'RECONCILE CURRENT PRODUCTION' }}

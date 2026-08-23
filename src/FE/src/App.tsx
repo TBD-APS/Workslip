@@ -18,6 +18,10 @@ const VercelTelemetry = lazy(() =>
   import('./telemetry/VercelTelemetry').then((module) => ({ default: module.VercelTelemetry })),
 );
 
+const HelpWizard = lazy(() =>
+  import('./features/platformFlags/HelpWizard').then((module) => ({ default: module.HelpWizard })),
+);
+
 function App() {
   const [telemetryEnabled, setTelemetryEnabled] = useState(false);
 
@@ -31,6 +35,9 @@ function App() {
       <RouterProvider router={router} />
       <PwaUpdateBanner />
       <GamificationFeedback />
+      <Suspense fallback={null}>
+        <HelpWizard />
+      </Suspense>
       {telemetryEnabled && (
         <Suspense fallback={null}>
           <VercelTelemetry />

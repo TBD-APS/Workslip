@@ -491,6 +491,24 @@ function Resolve-ExistingEntraState {
 
     Write-Host 'Entra state file not found. Discovering existing registrations without modifying Entra...' -ForegroundColor Cyan
 
+    # The application unique names are the authoritative Entra identifiers. Resolve
+    # them before consulting App Configuration: foundation reconciliation needs to
+    # remain possible while an App Configuration data-plane endpoint is temporarily
+    # unavailable, and this path is read-only in Entra.
+    $oauthApplication = Get-GraphApplicationByUniqueName -UniqueName $OAuthUniqueName
+    $clientApplication = Get-GraphApplicationByUniqueName -UniqueName $ClientUniqueName
+
+    if ($null -ne $oauthApplication -and $null -ne $clientApplication) {
+        return New-EntraState `
+            -OAuthApplication $oauthApplication `
+            -ClientApplication $clientApplication `
+            -TenantId $TenantId `
+            -Source 'graph-unique-name'
+    }
+
+    # App Configuration is retained as a compatibility fallback for a tenant that
+    # predates deterministic Entra unique names. It is not allowed to be the only
+    # way to recover a current foundation deployment.
     $oauthClientId = Get-AppConfigurationValue -Key 'Azure:AdOAuth:ClientId'
     $clientAppId = Get-AppConfigurationValue -Key 'Azure:AdOAuth:ClientAppId'
 
@@ -506,17 +524,6 @@ function Resolve-ExistingEntraState {
                 -TenantId $TenantId `
                 -Source 'app-configuration'
         }
-    }
-
-    $oauthApplication = Get-GraphApplicationByUniqueName -UniqueName $OAuthUniqueName
-    $clientApplication = Get-GraphApplicationByUniqueName -UniqueName $ClientUniqueName
-
-    if ($null -ne $oauthApplication -and $null -ne $clientApplication) {
-        return New-EntraState `
-            -OAuthApplication $oauthApplication `
-            -ClientApplication $clientApplication `
-            -TenantId $TenantId `
-            -Source 'graph-unique-name'
     }
 
     throw @"
@@ -702,8 +709,7 @@ function Ensure-ResourceProviders {
         'Microsoft.Communication',
         # Required by the cost budget in budgets.bicep. Without it the first
         # deployment into a fresh subscription fails on an unregistered provider.
-        'Microsoft.Consumption',
-        'Microsoft.Resources'
+        'Microsoft.Consumption'
     )) {
         $state = Invoke-AzureCli `
             -Arguments @('provider', 'show', '--namespace', $provider, '--query', 'registrationState', '-o', 'tsv') `
