@@ -22,7 +22,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Resolve exact-head trusted PR and request Copilot
+      - name: Resolve exact-head trusted PR, request and verify Copilot
         shell: bash
         run: |
           set -euo pipefail
@@ -74,3 +74,23 @@ jobs:
           JSON
 
           echo "Requested GitHub Copilot review for PR #${pr_number} at exact head ${trigger_head}."
+
+          for attempt in $(seq 1 18); do
+            reviews="$(gh api "/repos/${GITHUB_REPOSITORY}/pulls/${pr_number}/reviews?per_page=100")"
+            if printf '%s' "$reviews" | jq -e --arg sha "$trigger_head" '
+              any(.[];
+                ((.user.login // "") == "copilot-pull-request-reviewer[bot]" or
+                 (.user.login // "") == "copilot-pull-request-reviewer") and
+                (.commit_id // "") == $sha)
+            ' >/dev/null; then
+              echo "Copilot review delivered for exact head ${trigger_head} on attempt ${attempt}."
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 18 ]; then
+              sleep 5
+            fi
+          done
+
+          echo "Copilot review was requested but no review was delivered for exact head ${trigger_head} within 90 seconds. Check Copilot code-review entitlement/settings." >&2
+          exit 1
