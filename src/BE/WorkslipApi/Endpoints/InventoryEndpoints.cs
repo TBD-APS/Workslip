@@ -7,7 +7,6 @@ using Workslip.Api.Helpers;
 using Workslip.Application.Inventory;
 using ZXing;
 using ZXing.Common;
-using ZXing.ImageSharp;
 
 namespace Workslip.Api.Endpoints;
 
@@ -87,7 +86,7 @@ public static class InventoryEndpoints
                     });
                 }
 
-                var reader = new BarcodeReader<Rgba32>
+                var reader = new ZXing.ImageSharp.BarcodeReader<Rgba32>
                 {
                     AutoRotate = true,
                     Options = new DecodingOptions
