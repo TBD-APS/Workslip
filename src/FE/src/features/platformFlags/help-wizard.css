@@ -1,7 +1,6 @@
 .help-wizard {
   --clippy-gold: color-mix(in srgb, var(--primary) 62%, var(--brand-cream));
   --clippy-gold-highlight: color-mix(in srgb, var(--brand-cream) 78%, var(--primary));
-  --clippy-gold-shadow: color-mix(in srgb, var(--primary) 76%, var(--brand-marine));
   position: fixed;
   left: max(10px, env(safe-area-inset-left, 0px));
   bottom: calc(76px + env(safe-area-inset-bottom, 0px));
