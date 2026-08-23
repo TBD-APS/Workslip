@@ -79,13 +79,16 @@ public static class PowerBiReportUrlResolver
         if (string.Equals(uri.AbsolutePath.TrimEnd('/'), "/reportEmbed", StringComparison.OrdinalIgnoreCase))
         {
             var query = QueryHelpers.ParseQuery(uri.Query);
-            if (!Guid.TryParse(query["reportId"].FirstOrDefault(), out reportId)
+            if (!query.TryGetValue("reportId", out var reportIds)
+                || !Guid.TryParse(reportIds.FirstOrDefault(), out reportId)
                 || !TryGetOptionalGuidQueryValue(uri, "groupId", out groupId))
             {
                 return false;
             }
 
-            var queryPageName = query["pageName"].FirstOrDefault();
+            var queryPageName = query.TryGetValue("pageName", out var pageNames)
+                ? pageNames.FirstOrDefault()
+                : null;
             if (!string.IsNullOrWhiteSpace(queryPageName))
             {
                 if (!IsSafePageName(queryPageName))
@@ -131,7 +134,13 @@ public static class PowerBiReportUrlResolver
     private static bool TryGetOptionalGuidQueryValue(Uri uri, string key, out Guid? value)
     {
         value = null;
-        var raw = QueryHelpers.ParseQuery(uri.Query)[key].FirstOrDefault();
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        if (!query.TryGetValue(key, out var rawValues))
+        {
+            return true;
+        }
+
+        var raw = rawValues.FirstOrDefault();
         if (string.IsNullOrWhiteSpace(raw))
         {
             return true;
