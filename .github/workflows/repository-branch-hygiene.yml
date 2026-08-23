@@ -1,0 +1,114 @@
+name: Repository · Branch hygiene
+
+on:
+  schedule:
+    - cron: '47 2 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: repository-branch-hygiene
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Audit merged PR branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Identify safe cleanup candidates
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          mkdir -p artifacts/github
+          report='artifacts/github/branch-hygiene.tsv'
+          printf 'branch\treason\n' > "${report}"
+
+          mapfile -t open_heads < <(
+            gh pr list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --state open \
+              --limit 500 \
+              --json headRefName \
+              --jq '.[].headRefName'
+          )
+
+          is_open_head() {
+            local candidate="$1"
+            local open_head
+            for open_head in "${open_heads[@]:-}"; do
+              if [[ "${open_head}" == "${candidate}" ]]; then
+                return 0
+              fi
+            done
+            return 1
+          }
+
+          mapfile -t merged_heads < <(
+            gh pr list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --state merged \
+              --limit 500 \
+              --json headRefName,isCrossRepository \
+              --jq '.[] | select(.isCrossRepository == false) | .headRefName' \
+              | sort -u
+          )
+
+          candidates=0
+          preserved=0
+          absent=0
+
+          for branch in "${merged_heads[@]:-}"; do
+            [[ -n "${branch}" ]] || continue
+
+            case "${branch}" in
+              main|production|release-*|release/*|safety/*|backup/*|mahad-*)
+                preserved=$((preserved + 1))
+                continue
+                ;;
+            esac
+
+            if is_open_head "${branch}"; then
+              preserved=$((preserved + 1))
+              continue
+            fi
+
+            if ! gh api --silent "repos/${GITHUB_REPOSITORY}/git/ref/heads/${branch}" >/dev/null 2>&1; then
+              absent=$((absent + 1))
+              continue
+            fi
+
+            printf '%s\tmerged PR head; no open PR uses branch\n' "${branch}" >> "${report}"
+            candidates=$((candidates + 1))
+          done
+
+          {
+            echo '## Repository branch hygiene'
+            echo
+            echo "Safe cleanup candidates: **${candidates}**"
+            echo "Protected/open branches preserved: **${preserved}**"
+            echo "Merged PR heads already absent: **${absent}**"
+            echo
+            if (( candidates > 0 )); then
+              echo 'Candidates are reported only. This workflow never deletes branches.'
+              echo
+              echo '```text'
+              cat "${report}"
+              echo '```'
+            else
+              echo 'No merged PR branch cleanup candidates found.'
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload hygiene report
+        uses: actions/upload-artifact@v4
+        with:
+          name: repository-branch-hygiene
+          path: artifacts/github/branch-hygiene.tsv
+          retention-days: 14
