@@ -310,6 +310,12 @@
   padding: 0.7rem 0.8rem;
 }
 
+.admin-case-reference-document-link {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
 .admin-case-reference-history {
   padding: 1.05rem 1rem 1.15rem;
 }
