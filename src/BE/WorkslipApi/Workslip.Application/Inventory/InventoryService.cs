@@ -40,8 +40,10 @@ public sealed record InventoryMovementResponse(
     Guid? ActorUserId,
     string? ActorDisplayName,
     string? Reason,
-    DateTimeOffset CreatedAt,
-    bool IsReplay = false);
+    DateTimeOffset CreatedAt)
+{
+    public bool IsReplay { get; init; }
+}
 
 public sealed record InventoryQrLabelResponse(
     Guid MaterialId,
