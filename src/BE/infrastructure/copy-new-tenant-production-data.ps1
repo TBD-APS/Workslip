@@ -408,7 +408,7 @@ IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'$tempLogin')
 "@ | Out-Null
         }
         catch {
-            Write-Warning "Could not remove temporary database user from $Database: $($_.Exception.Message)"
+            Write-Warning "Could not remove temporary database user from ${Database}: $($_.Exception.Message)"
         }
     }
 
