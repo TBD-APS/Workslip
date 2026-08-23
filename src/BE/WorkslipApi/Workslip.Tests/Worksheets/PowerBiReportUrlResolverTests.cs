@@ -55,6 +55,8 @@ public sealed class PowerBiReportUrlResolverTests
 
     [Theory]
     [InlineData("https://app.powerbi.com/view?r=public-token")]
+    [InlineData("https://app.powerbi.com/reportEmbed")]
+    [InlineData("https://app.powerbi.com/reportEmbed?pageName=ReportSection")]
     [InlineData("https://app.powerbi.com/groups/me/reports/not-a-guid")]
     [InlineData("https://app.powerbi.com/groups/not-a-guid/reports/11111111-2222-3333-4444-555555555555")]
     [InlineData("https://app.powerbi.com/groups/me/reports/11111111-2222-3333-4444-555555555555?ctid=not-a-guid")]
