@@ -27,6 +27,23 @@ on:
         description: Type the confirmation phrase shown in the runbook
         required: true
         type: string
+      execution_mode:
+        description: Standard keeps the canonical CI gate; emergency waives only that gate
+        required: true
+        default: standard
+        type: choice
+        options:
+          - standard
+          - emergency
+      emergency_reason:
+        description: Required for emergency only. Do not include secrets or customer data.
+        required: false
+        type: string
+      emergency_acknowledge:
+        description: I understand emergency mode waives only CI for this one run.
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       operation:
@@ -41,6 +58,21 @@ on:
         description: The action-specific confirmation phrase
         required: true
         type: string
+      execution_mode:
+        description: Standard or emergency CI-waiver execution
+        required: false
+        default: standard
+        type: string
+      emergency_reason:
+        description: A non-secret operational reason for an emergency CI waiver
+        required: false
+        default: ''
+        type: string
+      emergency_acknowledge:
+        description: Explicit acknowledgement required for emergency CI waiver
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -67,12 +99,15 @@ jobs:
       api_identity_name: ${{ steps.target.outputs.api_identity_name }}
       log_analytics_workspace_name: ${{ steps.target.outputs.log_analytics_workspace_name }}
     steps:
-      - name: Verify operator selected exact green main
+      - name: Verify operator intent and emergency declaration
         shell: bash
         env:
           OPERATION: ${{ inputs.operation }}
           TARGET: ${{ inputs.target }}
           CONFIRMATION: ${{ inputs.confirmation }}
+          EXECUTION_MODE: ${{ inputs.execution_mode }}
+          EMERGENCY_REASON: ${{ inputs.emergency_reason }}
+          EMERGENCY_ACKNOWLEDGED: ${{ inputs.emergency_acknowledge }}
         run: |
           set -Eeuo pipefail
 
@@ -81,21 +116,27 @@ jobs:
             exit 1
           fi
 
-          case "${OPERATION}:${TARGET}" in
-            plan:new-tenant)
+          case "${EXECUTION_MODE}:${OPERATION}:${TARGET}" in
+            standard:plan:new-tenant)
               expected='PLAN NEW TENANT'
               ;;
-            plan:current-production)
+            standard:plan:current-production)
               expected='PLAN CURRENT PRODUCTION'
               ;;
-            reconcile:new-tenant)
+            standard:reconcile:new-tenant)
               expected='RECONCILE NEW TENANT'
               ;;
-            reconcile:current-production)
+            standard:reconcile:current-production)
               expected='RECONCILE CURRENT PRODUCTION'
               ;;
+            emergency:reconcile:new-tenant)
+              expected='BREAK GLASS RECONCILE NEW TENANT'
+              ;;
+            emergency:reconcile:current-production)
+              expected='BREAK GLASS RECONCILE CURRENT PRODUCTION'
+              ;;
             *)
-              echo "::error::Unsupported production operation/target: ${OPERATION}:${TARGET}"
+              echo "::error::Unsupported production execution mode, operation, or target: ${EXECUTION_MODE}:${OPERATION}:${TARGET}"
               exit 1
               ;;
           esac
@@ -103,6 +144,18 @@ jobs:
           if [[ "${CONFIRMATION}" != "${expected}" ]]; then
             echo "::error::Confirmation must be exactly: ${expected}"
             exit 1
+          fi
+
+          if [[ "${EXECUTION_MODE}" == 'emergency' ]]; then
+            if [[ "${EMERGENCY_ACKNOWLEDGED}" != 'true' ]]; then
+              echo '::error::Select the emergency acknowledgement checkbox before waiving the CI gate.'
+              exit 1
+            fi
+            normalized_reason=$(printf '%s' "${EMERGENCY_REASON}" | tr -d '\r\n')
+            if [[ "${normalized_reason}" != "${EMERGENCY_REASON}" || ${#normalized_reason} -lt 20 || ${#normalized_reason} -gt 280 ]]; then
+              echo '::error::Emergency mode requires one 20–280 character reason on a single line; do not include secrets or customer data.'
+              exit 1
+            fi
           fi
 
       - name: Checkout exact selected main revision
@@ -117,10 +170,29 @@ jobs:
           node-version: '24'
 
       - name: Require exact green main CI Gate before Azure credentials
+        if: ${{ inputs.execution_mode == 'standard' }}
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node tools/release/verify-production-eligibility.mjs --sha "${GITHUB_SHA}"
+
+      - name: Record emergency CI waiver
+        if: ${{ inputs.execution_mode == 'emergency' }}
+        shell: bash
+        env:
+          EMERGENCY_REASON: ${{ inputs.emergency_reason }}
+        run: |
+          set -Eeuo pipefail
+          {
+            echo '## Emergency infrastructure reconcile'
+            echo
+            echo '- CI gate: waived for this single run only'
+            echo "- Triggering actor: \`${GITHUB_TRIGGERING_ACTOR}\`"
+            echo "- SHA: \`${GITHUB_SHA}\`"
+            echo "- Target: \`${{ inputs.target }}\`"
+            echo "- Reason: ${EMERGENCY_REASON}"
+            echo '- Retained controls: `main` ref, immutable target mapping, protected GitHub environment approval, Azure OIDC, tenant/subscription check, and production concurrency.'
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Resolve immutable target boundary
         id: target
@@ -405,6 +477,8 @@ jobs:
       - name: Record reconcile evidence
         if: ${{ inputs.operation == 'reconcile' && success() }}
         shell: pwsh
+        env:
+          EMERGENCY_REASON: ${{ inputs.emergency_reason }}
         run: |
           $runtimeState = if ('${{ inputs.target }}' -eq 'current-production') {
             'existing API health passed'
@@ -419,3 +493,14 @@ jobs:
           - Result: infrastructure and migration identity reconciled
           - Runtime: $runtimeState
           "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+          if ('${{ inputs.execution_mode }}' -eq 'emergency') {
+            @"
+
+          ### Emergency run completed
+
+          - CI gate: waived for this run only
+          - Triggering actor: ``${{ github.triggering_actor }}``
+          - Reason: $env:EMERGENCY_REASON
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          }
