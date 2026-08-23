@@ -202,6 +202,6 @@ run_scenario 'duplicate assignment lifecycle evidence' scripts/playwright-duplic
 run_scenario 'global copyability evidence' scripts/playwright-copyability-lifecycle.mjs
 run_scenario 'shared state semantics evidence' scripts/playwright-shared-state-semantics.mjs
 run_scenario 'overview status navigation evidence' scripts/playwright-overview-status-navigation.mjs
-run_scenario 'WOR-542 Admin Overview + Timer isolation evidence' scripts/playwright-power-bi-admin-overview.mjs
+run_scenario 'WOR-542 Admin Overview + Timer Power BI evidence' scripts/playwright-power-bi-admin-overview.mjs
 
 echo "Authenticated ephemeral Playwright suite completed successfully."

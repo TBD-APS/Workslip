@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { apiClient } from '../../../lib/axios';
 import type { MyWorksheetsMonthResponse } from '../worksheetOverviewTypes';
 
 const { getMonthlyHoursPdfPreviewMock, downloadPdfFileMock } = vi.hoisted(() => ({
@@ -14,6 +15,20 @@ vi.mock('../api/monthlyHoursPdfPreview', () => ({
 
 vi.mock('../../../lib/pdfFile', () => ({
   downloadPdfFile: downloadPdfFileMock,
+}));
+
+vi.mock('../../../lib/axios', () => ({
+  apiClient: {
+    get: vi.fn(),
+  },
+}));
+
+vi.mock('../../../providers/useAuth', () => ({
+  useAuth: () => ({
+    user: {
+      organizationId: '33333333-3333-3333-3333-333333333333',
+    },
+  }),
 }));
 
 import { AdminHoursExport } from './AdminHoursExport';
@@ -79,6 +94,7 @@ describe('AdminHoursExport PDF preview', () => {
       contentType: 'image/png',
       pages: ['AQID', 'BAUG'],
     });
+    vi.mocked(apiClient.get).mockResolvedValue({ url: null, embedUrl: null });
   });
 
   it('renders server-generated preview pages inside Workslip without a native PDF iframe', async () => {
@@ -109,11 +125,50 @@ describe('AdminHoursExport PDF preview', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(open).not.toHaveBeenCalled();
   });
+});
 
-  it('does not expose Power BI anywhere on the Timer export surface', () => {
+describe('AdminHoursExport Power BI embed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getMonthlyHoursPdfPreviewMock.mockResolvedValue({
+      contentType: 'image/png',
+      pages: ['AQID'],
+    });
+  });
+
+  it('embeds the configured secure report and keeps the Power BI fallback link', async () => {
+    const reportUrl = 'https://app.powerbi.com/groups/me/reports/11111111-2222-3333-4444-555555555555';
+    const embedUrl = 'https://app.powerbi.com/reportEmbed?reportId=11111111-2222-3333-4444-555555555555&autoAuth=true';
+    vi.mocked(apiClient.get).mockResolvedValue({ url: reportUrl, embedUrl });
+
     renderExport();
 
-    expect(screen.queryByText(/Power BI/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Power BI/i })).not.toBeInTheDocument();
+    const frame = await screen.findByTitle('Power BI timerapport');
+    expect(frame).toHaveAttribute('id', 'timer-power-bi-frame');
+    expect(frame).toHaveAttribute('src', embedUrl);
+    expect(screen.getByRole('link', { name: 'Åbn i Power BI' })).toHaveAttribute('href', reportUrl);
+    expect(screen.getByText('Indlæser Power BI-rapport…')).toBeInTheDocument();
+
+    fireEvent.load(frame);
+    expect(screen.queryByText('Indlæser Power BI-rapport…')).not.toBeInTheDocument();
+  });
+
+  it('shows an explicit no-config state when no report is configured', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ url: null, embedUrl: null });
+
+    renderExport();
+
+    expect(await screen.findByText('Power BI er ikke konfigureret endnu')).toBeInTheDocument();
+    expect(screen.queryByTitle('Power BI timerapport')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Åbn i Power BI' })).not.toBeInTheDocument();
+  });
+
+  it('shows a recoverable error when report configuration cannot be fetched', async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error('network'));
+
+    renderExport();
+
+    expect(await screen.findByText('Power BI kunne ikke indlæses')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Prøv igen' })).toBeInTheDocument();
   });
 });

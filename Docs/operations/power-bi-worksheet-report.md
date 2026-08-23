@@ -148,11 +148,15 @@ Use Import mode and schedule Power BI refresh after the Workslip export cadence,
 
 Share the report only with named people or an approved Entra security group. Do not grant Build or Reshare unless required. A hidden visual or column is not a security boundary; Power BI report access also grants access to the underlying semantic model.
 
-## Workslip report link
+## Workslip report embed
 
-After the report is published, store its normal Power BI Service report URL in the runtime configuration key `PowerBiReport:Url`. The value is not a secret, but it must be the authenticated `https://app.powerbi.com/...` report URL; never use a `Publish to web` URL.
+After the report is published, store its normal Power BI Service report URL in the runtime configuration key `PowerBiReport:Url`. The value is not a secret, but it must be an authenticated `https://app.powerbi.com/...` report URL; never use a `Publish to web` URL.
 
-Workslip exposes the configured value through `GET /api/worksheets/all/report/power-bi`, which requires the Admin policy. The endpoint validates HTTPS and the exact `app.powerbi.com` host and otherwise returns `url: null`. The admin Timer page only renders **Åbn Power BI** when a valid URL is configured. This makes removing the key an immediate application-level rollback for the link without affecting worksheet capture or the export worker.
+Workslip exposes the configured value through `GET /api/worksheets/all/report/power-bi`, which requires the Admin policy. The endpoint validates HTTPS, the exact `app.powerbi.com` host, default port, report/workspace GUID coordinates and supported report page names. Unsupported or public-share URL shapes return `url: null` and `embedUrl: null`.
+
+For a valid report URL, the endpoint returns both the normal Power BI Service URL and a derived `https://app.powerbi.com/reportEmbed?...&autoAuth=true` URL. The Admin Timer page embeds that secure report directly inside Workslip and keeps **Åbn i Power BI** as a fallback. Microsoft still owns authentication, licensing and any RLS rules inside the iframe.
+
+Removing `PowerBiReport:Url` is an immediate application-level rollback for the Timer embed without affecting worksheet capture, PDF/CSV export, the analytics API or the export worker.
 
 Current Microsoft documentation:
 
@@ -170,8 +174,8 @@ Current Microsoft documentation:
 5. Sign in to the Azure Blob connector with the intended organizational account and run **Refresh now**.
 6. Confirm KPI totals against Workslip for one synthetic or approved test month.
 7. Confirm an unauthorized Entra user cannot open the blob, report, or `/api/worksheets/all/report/power-bi` endpoint.
-8. Set `PowerBiReport:Url` to the published authenticated report URL and confirm **Åbn Power BI** appears for an Admin on `/app/timer`.
-9. Confirm the copied report link works in a private browser window for an explicitly authorized viewer.
-10. Remove `PowerBiReport:Url` and confirm the Workslip button disappears without affecting worksheet operations.
+8. Set `PowerBiReport:Url` to the published authenticated report URL and confirm the Admin `/app/timer` page renders **Power BI-overblik**, derives a `reportEmbed` iframe URL and exposes **Åbn i Power BI**.
+9. Confirm the embedded report and fallback link work for an explicitly authorized viewer and that Power BI prompts for Microsoft authentication when required.
+10. Remove `PowerBiReport:Url` and confirm Timer shows the explicit unconfigured state without affecting worksheet operations.
 
 The previously shared Workslip bearer token must never be used in this setup. Log out of old Workslip sessions and sign in again to invalidate/replace that session material.
