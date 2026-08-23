@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 export const XAI_ENDPOINT = 'https://api.x.ai/v1/chat/completions';
-const UNTRUSTED_MARKER = '# Untrusted pull-request data';
 
 function readRequired(path) {
   try {
@@ -10,18 +9,6 @@ function readRequired(path) {
   } catch (error) {
     throw new Error(`Unable to read ${path}: ${error.message}`);
   }
-}
-
-export function splitReviewContext(context) {
-  const markerIndex = context.indexOf(UNTRUSTED_MARKER);
-  if (markerIndex < 0) {
-    throw new Error('Review context is missing the trusted/untrusted boundary marker.');
-  }
-
-  return {
-    trustedContext: context.slice(0, markerIndex).trim(),
-    untrustedContext: context.slice(markerIndex + UNTRUSTED_MARKER.length).trim(),
-  };
 }
 
 export function buildRequest({ model, prompt, trustedContext, untrustedContext, schema }) {
@@ -34,7 +21,7 @@ export function buildRequest({ model, prompt, trustedContext, untrustedContext, 
         content: [
           prompt,
           '',
-          'The following repository instructions and surrounding source were collected from the checked-out trusted default branch. Apply them as trusted policy/source context:',
+          'The following repository instructions and base-source snapshots were collected independently from trusted repository revisions. Apply them as trusted policy/source context:',
           '',
           '--- BEGIN TRUSTED_REPOSITORY_CONTEXT ---',
           trustedContext,
@@ -86,8 +73,8 @@ async function main() {
   const model = process.env.XAI_REVIEW_MODEL || 'grok-4.6';
   const timeoutMs = Math.max(1_000, Number(process.env.XAI_TIMEOUT_MS) || 12 * 60 * 1000);
   const prompt = readRequired('.github/ai-review/review-prompt.md');
-  const context = readRequired('.ai-review/review-context.md');
-  const { trustedContext, untrustedContext } = splitReviewContext(context);
+  const trustedContext = readRequired('.ai-review/trusted-context.md');
+  const untrustedContext = readRequired('.ai-review/untrusted-context.md');
   const schema = JSON.parse(readRequired('.github/ai-review/schema.json'));
 
   const controller = new AbortController();
