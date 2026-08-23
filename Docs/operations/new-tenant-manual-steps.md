@@ -54,6 +54,13 @@ foreach ($type in @('Domain','SPF','DKIM','DKIM2')) {
 }
 ```
 
+The foundation deployment deliberately creates the customer-managed domain but
+keeps the Azure-managed sender linked. After Azure reports `Verified` for
+Domain, SPF, DKIM and DKIM2, set the protected GitHub `live` environment
+variable `ACS_CUSTOM_DOMAIN_ENABLED` to exactly `true` and run the reviewed
+infrastructure reconcile again. Until then, leave the variable absent or
+`false`; attempting to link an unverified domain makes the ARM deployment fail.
+
 Do not add MX records — this is a sender-only setup. If the DNS provider appends the zone automatically, enter only the host portion.
 
 **Cutover consequence:** invitations and one-time login codes stop working between the moment traffic moves and the moment verification passes. DNS propagation is not instant. Decide deliberately whether to publish the new records ahead of cutover so both sets coexist, or accept an email outage window and tell people.

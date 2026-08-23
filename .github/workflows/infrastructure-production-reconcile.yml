@@ -189,6 +189,7 @@ jobs:
       API_IDENTITY_NAME: ${{ needs.select-target.outputs.api_identity_name }}
       LOG_ANALYTICS_WORKSPACE_NAME: ${{ needs.select-target.outputs.log_analytics_workspace_name }}
       INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID }}
+      CUSTOM_EMAIL_DOMAIN_ENABLED: ${{ vars.ACS_CUSTOM_DOMAIN_ENABLED || 'false' }}
     steps:
       - name: Checkout exact validated main revision
         uses: actions/checkout@v7
@@ -289,7 +290,8 @@ jobs:
           & .\src\BE\infrastructure\deploy-infrastructure.ps1 `
             -Environment $env:TARGET_ENVIRONMENT `
             -Location $env:TARGET_LOCATION `
-            -COMPANY_NAME $env:TARGET_COMPANY_NAME
+            -COMPANY_NAME $env:TARGET_COMPANY_NAME `
+            -EnableCustomEmailDomain:($env:CUSTOM_EMAIL_DOMAIN_ENABLED -eq 'true')
 
       - name: Reconcile approved database migration identity
         if: ${{ inputs.operation == 'reconcile' }}

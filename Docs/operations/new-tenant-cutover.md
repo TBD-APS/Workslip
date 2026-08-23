@@ -44,10 +44,11 @@ Merging a PR to `main` is itself a production action: current production backend
 and frontend automation run for the merged exact SHA. Do not merge a cutover PR
 until that consequence is explicitly approved.
 
-## Current verified blocker
+## Current verified boundary
 
-Read-only GitHub API inspection on 2026-08-22 returned 404 for the `live`
-environment. It is therefore not configured yet. The workflows call
+GitHub inspection on 2026-08-23 confirmed that the `live` environment exists
+with the required reviewer, administrator bypass disabled, and exactly the
+`main` deployment branch. The workflows still call
 `verify-deployment-environment.mjs` before any job can reference that
 environment; the check requires:
 
@@ -57,9 +58,11 @@ environment; the check requires:
   environment reviewer; and
 - administrator bypass disabled.
 
-This prevents GitHub Actions from silently creating an unprotected `live`
-environment. Creating and configuring it is a privileged repository action and
-is not performed by this preparation change.
+This prevents GitHub Actions from silently weakening or recreating the `live`
+boundary. The environment currently has the tenant/subscription secrets and
+the infrastructure client variable required for foundation reconcile. The
+application deployment secret `AZURE_CLIENT_ID` and reviewed SQL/blob manifest
+remain separate hard gates before the API package can be dispatched.
 
 ## First run after repository approval
 
