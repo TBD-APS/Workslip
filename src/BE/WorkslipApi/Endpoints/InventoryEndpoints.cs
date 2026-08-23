@@ -1,7 +1,13 @@
+using Microsoft.AspNetCore.Mvc;
 using QRCoder;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using Workslip.Api.Configuration;
 using Workslip.Api.Helpers;
 using Workslip.Application.Inventory;
+using ZXing;
+using ZXing.Common;
+using ZXing.ImageSharp;
 
 namespace Workslip.Api.Endpoints;
 
@@ -14,6 +20,9 @@ public sealed record InventoryQrLabelDocumentResponse(
 
 public static class InventoryEndpoints
 {
+    private const long MaxScannerFrameBytes = 1_500_000;
+    private const int MaxScannerFrameDimension = 2_048;
+
     public static IEndpointRouteBuilder MapInventoryEndpoints(this IEndpointRouteBuilder app)
     {
         var user = app.MapUserGroup("/api/inventory", "inventory");
@@ -39,6 +48,79 @@ public static class InventoryEndpoints
             var result = await service.ScanAsync(request, cancellationToken);
             return ResultExtensions.ToHttpResult(result);
         }).Produces<InventoryScanResponse>();
+
+        user.MapPost("/scan-image", async (
+            [FromForm] IFormFile file,
+            IInventoryService service,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+
+            if (file is null || file.Length <= 0 || file.Length > MaxScannerFrameBytes)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["file"] = ["Kamerabilledet mangler eller er for stort."]
+                });
+            }
+
+            if (!string.Equals(file.ContentType, "image/jpeg", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(file.ContentType, "image/png", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["file"] = ["Kamerabilledet skal være JPEG eller PNG."]
+                });
+            }
+
+            try
+            {
+                await using var stream = file.OpenReadStream();
+                using var image = await Image.LoadAsync<Rgba32>(stream, cancellationToken);
+                if (image.Width <= 0 || image.Height <= 0 ||
+                    image.Width > MaxScannerFrameDimension || image.Height > MaxScannerFrameDimension)
+                {
+                    return Results.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        ["file"] = ["Kamerabilledets dimensioner er ikke tilladt."]
+                    });
+                }
+
+                var reader = new BarcodeReader<Rgba32>
+                {
+                    AutoRotate = true,
+                    Options = new DecodingOptions
+                    {
+                        TryHarder = true,
+                        PossibleFormats = [BarcodeFormat.QR_CODE]
+                    }
+                };
+
+                var decoded = reader.Decode(image);
+                if (string.IsNullOrWhiteSpace(decoded?.Text))
+                {
+                    return Results.NotFound(new
+                    {
+                        error = "qr_not_detected",
+                        message = "Ingen Workslip QR-kode blev fundet i billedet."
+                    });
+                }
+
+                var result = await service.ScanAsync(new ScanInventoryRequest(decoded.Text), cancellationToken);
+                return ResultExtensions.ToHttpResult(result);
+            }
+            catch (UnknownImageFormatException)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["file"] = ["Kamerabilledet kunne ikke læses."]
+                });
+            }
+        })
+        .DisableAntiforgery()
+        .WithMetadata(new RequestSizeLimitAttribute(MaxScannerFrameBytes + 128_000))
+        .Produces<InventoryScanResponse>();
 
         user.MapPost("/movements", async (
             ApplyInventoryMovementRequest request,
