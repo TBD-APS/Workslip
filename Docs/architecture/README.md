@@ -17,6 +17,10 @@ Current implementation is the technical source of truth. This area records durab
 - [`job-repository-composition.md`](job-repository-composition.md) — ownership boundary between Jobs application assignment policy and infrastructure repository decorators.
 - [`workslip-docs.md`](workslip-docs.md) — product Docs trust boundary, persistence and repository-documentation separation.
 
+## Draft architecture proposals
+
+- [workslip-modular-product-blueprint.md](workslip-modular-product-blueprint.md) — proposed customer-selectable Workslip module model, live-only pricing/Shopify commerce plan, entitlement controls, onboarding and boundary prerequisite order.
+
 Business-domain split priorities and delivery sequencing are tracked in Linear under WOR-443 and its child issues. Use the generated dependency map plus current code as technical evidence; do not maintain a second issue plan here.
 
 Useful future views, when they can be kept concise and stable:
