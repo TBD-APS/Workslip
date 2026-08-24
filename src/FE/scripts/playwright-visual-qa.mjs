@@ -54,6 +54,12 @@ async function verifyVisualPresence({ name, viewport }) {
     await toggle.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     assert.equal(await toggle.getAttribute('aria-expanded'), 'false', `${name}: launcher must start closed.`);
 
+    // The mascot is rendered by a CSS background image. A DOM-visible SVG can have
+    // valid bounds before that image has decoded/painted, which would make the two
+    // screenshots identical and create a false "visually absent" result. Prove the
+    // actual asset is loaded and give Chromium two paint frames before evidence capture.
+    await waitForMascotPaint(page);
+
     const bounds = await wizard.boundingBox();
     assert.ok(bounds, `${name}: HelpWizard must expose DOM bounds.`);
 
@@ -67,12 +73,14 @@ async function verifyVisualPresence({ name, viewport }) {
       element.dataset.visualQaOriginalOpacity = element.style.opacity;
       element.style.setProperty('opacity', '0', 'important');
     });
+    await waitForPaintFrames(page);
     await page.screenshot({ path: hiddenPath });
     await wizard.evaluate((element) => {
       const previous = element.dataset.visualQaOriginalOpacity || '';
       element.style.opacity = previous;
       delete element.dataset.visualQaOriginalOpacity;
     });
+    await waitForPaintFrames(page);
 
     await writeFile(metadataPath, JSON.stringify({
       name: `help-wizard:${name}`,
@@ -96,6 +104,34 @@ async function verifyVisualPresence({ name, viewport }) {
   } finally {
     await context.close();
   }
+}
+
+async function waitForMascotPaint(page) {
+  await page.waitForFunction(async () => {
+    const mascot = document.getElementById('help-wizard-character');
+    if (!mascot) return false;
+
+    const backgroundImage = getComputedStyle(mascot).backgroundImage;
+    const match = backgroundImage.match(/^url\(["']?(.*?)["']?\)$/);
+    if (!match?.[1]) return false;
+
+    const image = new Image();
+    image.src = new URL(match[1], document.baseURI).href;
+    try {
+      await image.decode();
+    } catch {
+      return false;
+    }
+    return image.naturalWidth > 0 && image.naturalHeight > 0;
+  }, null, { timeout: UI_TIMEOUT });
+
+  await waitForPaintFrames(page);
+}
+
+async function waitForPaintFrames(page) {
+  await page.evaluate(() => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
 }
 
 function runAnalyzer(visiblePath, hiddenPath, metadataPath, resultPath) {
