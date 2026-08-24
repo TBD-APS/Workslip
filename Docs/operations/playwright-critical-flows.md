@@ -101,6 +101,30 @@ The critical/release harness still models deployed authentication through the no
 
 The ephemeral lane does not weaken that rule. It removes mailbox delivery as a prerequisite for generic frontend → API → database regression by using the already-existing Development-only synthetic token boundary on localhost.
 
+## Worksheet admin overview (`worksheet`)
+
+`playwright-power-bi-admin-overview.mjs` validates the Timer admin view for an authenticated Admin user.
+
+The scenario exercises:
+
+- navigation to `/app/timer`;
+- the Power BI report config endpoint `/api/worksheets/all/report/power-bi` returning HTTP 200;
+- conditional visibility of the Power BI section based on the config response.
+
+When the config response contains a `url`, the scenario asserts:
+
+- `#timer-power-bi-report` is visible;
+- `#power-bi-report-title` is visible;
+- if `embedUrl` is present, `#timer-power-bi-frame` is visible and its `src` begins with `https://app.powerbi.com/reportEmbed?`;
+- if `embedUrl` is absent, no iframe is rendered and the UI explains that the configured report cannot be embedded securely.
+
+When the config response contains no `url`, the scenario asserts:
+
+- `#timer-power-bi-report` is absent from the product UI;
+- `#timer-power-bi-frame` is not rendered.
+
+The scenario also asserts no horizontal page overflow.
+
 ## Assignment duplication coverage
 
 `assignment-lifecycle` models the WOR-424 requirement rather than fabricating random users:

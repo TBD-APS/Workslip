@@ -59,6 +59,7 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
   const isPowerBiFrameLoaded = Boolean(
     powerBiReport?.embedUrl && loadedPowerBiUrl === powerBiReport.embedUrl,
   );
+  const showPowerBiReport = powerBiReportQuery.isError || Boolean(powerBiReport?.url);
 
   const closePdfPreview = useCallback(() => {
     setPdfPreview(null);
@@ -120,138 +121,126 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
 
   return (
     <>
-      <section className="hours-export-toolbar" aria-label="Eksportér timer">
-        <div className="hours-export-toolbar-copy">
-          <strong>Eksportér {monthLabel}</strong>
-          <span>{hasRows ? `${rows.length} registreringer klar` : 'Ingen registreringer at eksportere'}</span>
-        </div>
-        <div className="hours-export-actions">
-          <button
-            id="hours-export-csv-button"
-            type="button"
-            className="btn btn-secondary hours-export-button hours-export-csv-button"
-            onClick={downloadCsv}
-            disabled={!hasRows || pdfAction !== null}
-          >
-            <Download size={17} aria-hidden="true" />
-            CSV til Excel
-          </button>
-          <button
-            id="hours-export-preview-button"
-            type="button"
-            className="btn btn-secondary hours-export-button"
-            onClick={() => { void previewPdf(); }}
-            disabled={!hasRows || pdfAction !== null}
-          >
-            {pdfAction === 'preview'
-              ? <Loader2 className="hours-export-spinner" size={17} aria-hidden="true" />
-              : <Eye size={17} aria-hidden="true" />}
-            Vis PDF
-          </button>
-          <button
-            id="hours-export-download-button"
-            type="button"
-            className="btn btn-primary hours-export-button"
-            onClick={() => { void downloadPdf(); }}
-            disabled={!hasRows || pdfAction !== null}
-          >
-            {pdfAction === 'download'
-              ? <Loader2 className="hours-export-spinner" size={17} aria-hidden="true" />
-              : <Download size={17} aria-hidden="true" />}
-            Download PDF
-          </button>
-        </div>
-      </section>
-
-      <section id="timer-power-bi-report" className="power-bi-report" aria-labelledby="power-bi-report-title">
-        <header className="power-bi-report-header">
-          <div className="power-bi-report-copy">
-            <strong id="power-bi-report-title">Power BI-overblik</strong>
-            <span>Interaktiv timerapport direkte i Workslip</span>
+      {hasRows && (
+        <section className="hours-export-toolbar" aria-label="Eksportér timer">
+          <div className="hours-export-toolbar-copy">
+            <strong>Eksportér {monthLabel}</strong>
+            <span>{rows.length} registreringer klar</span>
           </div>
-          {powerBiReport?.url && (
-            <a
-              id="timer-power-bi-open"
-              className="btn btn-secondary power-bi-report-open"
-              href={powerBiReport.url}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <ExternalLink size={17} aria-hidden="true" />
-              Åbn i Power BI
-            </a>
-          )}
-        </header>
-
-        {powerBiReportQuery.isLoading && (
-          <div className="power-bi-report-state" role="status">
-            <Loader2 className="hours-export-spinner" size={20} aria-hidden="true" />
-            <span>Henter Power BI-konfiguration…</span>
-          </div>
-        )}
-
-        {powerBiReportQuery.isError && (
-          <div className="power-bi-report-state power-bi-report-state--error" role="alert">
-            <div>
-              <strong>Power BI kunne ikke indlæses</strong>
-              <span>Workslip kunne ikke hente rapportkonfigurationen.</span>
-            </div>
+          <div className="hours-export-actions">
             <button
+              id="hours-export-csv-button"
               type="button"
-              className="btn btn-secondary"
-              onClick={() => { void powerBiReportQuery.refetch(); }}
+              className="btn btn-secondary hours-export-button hours-export-csv-button"
+              onClick={downloadCsv}
+              disabled={pdfAction !== null}
             >
-              Prøv igen
+              <Download size={17} aria-hidden="true" />
+              CSV til Excel
+            </button>
+            <button
+              id="hours-export-preview-button"
+              type="button"
+              className="btn btn-secondary hours-export-button"
+              onClick={() => { void previewPdf(); }}
+              disabled={pdfAction !== null}
+            >
+              {pdfAction === 'preview'
+                ? <Loader2 className="hours-export-spinner" size={17} aria-hidden="true" />
+                : <Eye size={17} aria-hidden="true" />}
+              Vis PDF
+            </button>
+            <button
+              id="hours-export-download-button"
+              type="button"
+              className="btn btn-primary hours-export-button"
+              onClick={() => { void downloadPdf(); }}
+              disabled={pdfAction !== null}
+            >
+              {pdfAction === 'download'
+                ? <Loader2 className="hours-export-spinner" size={17} aria-hidden="true" />
+                : <Download size={17} aria-hidden="true" />}
+              Download PDF
             </button>
           </div>
-        )}
+        </section>
+      )}
 
-        {!powerBiReportQuery.isLoading && !powerBiReportQuery.isError && !powerBiReport?.url && (
-          <div className="power-bi-report-state">
-            <div>
-              <strong>Power BI er ikke konfigureret endnu</strong>
-              <span>Tilføj en godkendt Power BI-rapport-URL for at vise rapporten her.</span>
+      {showPowerBiReport && (
+        <section id="timer-power-bi-report" className="power-bi-report" aria-labelledby="power-bi-report-title">
+          <header className="power-bi-report-header">
+            <div className="power-bi-report-copy">
+              <strong id="power-bi-report-title">Power BI-overblik</strong>
+              <span>Interaktiv timerapport direkte i Workslip</span>
             </div>
-          </div>
-        )}
-
-        {powerBiReport?.url && !powerBiReport.embedUrl && (
-          <div className="power-bi-report-state power-bi-report-state--error" role="alert">
-            <div>
-              <strong>Rapporten kan ikke indlejres sikkert</strong>
-              <span>Åbn rapporten i Power BI, og kontrollér rapportlinkets konfiguration.</span>
-            </div>
-          </div>
-        )}
-
-        {powerBiReport?.embedUrl && (
-          <div className={`power-bi-report-frame-shell ${isPowerBiFrameLoaded ? 'is-loaded' : ''}`}>
-            {!isPowerBiFrameLoaded && (
-              <div className="power-bi-report-frame-loading" role="status">
-                <Loader2 className="hours-export-spinner" size={22} aria-hidden="true" />
-                <span>Indlæser Power BI-rapport…</span>
-              </div>
+            {powerBiReport?.url && (
+              <a
+                id="timer-power-bi-open"
+                className="btn btn-secondary power-bi-report-open"
+                href={powerBiReport.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink size={17} aria-hidden="true" />
+                Åbn i Power BI
+              </a>
             )}
-            <iframe
-              id="timer-power-bi-frame"
-              key={powerBiReport.embedUrl}
-              className="power-bi-report-frame"
-              src={powerBiReport.embedUrl}
-              title="Power BI timerapport"
-              loading="lazy"
-              referrerPolicy="strict-origin-when-cross-origin"
-              allowFullScreen
-              onLoad={() => setLoadedPowerBiUrl(powerBiReport.embedUrl)}
-            />
-          </div>
-        )}
+          </header>
 
-        {powerBiReport?.embedUrl && (
-          <p className="power-bi-report-note">
-            Rapporten vises fra Microsoft Power BI og følger Power BI-adgang, licens og eventuelle RLS-regler.
-          </p>
-        )}
-      </section>
+          {powerBiReportQuery.isError && (
+            <div className="power-bi-report-state power-bi-report-state--error" role="alert">
+              <div>
+                <strong>Power BI kunne ikke indlæses</strong>
+                <span>Workslip kunne ikke hente rapportkonfigurationen.</span>
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => { void powerBiReportQuery.refetch(); }}
+              >
+                Prøv igen
+              </button>
+            </div>
+          )}
+
+          {powerBiReport?.url && !powerBiReport.embedUrl && (
+            <div className="power-bi-report-state power-bi-report-state--error" role="alert">
+              <div>
+                <strong>Rapporten kan ikke indlejres sikkert</strong>
+                <span>Åbn rapporten i Power BI, og kontrollér rapportlinkets konfiguration.</span>
+              </div>
+            </div>
+          )}
+
+          {powerBiReport?.embedUrl && (
+            <div className={`power-bi-report-frame-shell ${isPowerBiFrameLoaded ? 'is-loaded' : ''}`}>
+              {!isPowerBiFrameLoaded && (
+                <div className="power-bi-report-frame-loading" role="status">
+                  <Loader2 className="hours-export-spinner" size={22} aria-hidden="true" />
+                  <span>Indlæser Power BI-rapport…</span>
+                </div>
+              )}
+              <iframe
+                id="timer-power-bi-frame"
+                key={powerBiReport.embedUrl}
+                className="power-bi-report-frame"
+                src={powerBiReport.embedUrl}
+                title="Power BI timerapport"
+                loading="lazy"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+                onLoad={() => setLoadedPowerBiUrl(powerBiReport.embedUrl)}
+              />
+            </div>
+          )}
+
+          {powerBiReport?.embedUrl && (
+            <p className="power-bi-report-note">
+              Rapporten vises fra Microsoft Power BI og følger Power BI-adgang, licens og eventuelle RLS-regler.
+            </p>
+          )}
+        </section>
+      )}
 
       {pdfPreview && (
         <div

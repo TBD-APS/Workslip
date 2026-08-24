@@ -79,7 +79,7 @@ async function exerciseAdmin(contextOptions, label) {
     assert.ok(bodyWidth <= viewport.width + 2, `${label} must not introduce horizontal page overflow.`);
   }
 
-  const reportConfigResponse = page.waitForResponse((response) => {
+  const reportConfigResponsePromise = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return response.request().method() === 'GET'
       && url.pathname === '/api/worksheets/all/report/power-bi';
@@ -90,20 +90,32 @@ async function exerciseAdmin(contextOptions, label) {
     timeout: UI_TIMEOUT,
   });
   assert.ok(timerNavigation?.ok(), `${label} Timer returned HTTP ${timerNavigation?.status() ?? 'unknown'}.`);
-  assert.equal((await reportConfigResponse).status(), 200, `${label} Power BI report config must return 200 for Admin.`);
-  await page.locator('#timer-power-bi-report').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await page.locator('#power-bi-report-title').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
-  const embeddedFrame = page.locator('#timer-power-bi-frame');
-  if (await embeddedFrame.count()) {
-    const src = await embeddedFrame.getAttribute('src');
-    assert.match(src ?? '', /^https:\/\/app\.powerbi\.com\/reportEmbed\?/i, `${label} Timer must use the secure Power BI embed endpoint.`);
+  const reportConfigResponse = await reportConfigResponsePromise;
+  assert.equal(reportConfigResponse.status(), 200, `${label} Power BI report config must return 200 for Admin.`);
+  const reportConfig = await reportConfigResponse.json();
+
+  if (reportConfig?.url) {
+    await page.locator('#timer-power-bi-report').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await page.locator('#power-bi-report-title').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
+    const embeddedFrame = page.locator('#timer-power-bi-frame');
+    if (reportConfig.embedUrl) {
+      await embeddedFrame.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+      const src = await embeddedFrame.getAttribute('src');
+      assert.match(src ?? '', /^https:\/\/app\.powerbi\.com\/reportEmbed\?/i, `${label} Timer must use the secure Power BI embed endpoint.`);
+    } else {
+      assert.equal(await embeddedFrame.count(), 0, `${label} Timer must not render an iframe without a secure embed URL.`);
+      assert.match(
+        await page.locator('#timer-power-bi-report').textContent() ?? '',
+        /Rapporten kan ikke indlejres sikkert/i,
+        `${label} Timer must explain why a configured report cannot be embedded.`,
+      );
+    }
   } else {
-    assert.match(
-      await page.locator('#timer-power-bi-report').textContent() ?? '',
-      /Power BI er ikke konfigureret endnu|Rapporten kan ikke indlejres sikkert/i,
-      `${label} Timer must explain why an embed is unavailable.`,
-    );
+    await page.waitForLoadState('networkidle', { timeout: UI_TIMEOUT });
+    assert.equal(await page.locator('#timer-power-bi-report').count(), 0, `${label} must hide unconfigured Power BI from the product UI.`);
+    assert.equal(await page.locator('#timer-power-bi-frame').count(), 0, `${label} must not render an unconfigured Power BI iframe.`);
   }
 
   if (label === 'admin-mobile') {

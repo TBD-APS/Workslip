@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from '../../../lib/axios';
 import type { MyWorksheetsMonthResponse } from '../worksheetOverviewTypes';
@@ -70,7 +70,24 @@ const data: MyWorksheetsMonthResponse = {
   ],
 };
 
-function renderExport() {
+const emptyData: MyWorksheetsMonthResponse = {
+  ...data,
+  totalHours: 0,
+  outlayCount: 0,
+  weeks: data.weeks.map((week) => ({
+    ...week,
+    totalHours: 0,
+    outlayCount: 0,
+    days: week.days.map((day) => ({
+      ...day,
+      totalHours: 0,
+      outlayCount: 0,
+      entries: [],
+    })),
+  })),
+};
+
+function renderExport(exportData: MyWorksheetsMonthResponse = data) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -82,7 +99,7 @@ function renderExport() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <AdminHoursExport data={data} monthLabel="august 2026" />
+      <AdminHoursExport data={exportData} monthLabel="august 2026" />
     </QueryClientProvider>,
   );
 }
@@ -125,6 +142,14 @@ describe('AdminHoursExport PDF preview', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(open).not.toHaveBeenCalled();
   });
+
+  it('does not render dead export actions for a month without registrations', () => {
+    renderExport(emptyData);
+
+    expect(screen.queryByLabelText('Eksportér timer')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Vis PDF' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Download PDF' })).not.toBeInTheDocument();
+  });
 });
 
 describe('AdminHoursExport Power BI embed', () => {
@@ -153,12 +178,20 @@ describe('AdminHoursExport Power BI embed', () => {
     expect(screen.queryByText('Indlæser Power BI-rapport…')).not.toBeInTheDocument();
   });
 
-  it('shows an explicit no-config state when no report is configured', async () => {
+  it('keeps unconfigured Power BI out of the product UI', async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ url: null, embedUrl: null });
 
     renderExport();
 
-    expect(await screen.findByText('Power BI er ikke konfigureret endnu')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(apiClient.get).toHaveBeenCalledWith(
+        '/api/worksheets/all/report/power-bi',
+        { skipGlobalErrorToast: true },
+      );
+    });
+
+    expect(screen.queryByText('Power BI-overblik')).not.toBeInTheDocument();
+    expect(screen.queryByText('Power BI er ikke konfigureret endnu')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Power BI timerapport')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Åbn i Power BI' })).not.toBeInTheDocument();
   });
