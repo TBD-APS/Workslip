@@ -19,7 +19,7 @@
 
 .help-wizard-toggle {
   width: 78px;
-  height: 82px;
+  height: 106px;
   display: grid;
   place-items: end start;
   padding: 0;
@@ -43,9 +43,18 @@
 
 .clippy-wizard {
   display: block;
+  width: 68px;
+  height: 101px;
   overflow: visible;
   transform-origin: 50% 100%;
+  background: url('/clippy-wizard.png') center bottom / contain no-repeat;
   filter: drop-shadow(0 5px 7px var(--overlay-subtle));
+}
+
+/* The SVG keeps the existing stable browser/controller contract while the approved
+   source-of-truth mascot image provides the rendered character. */
+.clippy-wizard > * {
+  opacity: 0;
 }
 
 .clippy-wizard-shadow {
