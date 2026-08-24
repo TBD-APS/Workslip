@@ -153,7 +153,7 @@ async function verifyHelpWizard({ name, context: contextOptions }) {
 
     await page.evaluate(() => localStorage.removeItem('workslip.flag.help-wizard'));
     await page.reload({ waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
-    await page.locator('#help-wizard-toggle').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal(await page.locator('#help-wizard').count(), 0, `${name}: removing the identity assignment must restore the fail-closed default.`);
 
     assert.deepEqual(pageErrors, [], `${name}: browser page errors: ${pageErrors.join(' | ')}`);
     assert.deepEqual(consoleErrors, [], `${name}: browser console errors: ${consoleErrors.join(' | ')}`);
