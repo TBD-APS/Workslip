@@ -3,6 +3,8 @@ name: pr-title
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened]
+  merge_group:
+    types: [checks_requested]
 
 permissions:
   contents: read
@@ -12,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Validate pull request title
+        if: github.event_name == 'pull_request'
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
@@ -22,3 +25,7 @@ jobs:
             echo "Allowed types: Bug, Feature, Improvement, Docs, Refactor, Infra, Security, Release, Hotfix, Chore, Test"
             exit 1
           fi
+
+      - name: Preserve validated title gate in merge queue
+        if: github.event_name == 'merge_group'
+        run: echo 'PR title was validated before entering the merge queue; merge_group has no pull_request title payload.'
