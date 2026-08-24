@@ -51,6 +51,8 @@ No Deptrac baseline or skip list is accepted as part of Gate 0.
 
 `/agent-graph` exposes the first control-room read model for orchestration observability. It projects provider-neutral events into agents, systems, gates, tasks, typed relationships and an activity feed. Tasks can be dragged onto agent-capable nodes to preview the resulting `TaskDelegated` event and graph state.
 
+The graph canvas is rendered with pinned `@xyflow/react` 12.11.3. The current Gate 0 service has no Node/Vite build pipeline, so the wiring prototype loads the pinned React/xyflow browser modules directly. Before the control-room becomes a production execution surface, those dependencies must move into a locked, bundled frontend build with normal dependency scanning and CSP controls.
+
 The current graph is deliberately a **wiring prototype**, not live telemetry. Seed events come from `config/agent-graph.php`; no event is persisted and no delegation command is executed. `executionEnabled` remains `false` until an authenticated command gateway, policy checks and event-store integration exist. Unknown targets and system/gate nodes fail closed.
 
 The intended progression is:
