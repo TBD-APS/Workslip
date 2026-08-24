@@ -1,4 +1,5 @@
 type CheckboxProps = {
+  id?: string;
   checked: boolean;
   disabled?: boolean;
   onChange: () => void;
@@ -7,9 +8,10 @@ type CheckboxProps = {
   alignRight?: boolean;
 };
 
-export function Checkbox({ checked, disabled, onChange, label, description, alignRight }: CheckboxProps) {
+export function Checkbox({ id, checked, disabled, onChange, label, description, alignRight }: CheckboxProps) {
   return (
     <button
+      id={id}
       className={`multi-select-option selection-row ${checked ? 'selected' : ''}${alignRight ? ' selection-align-right' : ''}`}
       type="button"
       disabled={disabled}
