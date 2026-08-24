@@ -1,0 +1,251 @@
+name: Infrastructure · App Service slot upgrade
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Azure production boundary to upgrade
+        required: true
+        type: choice
+        options:
+          - current-production
+          - new-tenant
+      confirmation:
+        description: Type ENABLE S1 DEPLOYMENT SLOTS
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: workslip-production
+  cancel-in-progress: false
+
+jobs:
+  select-target:
+    name: Infrastructure · Select App Service target
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      github_environment: ${{ steps.target.outputs.github_environment }}
+      resource_group: ${{ steps.target.outputs.resource_group }}
+      webapp_name: ${{ steps.target.outputs.webapp_name }}
+      plan_name: ${{ steps.target.outputs.plan_name }}
+      runtime_identity_name: ${{ steps.target.outputs.runtime_identity_name }}
+    steps:
+      - name: Require main and explicit cost acknowledgement
+        shell: bash
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "${GITHUB_REF}" != 'refs/heads/main' ]]; then
+            echo "::error::App Service production tier changes may only run from main. Selected ref: ${GITHUB_REF}"
+            exit 1
+          fi
+          if [[ "${CONFIRMATION}" != 'ENABLE S1 DEPLOYMENT SLOTS' ]]; then
+            echo '::error::Confirmation must be exactly: ENABLE S1 DEPLOYMENT SLOTS'
+            exit 1
+          fi
+
+      - name: Resolve allowlisted target
+        id: target
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -Eeuo pipefail
+          case "${TARGET}" in
+            current-production)
+              echo 'github_environment=prod' >> "${GITHUB_OUTPUT}"
+              echo 'resource_group=rg-mrsoftware-prod' >> "${GITHUB_OUTPUT}"
+              echo 'webapp_name=api-mrsoftware-prod' >> "${GITHUB_OUTPUT}"
+              echo 'plan_name=plan-mrsoftware-prod' >> "${GITHUB_OUTPUT}"
+              echo 'runtime_identity_name=id-mrsoftware-prod' >> "${GITHUB_OUTPUT}"
+              ;;
+            new-tenant)
+              echo 'github_environment=live' >> "${GITHUB_OUTPUT}"
+              echo 'resource_group=rg-mrsoftwarev2-live' >> "${GITHUB_OUTPUT}"
+              echo 'webapp_name=api-mrsoftwarev2-live' >> "${GITHUB_OUTPUT}"
+              echo 'plan_name=plan-mrsoftwarev2-live' >> "${GITHUB_OUTPUT}"
+              echo 'runtime_identity_name=id-mrsoftwarev2-live' >> "${GITHUB_OUTPUT}"
+              ;;
+            *)
+              echo "::error::Unsupported target ${TARGET}."
+              exit 1
+              ;;
+          esac
+
+  upgrade:
+    name: Infrastructure · Enable S1 deployment slots
+    needs: select-target
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: ${{ needs.select-target.outputs.github_environment }}
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      AZURE_RESOURCE_GROUP: ${{ needs.select-target.outputs.resource_group }}
+      AZURE_WEBAPP_NAME: ${{ needs.select-target.outputs.webapp_name }}
+      AZURE_PLAN_NAME: ${{ needs.select-target.outputs.plan_name }}
+      AZURE_RUNTIME_IDENTITY_NAME: ${{ needs.select-target.outputs.runtime_identity_name }}
+      SLOT_NAME: staging
+    steps:
+      - name: Checkout exact selected main revision
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Setup Node.js for exact-SHA production gate
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Require exact green current main CI Gate before Azure mutation
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node tools/release/verify-production-eligibility.mjs --sha "${GITHUB_SHA}"
+
+      - name: Require protected infrastructure identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "${{ vars.AZURE_INFRA_CLIENT_ID }}" ]]; then
+            echo "::error::Protected environment is missing AZURE_INFRA_CLIENT_ID."
+            exit 1
+          fi
+
+      - name: Azure login as infrastructure identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_INFRA_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify target resources before mutation
+        id: before
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          app_plan_id="$(az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query serverFarmId --output tsv)"
+          expected_plan_id="$(az appservice plan show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_PLAN_NAME}" \
+            --query id --output tsv)"
+          if [[ "${app_plan_id,,}" != "${expected_plan_id,,}" ]]; then
+            echo "::error::${AZURE_WEBAPP_NAME} is not attached to allowlisted plan ${AZURE_PLAN_NAME}."
+            exit 1
+          fi
+
+          current_sku="$(az appservice plan show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_PLAN_NAME}" \
+            --query sku.name --output tsv)"
+          echo "current_sku=${current_sku}" >> "${GITHUB_OUTPUT}"
+          echo "Current App Service plan SKU: ${current_sku}"
+
+      - name: Upgrade App Service plan to Standard S1
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az appservice plan update \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_PLAN_NAME}" \
+            --sku S1 \
+            --output none
+
+          tier="$(az appservice plan show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_PLAN_NAME}" \
+            --query sku.tier --output tsv)"
+          sku="$(az appservice plan show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_PLAN_NAME}" \
+            --query sku.name --output tsv)"
+          if [[ "${tier}" != 'Standard' || "${sku}" != 'S1' ]]; then
+            echo "::error::Azure did not converge ${AZURE_PLAN_NAME} to Standard S1; got tier=${tier}, sku=${sku}."
+            exit 1
+          fi
+
+      - name: Create or reconcile staging deployment slot
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az webapp deployment slot create \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --slot "${SLOT_NAME}" \
+            --configuration-source "${AZURE_WEBAPP_NAME}" \
+            --output none
+
+          runtime_identity_id="$(az identity show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_RUNTIME_IDENTITY_NAME}" \
+            --query id --output tsv)"
+          runtime_client_id="$(az identity show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_RUNTIME_IDENTITY_NAME}" \
+            --query clientId --output tsv)"
+
+          az webapp identity assign \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --slot "${SLOT_NAME}" \
+            --identities "${runtime_identity_id}" \
+            --output none
+
+          slot_id="$(az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --slot "${SLOT_NAME}" \
+            --query id --output tsv)"
+          az resource update \
+            --ids "${slot_id}" \
+            --set properties.keyVaultReferenceIdentity="${runtime_identity_id}" \
+            --output none
+
+          az webapp config appsettings set \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --slot "${SLOT_NAME}" \
+            --settings \
+              "AZURE_CLIENT_ID=${runtime_client_id}" \
+              "Azure__ManagedIdentity__ClientId=${runtime_client_id}" \
+            --output none
+
+      - name: Verify staging slot is independently addressable
+        id: verify
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          host="$(az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --slot "${SLOT_NAME}" \
+            --query defaultHostName --output tsv)"
+          if [[ -z "${host}" || "${host}" == 'null' ]]; then
+            echo '::error::Azure did not expose a hostname for the staging slot.'
+            exit 1
+          fi
+          echo "slot_host=${host}" >> "${GITHUB_OUTPUT}"
+
+          {
+            echo '### App Service deployment-slot upgrade'
+            echo
+            echo "- SHA: \`${GITHUB_SHA}\`"
+            echo "- Target: \`${AZURE_WEBAPP_NAME}\`"
+            echo "- Previous SKU: \`${{ steps.before.outputs.current_sku }}\`"
+            echo '- New SKU: `S1` / `Standard`'
+            echo "- Slot: \`${SLOT_NAME}\`"
+            echo "- Slot host: \`${host}\`"
+            echo '- Deployment slot mode may now be enabled after this workflow succeeds.'
+          } >> "${GITHUB_STEP_SUMMARY}"
