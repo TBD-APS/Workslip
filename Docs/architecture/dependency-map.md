@@ -11,7 +11,7 @@ Coupling = fan-in + fan-out between `Workslip.Application.*` modules. File refs 
 | Module | Files | LOC | Fan-in | Fan-out | Inbound file refs | Outbound file refs | Coupling |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Auth | 5 | 263 | 9 | 1 | 23 | 2 | **10** |
-| Jobs | 32 | 3823 | 5 | 3 | 7 | 18 | **8** |
+| Jobs | 32 | 3829 | 5 | 3 | 7 | 18 | **8** |
 | Users | 14 | 1673 | 4 | 2 | 8 | 4 | **6** |
 | Conversations | 3 | 742 | 0 | 4 | 0 | 4 | **4** |
 | Images | 4 | 455 | 1 | 3 | 1 | 3 | **4** |
@@ -117,18 +117,19 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 | Feature | Files | LOC | Cross-feature imports | Shared imports |
 | --- | --- | --- | --- | --- |
 | settings | 4 | 947 | **5** | 9 |
-| jobs | 53 | 9902 | **2** | 186 |
+| jobs | 54 | 9988 | **2** | 186 |
 | overview | 2 | 514 | **1** | 11 |
-| superadmin | 16 | 3400 | **1** | 9 |
-| users | 8 | 1218 | **1** | 30 |
+| superadmin | 16 | 3398 | **1** | 10 |
+| users | 8 | 1249 | **1** | 32 |
 | auditor | 1 | 483 | 0 | 17 |
 | auth | 10 | 1469 | 0 | 18 |
 | create | 2 | 172 | 0 | 1 |
-| customers | 6 | 1530 | 0 | 41 |
+| customers | 6 | 1583 | 0 | 43 |
 | docs | 5 | 877 | 0 | 19 |
 | images | 7 | 629 | 0 | 5 |
 | legal | 6 | 256 | 0 | 1 |
-| worksheets | 6 | 912 | 0 | 10 |
+| platformFlags | 5 | 637 | 0 | 1 |
+| worksheets | 6 | 1209 | 0 | 15 |
 
 ### Cross-feature edges
 
@@ -147,7 +148,7 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 | File | LOC |
 | --- | --- |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Schema/SqlDbContext.cs` | 1485 |
-| `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs` | 1077 |
+| `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs` | 1078 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Schema/AuditPolicies.cs` | 926 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Diagnostics/ApplicationInsightsErrorDiagnosticsService.cs` | 879 |
 | `src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs` | 850 |
@@ -155,10 +156,10 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Seeding/DatabaseSeeder.cs` | 625 |
 | `src/BE/WorkslipApi/Workslip.Application/Conversations/JobConversationService.cs` | 587 |
 | `src/BE/WorkslipApi/Workslip.Application/Invitations/InvitationService.cs` | 548 |
-| `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/SqlJobConversationRepository.cs` | 473 |
+| `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/SqlJobConversationRepository.cs` | 471 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Seeding/PlatformIdentityBootstrapper.cs` | 453 |
 | `src/BE/WorkslipApi/Workslip.Application/Users/SuperAdminUserService.cs` | 449 |
-| `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfWorksheetRepository.cs` | 449 |
+| `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfWorksheetRepository.cs` | 447 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Mappers/JobReportMapper.cs` | 437 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfCustomerRepository.cs` | 430 |
 
@@ -168,18 +169,18 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 | --- | --- |
 | `src/FE/src/features/jobs/hooks/useJobDetails.ts` | 800 |
 | `src/FE/src/features/jobs/components/JobConversationDrawer.tsx` | 751 |
-| `src/FE/src/features/jobs/routes/CompletedJobReport.tsx` | 680 |
+| `src/FE/src/features/worksheets/routes/MyWorksheets.tsx` | 710 |
+| `src/FE/src/features/jobs/routes/CompletedJobReport.tsx` | 682 |
 | `src/FE/src/features/superadmin/routes/CacheDiagnostics.tsx` | 663 |
-| `src/FE/src/features/jobs/routes/AdminCompletedJobReport.tsx` | 645 |
+| `src/FE/src/features/jobs/routes/AdminCompletedJobReport.tsx` | 649 |
 | `src/FE/src/components/common/NotificationsDrawer.tsx` | 553 |
-| `src/FE/src/features/worksheets/routes/MyWorksheets.tsx` | 532 |
+| `src/FE/src/features/customers/routes/CustomerList.tsx` | 505 |
 | `src/FE/src/features/docs/DocsPage.tsx` | 497 |
+| `src/FE/src/features/users/routes/UserDetail.tsx` | 493 |
 | `src/FE/src/features/superadmin/diagnostics/ErrorDiagnosticsDashboard.tsx` | 490 |
+| `src/FE/src/features/jobs/components/JobDetailBlocks.tsx` | 484 |
 | `src/FE/src/features/auditor/routes/AuditorReportList.tsx` | 483 |
-| `src/FE/src/features/jobs/components/JobDetails.tsx` | 483 |
-| `src/FE/src/features/users/routes/UserDetail.tsx` | 478 |
-| `src/FE/src/features/jobs/components/JobDetailBlocks.tsx` | 472 |
-| `src/FE/src/features/customers/routes/CustomerList.tsx` | 467 |
+| `src/FE/src/features/jobs/components/JobDetails.tsx` | 470 |
 | `src/FE/src/features/images/JobImagesSection.tsx` | 461 |
 
 ## Method
