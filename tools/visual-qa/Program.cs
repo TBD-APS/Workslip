@@ -1,6 +1,13 @@
 using System.Text.Json;
 using OpenCvSharp;
 
+var jsonOptions = new JsonSerializerOptions
+{
+    PropertyNameCaseInsensitive = true,
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    WriteIndented = true,
+};
+
 if (args.Length < 4)
 {
     Console.Error.WriteLine("Usage: visual-qa <visible.png> <hidden.png> <metadata.json> <result.json>");
@@ -12,7 +19,7 @@ var hiddenPath = args[1];
 var metadataPath = args[2];
 var resultPath = args[3];
 
-var metadata = JsonSerializer.Deserialize<VisualMetadata>(await File.ReadAllTextAsync(metadataPath), JsonOptions)
+var metadata = JsonSerializer.Deserialize<VisualMetadata>(await File.ReadAllTextAsync(metadataPath), jsonOptions)
     ?? throw new InvalidOperationException("Visual QA metadata could not be parsed.");
 
 using var visible = Cv2.ImRead(visiblePath, ImreadModes.Color);
@@ -83,16 +90,9 @@ var result = new VisualResult(
     roiRect.Height);
 
 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(resultPath))!);
-await File.WriteAllTextAsync(resultPath, JsonSerializer.Serialize(result, JsonOptions));
-Console.WriteLine(JsonSerializer.Serialize(result, JsonOptions));
+await File.WriteAllTextAsync(resultPath, JsonSerializer.Serialize(result, jsonOptions));
+Console.WriteLine(JsonSerializer.Serialize(result, jsonOptions));
 return pass ? 0 : 2;
-
-static readonly JsonSerializerOptions JsonOptions = new()
-{
-    PropertyNameCaseInsensitive = true,
-    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    WriteIndented = true,
-};
 
 internal sealed record VisualMetadata(
     string Name,
