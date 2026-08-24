@@ -1,0 +1,107 @@
+version: 1
+
+principles:
+  resource_registry_is_source_of_truth_for_inventory: true
+  infrastructure_and_runtime_state_must_be_distinguished: true
+  secrets_never_belong_in_this_map: true
+
+systems:
+  workslip_frontend:
+    type: application
+    responsibilities:
+      - user_interface
+      - pwa_experience
+      - client_side_workflows
+    depends_on:
+      - workslip_api
+      - identity_platform
+
+  workslip_api:
+    type: application
+    responsibilities:
+      - business_logic
+      - authorization
+      - integrations
+      - data_access
+    depends_on:
+      - sql_database
+      - storage
+      - identity_platform
+      - configuration
+
+  sql_database:
+    type: database
+    responsibilities:
+      - transactional_data
+      - tenant_data
+      - domain_state
+    constraints:
+      - tenant_isolation
+      - migration_control
+
+  storage:
+    type: platform_service
+    responsibilities:
+      - images
+      - attachments
+      - generated_documents
+
+  identity_platform:
+    type: identity_service
+    responsibilities:
+      - authentication
+      - authorization
+      - application_roles
+
+  configuration:
+    type: configuration_service
+    responsibilities:
+      - runtime_configuration
+      - secret_references
+    constraints:
+      - no_secret_material_in_repository
+
+  observability:
+    type: monitoring_platform
+    responsibilities:
+      - logs
+      - metrics
+      - traces
+      - alerts
+
+  communication:
+    type: external_service
+    responsibilities:
+      - email_delivery
+      - notifications
+
+  mr_sassy_control_plane:
+    type: orchestration_platform
+    responsibilities:
+      - agent_registry
+      - task_routing
+      - approvals
+      - audit_events
+    depends_on:
+      - event_store
+      - workflow_engine
+
+  event_store:
+    type: data_platform
+    responsibilities:
+      - agent_events
+      - audit_history
+      - workflow_history
+
+  workflow_engine:
+    type: orchestration_service
+    responsibilities:
+      - long_running_workflows
+      - retries
+      - coordination
+
+boundaries:
+  - change_to_identity_access_requires_security_review
+  - production_resource_mutations_require_approval
+  - domain_changes_must_reference_impacted_systems
+  - agents_must_resolve_resources_before_using_tools
