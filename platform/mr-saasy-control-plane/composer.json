@@ -29,6 +29,7 @@
       "@php artisan test"
     ],
     "architecture": [
+      "@php scripts/validate-operating-model.php",
       "@php scripts/forbid-workslip-coupling.php",
       "@php scripts/forbid-ai-db-symbols.php",
       "@php scripts/assert-forbidden-symbol-fixture.php",
