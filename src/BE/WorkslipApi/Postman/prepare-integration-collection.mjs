@@ -34,18 +34,36 @@ if (!Array.isArray(createJobPrerequest)) {
   throw new Error('Could not find the canonical POST /api/jobs pre-request script.');
 }
 
+const createJobTest = createJobRequest.event
+  ?.find((event) => event.listen === 'test')
+  ?.script?.exec;
+if (!Array.isArray(createJobTest)) {
+  throw new Error('Could not find the canonical POST /api/jobs test script.');
+}
+
 // Complete the canonical synthetic job at request runtime. The existing pre-request
 // resolves reference-data IDs asynchronously, so this preserves those placeholders
 // while supplying the submit-ready evidence that is now authoritative server-side.
+// Keep outlay=true here: the integration gate must prove this customer-facing flag
+// survives create -> summary instead of silently exercising only the false path.
 createJobPrerequest.unshift(
   "const workslipSubmitReadyActorUserId = pm.collectionVariables.get('actorUserId');",
   "if (!workslipSubmitReadyActorUserId) { throw new Error('Missing actorUserId before POST /api/jobs'); }",
   "const workslipSubmitReadyPayload = JSON.parse(pm.request.body.raw);",
-  "workslipSubmitReadyPayload.timesheets = [{ workDate: '2026-10-01', userId: workslipSubmitReadyActorUserId, hoursWorked: 1, sleptOnJob: false }];",
+  "workslipSubmitReadyPayload.timesheets = [{ workDate: '2026-10-01', userId: workslipSubmitReadyActorUserId, hoursWorked: 1, sleptOnJob: true }];",
   "const workslipSubmitReadyControlPoints = workslipSubmitReadyPayload.work?.installationTypes?.flatMap((installationType) => installationType.categories ?? []).flatMap((category) => category.controlPoints ?? []) ?? [];",
   "if (workslipSubmitReadyControlPoints.length === 0) { throw new Error('Missing control-point fixture before POST /api/jobs'); }",
   "workslipSubmitReadyControlPoints[0].isChecked = true;",
   "pm.request.body.update(JSON.stringify(workslipSubmitReadyPayload));",
+);
+
+createJobTest.push(
+  "pm.test('Job create preserves worksheet outlay', function () {",
+  "  const json = pm.response.json();",
+  "  const worksheets = json.worksheets || json.timesheets || [];",
+  "  pm.expect(worksheets.some((item) => item.sleptOnJob === true)).to.eql(true);",
+  "  pm.expect(Number(json.totalOutlay)).to.be.at.least(1);",
+  "});",
 );
 
 const devFolder = collection.item?.find((item) => item.name === 'Dev');

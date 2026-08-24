@@ -13,7 +13,7 @@ description: Saml planlægning, registrering og godkendelse af arbejde ét sted.
       <p class="lead">Saml opgaver, timer, noter og godkendelser i én enkel arbejdsgang – så dit team kan bruge mindre tid på administration og mere tid på arbejdet, der flytter forretningen.</p>
       <div class="actions">
         <a class="button" href="{{ '/features/' | relative_url }}">Udforsk Workslip <span aria-hidden="true">→</span></a>
-        <a class="text-link" href="{{ '/demo/' | relative_url }}">Se demo-status <span aria-hidden="true">↗</span></a>
+        <a class="text-link" href="{{ '/demo/' | relative_url }}">Prøv demoen – uden login <span aria-hidden="true">↗</span></a>
       </div>
       <div class="hero-proof" aria-label="Workslips centrale arbejdsgange">
         <span>Planlægning</span><i aria-hidden="true"></i><span>Registrering</span><i aria-hidden="true"></i><span>Godkendelse</span>
@@ -120,7 +120,7 @@ description: Saml planlægning, registrering og godkendelse af arbejde ét sted.
       <h2>Giv arbejdet en stærkere rytme.</h2>
     </div>
     <div class="final-cta-actions">
-      <a class="button" href="{{ '/demo/' | relative_url }}">Se Workslip i praksis <span aria-hidden="true">→</span></a>
+      <a class="button" href="{{ '/demo/' | relative_url }}">Prøv demoen nu <span aria-hidden="true">→</span></a>
       <a class="text-link on-dark" href="https://app.mrsoftware.dk/app">Åbn Workslip <span aria-hidden="true">↗</span></a>
     </div>
   </div>

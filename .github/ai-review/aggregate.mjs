@@ -36,8 +36,9 @@ function sameFinding(a, b) {
 
 const openai = decode(process.env.OPENAI_REVIEW_B64, 'OpenAI');
 const claude = decode(process.env.CLAUDE_REVIEW_B64, 'Claude');
+const grok = decode(process.env.GROK_REVIEW_B64, 'Grok');
 const ollama = decode(process.env.OLLAMA_REVIEW_B64, 'Ollama');
-const reviews = [openai, claude, ollama];
+const reviews = [openai, claude, grok, ollama];
 
 // A provider without a configured credential/feature flag or wired-in job is
 // intentionally disabled, not a failed reviewer. Single-provider operation is

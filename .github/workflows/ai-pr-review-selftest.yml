@@ -40,11 +40,13 @@ jobs:
           python3 -m py_compile .github/ai-review/build-context.py
           node --check .github/ai-review/openai-model-selection.mjs
           node --check .github/ai-review/resolve-openai-model.mjs
+          node --check .github/ai-review/grok-review.mjs
           node --check .github/ai-review/ollama-review.mjs
           node --check .github/ai-review/normalize-review.mjs
           node --check .github/ai-review/aggregate.mjs
           node --check .github/ai-review/post-review.mjs
           node --test .github/ai-review/openai-model-selection.test.mjs
+          node --test .github/ai-review/grok-review.test.mjs
           node --test .github/ai-review/ollama-review.test.mjs
           node --test .github/ai-review/aggregate.test.mjs
 
@@ -53,6 +55,9 @@ jobs:
           set -euo pipefail
           workflow=.github/workflows/ai-pr-review.yml
           publisher=.github/ai-review/post-review.mjs
+          grok=.github/ai-review/grok-review.mjs
+          ollama=.github/ai-review/ollama-review.mjs
+          context_builder=.github/ai-review/build-context.py
 
           grep -Fq 'TRUSTED_BRANCH: main' "$workflow"
           grep -Fq 'persist-credentials: false' "$workflow"
@@ -61,6 +66,31 @@ jobs:
           grep -Fq 'steps.model.outputs.model' "$workflow"
           grep -Fq 'steps.model.outputs.reason' "$workflow"
           grep -Fq 'anthropics/claude-code-action@d40ddef4c030e508327d6e35a9c45f3368482c50' "$workflow"
+          grep -Fq 'grok_review:' "$workflow"
+          grep -Fq 'XAI_API_KEY:' "$workflow"
+          grep -Fq 'XAI_REVIEW_MODEL:' "$workflow"
+          grep -Fq "grok-4.6" "$workflow"
+          grep -Fq 'GROK_REVIEW_B64:' "$workflow"
+          grep -Fq 'node .github/ai-review/grok-review.mjs' "$workflow"
+          grep -Fq 'if: env.XAI_API_KEY !=' "$workflow"
+          grep -Fq "https://api.x.ai/v1/chat/completions" "$grok"
+          grep -Fq "response_format" "$grok"
+          grep -Fq "json_schema" "$grok"
+          grep -Fq ".ai-review/trusted-context.md" "$grok"
+          grep -Fq ".ai-review/untrusted-context.md" "$grok"
+          grep -Fq ".ai-review/trusted-context.md" "$ollama"
+          grep -Fq ".ai-review/untrusted-context.md" "$ollama"
+          grep -Fq "AGENT_HANDBOOK.md" "$context_builder"
+          grep -Fq "VALIDATION.md" "$context_builder"
+          grep -Fq "DELIVERY_HANDOFFS.md" "$context_builder"
+          grep -Fq "Docs/architecture/owners.json" "$context_builder"
+          grep -Fq "scoped_agent_ancestors" "$context_builder"
+          grep -Fq "TRUSTED_OUTPUT" "$context_builder"
+          grep -Fq "UNTRUSTED_OUTPUT" "$context_builder"
+          grep -Fq "read_base_file" "$context_builder"
+          grep -Fq "base_sha" "$context_builder"
+          grep -Fq "untrusted_metadata" "$context_builder"
+          grep -Fq "GDPR_AI_ACT_BASELINE.md" "$context_builder"
           grep -Fq 'ollama_review:' "$workflow"
           grep -Fq 'OLLAMA_API_KEY:' "$workflow"
           grep -Fq 'OLLAMA_BASE_URL:' "$workflow"
@@ -108,6 +138,16 @@ jobs:
 
           if grep -Eq '^[[:space:]]*ref:.*needs\.prepare\.outputs\.head_sha' "$workflow"; then
             echo 'Review jobs must not checkout the PR head.' >&2
+            exit 1
+          fi
+
+          if grep -Fq 'XAI_BASE_URL' "$workflow" || grep -Fq 'XAI_BASE_URL' "$grok"; then
+            echo 'Grok review endpoint must remain fixed to api.x.ai; do not make the secret-bearing endpoint configurable.' >&2
+            exit 1
+          fi
+
+          if grep -Fq 'splitReviewContext' "$grok" || grep -Fq 'UNTRUSTED_MARKER' "$grok" || grep -Fq 'UNTRUSTED_MARKER' "$ollama"; then
+            echo 'Remote providers must consume physically separate trusted/untrusted context files, not split on an in-band marker.' >&2
             exit 1
           fi
 
