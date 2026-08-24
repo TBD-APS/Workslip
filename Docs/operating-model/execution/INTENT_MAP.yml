@@ -1,0 +1,45 @@
+version: 1
+
+principles:
+  prefer_execution_when_intent_is_clear: true
+  do_not_replace_execution_with_explanation: true
+  preserve_active_context: true
+  report_real_blockers_only: true
+
+commands:
+  impl:
+    aliases: [i, pi, implement]
+    intent: execution
+    workflow: [understand, execute, validate, report]
+
+  fix:
+    intent: defect_resolution
+    workflow: [reproduce, diagnose_root_cause, patch, validate, report]
+
+  status:
+    intent: progress_report
+    output: [current_state, evidence, blockers, next_action]
+
+  merge:
+    intent: merge_progression
+    workflow: [inspect_required_gates, resolve_cohesive_blockers, verify_head, merge_if_safe, update_delivery_state]
+
+  review:
+    intent: independent_review
+    workflow: [inspect_scope, challenge_assumptions, identify_risk, verify_evidence, report]
+
+  deploy:
+    intent: deployment_progression
+    workflow: [verify_release_boundary, verify_required_evidence, deploy_if_authorized, smoke, report]
+
+  investigate:
+    intent: investigation
+    workflow: [collect_evidence, reproduce_if_possible, identify_root_cause, recommend_next_action]
+
+natural_language_rules:
+  named_agent_reference:
+    rule: Resolve the named agent through AGENT_REGISTRY.yml before interpreting the name as a provider or external integration.
+  continuation:
+    rule: Short confirmations and continuation commands inherit the active task, scope and constraints unless the user explicitly changes them.
+  unavailable_action:
+    rule: Preserve the intended agent role and report the concrete missing execution capability instead of pretending the role does not exist.
