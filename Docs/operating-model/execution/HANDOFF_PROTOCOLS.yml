@@ -1,4 +1,10 @@
-version: 1
+version: 2
+
+principles:
+  - Handoffs must transfer intent, not only instructions.
+  - Receiving agents must validate assumptions before execution.
+  - Missing context is a blocker, not a reason to invent requirements.
+  - Every handoff must define expected output and validation owner.
 
 handoffs:
   creative_to_engineering:
@@ -15,6 +21,9 @@ handoffs:
       - assets
       - timing
       - copy_direction
+    output:
+      - implementation_plan
+      - pull_request
 
   engineering_to_verification:
     from_roles: [engineering]
@@ -26,6 +35,9 @@ handoffs:
       - known_risks
       - validation_completed
       - validation_requested
+    output:
+      - validation_report
+      - findings
 
   verification_to_release:
     from_roles: [visual_verification, security_review]
@@ -35,9 +47,18 @@ handoffs:
       - evidence
       - unresolved_risks
       - required_followups
+    output:
+      - release_recommendation
 
 rules:
   - A handoff transfers responsibility for a defined deliverable, not unrestricted task ownership.
   - The receiving agent keeps its own permissions; handoff never expands capabilities.
   - Missing required handoff fields must be reported instead of silently invented.
   - Critical blockers remain attached to the owning issue and must not disappear between agents or sessions.
+  - New tools, resources or permissions must pass through their registries before use.
+
+approval_boundaries:
+  - Production deployment requires authorized approval.
+  - Permission model changes require security review.
+  - New external tools require tool registry registration.
+  - New production resources require resource registry registration.
