@@ -77,6 +77,8 @@ Urgent security, tenant-isolation, data-loss, compliance and production-correctn
 
 Workslip is operated as a long-lived, integrated service, not as a queue of isolated tickets. For a material change, make the intended customer or operational outcome, constraints and measurable acceptance conditions explicit before choosing the implementation. Keep the process lightweight for small, well-understood corrections.
 
+The normal delivery path remains **idea → code → independent review → go live**. Lifecycle engineering makes the transitions evidence-based inside that flow; it does not impose serial workshops, a separate phase-gate process or a delay before a low-risk change can be built and shipped.
+
 Apply these principles when they match the changed risk:
 
 1. **Feasibility and concept:** explore the smallest credible options before committing when the change affects product direction, architecture, data semantics, security, cost or operability. Record the selected option and the constraints it satisfies; do not treat an untested assumption as a requirement.
@@ -86,7 +88,7 @@ Apply these principles when they match the changed risk:
 5. **Integration and qualification:** validate in ascending fidelity: focused deterministic checks first, then interface/feature evidence, then safe environment and deployed smoke where the risk requires it. Exercise the important failure, recovery, compatibility and rollback paths—not only the happy path—and state any evidence that is still missing.
 6. **Operability by design:** design changes so they can be observed, supported, maintained, upgraded and safely reversed. Consider access, diagnostics, alerts, capacity, deployment/rollback, data migration and support workflows before crossing a production boundary.
 
-For material cross-boundary changes, establish a **definition freeze** before irreversible rollout: the selected scope, interfaces, acceptance evidence, rollout/rollback plan and accountable owner must be explicit. A freeze prevents accidental scope drift; it may be revised only through a documented decision and fresh impact assessment.
+For material cross-boundary changes, establish a lightweight **readiness checkpoint** before irreversible rollout: the selected scope, interfaces, acceptance evidence, rollout/rollback plan and accountable owner must be explicit. It prevents accidental scope drift; it may be revised through a documented decision and fresh impact assessment.
 
 Do not create ceremony for its own sake. The required depth, disciplines and qualification evidence scale with customer impact, reversibility, dependency surface and uncertainty. Security, tenant isolation, legal/compliance, data integrity and production safety remain non-negotiable regardless of delivery speed.
 
