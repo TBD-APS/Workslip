@@ -11,7 +11,7 @@ final class BootTest extends TestCase
         $this->get('/up')->assertOk();
     }
 
-    public function test_root_exposes_gate_zero_security_state_only(): void
+    public function test_root_exposes_gate_zero_security_state_and_graph_entrypoint(): void
     {
         $this->get('/')
             ->assertOk()
@@ -19,6 +19,7 @@ final class BootTest extends TestCase
                 'service' => 'mr-saasy-control-plane',
                 'state' => 'gate-0',
                 'directDbAccess' => false,
+                'agentGraph' => '/agent-graph',
             ]);
     }
 }
