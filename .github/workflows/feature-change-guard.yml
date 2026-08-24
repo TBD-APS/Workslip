@@ -9,6 +9,8 @@ on:
     types: [opened, synchronize, reopened, edited, ready_for_review, converted_to_draft, labeled, unlabeled]
   pull_request_review:
     types: [submitted, dismissed]
+  merge_group:
+    types: [checks_requested]
 
 permissions:
   contents: read
@@ -18,19 +20,21 @@ jobs:
   feature-change-guard:
     name: Feature change guard
     if: >-
+      github.event_name == 'merge_group' ||
       github.event.pull_request.base.ref == 'main' ||
       startsWith(github.event.pull_request.base.ref, 'release-') ||
       startsWith(github.event.pull_request.base.ref, 'release/')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Checkout pull request head
+      - name: Checkout revision
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Ensure base commit is available
+        if: github.event_name != 'merge_group'
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -57,6 +61,7 @@ jobs:
           ) | Out-Null
 
       - name: Classify pull request change risk
+        if: github.event_name != 'merge_group'
         id: risk
         continue-on-error: true
         shell: bash
@@ -66,13 +71,14 @@ jobs:
         run: node tools/release/validate-pr-change-risk.mjs --base "$BASE_SHA" --head "$HEAD_SHA"
 
       - name: Reject invalid classifier result
-        if: steps.risk.outcome == 'failure' && steps.risk.outputs.high_risk != 'true'
+        if: github.event_name != 'merge_group' && steps.risk.outcome == 'failure' && steps.risk.outputs.high_risk != 'true'
         shell: bash
         run: |
           echo '::error::Feature change classifier failed before producing a valid risk decision.'
           exit 1
 
       - name: Validate flow-level browser intent
+        if: github.event_name != 'merge_group'
         id: browser
         shell: bash
         env:
@@ -90,6 +96,7 @@ jobs:
             --body-file "$body_file"
 
       - name: Reject new non-ID Playwright selectors
+        if: github.event_name != 'merge_group'
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -97,7 +104,7 @@ jobs:
         run: node tools/release/validate-playwright-selector-contract.mjs --base "$BASE_SHA" --head "$HEAD_SHA"
 
       - name: Require explicit approval for high-risk feature change
-        if: steps.risk.outputs.high_risk == 'true'
+        if: github.event_name != 'merge_group' && steps.risk.outputs.high_risk == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -127,5 +134,5 @@ jobs:
           echo "High-risk change explicitly approved on current head ${HEAD_SHA}."
 
       - name: Guard passed
-        if: steps.risk.outputs.high_risk != 'true'
+        if: github.event_name == 'merge_group' || steps.risk.outputs.high_risk != 'true'
         run: echo 'Feature-change, browser-intent and Playwright-selector guards passed.'
