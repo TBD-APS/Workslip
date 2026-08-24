@@ -54,8 +54,8 @@ async function verifyHelpWizard({ name, context: contextOptions }) {
     await toggle.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     assert.equal(await toggle.getAttribute('aria-expanded'), 'false', `${name}: Clippy 2.0 must start collapsed.`);
     assert.equal(await page.locator('#help-wizard-message').count(), 0, `${name}: collapsed Clippy 2.0 must stay quiet.`);
-    assert.equal(await wizard.locator('.clippy-gold-clip').count(), 1, `${name}: Clippy must render the gold paperclip identity.`);
-    assert.equal(await wizard.locator('.clippy-wizard-wand').count(), 1, `${name}: gold Clippy must keep the magic wand.`);
+    assert.equal(await page.locator('#help-wizard-character').count(), 1, `${name}: Clippy must render the gold paperclip identity.`);
+    assert.equal(await page.locator('#help-wizard-wand').count(), 1, `${name}: gold Clippy must keep the magic wand.`);
 
     const homeBounds = await wizard.boundingBox();
     const viewport = page.viewportSize();
@@ -134,8 +134,8 @@ async function verifyHelpWizard({ name, context: contextOptions }) {
     const copy = (await message.textContent())?.trim() ?? '';
     assert.ok(copy.length > 0, `${name}: Clippy must show useful copy only after the user opens it.`);
     assert.ok(copy.length <= MAX_CLIPPY_COPY_LENGTH, `${name}: Clippy copy must stay concise.`);
-    assert.equal(await message.locator('.help-wizard-bubble-title').count(), 1, `${name}: Clippy copy must have a scannable headline.`);
-    assert.equal(await message.locator('.help-wizard-bubble-body').count(), 1, `${name}: Clippy copy must keep the explanation bounded.`);
+    assert.equal(await page.locator('#help-wizard-message-title').count(), 1, `${name}: Clippy copy must have a scannable headline.`);
+    assert.equal(await page.locator('#help-wizard-message-body').count(), 1, `${name}: Clippy copy must keep the explanation bounded.`);
     assert.equal(await toggle.getAttribute('aria-expanded'), 'true', `${name}: Clippy 2.0 must expose its open state.`);
 
     await toggle.click();
