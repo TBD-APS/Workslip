@@ -203,7 +203,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           rules=tools/release/configure-github-branch-rules.ps1
-          grep -Fq "RequiredStatusChecks = @('CI Gate', 'Feature change guard')" "${rules}"
+          grep -Fq "RequiredStatusChecks = @('CI Gate', 'Feature change guard', 'Contributor Quality Gate')" "${rules}"
           grep -Fq -- "-Name 'Workslip main protection'" "${rules}"
           grep -Fq -- "-IncludedRefs @('refs/heads/main')" "${rules}"
           grep -Fq 'bypass_actors = @()' "${rules}"
