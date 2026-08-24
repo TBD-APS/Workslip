@@ -49,6 +49,12 @@ async function verifyHelpWizard({ name, context: contextOptions }) {
     assert.ok(navigation?.ok(), `${name}: /login returned HTTP ${navigation?.status() ?? 'unknown'}.`);
     await page.locator('#login-card').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
+    // The production default is fail-closed. Exercise the enabled path with an
+    // explicit identity assignment, then verify the identity-off path below.
+    await page.evaluate(() => localStorage.setItem('workslip.flag.help-wizard', 'on'));
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+    await page.locator('#login-card').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+
     const wizard = page.locator('#help-wizard');
     const toggle = page.locator('#help-wizard-toggle');
     await toggle.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
@@ -147,7 +153,7 @@ async function verifyHelpWizard({ name, context: contextOptions }) {
 
     await page.evaluate(() => localStorage.removeItem('workslip.flag.help-wizard'));
     await page.reload({ waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
-    await page.locator('#help-wizard-toggle').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal(await page.locator('#help-wizard').count(), 0, `${name}: removing the identity assignment must restore the fail-closed default.`);
 
     assert.deepEqual(pageErrors, [], `${name}: browser page errors: ${pageErrors.join(' | ')}`);
     assert.deepEqual(consoleErrors, [], `${name}: browser console errors: ${consoleErrors.join(' | ')}`);
