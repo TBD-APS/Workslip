@@ -76,15 +76,18 @@ public static class InventoryEndpoints
             try
             {
                 await using var stream = file.OpenReadStream();
-                using var image = await Image.LoadAsync<Rgba32>(stream, cancellationToken);
-                if (image.Width <= 0 || image.Height <= 0 ||
-                    image.Width > MaxScannerFrameDimension || image.Height > MaxScannerFrameDimension)
+                var imageInfo = await Image.IdentifyAsync(stream, cancellationToken);
+                if (imageInfo is null || imageInfo.Width <= 0 || imageInfo.Height <= 0 ||
+                    imageInfo.Width > MaxScannerFrameDimension || imageInfo.Height > MaxScannerFrameDimension)
                 {
                     return Results.ValidationProblem(new Dictionary<string, string[]>
                     {
                         ["file"] = ["Kamerabilledets dimensioner er ikke tilladt."]
                     });
                 }
+
+                stream.Position = 0;
+                using var image = await Image.LoadAsync<Rgba32>(stream, cancellationToken);
 
                 var reader = new ZXing.ImageSharp.BarcodeReader<Rgba32>
                 {
@@ -111,10 +114,11 @@ public static class InventoryEndpoints
             }
             catch (UnknownImageFormatException)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]>
-                {
-                    ["file"] = ["Kamerabilledet kunne ikke læses."]
-                });
+                return InvalidImageResult();
+            }
+            catch (InvalidImageContentException)
+            {
+                return InvalidImageResult();
             }
         })
         .DisableAntiforgery()
@@ -193,6 +197,11 @@ public static class InventoryEndpoints
 
         return app;
     }
+
+    private static IResult InvalidImageResult() => Results.ValidationProblem(new Dictionary<string, string[]>
+    {
+        ["file"] = ["Kamerabilledet kunne ikke læses."]
+    });
 
     private static string RenderQrSvg(string payload)
     {
