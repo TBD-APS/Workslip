@@ -134,6 +134,7 @@ export function WorksheetList({
                   isSaving={isSaving}
                   formId={`worksheet-edit-form-${worksheet.id}`}
                   hoursInputId={`worksheet-edit-hours-${worksheet.id}`}
+                  outlayInputId={`worksheet-edit-outlay-${worksheet.id}`}
                   submitId={`worksheet-edit-submit-${worksheet.id}`}
                   cancelId={`worksheet-edit-cancel-${worksheet.id}`}
                   submitLabel="Gem"
