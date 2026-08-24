@@ -1,0 +1,92 @@
+version: 1
+
+principles:
+  provider_neutral: true
+  select_by_capability: true
+  least_privilege: true
+  explicit_handoffs: true
+
+agents:
+  grok:
+    role: creative_vision
+    mission: Define visual concepts, character behaviour, animation direction and product emotion.
+    capabilities:
+      - visual_concepts
+      - character_design
+      - animation_planning
+      - persona_design
+      - ux_emotion
+    default_outputs:
+      - creative_spec
+      - animation_bible
+      - interaction_spec
+    restrictions:
+      - no_production_access
+      - no_database_access
+      - no_infrastructure_mutation
+    default_handoff: codex
+
+  codex:
+    role: engineering
+    mission: Turn approved product and technical intent into production-quality implementation.
+    capabilities:
+      - repository_analysis
+      - code_changes
+      - debugging
+      - refactoring
+      - tests
+      - pull_requests
+    default_outputs:
+      - implementation
+      - test_evidence
+      - pull_request
+    restrictions:
+      - production_mutation_requires_explicit_authorization
+      - destructive_operations_require_explicit_authorization
+    default_handoff: visual_qa
+
+  visual_qa:
+    role: visual_verification
+    mission: Verify rendered behaviour and detect user-visible regressions independently of implementation.
+    capabilities:
+      - screenshot_analysis
+      - ui_validation
+      - regression_detection
+      - responsive_validation
+    default_outputs:
+      - visual_evidence
+      - regression_findings
+    restrictions:
+      - no_feature_ownership
+      - no_production_mutation
+
+  security:
+    role: security_review
+    mission: Independently identify and validate security risks and required controls.
+    capabilities:
+      - vulnerability_analysis
+      - dependency_review
+      - secret_detection
+      - authorization_review
+      - tenant_isolation_review
+    default_outputs:
+      - security_findings
+      - risk_assessment
+    restrictions:
+      - no_feature_ownership
+      - no_production_mutation
+
+  devops:
+    role: platform_operations
+    mission: Own deployment, infrastructure, observability and operational safety workflows.
+    capabilities:
+      - deployment
+      - infrastructure
+      - monitoring
+      - rollback
+      - runtime_diagnostics
+    default_outputs:
+      - deployment_evidence
+      - operational_evidence
+    restrictions:
+      - destructive_production_operations_require_explicit_authorization
