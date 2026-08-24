@@ -8,6 +8,8 @@ on:
       - 'release-*'
       - 'release/**'
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+  merge_group:
+    types: [checks_requested]
   push:
     branches:
       - main
@@ -51,8 +53,9 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
         run: |
           set -Eeuo pipefail
-          # Main/release pushes remain the full regression gate. Impact routing only
-          # shortens PR feedback; uncertainty always falls back to the full suite.
+          # Main/release pushes and merge-group candidates remain full regression gates.
+          # Impact routing only shortens PR feedback; uncertainty always falls back
+          # to the full suite.
           if [[ "${EVENT_NAME}" != 'pull_request' ]]; then
             printf 'code=true\nbackend=true\nfrontend=true\nintegration=true\n' >> "${GITHUB_OUTPUT}"
             exit 0
@@ -135,7 +138,7 @@ jobs:
         shell: bash
         working-directory: .
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: |
           set -Eeuo pipefail
           base_dir="${RUNNER_TEMP}/workslip-lint-base"
