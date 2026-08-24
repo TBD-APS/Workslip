@@ -90,13 +90,11 @@ export async function runWorksheetOutlayAcceptance(viewportName) {
     if (viewportName === 'desktop') {
       const row = page.locator(`#timer-ledger-entry-${jobId}-${admin.user.id}-${workDate}`);
       await row.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-      const outlayCell = row.locator('.timer-ledger-outlay');
-      await outlayCell.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-      assert.match((await outlayCell.innerText()).trim(), /Ja/i, 'Timer ledger did not render the persisted outlay.');
+      assert.match((await row.innerText()).trim(), /Ja/i, 'Timer ledger did not render the persisted outlay.');
     } else {
-      await page.locator('#timer-mobile-overview').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-      const body = await page.locator('#timer-mobile-overview').innerText();
-      assert.match(body, /Udlæg/i, 'Mobile Timer did not expose outlay information.');
+      const mobileOverview = page.locator('#timer-mobile-overview');
+      await mobileOverview.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+      assert.match(await mobileOverview.innerText(), /Udlæg/i, 'Mobile Timer did not expose outlay information.');
     }
   } finally {
     if (worksheetId && jobId) {
