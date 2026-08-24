@@ -72,6 +72,24 @@ For new customer-facing features, product improvements and material scope expans
 - Do not let a commercial score override security, tenant isolation, authorization, data integrity, compliance or release safety.
 
 Urgent security, tenant-isolation, data-loss, compliance and production-correctness fixes do not wait for commercial scoring; use the gate only to keep their correction small and coherent.
+
+## Lifecycle engineering
+
+Workslip is operated as a long-lived, integrated service, not as a queue of isolated tickets. For a material change, make the intended customer or operational outcome, constraints and measurable acceptance conditions explicit before choosing the implementation. Keep the process lightweight for small, well-understood corrections.
+
+Apply these principles when they match the changed risk:
+
+1. **Feasibility and concept:** explore the smallest credible options before committing when the change affects product direction, architecture, data semantics, security, cost or operability. Record the selected option and the constraints it satisfies; do not treat an untested assumption as a requirement.
+2. **Definition and interfaces:** define the responsibility, inputs, outputs, ownership, failure behaviour and compatibility expectations of every material boundary. Treat API, event, schema, infrastructure and user-journey contracts as interfaces that must remain coherent across teams and releases.
+3. **Concurrent engineering:** involve the relevant product, engineering, QA, security, data, SRE/operations and support perspectives early enough to change the design cheaply. Keep role independence and the smallest necessary group; this is coordinated design, not blanket delegation or a new approval layer.
+4. **Digital thread and traceability:** maintain a verifiable chain from need → decision → implementation → executable contract/test → deployment and operational evidence. Use maintained code, configuration, tests, ADRs, Linear and PR evidence as the linked record; do not rely on chat summaries or duplicate status documents.
+5. **Integration and qualification:** validate in ascending fidelity: focused deterministic checks first, then interface/feature evidence, then safe environment and deployed smoke where the risk requires it. Exercise the important failure, recovery, compatibility and rollback paths—not only the happy path—and state any evidence that is still missing.
+6. **Operability by design:** design changes so they can be observed, supported, maintained, upgraded and safely reversed. Consider access, diagnostics, alerts, capacity, deployment/rollback, data migration and support workflows before crossing a production boundary.
+
+For material cross-boundary changes, establish a **definition freeze** before irreversible rollout: the selected scope, interfaces, acceptance evidence, rollout/rollback plan and accountable owner must be explicit. A freeze prevents accidental scope drift; it may be revised only through a documented decision and fresh impact assessment.
+
+Do not create ceremony for its own sake. The required depth, disciplines and qualification evidence scale with customer impact, reversibility, dependency surface and uncertainty. Security, tenant isolation, legal/compliance, data integrity and production safety remain non-negotiable regardless of delivery speed.
+
 ## Production boundary and release-candidate hygiene
 
 - Accepted ADRs define the delivery architecture. The existence of a `release-*` branch, an open release PR or CI triggers for release branches does **not** by itself redefine the production boundary.
