@@ -1,0 +1,50 @@
+version: 1
+
+default: deny
+
+agents:
+  grok:
+    github: [repository_read]
+    linear: [issue_read, project_read]
+    ai_provider: [inference]
+    denied_categories: [cloud_platform, data]
+
+  codex:
+    github: [repository_read, branch_read, pull_request_read, workflow_read, branch_create, code_write, pull_request_write]
+    linear: [issue_read, project_read, issue_create, issue_update, comment_write]
+    monitoring: [logs_read, metrics_read, traces_read, alerts_read]
+    database: [schema_read, diagnostic_read]
+    approval_required:
+      - github.merge
+      - azure.deployment
+      - database.migration_execute
+
+  visual_qa:
+    github: [repository_read, pull_request_read, workflow_read]
+    monitoring: [logs_read, metrics_read]
+    denied_capabilities:
+      - github.code_write
+      - azure.deployment
+      - database.data_write
+
+  security:
+    github: [repository_read, branch_read, pull_request_read, workflow_read]
+    linear: [issue_read, issue_create, issue_update, comment_write]
+    monitoring: [logs_read, metrics_read, traces_read, alerts_read]
+    database: [schema_read, diagnostic_read]
+    denied_capabilities:
+      - github.code_write
+      - azure.deployment
+      - database.data_write
+
+  devops:
+    github: [repository_read, pull_request_read, workflow_read]
+    azure: [resource_read, logs_read, configuration_read, deployment, configuration_write]
+    monitoring: [logs_read, metrics_read, traces_read, alerts_read, alert_configuration]
+    database: [schema_read, diagnostic_read]
+    approval_required:
+      - azure.resource_delete
+      - azure.identity_write
+      - azure.secret_write
+      - database.migration_execute
+      - database.production_data_delete
