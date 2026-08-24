@@ -1,0 +1,80 @@
+version: 1
+
+principles:
+  deny_by_default: true
+  least_privilege: true
+  separate_read_write_admin: true
+  credentials_are_runtime_only: true
+  registry_contains_no_secrets: true
+
+tools:
+  github:
+    category: source_control
+    capabilities:
+      read: [repository_read, branch_read, pull_request_read, workflow_read]
+      write: [branch_create, code_write, pull_request_write]
+      privileged: [merge, repository_settings, secrets_management]
+    risk:
+      read: low
+      write: medium
+      privileged: high
+
+  linear:
+    category: work_management
+    capabilities:
+      read: [issue_read, project_read, roadmap_read]
+      write: [issue_create, issue_update, comment_write]
+      privileged: [workspace_configuration]
+    risk:
+      read: low
+      write: low
+      privileged: medium
+
+  azure:
+    category: cloud_platform
+    capabilities:
+      read: [resource_read, logs_read, configuration_read]
+      write: [deployment, configuration_write]
+      privileged: [resource_delete, identity_write, secret_write]
+    risk:
+      read: medium
+      write: high
+      privileged: critical
+
+  database:
+    category: data
+    capabilities:
+      read: [schema_read, diagnostic_read]
+      write: [migration_execute, data_write]
+      privileged: [production_data_delete, permission_change]
+    risk:
+      read: medium
+      write: high
+      privileged: critical
+
+  monitoring:
+    category: observability
+    capabilities:
+      read: [logs_read, metrics_read, traces_read, alerts_read]
+      write: [alert_configuration]
+    risk:
+      read: low
+      write: medium
+
+  ai_provider:
+    category: intelligence_provider
+    capabilities:
+      read: [model_metadata]
+      execute: [inference]
+      privileged: [provider_configuration, credential_rotation]
+    risk:
+      read: low
+      execute: medium
+      privileged: high
+
+runtime_requirements:
+  - Resolve agent identity before tool access.
+  - Resolve requested capability before selecting a tool.
+  - Evaluate agent permission for the specific capability and target environment.
+  - Require explicit authorization for destructive or production-critical actions.
+  - Emit auditable execution evidence for writes and privileged operations.
