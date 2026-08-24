@@ -65,7 +65,20 @@ function findColumn(headers: string[], candidates: string[]) {
   return headers.findIndex((header) => candidates.includes(normalizeHeader(header)));
 }
 
-function parseCsv(text: string): CsvRow[] {
+function createGeneratedSku(usedSkus: Set<string>, startAt: number) {
+  let sequence = Math.max(1, startAt);
+  while (true) {
+    const candidate = `WS-${String(sequence).padStart(5, '0')}`;
+    const normalized = candidate.toLocaleLowerCase('da-DK');
+    if (!usedSkus.has(normalized)) {
+      usedSkus.add(normalized);
+      return candidate;
+    }
+    sequence += 1;
+  }
+}
+
+function parseCsv(text: string, existingSkus: string[]): CsvRow[] {
   const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter((line) => line.trim().length > 0);
   if (lines.length < 2) return [];
   const separator = detectSeparator(lines[0]);
@@ -76,20 +89,29 @@ function parseCsv(text: string): CsvRow[] {
   const costIndex = findColumn(headers, aliases.unitCost);
   if (nameIndex < 0) throw new Error('CSV-filen mangler en kolonne med varenavn. Brug fx “Varenavn”.');
 
-  const seenSkus = new Set<string>();
+  const existing = new Set(existingSkus.map((sku) => sku.toLocaleLowerCase('da-DK')));
+  const seenSkus = new Set<string>(existing);
+  let generatedSequence = 1;
+
   return lines.slice(1).map((line, index) => {
     const cells = parseCsvLine(line, separator);
     const name = cells[nameIndex]?.trim() ?? '';
     const rawSku = skuIndex >= 0 ? cells[skuIndex]?.trim() ?? '' : '';
-    const sku = rawSku || `WS-${String(index + 1).padStart(5, '0')}`;
+    const sku = rawSku || createGeneratedSku(seenSkus, generatedSequence);
+    if (!rawSku) {
+      const numericSuffix = Number(sku.slice(3));
+      generatedSequence = Number.isFinite(numericSuffix) ? numericSuffix + 1 : generatedSequence + 1;
+    }
     const unit = (unitIndex >= 0 ? cells[unitIndex]?.trim() : '') || 'stk';
     const unitCost = costIndex >= 0 ? parsePrice(cells[costIndex] ?? '') : 0;
+    const normalizedSku = sku.toLocaleLowerCase('da-DK');
     let error = '';
     if (!name) error = 'Mangler varenavn';
     else if (!sku) error = 'Mangler varenummer';
     else if (!Number.isFinite(unitCost) || unitCost < 0) error = 'Ugyldig kostpris';
-    else if (seenSkus.has(sku.toLocaleLowerCase('da-DK'))) error = 'Dubleret varenummer i filen';
-    seenSkus.add(sku.toLocaleLowerCase('da-DK'));
+    else if (rawSku && existing.has(normalizedSku)) error = 'Varenummer findes allerede';
+    else if (rawSku && seenSkus.has(normalizedSku)) error = 'Dubleret varenummer i filen';
+    if (rawSku) seenSkus.add(normalizedSku);
     return { row: index + 2, name, sku, unit, unitCost, error: error || undefined };
   });
 }
@@ -98,6 +120,39 @@ function apiError(error: unknown) {
   if (!axios.isAxiosError(error)) return 'Varen kunne ikke oprettes.';
   const data = error.response?.data as { message?: string; title?: string } | undefined;
   return data?.message || data?.title || 'Varen kunne ikke oprettes.';
+}
+
+function appendSafeText(element: HTMLElement, value: string) {
+  element.textContent = value;
+}
+
+function populatePrintWindow(printWindow: Window, labels: InventoryQrLabelDocumentResponse[]) {
+  const document = printWindow.document;
+  document.open();
+  document.write('<!doctype html><html><head><meta charset="utf-8"><title>Workslip QR-labels</title><style>@page{size:A4;margin:9mm}*{box-sizing:border-box}body{margin:0;font-family:system-ui;color:#111}.sheet{display:grid;grid-template-columns:repeat(3,1fr);gap:5mm}.label{height:58mm;border:1px solid #aaa;border-radius:4mm;padding:4mm;display:grid;grid-template-rows:1fr auto auto;place-items:center;text-align:center;break-inside:avoid}.qr svg{width:34mm;height:34mm}.label strong{font-size:11pt;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.label span{font-size:9pt}@media print{.label{border-color:#bbb}}</style></head><body><main class="sheet"></main></body></html>');
+  document.close();
+
+  const sheet = document.querySelector<HTMLElement>('.sheet');
+  if (!sheet) return;
+  labels.forEach((label) => {
+    const article = document.createElement('article');
+    article.className = 'label';
+
+    const qr = document.createElement('div');
+    qr.className = 'qr';
+    qr.innerHTML = label.svg;
+
+    const name = document.createElement('strong');
+    appendSafeText(name, label.name);
+    const sku = document.createElement('span');
+    appendSafeText(sku, label.sku);
+
+    article.append(qr, name, sku);
+    sheet.append(article);
+  });
+
+  printWindow.focus();
+  printWindow.print();
 }
 
 export function InventoryOnboarding() {
@@ -127,7 +182,7 @@ export function InventoryOnboarding() {
     setParseError('');
     setImportResult(null);
     try {
-      setRows(parseCsv(await file.text()));
+      setRows(parseCsv(await file.text(), materials.map((material) => material.sku)));
     } catch (error) {
       setRows([]);
       setParseError(error instanceof Error ? error.message : 'CSV-filen kunne ikke læses.');
@@ -139,26 +194,20 @@ export function InventoryOnboarding() {
     setImporting(true);
     let created = 0;
     let failed = 0;
-    const queue = [...validRows];
-    const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
-      while (queue.length) {
-        const row = queue.shift();
-        if (!row) return;
-        try {
-          await apiClient.post('/api/inventory/materials', {
-            name: row.name,
-            sku: row.sku,
-            unit: row.unit,
-            unitCost: row.unitCost,
-          }, { skipGlobalErrorToast: true });
-          created += 1;
-        } catch (error) {
-          failed += 1;
-          setRows((current) => current.map((item) => item.row === row.row ? { ...item, error: apiError(error) } : item));
-        }
+    for (const row of validRows) {
+      try {
+        await apiClient.post('/api/inventory/materials', {
+          name: row.name,
+          sku: row.sku,
+          unit: row.unit,
+          unitCost: row.unitCost,
+        }, { skipGlobalErrorToast: true });
+        created += 1;
+      } catch (error) {
+        failed += 1;
+        setRows((current) => current.map((item) => item.row === row.row ? { ...item, error: apiError(error) } : item));
       }
-    });
-    await Promise.all(workers);
+    }
     setImportResult({ created, failed });
     setImporting(false);
     await loadMaterials();
@@ -174,17 +223,18 @@ export function InventoryOnboarding() {
 
   const printLabels = async (ids: string[]) => {
     if (!ids.length) return;
+    const printWindow = window.open('', '_blank', 'width=1000,height=800');
+    if (!printWindow) return;
     setPrinting(true);
     try {
       const labels = await Promise.all(ids.map(async (id) => {
         const label = await apiClient.get<InventoryQrLabelDocumentResponse>(`/api/inventory/materials/${id}/qr-label`);
         return label as unknown as InventoryQrLabelDocumentResponse;
       }));
-      const printWindow = window.open('', '_blank', 'width=1000,height=800');
-      if (!printWindow) return;
-      const cards = labels.map((label) => `<article class="label"><div class="qr">${label.svg}</div><strong>${label.name}</strong><span>${label.sku}</span></article>`).join('');
-      printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Workslip QR-labels</title><style>@page{size:A4;margin:9mm}*{box-sizing:border-box}body{margin:0;font-family:system-ui;color:#111}.sheet{display:grid;grid-template-columns:repeat(3,1fr);gap:5mm}.label{height:58mm;border:1px solid #aaa;border-radius:4mm;padding:4mm;display:grid;grid-template-rows:1fr auto auto;place-items:center;text-align:center;break-inside:avoid}.qr svg{width:34mm;height:34mm}.label strong{font-size:11pt;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.label span{font-size:9pt}@media print{.label{border-color:#bbb}}</style></head><body><main class="sheet">${cards}</main><script>window.onload=()=>window.print()</script></body></html>`);
-      printWindow.document.close();
+      populatePrintWindow(printWindow, labels);
+    } catch (error) {
+      printWindow.close();
+      throw error;
     } finally {
       setPrinting(false);
     }
