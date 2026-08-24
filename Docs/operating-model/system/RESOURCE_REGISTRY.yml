@@ -1,0 +1,222 @@
+version: 1
+
+principles:
+  source_of_truth_is_runtime_and_iac: true
+  no_secrets: true
+  distinguish_declared_from_verified_runtime: true
+  environment_scoped: true
+  agent_access_is_resolved_separately: true
+
+resource_kinds:
+  - application
+  - container
+  - database
+  - datastore
+  - cloud_resource
+  - identity
+  - observability
+  - integration
+  - workflow_engine
+
+resources:
+  workslip_frontend:
+    kind: application
+    product: workslip
+    environments: [local, production]
+    technology: react_vite_pwa
+    local_runtime:
+      container: workslip-fe
+      image: node:24
+      port: 5270
+    source: src/FE
+    declared_by:
+      - docker-compose.yml
+
+  workslip_api:
+    kind: application
+    product: workslip
+    environments: [local, production]
+    technology: dotnet
+    local_runtime:
+      container: workslip-api
+      image: mcr.microsoft.com/dotnet/sdk:10.0
+      port: 5262
+    production_runtime:
+      platform: azure_app_service
+      identity: user_assigned_managed_identity
+    source: src/BE/WorkslipApi
+    declared_by:
+      - docker-compose.yml
+      - src/BE/infrastructure/main.bicep
+
+  workslip_sql_local:
+    kind: database
+    product: workslip
+    environments: [local]
+    engine: sql_server_2022
+    container: workslip-sql
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    port: 1433
+    persistence: sql-data
+    declared_by:
+      - docker-compose.yml
+
+  workslip_sql_production:
+    kind: database
+    product: workslip
+    environments: [production]
+    engine: azure_sql
+    runtime_auth: managed_identity
+    migration_identity: dedicated_migration_identity
+    declared_by:
+      - src/BE/infrastructure/main.bicep
+      - src/BE/infrastructure/README.md
+
+  seq_local:
+    kind: observability
+    product: workslip
+    environments: [local]
+    container: workslip-seq
+    image: datalust/seq:latest
+    port: 5341
+    persistence: seq-data
+    declared_by:
+      - docker-compose.yml
+
+  azure_app_configuration:
+    kind: cloud_resource
+    product: workslip
+    environments: [production]
+    purpose: runtime_configuration_and_key_vault_references
+    declared_by:
+      - src/BE/infrastructure/main.bicep
+      - src/BE/infrastructure/README.md
+
+  azure_key_vault:
+    kind: cloud_resource
+    product: workslip
+    environments: [production]
+    purpose: runtime_and_deployment_secret_storage
+    declared_by:
+      - src/BE/infrastructure/main.bicep
+      - src/BE/infrastructure/README.md
+
+  azure_storage:
+    kind: datastore
+    product: workslip
+    environments: [production]
+    purpose: document_and_image_blob_storage
+    observability: log_analytics
+    declared_by:
+      - src/BE/infrastructure/main.bicep
+      - Docs/operations/document-image-storage-recovery.md
+
+  azure_communication_services:
+    kind: integration
+    product: workslip
+    environments: [production]
+    purpose: transactional_email
+    production_sender: noreply@mrsoftware.dk
+    observability: log_analytics
+    declared_by:
+      - src/BE/infrastructure/main.bicep
+      - Docs/acs-email-setup.md
+
+  azure_monitor:
+    kind: observability
+    product: workslip
+    environments: [production]
+    capabilities:
+      - availability_testing
+      - api_alerts
+      - platform_alerts
+      - cost_budget_alerts
+    declared_by:
+      - src/BE/infrastructure/monitoring.bicep
+      - src/BE/infrastructure/observability.bicep
+      - src/BE/infrastructure/budgets.bicep
+
+  log_analytics:
+    kind: observability
+    product: workslip
+    environments: [production]
+    purpose: centralized_logs_metrics_and_diagnostics
+    declared_by:
+      - src/BE/infrastructure/observability.bicep
+      - src/BE/infrastructure/README.md
+
+  microsoft_entra:
+    kind: identity
+    product: workslip
+    environments: [production]
+    purpose: authentication_app_registrations_and_service_principals
+    declared_by:
+      - src/BE/infrastructure/deploy-entra.ps1
+      - src/BE/infrastructure/README.md
+
+  github_actions:
+    kind: integration
+    product: platform
+    environments: [ci, production]
+    purpose: ci_cd_and_oidc_deployment
+    declared_by:
+      - .github/workflows
+      - Docs/architecture/adr/0003-github-infrastructure-oidc-bootstrap.md
+
+  posthog:
+    kind: observability
+    product: workslip
+    environments: [production]
+    purpose: product_analytics
+    declared_by:
+      - src/BE/infrastructure/posthog/posthog.bicep
+      - src/BE/infrastructure/posthog/README.md
+
+  mr_saasy_control_plane:
+    kind: application
+    product: mr_saasy
+    environments: [development]
+    technology: laravel_php
+    source: platform/mr-saasy-control-plane
+    trust_boundary: isolated_from_workslip_domain_and_database
+    declared_by:
+      - platform/mr-saasy-control-plane/AGENTS.md
+      - platform/mr-saasy-control-plane/composer.json
+
+  mr_saasy_temporal:
+    kind: workflow_engine
+    product: mr_saasy
+    environments: [poc]
+    image: temporalio/temporal:1.8.1
+    ports: [7233, 8233]
+    declared_by:
+      - platform/mr-saasy-agent-poc/docker-compose.yml
+
+  mr_saasy_sandbox_broker:
+    kind: container
+    product: mr_saasy
+    environments: [poc]
+    purpose: isolated_agent_sandbox_lifecycle
+    docker_socket_access: true
+    sandbox_image: python:3.12-slim
+    declared_by:
+      - platform/mr-saasy-agent-poc/docker-compose.yml
+      - platform/mr-saasy-agent-poc/sandbox_broker/Dockerfile
+
+  mr_saasy_worker:
+    kind: container
+    product: mr_saasy
+    environments: [poc]
+    purpose: temporal_agent_worker
+    dependencies: [mr_saasy_temporal, mr_saasy_sandbox_broker]
+    persistence: poc-state
+    declared_by:
+      - platform/mr-saasy-agent-poc/docker-compose.yml
+
+maintenance:
+  rules:
+    - Add a resource when it becomes a real checked-in runtime, infrastructure resource, database, container, external service or integration boundary.
+    - Remove or mark retired resources in the same change that retires their authoritative implementation.
+    - Do not infer production existence from plans alone; declared resources and runtime-verified resources are distinct states.
+    - Secrets, connection strings, tokens and private endpoints never belong in this registry.
+    - Tool permissions belong in TOOL_REGISTRY.yml and CAPABILITY_MATRIX.yml; this registry describes what exists, not who may mutate it.
