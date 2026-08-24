@@ -98,4 +98,6 @@ The production application is hosted separately at `https://app.mrsoftware.dk`. 
 
 ## Architecture boundary
 
-This Jekyll site is static marketing and documentation content. It must not contain application business logic, production secrets, direct database access or duplicated React application behavior. The real application remains under `src/FE`; the isolated demo is delivered separately.
+This Jekyll site is static marketing and documentation content. It must not contain application business logic, production secrets, direct database access or duplicated React application behavior. The real application remains under `src/FE`.
+
+`/demo/` is a deliberately limited, public product walkthrough: it may render fictional, bundled scenarios and client-only UI feedback so visitors can understand the flow without a login. It must not authenticate users, call an API, access production data, use application components or routes, persist data in browser storage, or claim to be an integrated product environment. A real integrated demo remains a separate deployment and needs its own security gates.

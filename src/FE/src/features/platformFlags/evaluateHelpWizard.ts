@@ -1,4 +1,4 @@
-/** Mirrors MR SAAS'y platform.help-wizard. Default off. Kill wins. */
+/** Mirrors MR SAAS'y platform.help-wizard. Default on. Kill wins. */
 
 export const PLATFORM_HELP_WIZARD = 'platform.help-wizard';
 
@@ -7,7 +7,7 @@ export type FeatureFlagSource =
   | 'identity'
   | 'tenant'
   | 'application'
-  | 'default-off';
+  | 'default-on';
 
 export type HelpWizardAssignment = {
   killed?: boolean;
@@ -40,13 +40,13 @@ export function evaluateHelpWizard(assignment: HelpWizardAssignment): {
     return { enabled: true, source: 'tenant' };
   }
 
-  if (assignment.application === true) {
-    return { enabled: true, source: 'application' };
-  }
-
   if (assignment.application === false) {
     return { enabled: false, source: 'application' };
   }
 
-  return { enabled: false, source: 'default-off' };
+  if (assignment.application === true) {
+    return { enabled: true, source: 'application' };
+  }
+
+  return { enabled: true, source: 'default-on' };
 }

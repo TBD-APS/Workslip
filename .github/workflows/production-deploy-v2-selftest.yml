@@ -1,0 +1,70 @@
+name: Production deploy v2 · Self-test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/backend-production-deploy.yml'
+      - '.github/workflows/production-deploy-v2-selftest.yml'
+      - 'tools/release/verify-migration-compatibility.mjs'
+      - 'tools/release/verify-migration-compatibility.test.mjs'
+      - 'tools/release/post-deploy-smoke.sh'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/backend-production-deploy.yml'
+      - '.github/workflows/production-deploy-v2-selftest.yml'
+      - 'tools/release/verify-migration-compatibility.mjs'
+      - 'tools/release/verify-migration-compatibility.test.mjs'
+      - 'tools/release/post-deploy-smoke.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  invariants:
+    name: Production deploy v2 · Invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate migration policy code
+        run: |
+          set -Eeuo pipefail
+          node --check tools/release/verify-migration-compatibility.mjs
+          node --test tools/release/verify-migration-compatibility.test.mjs
+
+      - name: Validate smoke script syntax
+        run: bash -n tools/release/post-deploy-smoke.sh
+
+      - name: Verify deployment safety invariants
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          workflow=.github/workflows/backend-production-deploy.yml
+          grep -Fq 'verify-production-eligibility.mjs' "${workflow}"
+          grep -Fq 'group: workslip-production' "${workflow}"
+          grep -Fq 'verify-migration-compatibility.mjs' "${workflow}"
+          grep -Fq 'retention-days: 14' "${workflow}"
+          grep -Fq 'artifact_sha256' "${workflow}"
+          grep -Fq 'AZURE_DEPLOYMENT_SLOT_ENABLED' "${workflow}"
+          grep -Fq 'Verify candidate before traffic' "${workflow}"
+          grep -Fq 'deployment slot swap' "${workflow}"
+          grep -Fq 'Roll back failed slot swap' "${workflow}"
+          grep -Fq 'post-deploy-smoke.sh' "${workflow}"
+          grep -Fq 'continue-on-error: true' "${workflow}"
+          grep -Fq 'Automatic rollback: available only in slot mode' "${workflow}"
+
+      - name: Block accidental always-on slot rollout
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          workflow=.github/workflows/backend-production-deploy.yml
+          grep -Fq "vars.AZURE_DEPLOYMENT_SLOT_ENABLED || 'false'" "${workflow}"
+          if grep -Fq 'AZURE_DEPLOYMENT_SLOT_ENABLED: true' "${workflow}"; then
+            echo 'Slot mode must not be enabled in repository YAML; infrastructure/cost approval owns activation.' >&2
+            exit 1
+          fi

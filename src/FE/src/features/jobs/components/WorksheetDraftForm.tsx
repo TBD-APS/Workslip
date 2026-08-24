@@ -15,6 +15,7 @@ type WorksheetDraftFormProps = {
   isSaving: boolean;
   formId?: string;
   hoursInputId?: string;
+  outlayInputId?: string;
   submitId?: string;
   cancelId?: string;
   submitLabel: string;
@@ -34,6 +35,7 @@ export function WorksheetDraftForm({
   isSaving,
   formId,
   hoursInputId,
+  outlayInputId,
   submitId,
   cancelId,
   submitLabel,
@@ -44,6 +46,7 @@ export function WorksheetDraftForm({
 }: WorksheetDraftFormProps) {
   const updateDraft = (patch: Partial<WorksheetDraft>) => onDraftChange({ ...draft, ...patch });
   const resolvedHoursInputId = hoursInputId ?? `${title}-worksheet-hours`;
+  const resolvedOutlayInputId = outlayInputId ?? `${title}-worksheet-outlay`;
 
   return (
     <form
@@ -94,9 +97,11 @@ export function WorksheetDraftForm({
 
         <div className="worksheet-overnight-wrapper">
           <Checkbox
+            id={resolvedOutlayInputId}
             checked={draft.sleptOnJob}
             onChange={() => updateDraft({ sleptOnJob: !draft.sleptOnJob })}
             label="Udlæg"
+            description={draft.sleptOnJob ? 'Registreret på denne timeseddel' : 'Ingen udlæg på denne timeseddel'}
           />
         </div>
       </div>
