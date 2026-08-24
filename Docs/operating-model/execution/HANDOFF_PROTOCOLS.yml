@@ -1,0 +1,43 @@
+version: 1
+
+handoffs:
+  creative_to_engineering:
+    from_roles: [creative_vision]
+    to_roles: [engineering]
+    required:
+      - objective
+      - user_experience_intent
+      - states_or_variants
+      - constraints
+      - acceptance_criteria
+    optional:
+      - references
+      - assets
+      - timing
+      - copy_direction
+
+  engineering_to_verification:
+    from_roles: [engineering]
+    to_roles: [visual_verification, security_review]
+    required:
+      - issue
+      - changed_surface
+      - implementation_summary
+      - known_risks
+      - validation_completed
+      - validation_requested
+
+  verification_to_release:
+    from_roles: [visual_verification, security_review]
+    to_roles: [platform_operations, engineering]
+    required:
+      - verdict
+      - evidence
+      - unresolved_risks
+      - required_followups
+
+rules:
+  - A handoff transfers responsibility for a defined deliverable, not unrestricted task ownership.
+  - The receiving agent keeps its own permissions; handoff never expands capabilities.
+  - Missing required handoff fields must be reported instead of silently invented.
+  - Critical blockers remain attached to the owning issue and must not disappear between agents or sessions.
