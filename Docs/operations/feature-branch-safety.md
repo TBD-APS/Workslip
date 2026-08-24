@@ -21,7 +21,7 @@ pwsh ./tools/release/configure-github-branch-rules.ps1 -VerifyOnly
 
 The intended repository rules are:
 
-- `main`: pull request required, `CI Gate` and `Feature change guard` required, squash only, **no bypass actors**, ref deletion and non-fast-forward updates blocked;
+- `main`: pull request required, `CI Gate`, `Feature change guard` and `Contributor Quality Gate` required, squash only, **no bypass actors**, ref deletion and non-fast-forward updates blocked;
 - `release-*`: same integration protection;
 - `rbj--*`: no bypass actors, ref deletion and non-fast-forward updates blocked while ordinary fast-forward development pushes remain allowed.
 
