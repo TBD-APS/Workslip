@@ -27,6 +27,7 @@ const reactionAnimations: Record<ClippyReaction, Record<string, number | number[
 function GoldClippyWizard() {
   return (
     <svg
+      id="help-wizard-character"
       className="clippy-wizard clippy-gold-clip"
       viewBox="0 0 92 96"
       width="68"
@@ -57,7 +58,7 @@ function GoldClippyWizard() {
       </g>
 
       <path className="clippy-wizard-arm" d="M61 52c6 1 9 4 11 8" />
-      <g className="clippy-wizard-wand">
+      <g id="help-wizard-wand" className="clippy-wizard-wand">
         <path className="clippy-wizard-wand-stick" d="m70 59 12-28" />
         <path className="clippy-wizard-spark" d="m83 23 1.7 4.6 4.6 1.7-4.6 1.7-1.7 4.6-1.7-4.6-4.6-1.7 4.6-1.7Z" />
         <circle className="clippy-wizard-dust clippy-wizard-dust-one" cx="76" cy="22" r="1.3" />
@@ -251,8 +252,8 @@ export function HelpWizard() {
     >
       {open && (
         <div id="help-wizard-message" className="help-wizard-bubble" role="status">
-          <strong className="help-wizard-bubble-title">{bubbleCopy.headline}</strong>
-          <span className="help-wizard-bubble-body">{bubbleCopy.body}</span>
+          <strong id="help-wizard-message-title" className="help-wizard-bubble-title">{bubbleCopy.headline}</strong>
+          <span id="help-wizard-message-body" className="help-wizard-bubble-body">{bubbleCopy.body}</span>
         </div>
       )}
       <button
