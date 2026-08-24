@@ -51,6 +51,12 @@ Documentation changed or reviewed:
 
 -
 
+## Architecture and boundaries
+
+State the affected module/layer, relevant architecture owner, contract or ADR, and why the change preserves the existing dependency, authorization and tenant boundaries. Write `No cross-boundary impact` only when that is true.
+
+-
+
 ## Compliance decision
 
 Select exactly one and add evidence below when impact exists:

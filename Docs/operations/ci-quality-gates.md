@@ -9,7 +9,7 @@
 
 Workslip uses one normal delivery path:
 
-`rbj--<issue>-...` branch → pull request → `CI Gate` → explicit manual merge → `main` → exact-SHA post-merge `CI Gate` → production.
+`rbj--<issue>-...` branch → pull request → `CI Gate` + `Contributor Quality Gate` when the author is external → explicit manual merge → `main` → exact-SHA post-merge `CI Gate` → production.
 
 `main` is the production code boundary. A separate `release/**` candidate branch is not part of the active release process.
 
@@ -43,6 +43,12 @@ The full backend suite is blocking. Do not replace it with a filtered allowlist,
 The frontend carries inherited ESLint debt. CI compares pull-request findings with the exact base revision and blocks new severity-2 errors without treating inherited findings as permission to grow the baseline.
 
 The branch-matched frontend client is generated from the backend in the same revision. After generation, CI requires `src/FE/src/api/generated` to be clean. This matters because Vercel production intentionally does not regenerate against a remote dev/prod OpenAPI endpoint; the client committed in the release SHA must already be the client CI proved against that backend revision.
+
+### External contributor escalation
+
+`.github/workflows/contributor-quality-gate.yml` adds a separate exact-head status for authors other than `rasm105k` targeting `main` or a protected `release-*`/`release/**` integration branch. It runs from the trusted default-branch workflow definition, does not check out or execute pull-request code, and requires a ready pull request, meaningful change/validation/Linear/risk/architecture declarations, an `APPROVED` review by `rasm105k` on the current SHA, and no unresolved review threads. It fails closed when review-thread state is unavailable.
+
+The status is deliberately not a substitute for `CI Gate`, `Feature change guard`, CodeQL, browser evidence or explicit merge review. It adds owner accountability where a contributor has not yet demonstrated the architecture and delivery judgement required to merge without it.
 
 ## Code scanning
 
@@ -147,14 +153,14 @@ Do not delete or rename an environment from its name alone. Verify usage, deploy
 The repository `main` ruleset is defense in depth and must enforce:
 
 - pull request required;
-- required status checks `CI Gate` and `Feature change guard`;
+- required status checks `CI Gate`, `Feature change guard` and `Contributor Quality Gate`;
 - no bypass actors;
 - direct pushes blocked by the pull-request rule;
 - non-fast-forward/force pushes blocked;
 - squash-only merge; and
 - merge remains an explicit human action.
 
-Current repository inspection for WOR-468 found the active `Prod Ruleset` requires a pull request, non-fast-forward protection and CodeQL, but does **not** yet contain `CI Gate` as a required status check and still has configured bypass actors. That settings gap must be corrected in GitHub repository administration; it is not represented as fixed merely by changing workflow YAML.
+Legacy or directly configured rulesets are not evidence that the intended policy is active. The reconciler below must be applied and then verified against GitHub; workflow YAML alone does not correct missing status checks or configured bypass actors.
 
 `tools/release/configure-github-branch-rules.ps1` is the authoritative reconciliation command. Its apply payload contains no bypass actors, and its read-back verification now fails if GitHub reports bypass actors, wrong refs/rule types, wrong merge methods, wrong review count, wrong required checks or a non-strict status-check policy. `-VerifyOnly` is the acceptance evidence after an administrator applies the rules.
 
@@ -170,7 +176,7 @@ Production delivery no longer trusts that ruleset as its only red-deploy defense
 - all privileged production workflows use the shared `workslip-production` lock and an allowlisted protected `prod`/`live` environment;
 - manual new-tenant deployment remains exact-main, records the reviewed data-manifest hash as evidence, and cannot change Vercel traffic;
 - backend deployment revalidates before mutation and cannot fall back to ancestor semantics;
-- the repository-protection source requires `CI Gate`, `Feature change guard`, no bypass actors and strict status checks; and
+- the repository-protection source requires `CI Gate`, `Feature change guard`, `Contributor Quality Gate`, no bypass actors and strict status checks; and
 - retired legacy workflow entrypoints do not reappear.
 
 ## Releases and tags
