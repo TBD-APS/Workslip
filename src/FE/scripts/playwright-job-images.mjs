@@ -144,6 +144,16 @@ async function verifyGallery({ name, viewport }) {
     assert.ok(Array.isArray(listedImages), `${name}: job image list must be an array.`);
     assert.equal(listedImages.length, 6, `${name}: fixture must contain exactly six images.`);
 
+    // On a phone, the newly rendered grid can start just below the lazy-image
+    // boundary even though the section itself was previously in view. Put each
+    // collapsed tile in view before measuring image requests, as a user scrolling
+    // through the gallery would.
+    for (const image of listedImages.slice(0, 4)) {
+      const tile = page.locator(`#job-image-tile-${image.id}`);
+      await tile.waitFor({ state: 'attached', timeout: UI_TIMEOUT });
+      await tile.scrollIntoViewIfNeeded();
+    }
+
     await waitUntil(
       () => uniqueImageGetCount(imageGetPaths) >= 4,
       `${name}: first four image requests did not complete their lazy-start boundary.`,
@@ -164,7 +174,9 @@ async function verifyGallery({ name, viewport }) {
       `${name}: gallery toggle did not enter expanded state.`,
     );
     for (const image of listedImages) {
-      await page.locator(`#job-image-tile-${image.id}`).waitFor({ state: 'attached', timeout: UI_TIMEOUT });
+      const tile = page.locator(`#job-image-tile-${image.id}`);
+      await tile.waitFor({ state: 'attached', timeout: UI_TIMEOUT });
+      await tile.scrollIntoViewIfNeeded();
     }
     await waitUntil(
       () => uniqueImageGetCount(imageGetPaths) >= 6,
