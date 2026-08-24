@@ -43,6 +43,7 @@ Do not create a page merely to fill the list. Add it only when it reduces redisc
 - [`adr/0010-mr-saasy-control-plane-bootstrap-boundary.md`](adr/0010-mr-saasy-control-plane-bootstrap-boundary.md)
 - [`adr/0012-central-domain-field-copyability-policy.md`](adr/0012-central-domain-field-copyability-policy.md) — central copy/call/e-mail and future domain-field interaction policy.
 - [`adr/0013-mr-saasy-spacecenter-privileged-admin-surface.md`](adr/0013-mr-saasy-spacecenter-privileged-admin-surface.md) — MR SAAS'y Spacecenter owns the privileged SuperAdmin/Admin surface and GitHub-backed app/service operations.
+- [`adr/0014-mr-saasy-delivery-lifecycle-orchestration-boundary.md`](adr/0014-mr-saasy-delivery-lifecycle-orchestration-boundary.md) — MR SAAS'y owns cross-product delivery-lifecycle orchestration; Workslip remains the focused product owning system.
 
 ## Superseded decisions
 
