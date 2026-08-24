@@ -235,11 +235,21 @@ public sealed class InventoryService(
         if (errors.Count > 0)
             return Result<InventoryMovementResponse>.Invalid(errors);
 
+        var normalizedQuantity = decimal.Round(request.Quantity, 3, MidpointRounding.AwayFromZero);
+        if (normalizedQuantity <= 0m)
+        {
+            return Result<InventoryMovementResponse>.Invalid(new ValidationError
+            {
+                Identifier = nameof(request.Quantity),
+                ErrorMessage = "Antallet er for lille. Brug mindst 0,001."
+            });
+        }
+
         var normalizedDirection = request.Direction.Trim().ToLowerInvariant();
         var normalized = request with
         {
             Direction = normalizedDirection,
-            Quantity = decimal.Round(request.Quantity, 3, MidpointRounding.AwayFromZero),
+            Quantity = normalizedQuantity,
             Reason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim()
         };
 
