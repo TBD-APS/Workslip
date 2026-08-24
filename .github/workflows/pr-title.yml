@@ -1,0 +1,24 @@
+name: pr-title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate pull request title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^\[(Bug|Feature|Improvement|Docs|Refactor|Infra|Security|Release|Hotfix|Chore|Test)\] ([A-Z]+-[0-9]+ — .+|.+)$'
+          if [[ ! "$PR_TITLE" =~ $pattern ]]; then
+            echo "Invalid PR title: $PR_TITLE"
+            echo "Expected: [Type] ISSUE-ID — Clear title"
+            echo "Allowed types: Bug, Feature, Improvement, Docs, Refactor, Infra, Security, Release, Hotfix, Chore, Test"
+            exit 1
+          fi
