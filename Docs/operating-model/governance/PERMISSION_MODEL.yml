@@ -1,0 +1,46 @@
+version: 1
+
+principles:
+  default_decision: deny
+  least_privilege: true
+  environment_aware: true
+  explicit_approval_for_high_risk: true
+
+permission_levels:
+  read:
+    description: Inspect information without mutation.
+
+  write:
+    description: Create or modify non-critical resources.
+
+  privileged:
+    description: High-impact operations requiring additional controls.
+
+rules:
+  - Unknown agent must be denied.
+  - Unknown resource must be denied.
+  - Unknown capability must be denied.
+  - Handoff does not transfer permissions.
+  - Production access requires environment evaluation.
+  - Destructive operations require explicit approval.
+
+approval_triggers:
+  - production_deployment
+  - identity_changes
+  - secret_changes
+  - production_data_mutation
+  - destructive_resource_operations
+
+resolution_inputs:
+  required:
+    - agent_identity
+    - intent
+    - capability
+    - resource
+    - environment
+
+resolution_output:
+  allowed_states:
+    - allow
+    - deny
+    - approval_required
