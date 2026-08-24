@@ -95,6 +95,7 @@ export function WorksheetsSection({
           isSaving={isSaving}
           formId="worksheet-add-form"
           hoursInputId="worksheet-add-hours"
+          outlayInputId="worksheet-add-outlay"
           submitId="worksheet-add-submit"
           cancelId="worksheet-add-cancel"
           submitLabel="Tilføj"
@@ -132,7 +133,7 @@ export function WorksheetsSection({
       <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
         <span><strong>{formatNumber(totalHoursValue)}</strong> {formatUnit(totalHoursValue, 'time', 'timer')}</span>
         {totalOutlayValue > 0 && (
-          <span><strong>{formatNumber(totalOutlayValue)}</strong> {formatUnit(totalOutlayValue, 'dag', 'dage')}</span>
+          <span><strong>{formatNumber(totalOutlayValue)}</strong> {formatUnit(totalOutlayValue, 'udlæg', 'udlæg')}</span>
         )}
       </div>
     </section>
