@@ -30,9 +30,13 @@ describe('HelpWizard', () => {
     document.querySelectorAll('[data-test-clippy-fixture]').forEach((element) => element.remove());
   });
 
-  it('stays hidden by default when no assignment exists', () => {
+  it('renders Clippy by default while keeping the help bubble closed', () => {
     render(<HelpWizard />);
-    expect(screen.queryByTestId('help-wizard')).toBeNull();
+
+    const toggle = screen.getByRole('button', { name: 'Hjælp' });
+    expect(screen.getByTestId('help-wizard')).toBeInTheDocument();
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('renders Clippy when explicitly enabled without opening a message', () => {
