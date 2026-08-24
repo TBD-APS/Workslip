@@ -22,6 +22,7 @@ describe('HelpWizard', () => {
   afterEach(() => {
     cleanup();
     localStorage.clear();
+    window.history.replaceState({}, '', '/');
     document.querySelectorAll('[data-test-clippy-fixture]').forEach((element) => element.remove());
   });
 
@@ -34,23 +35,44 @@ describe('HelpWizard', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
+  it('keeps the original gold clip identity with wand and free-hand finger gun', () => {
+    render(<HelpWizard />);
+
+    const wizard = screen.getByTestId('help-wizard');
+    expect(wizard.querySelector('.clippy-gold-clip')).not.toBeNull();
+    expect(wizard.querySelector('.clippy-wizard-clip-outer')).not.toBeNull();
+    expect(wizard.querySelector('.clippy-wizard-wand')).not.toBeNull();
+    expect(wizard.querySelector('.clippy-wizard-finger-gun')).not.toBeNull();
+    expect(wizard.querySelectorAll('.clippy-wizard-dust')).toHaveLength(3);
+  });
+
   it('can still be turned off explicitly for the current identity', () => {
     localStorage.setItem('workslip.flag.help-wizard', 'off');
     render(<HelpWizard />);
     expect(screen.queryByTestId('help-wizard')).toBeNull();
   });
 
-  it('opens and closes a concise help prompt', () => {
+  it('opens and closes a concise contextual help prompt', () => {
     render(<HelpWizard />);
 
     const toggle = screen.getByRole('button', { name: 'Hjælp' });
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('status')).toHaveTextContent('Skal jeg hjælpe?');
+    expect(screen.getByRole('status')).toHaveTextContent('Hvad driller?');
+    expect(screen.getByRole('status')).toHaveTextContent('Jeg holder mig i hjørnet, til du kalder.');
 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('uses route-specific copy without starting a tour', () => {
+    window.history.replaceState({}, '', '/app/timer');
+    render(<HelpWizard />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hjælp' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Timer uden bøvl.');
+    expect(screen.getByRole('status')).toHaveTextContent('Du tager dig af arbejdet.');
   });
 
   it('moves to registered app targets and can return home', () => {
