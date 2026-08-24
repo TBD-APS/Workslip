@@ -112,7 +112,7 @@
   }
 
   .bottom-nav .nav-item.active {
-    color: var(--text);
+    color: var(--color-primary);
     background: var(--surface-selected);
     border-color: color-mix(in srgb, var(--color-primary) 24%, var(--border));
   }
