@@ -1,0 +1,84 @@
+version: 1
+
+resolution_pipeline:
+  name: agent_execution_resolution
+  description: Resolve intent, ownership, resources and permissions before execution.
+
+steps:
+  - id: identity
+    input:
+      - requested_agent
+      - available_agents
+    output:
+      - resolved_agent
+    failure: deny
+
+  - id: intent
+    input:
+      - user_request
+      - INTENT_MAP
+    output:
+      - resolved_intent
+      - workflow
+    failure: request_clarification
+
+  - id: domain
+    input:
+      - resolved_intent
+      - DOMAIN_MAP
+    output:
+      - primary_domain
+      - impacted_domains
+
+  - id: resource
+    input:
+      - impacted_domains
+      - SYSTEM_MAP
+      - RESOURCE_REGISTRY
+    output:
+      - affected_resources
+
+  - id: capability
+    input:
+      - resolved_agent
+      - requested_action
+      - TOOL_REGISTRY
+    output:
+      - required_capabilities
+
+  - id: authorization
+    input:
+      - resolved_agent
+      - required_capabilities
+      - affected_resources
+      - environment
+      - CAPABILITY_MATRIX
+      - PERMISSION_MODEL
+    output:
+      - decision
+    decisions:
+      - allow
+      - deny
+      - approval_required
+
+  - id: execution
+    condition:
+      - decision == allow
+    output:
+      - execution_result
+
+  - id: audit
+    always: true
+    output:
+      - agent
+      - intent
+      - resource
+      - capability
+      - decision
+      - evidence
+
+rules:
+  - Unknown resources are denied by default.
+  - Handoff does not increase permissions.
+  - Production changes require explicit environment-aware authorization.
+  - Every write operation must produce audit evidence.
