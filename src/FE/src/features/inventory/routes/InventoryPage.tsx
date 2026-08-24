@@ -27,6 +27,28 @@ function errorMessage(error: unknown, fallback: string) {
   return data?.message || data?.title || Object.values(data?.errors ?? {})[0]?.[0] || fallback;
 }
 
+function parseDanishNumber(value: string) {
+  const normalized = value.trim().replace(/\s/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function populateSingleLabelWindow(printWindow: Window, label: InventoryQrLabelDocumentResponse) {
+  const document = printWindow.document;
+  document.open();
+  document.write('<!doctype html><html><head><meta charset="utf-8"><title>Workslip QR-label</title><style>body{font-family:system-ui;text-align:center;padding:24px}.label{border:2px solid #111;border-radius:16px;padding:20px;display:inline-block}.qr svg{width:260px;height:260px}h1{font-size:24px;margin:12px 0 4px}.sku{font-size:16px}</style></head><body><div class="label"><div class="qr"></div><h1></h1><div class="sku"></div></div></body></html>');
+  document.close();
+  const qr = document.querySelector<HTMLElement>('.qr');
+  const name = document.querySelector<HTMLElement>('h1');
+  const sku = document.querySelector<HTMLElement>('.sku');
+  if (qr) qr.innerHTML = label.svg;
+  if (name) name.textContent = label.name;
+  if (sku) sku.textContent = label.sku;
+  document.title = label.name;
+  printWindow.focus();
+  printWindow.print();
+}
+
 export function InventoryPage() {
   const canManage = useCan('user:manage');
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -35,6 +57,9 @@ export function InventoryPage() {
   const scanTimerRef = useRef<number | null>(null);
   const scanBusyRef = useRef(false);
   const scanningRef = useRef(false);
+  const scanSessionRef = useRef(0);
+  const locationsRef = useRef<InventoryLocationResponse[]>([]);
+  const movementCommandRef = useRef<{ key: string; commandId: string } | null>(null);
 
   const [locations, setLocations] = useState<InventoryLocationResponse[]>([]);
   const [scan, setScan] = useState<InventoryScanResponse | null>(null);
@@ -51,6 +76,7 @@ export function InventoryPage() {
   const [adminBusy, setAdminBusy] = useState(false);
 
   const stopScanner = useCallback(() => {
+    scanSessionRef.current += 1;
     scanningRef.current = false;
     setScanning(false);
     if (scanTimerRef.current !== null) window.clearTimeout(scanTimerRef.current);
@@ -64,8 +90,10 @@ export function InventoryPage() {
 
   const loadLocations = useCallback(async () => {
     const result = await getApiInventoryLocations();
-    setLocations(result.filter((location) => location.isActive));
-    setSelectedLocationId((current) => current || result.find((location) => location.isActive)?.id || '');
+    const activeLocations = result.filter((location) => location.isActive);
+    locationsRef.current = activeLocations;
+    setLocations(activeLocations);
+    setSelectedLocationId((current) => current || activeLocations[0]?.id || '');
   }, []);
 
   const loadMaterials = useCallback(async () => {
@@ -81,12 +109,12 @@ export function InventoryPage() {
     void loadMaterials();
   }, [loadLocations, loadMaterials]);
 
-  async function captureAndScan() {
-    if (!scanningRef.current || scanBusyRef.current) return;
+  async function captureAndScan(sessionId: number) {
+    if (!scanningRef.current || scanBusyRef.current || sessionId !== scanSessionRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-      scanTimerRef.current = window.setTimeout(() => void captureAndScan(), SCAN_INTERVAL_MS);
+      scanTimerRef.current = window.setTimeout(() => void captureAndScan(sessionId), SCAN_INTERVAL_MS);
       return;
     }
 
@@ -102,37 +130,46 @@ export function InventoryPage() {
       const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.72));
       if (!blob) throw new Error('camera_frame');
       const result = await postApiInventoryScanImage({ file: new File([blob], 'scan.jpg', { type: 'image/jpeg' }) }, { skipGlobalErrorToast: true });
+      if (!scanningRef.current || sessionId !== scanSessionRef.current) return;
+      setScannerError('');
       setScan(result);
       setSuccess('');
+      movementCommandRef.current = null;
       const stockedLocation = result.balances.find((balance) => Number(balance.quantity) > 0);
-      setSelectedLocationId(stockedLocation?.locationId || locations[0]?.id || '');
+      setSelectedLocationId(stockedLocation?.locationId || result.balances[0]?.locationId || locationsRef.current[0]?.id || '');
       stopScanner();
       return;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         // A frame without a QR code is normal while the camera is moving.
-      } else if (scanningRef.current) {
+      } else if (scanningRef.current && sessionId === scanSessionRef.current) {
         setScannerError(errorMessage(error, 'QR-koden kunne ikke læses. Prøv igen.'));
       }
     } finally {
       scanBusyRef.current = false;
     }
 
-    if (scanningRef.current) {
-      scanTimerRef.current = window.setTimeout(() => void captureAndScan(), SCAN_INTERVAL_MS);
+    if (scanningRef.current && sessionId === scanSessionRef.current) {
+      scanTimerRef.current = window.setTimeout(() => void captureAndScan(sessionId), SCAN_INTERVAL_MS);
     }
   }
 
   const startScanner = async () => {
     stopScanner();
+    const sessionId = scanSessionRef.current;
     setScan(null);
     setSuccess('');
     setScannerError('');
+    movementCommandRef.current = null;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       });
+      if (sessionId !== scanSessionRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       streamRef.current = stream;
       scanningRef.current = true;
       setScanning(true);
@@ -140,44 +177,57 @@ export function InventoryPage() {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
-      void captureAndScan();
+      void captureAndScan(sessionId);
     } catch {
+      if (sessionId !== scanSessionRef.current) return;
       stopScanner();
       setScannerError('Workslip kunne ikke åbne kameraet. Tillad kameraadgang og prøv igen.');
     }
   };
 
   const applyMovement = async (direction: 'in' | 'out') => {
-    if (!scan || !selectedLocationId || Number(quantity) <= 0) return;
+    const parsedQuantity = parseDanishNumber(quantity);
+    if (!scan || !selectedLocationId || !Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
+      setScannerError('Indtast et gyldigt antal større end 0.');
+      return;
+    }
+
+    const commandKey = `${scan.materialId}:${selectedLocationId}:${direction}:${parsedQuantity}`;
+    if (movementCommandRef.current?.key !== commandKey) {
+      movementCommandRef.current = { key: commandKey, commandId: crypto.randomUUID() };
+    }
+
     setPosting(true);
     setSuccess('');
+    setScannerError('');
     try {
       const movement = await postApiInventoryMovements({
         materialId: scan.materialId,
         locationId: selectedLocationId,
         direction,
-        quantity: Number(quantity),
-        commandId: crypto.randomUUID(),
+        quantity: parsedQuantity,
+        commandId: movementCommandRef.current.commandId,
         reason: 'QR-scanner',
       });
-      const delta = direction === 'out' ? -Number(quantity) : Number(quantity);
       setScan((current) => current ? {
         ...current,
         balances: current.balances.some((balance) => balance.locationId === selectedLocationId)
           ? current.balances.map((balance) => balance.locationId === selectedLocationId
-            ? { ...balance, quantity: Number(balance.quantity) + delta }
+            ? { ...balance, quantity: movement.balanceAfter }
             : balance)
           : [...current.balances, {
             materialId: current.materialId,
             locationId: selectedLocationId,
-            locationName: locations.find((location) => location.id === selectedLocationId)?.name || 'Lager',
+            locationName: locationsRef.current.find((location) => location.id === selectedLocationId)?.name || 'Lager',
             quantity: movement.balanceAfter,
           }],
       } : current);
-      setSuccess(direction === 'out' ? `${quantity} ${scan.unit} taget ud` : `${quantity} ${scan.unit} lagt på lager`);
+      const formattedQuantity = parsedQuantity.toLocaleString('da-DK');
+      setSuccess(direction === 'out' ? `${formattedQuantity} ${scan.unit} taget ud` : `${formattedQuantity} ${scan.unit} lagt på lager`);
       setQuantity('1');
+      movementCommandRef.current = null;
     } catch (error) {
-      setScannerError(errorMessage(error, 'Lagerhandlingen kunne ikke gennemføres.'));
+      setScannerError(errorMessage(error, 'Lagerhandlingen kunne ikke gennemføres. Tryk igen for at genbruge samme handling sikkert.'));
     } finally {
       setPosting(false);
     }
@@ -185,13 +235,15 @@ export function InventoryPage() {
 
   const createMaterial = async (event: FormEvent) => {
     event.preventDefault();
+    const unitCost = parseDanishNumber(materialForm.unitCost);
+    if (!Number.isFinite(unitCost) || unitCost < 0) return;
     setAdminBusy(true);
     try {
       await postApiInventoryMaterials({
         name: materialForm.name,
         sku: materialForm.sku,
         unit: materialForm.unit,
-        unitCost: Number(materialForm.unitCost),
+        unitCost,
       });
       setMaterialForm({ name: '', sku: '', unit: 'stk', unitCost: '0' });
       await loadMaterials();
@@ -214,14 +266,19 @@ export function InventoryPage() {
   };
 
   const printLabel = async (material: InventoryMaterialResponse) => {
-    const label = await apiClient.get<InventoryQrLabelDocumentResponse>(`/api/inventory/materials/${material.id}/qr-label`) as unknown as InventoryQrLabelDocumentResponse;
     const printWindow = window.open('', '_blank', 'width=480,height=640');
     if (!printWindow) return;
-    printWindow.document.write(`<!doctype html><html><head><title>${label.name}</title><style>body{font-family:system-ui;text-align:center;padding:24px}.label{border:2px solid #111;border-radius:16px;padding:20px;display:inline-block}.qr svg{width:260px;height:260px}h1{font-size:24px;margin:12px 0 4px}.sku{font-size:16px}</style></head><body><div class="label"><div class="qr">${label.svg}</div><h1>${label.name}</h1><div class="sku">${label.sku}</div></div><script>window.onload=()=>window.print()</script></body></html>`);
-    printWindow.document.close();
+    try {
+      const label = await apiClient.get<InventoryQrLabelDocumentResponse>(`/api/inventory/materials/${material.id}/qr-label`) as unknown as InventoryQrLabelDocumentResponse;
+      populateSingleLabelWindow(printWindow, label);
+    } catch (error) {
+      printWindow.close();
+      throw error;
+    }
   };
 
   const currentBalance = scan?.balances.find((balance) => balance.locationId === selectedLocationId);
+  const parsedQuantity = parseDanishNumber(quantity);
 
   return (
     <section className="inventory-page" data-testid="inventory-page">
@@ -274,7 +331,7 @@ export function InventoryPage() {
 
               <label className="inventory-field">
                 <span>Hvor?</span>
-                <select value={selectedLocationId} onChange={(event) => setSelectedLocationId(event.target.value)}>
+                <select value={selectedLocationId} onChange={(event) => { setSelectedLocationId(event.target.value); movementCommandRef.current = null; }}>
                   {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
                 </select>
               </label>
@@ -285,9 +342,9 @@ export function InventoryPage() {
               </div>
 
               <div className="inventory-quantity">
-                <button type="button" onClick={() => setQuantity(String(Math.max(1, Number(quantity) - 1)))} aria-label="Fjern én"><Minus size={22} /></button>
-                <label><span>Antal</span><input inputMode="decimal" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label>
-                <button type="button" onClick={() => setQuantity(String(Number(quantity || 0) + 1))} aria-label="Tilføj én"><Plus size={22} /></button>
+                <button type="button" onClick={() => { setQuantity(String(Math.max(1, (Number.isFinite(parsedQuantity) ? parsedQuantity : 1) - 1))); movementCommandRef.current = null; }} aria-label="Fjern én"><Minus size={22} /></button>
+                <label><span>Antal</span><input inputMode="decimal" value={quantity} onChange={(event) => { setQuantity(event.target.value); movementCommandRef.current = null; }} /></label>
+                <button type="button" onClick={() => { setQuantity(String((Number.isFinite(parsedQuantity) ? parsedQuantity : 0) + 1)); movementCommandRef.current = null; }} aria-label="Tilføj én"><Plus size={22} /></button>
               </div>
 
               <div className="inventory-actions">
