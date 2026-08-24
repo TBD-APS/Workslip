@@ -22,13 +22,13 @@ describe('evaluateHelpWizard off-path', () => {
       source: 'application',
     });
   });
-
-  it('fails closed when no assignment exists', () => {
-    expect(evaluateHelpWizard({})).toEqual({ enabled: false, source: 'default-off' });
-  });
 });
 
 describe('evaluateHelpWizard on-path', () => {
+  it('defaults on when no assignment exists', () => {
+    expect(evaluateHelpWizard({})).toEqual({ enabled: true, source: 'default-on' });
+  });
+
   it('application on enables when no narrower override', () => {
     expect(evaluateHelpWizard({ application: true })).toEqual({
       enabled: true,
