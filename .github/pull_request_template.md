@@ -1,5 +1,11 @@
 # Pull request
 
+> Title format: `[Type] ISSUE-ID — Clear title`
+>
+> Allowed types: `Bug`, `Feature`, `Improvement`, `Docs`, `Refactor`, `Infra`, `Security`, `Release`, `Hotfix`, `Chore`, `Test`.
+>
+> Example: `[Bug] WOR-55 — Preserve focus after address autocomplete`
+
 ## What changed
 
 -
