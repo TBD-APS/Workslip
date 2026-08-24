@@ -58,6 +58,14 @@ Implementation work follows the repository delivery rules:
 
 Repository-owner-approved documentation/governance-only edits may use the exception documented in root `AGENTS.md`.
 
+### Contributor pull-request escalation
+
+All pull requests run the normal deterministic CI, change-risk and repository-security controls. A pull request whose author is not `rasm105k` additionally requires the trusted **Contributor Quality Gate** on its exact head SHA before merge.
+
+The gate must use only the default-branch workflow definition and GitHub metadata; it must never check out or execute contributor-controlled pull-request code. It requires a ready-for-review pull request, meaningful change/validation/Linear/risk/architecture declarations, an `APPROVED` review from `rasm105k` on the current head SHA, and no unresolved review threads. A new commit invalidates the owner-review requirement. If GitHub review-thread state cannot be read, the gate fails closed.
+
+The policy is deliberately author-specific: `rasm105k` pull requests still require their normal CI and branch protection, but cannot pretend to independently satisfy the owner-review role. The active repository ruleset must require the `Contributor Quality Gate` status; workflow code without the active external ruleset is not enforcement evidence.
+
 ## 5. Architecture contract
 
 All agents preserve these boundaries unless an accepted architecture decision changes them:

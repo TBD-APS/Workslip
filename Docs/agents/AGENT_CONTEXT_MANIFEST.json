@@ -1,5 +1,5 @@
 {
-  "handbookVersion": 3,
+  "handbookVersion": 4,
   "architectureContractVersion": 1,
   "checkpointContractVersion": 1,
   "requiredDocuments": [
@@ -14,5 +14,5 @@
     "WOR-591",
     "WOR-592"
   ],
-  "notes": "Version 3 adds the bounded Documentation Steward role and its evidence-first technical-documentation write policy. Provider runtime metadata such as agentRole, providerRuntime, capabilities, loadedAt and sourceRevision is reported per run and is not persisted in this static manifest."
+  "notes": "Version 4 adds the owner-reviewed external-contributor pull-request escalation policy. Provider runtime metadata such as agentRole, providerRuntime, capabilities, loadedAt and sourceRevision is reported per run and is not persisted in this static manifest."
 }

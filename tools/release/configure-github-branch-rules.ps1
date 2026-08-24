@@ -4,7 +4,7 @@ param(
     [string]$Repository = 'Workslip-v2.0',
     [string]$ReleasePattern = 'release-*',
     [string]$FeaturePattern = 'rbj--*',
-    [string[]]$RequiredStatusChecks = @('CI Gate', 'Feature change guard'),
+    [string[]]$RequiredStatusChecks = @('CI Gate', 'Feature change guard', 'Contributor Quality Gate'),
     [switch]$VerifyOnly
 )
 
