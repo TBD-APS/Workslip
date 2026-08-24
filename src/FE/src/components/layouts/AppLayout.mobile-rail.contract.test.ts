@@ -1,7 +1,9 @@
-import fs from 'node:fs';
+// @ts-expect-error Frontend compilation excludes Node typings; Vitest executes this test in Node.
+import { readFileSync } from 'fs';
 import { describe, expect, it } from 'vitest';
 
-const css = fs.readFileSync(new URL('./AppLayout.focus.css', import.meta.url), 'utf8');
+// @ts-expect-error Frontend compilation excludes Node typings; Vitest provides process at runtime.
+const css = readFileSync(`${process.cwd()}/src/components/layouts/AppLayout.focus.css`, 'utf8');
 
 describe('AppLayout mobile navigation rail contract', () => {
   it('renders the phone navigation as a left rail instead of a bottom bar', () => {
