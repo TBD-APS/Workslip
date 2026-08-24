@@ -1,0 +1,53 @@
+version: 1
+
+purpose: Resolve whether an agent action is allowed before execution.
+
+inputs:
+  required:
+    - agent_identity
+    - intent
+    - requested_capability
+    - target_resource
+    - environment
+
+resolution_order:
+  - resolve_agent
+  - resolve_intent
+  - resolve_resource
+  - resolve_capability
+  - evaluate_permission
+  - evaluate_approval_requirement
+  - emit_audit_event
+
+outcomes:
+  allow:
+    meaning: Action may execute within defined boundaries.
+  deny:
+    meaning: Action must not execute.
+  approval_required:
+    meaning: Action is valid but requires explicit human authorization.
+
+rules:
+  production_changes:
+    default: approval_required
+  unknown_resource:
+    default: deny
+  unknown_capability:
+    default: deny
+  missing_agent_identity:
+    default: deny
+  missing_audit_context:
+    default: deny
+
+examples:
+  - request: Grok deploy production animation assets
+    expected: deny
+    reason: Grok has no production mutation capability
+
+  - request: Codex create pull request
+    expected: allow
+    reason: Engineering capability includes pull request creation
+
+  - request: DevOps delete production resource
+    expected: approval_required
+    reason: Destructive production actions require explicit authorization
