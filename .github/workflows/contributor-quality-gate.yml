@@ -1,0 +1,154 @@
+name: Contributor Quality Gate
+
+on:
+  pull_request_target:
+    branches: [main, 'release-*', 'release/**']
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, edited]
+  pull_request_review:
+    branches: [main, 'release-*', 'release/**']
+    types: [submitted, dismissed, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: write
+
+concurrency:
+  group: contributor-quality-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  enforce-owner-review:
+    if: >-
+      github.event.pull_request.base.ref == 'main' ||
+      startsWith(github.event.pull_request.base.ref, 'release-') ||
+      startsWith(github.event.pull_request.base.ref, 'release/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Enforce external contributor quality policy on the exact head
+        uses: actions/github-script@v7
+        env:
+          REPOSITORY_OWNER_LOGIN: rasm105k
+        with:
+          script: |
+            const pull = context.payload.pull_request;
+            const ownerLogin = process.env.REPOSITORY_OWNER_LOGIN;
+            const expectedHead = pull.head.sha;
+            const externalContributor = pull.user.login.toLowerCase() !== ownerLogin.toLowerCase();
+            const failures = [];
+
+            function sectionValue(body, heading) {
+              const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const match = new RegExp(`(?:^|\\n)##\\s+${escaped}\\s*\\n([\\s\\S]*?)(?=\\n##\\s+|$)`, 'i').exec(body || '');
+              return match?.[1].trim() || '';
+            }
+
+            function hasMeaningfulContent(value) {
+              const prose = value
+                .replace(/\b(?:issue|risk|rollback)\b\s*:\s*[-–—]?/gi, '')
+                .replace(/[\[\]_*`#>-]/g, '')
+                .trim();
+              return /[A-Za-zÀ-ÿ0-9]{3}/.test(prose);
+            }
+
+            async function unresolvedReviewThreadCount() {
+              let cursor = null;
+              let count = 0;
+              do {
+                const result = await github.graphql(
+                  `query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+                    repository(owner: $owner, name: $repo) {
+                      pullRequest(number: $number) {
+                        reviewThreads(first: 100, after: $cursor) {
+                          nodes { isResolved }
+                          pageInfo { hasNextPage endCursor }
+                        }
+                      }
+                    }
+                  }`,
+                  {
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    number: pull.number,
+                    cursor,
+                  });
+
+                const threads = result.repository.pullRequest.reviewThreads;
+                count += threads.nodes.filter(thread => !thread.isResolved).length;
+                cursor = threads.pageInfo.hasNextPage ? threads.pageInfo.endCursor : null;
+              } while (cursor);
+              return count;
+            }
+
+            if (externalContributor) {
+              if (pull.draft) {
+                failures.push('mark the pull request ready for review before requesting merge');
+              }
+
+              for (const heading of [
+                'What changed',
+                'Why',
+                'Validation',
+                'Linear',
+                'Risk and rollback',
+                'Architecture and boundaries',
+              ]) {
+                if (!hasMeaningfulContent(sectionValue(pull.body, heading))) {
+                  failures.push(`complete the ${heading} section in the pull-request description`);
+                }
+              }
+
+              const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pull.number,
+                per_page: 100,
+              });
+              const latestOwnerDecision = reviews
+                .filter(review =>
+                  review.user?.login?.toLowerCase() === ownerLogin.toLowerCase() &&
+                  review.commit_id === expectedHead &&
+                  ['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(review.state))
+                .sort((left, right) => Date.parse(left.submitted_at || 0) - Date.parse(right.submitted_at || 0))
+                .at(-1);
+
+              if (latestOwnerDecision?.state !== 'APPROVED') {
+                failures.push(`obtain an APPROVED review from ${ownerLogin} on ${expectedHead}`);
+              }
+
+              try {
+                const unresolved = await unresolvedReviewThreadCount();
+                if (unresolved > 0) {
+                  failures.push(`resolve ${unresolved} review thread${unresolved === 1 ? '' : 's'}`);
+                }
+              } catch (error) {
+                core.warning(`Review-thread inspection failed: ${error.message}`);
+                failures.push('retry after GitHub review-thread inspection succeeds (the gate fails closed)');
+              }
+            }
+
+            const state = failures.length === 0 ? 'success' : 'failure';
+            const description = externalContributor
+              ? state === 'success'
+                ? `Owner review and contributor evidence verified for ${expectedHead.slice(0, 12)}.`
+                : `Blocked: ${failures[0]}.`
+              : 'Repository owner PR; external-contributor escalation does not apply.';
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: expectedHead,
+              state,
+              context: 'Contributor Quality Gate',
+              description: description.slice(0, 140),
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            });
+
+            core.info(externalContributor && failures.length > 0
+              ? `Contributor Quality Gate blocked: ${failures.join('; ')}`
+              : description);
+
+            if (failures.length > 0) {
+              core.setFailed(`Contributor Quality Gate blocked this pull request: ${failures.join('; ')}.`);
+            }
