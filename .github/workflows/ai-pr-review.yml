@@ -249,6 +249,70 @@ jobs:
         shell: bash
         run: echo "review_b64=$(base64 -w0 provider-review.json)" >> "$GITHUB_OUTPUT"
 
+  grok_review:
+    name: Grok review
+    needs: prepare
+    if: needs.prepare.outputs.eligible == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+      XAI_REVIEW_MODEL: ${{ vars.XAI_REVIEW_MODEL || 'grok-4.6' }}
+      XAI_TIMEOUT_MS: '720000'
+      PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+      EXPECTED_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+      CI_CONCLUSION: ${{ needs.prepare.outputs.ci_conclusion }}
+    outputs:
+      review_b64: ${{ steps.package.outputs.review_b64 }}
+      context_truncated: ${{ steps.context.outputs.truncated }}
+    steps:
+      - name: Checkout trusted review policy only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.TRUSTED_BRANCH }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Build sanitized review context
+        id: context
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          metadata="$(python3 .github/ai-review/build-context.py)"
+          echo "truncated=$(printf '%s' "$metadata" | jq -r '.diff_truncated')" >> "$GITHUB_OUTPUT"
+
+      - name: Run Grok review
+        id: grok
+        if: env.XAI_API_KEY != ''
+        continue-on-error: true
+        run: node .github/ai-review/grok-review.mjs
+
+      - name: Normalize Grok result
+        if: always()
+        env:
+          ACTION_OUTCOME: ${{ steps.grok.outcome }}
+          PROVIDER_CONFIGURED: ${{ env.XAI_API_KEY != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RAW_REVIEW=''
+          if [ -f grok-raw.json ]; then
+            RAW_REVIEW="$(cat grok-raw.json)"
+          fi
+          export RAW_REVIEW
+          node .github/ai-review/normalize-review.mjs Grok
+
+      - name: Package Grok result
+        id: package
+        if: always()
+        shell: bash
+        run: echo "review_b64=$(base64 -w0 provider-review.json)" >> "$GITHUB_OUTPUT"
+
   ollama_review:
     name: Ollama review
     needs: prepare
@@ -316,7 +380,7 @@ jobs:
 
   aggregate:
     name: Aggregate AI review
-    needs: [prepare, openai_review, claude_review, ollama_review]
+    needs: [prepare, openai_review, claude_review, grok_review, ollama_review]
     if: always() && needs.prepare.outputs.eligible == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -329,8 +393,9 @@ jobs:
       HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
       OPENAI_REVIEW_B64: ${{ needs.openai_review.outputs.review_b64 }}
       CLAUDE_REVIEW_B64: ${{ needs.claude_review.outputs.review_b64 }}
+      GROK_REVIEW_B64: ${{ needs.grok_review.outputs.review_b64 }}
       OLLAMA_REVIEW_B64: ${{ needs.ollama_review.outputs.review_b64 }}
-      CONTEXT_TRUNCATED: ${{ needs.openai_review.outputs.context_truncated == 'true' || needs.claude_review.outputs.context_truncated == 'true' || needs.ollama_review.outputs.context_truncated == 'true' }}
+      CONTEXT_TRUNCATED: ${{ needs.openai_review.outputs.context_truncated == 'true' || needs.claude_review.outputs.context_truncated == 'true' || needs.grok_review.outputs.context_truncated == 'true' || needs.ollama_review.outputs.context_truncated == 'true' }}
     steps:
       - name: Checkout trusted aggregator only
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

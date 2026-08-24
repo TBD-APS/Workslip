@@ -2,11 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { evaluateHelpWizard } from './evaluateHelpWizard';
 
 describe('evaluateHelpWizard off-path', () => {
-  it('stays off when unseeded', () => {
-    expect(evaluateHelpWizard({})).toEqual({ enabled: false, source: 'default-off' });
-  });
-
-  it('kill beats identity on', () => {
+  it('kill beats default-on and identity on', () => {
     expect(evaluateHelpWizard({ killed: true, identity: true })).toEqual({
       enabled: false,
       source: 'platform-kill',
@@ -19,9 +15,20 @@ describe('evaluateHelpWizard off-path', () => {
       source: 'identity',
     });
   });
+
+  it('application can explicitly turn the default-on wizard off', () => {
+    expect(evaluateHelpWizard({ application: false })).toEqual({
+      enabled: false,
+      source: 'application',
+    });
+  });
 });
 
 describe('evaluateHelpWizard on-path', () => {
+  it('is on when no assignment exists', () => {
+    expect(evaluateHelpWizard({})).toEqual({ enabled: true, source: 'default-on' });
+  });
+
   it('application on enables when no narrower override', () => {
     expect(evaluateHelpWizard({ application: true })).toEqual({
       enabled: true,
