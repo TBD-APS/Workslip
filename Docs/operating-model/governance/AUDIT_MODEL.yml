@@ -1,0 +1,40 @@
+version: 1
+
+principles:
+  every_decision_is_traceable: true
+  immutable_execution_history: true
+  evidence_required_for_changes: true
+
+execution_event:
+  required:
+    - timestamp
+    - request_id
+    - agent_identity
+    - intent
+    - domain
+    - resource
+    - capability
+    - decision
+    - outcome
+
+optional:
+  - approval_reference
+  - pull_request
+  - issue_reference
+  - validation_evidence
+  - rollback_reference
+
+outcomes:
+  - completed
+  - rejected
+  - approval_pending
+  - failed
+  - rolled_back
+
+learning_capture:
+  enabled: true
+  captures:
+    - root_cause
+    - successful_patterns
+    - failed_attempts
+    - architectural_decisions
