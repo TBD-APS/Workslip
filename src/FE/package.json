@@ -36,6 +36,7 @@
     "@vercel/speed-insights": "^2.0.0",
     "axios": "^1.18.0",
     "lucide-react": "^1.17.0",
+    "motion": "12.43.0",
     "qs": "^6.15.2",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",

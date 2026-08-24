@@ -26,6 +26,9 @@
       }
     </style>
     {% feed_meta %}
+    {% if page.demo %}
+    <script src="{{ '/assets/js/demo.js' | relative_url }}" defer></script>
+    {% endif %}
   </head>
   <body>
     <a class="skip-link" href="#main-content">Spring til indhold</a>
@@ -59,7 +62,7 @@
       </div>
     </header>
 
-    <main id="main-content"{% if page.url == '/' %} class="homepage"{% else %} class="content-page"{% endif %}>
+    <main id="main-content"{% if page.demo %} class="demo-page"{% elsif page.url == '/' %} class="homepage"{% else %} class="content-page"{% endif %}>
       {{ content }}
     </main>
 
