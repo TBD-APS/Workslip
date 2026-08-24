@@ -8,20 +8,9 @@
  */
 @media (max-width: 767px) {
   /*
-   * When a field blurs, the bottom nav springs back to visible. Because it is a
-   * fixed, full-width overlay it can reappear directly over a control the user
-   * is tapping straight from a focused field — e.g. "Gem" in the worksheet edit
-   * form — so the tap's pointerup lands on a nav link (which could even navigate
-   * the user away mid-edit) instead of the button. Hold the nav's *visibility*
-   * (which gates hit-testing; pointer-events transitions are not honoured for
-   * this) hidden for a beat longer than any tap when it returns, so the tap
-   * lands on the control beneath it. It still reappears effectively immediately.
-   *
-   * Scoped to .bottom-nav: it is the reproduced offender and has no other
-   * hide mechanism, so delaying its return is side-effect free. .step-nav-anchor
-   * is left on its own App.css transition (its scroll-hide reveal must stay
-   * snappy, and its own Tilbage/Næste buttons are the intended target when it
-   * returns, so it is not a cross-control tap-steal).
+   * When a field blurs, the navigation rail springs back to visible. Delay its
+   * hit-testing briefly so a tap that started while an editor had focus still
+   * lands on the intended control beneath it instead of a navigation action.
    */
   .app-shell .bottom-nav {
     transition: visibility 0s linear 320ms !important;
@@ -37,12 +26,125 @@
     pointer-events: none;
   }
 
-  /* Hide the bottom nav immediately when a field gains focus (no return-delay). */
+  /* Hide the rail immediately when a field gains focus (no return-delay). */
   .app-shell:has(
     input:not([type='button']):not([type='checkbox']):not([type='color']):not([type='file']):not([type='hidden']):not([type='image']):not([type='radio']):not([type='range']):not([type='reset']):not([type='submit']):not([inputmode='none']):not([readonly]):not([disabled]):focus,
     textarea:not([readonly]):not([disabled]):focus,
     [contenteditable]:not([contenteditable='false']):focus
   ) .bottom-nav {
     transition: visibility 0s linear 0s !important;
+  }
+
+  /* WOR-767 — phone navigation rail.
+     Reuse the existing permission-aware bottom-nav DOM as a compact left rail
+     rather than maintaining a second mobile navigation model. */
+  .app-shell {
+    --mobile-nav-rail-width: 4.25rem;
+  }
+
+  .app-header,
+  .organization-session-banner,
+  .app-content {
+    margin-left: var(--mobile-nav-rail-width);
+    width: calc(100% - var(--mobile-nav-rail-width));
+    max-width: calc(100% - var(--mobile-nav-rail-width));
+  }
+
+  .app-header {
+    padding-inline: 0.85rem;
+  }
+
+  .app-content {
+    padding-bottom: 1rem;
+  }
+
+  .bottom-nav {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--mobile-nav-rail-width);
+    height: 100dvh;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 0.35rem;
+    padding: calc(4.75rem + env(safe-area-inset-top, 0px)) 0.45rem max(0.7rem, env(safe-area-inset-bottom, 0px));
+    border-top: 0;
+    border-right: 1px solid var(--border);
+    background: var(--nav-bg);
+    box-shadow: 8px 0 24px var(--overlay-subtle);
+    overflow-y: auto;
+    overflow-x: visible;
+    overscroll-behavior: contain;
+  }
+
+  .bottom-nav .nav-item {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    min-height: 3.2rem;
+    flex: 0 0 auto;
+    justify-content: center;
+    gap: 0;
+    padding: 0.65rem 0.45rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    color: var(--text-muted);
+  }
+
+  .bottom-nav .nav-item svg {
+    width: 1.35rem;
+    height: 1.35rem;
+    flex: 0 0 auto;
+  }
+
+  /* Keep the text in the accessibility tree without spending phone width. */
+  .bottom-nav .nav-item > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .bottom-nav .nav-item.active {
+    color: var(--color-primary);
+    background: var(--surface-selected);
+    border-color: color-mix(in srgb, var(--color-primary) 24%, var(--border));
+  }
+
+  .bottom-nav .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: -0.45rem;
+    top: 0.55rem;
+    bottom: 0.55rem;
+    width: 3px;
+    border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+    background: var(--color-primary);
+  }
+
+  .bottom-nav .nav-item:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .desktop-rail-toggle-wrap {
+    display: none;
+  }
+
+  .fab-create {
+    bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+    right: 1rem;
+  }
+
+  /* The header logo already identifies the app; keep it compact beside the rail
+     so account/notification controls retain enough room on narrow phones. */
+  .logo-header {
+    min-width: 0;
   }
 }
