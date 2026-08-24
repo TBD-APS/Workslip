@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Check, FileSpreadsheet, Package, Printer, Upload, X } from 'lucide-react';
-import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import type { InventoryMaterialResponse, InventoryQrLabelDocumentResponse } from '../../../api/generated/models';
 import { apiClient } from '../../../lib/axios';
 import './inventory-onboarding.css';

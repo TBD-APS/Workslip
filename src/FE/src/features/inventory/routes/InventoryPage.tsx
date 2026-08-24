@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Camera, Check, Minus, Package, Plus, Printer, RotateCcw, ScanLine, Warehouse } from 'lucide-react';
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
 import type {
   InventoryLocationResponse,
   InventoryMaterialResponse,
@@ -74,11 +75,13 @@ export function InventoryPage() {
   }, [canManage]);
 
   useEffect(() => {
+    // State changes happen after the asynchronous initial API hydration completes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadLocations();
     void loadMaterials();
   }, [loadLocations, loadMaterials]);
 
-  const captureAndScan = useCallback(async () => {
+  async function captureAndScan() {
     if (!scanningRef.current || scanBusyRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -118,7 +121,7 @@ export function InventoryPage() {
     if (scanningRef.current) {
       scanTimerRef.current = window.setTimeout(() => void captureAndScan(), SCAN_INTERVAL_MS);
     }
-  }, [locations, stopScanner]);
+  }
 
   const startScanner = async () => {
     stopScanner();
