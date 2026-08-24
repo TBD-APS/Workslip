@@ -3,9 +3,17 @@ targetScope = 'subscription'
 param companyName string = 'mrsoftware'
 param environment string = 'prod'
 param location string = 'westeurope'
-param githubOwner string = 'rasm105k'
-param githubOwnerId string = '31623093'
+@description('Current GitHub repository owner login. Must be supplied explicitly so repository transfers cannot silently keep a stale OIDC trust.')
+@minLength(1)
+param githubOwner string
+@description('Immutable numeric GitHub owner ID for githubOwner. Must be supplied explicitly and updated after repository transfer.')
+@minLength(1)
+param githubOwnerId string
+@description('GitHub repository name.')
+@minLength(1)
 param githubRepository string = 'Workslip-v2.0'
+@description('Immutable numeric GitHub repository ID. This remains stable across repository transfers.')
+@minLength(1)
 param githubRepositoryId string = '1245555609'
 param githubEnvironment string = environment
 
