@@ -47,6 +47,20 @@ composer architecture
 
 No Deptrac baseline or skip list is accepted as part of Gate 0.
 
+## Agent Graph wiring prototype
+
+`/agent-graph` exposes the first control-room read model for orchestration observability. It projects provider-neutral events into agents, systems, gates, tasks, typed relationships and an activity feed. Tasks can be dragged onto agent-capable nodes to preview the resulting `TaskDelegated` event and graph state.
+
+The current graph is deliberately a **wiring prototype**, not live telemetry. Seed events come from `config/agent-graph.php`; no event is persisted and no delegation command is executed. `executionEnabled` remains `false` until an authenticated command gateway, policy checks and event-store integration exist. Unknown targets and system/gate nodes fail closed.
+
+The intended progression is:
+
+```text
+adapter/runtime events -> event store -> AgentGraphProjector -> read model -> control-room UI
+                                      ^
+ authenticated command + policy -----| (future write path)
+```
+
 ## Current scope
 
 The control plane currently contains:
@@ -57,14 +71,16 @@ The control plane currently contains:
 - run provenance + separation-of-duties policy;
 - Founder/CEO/functional-executive hierarchy and delegation rules;
 - explicit human approval gates for public/high-impact/irreversible actions;
-- explicit prohibition on executive self-escalation of permissions, budgets or governance.
+- explicit prohibition on executive self-escalation of permissions, budgets or governance;
+- event-projected Agent Graph wiring prototype with fail-closed delegation preview.
 
 It deliberately does not implement:
 
 - Kimi/OpenAI/Ollama adapters;
 - Context/Policy Gateway behavior;
 - product adapters;
-- persistence;
+- persistence / EventStoreDB ingestion;
+- authenticated Agent Graph command execution;
 - customer-facing AI endpoints;
 - autonomous executive writes/approvals;
 - direct Workslip data access.
