@@ -30,6 +30,7 @@ import {
   getJobStepValidationIssues,
   type JobValidationIssue,
 } from '../validation/jobValidation';
+import { focusValidationTarget } from '../validation/focusValidationTarget';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -162,22 +163,9 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
     }
 
     details.setCurrentStep(validationIssue.step);
-    window.setTimeout(() => {
-      const target = document.getElementById(validationIssue.targetId)
-        ?? document.querySelector<HTMLElement>(`[data-field-error="${validationIssue.targetId}"]`);
-      if (!target) {
-        document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
-      }
-
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      target.classList.add('validation-focus-target');
-      const focusable = target.matches('input, textarea, button, select, [tabindex]')
-        ? target as HTMLElement
-        : target.querySelector<HTMLElement>('input, textarea, button, select, [tabindex]');
-      focusable?.focus({ preventScroll: true });
-      window.setTimeout(() => target.classList.remove('validation-focus-target'), 1500);
-    }, 80);
+    window.requestAnimationFrame(() => {
+      focusValidationTarget(validationIssue.targetId);
+    });
   };
 
   const handleStepChange = (nextStep: number) => {

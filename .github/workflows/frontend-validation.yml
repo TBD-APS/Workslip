@@ -19,32 +19,29 @@ permissions:
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
-  # PR runs are disposable when the same PR gets a newer commit. A running
-  # main or release push is different: Backend API deploy waits for a successful
-  # completed CI run, so cancelling it on every subsequent merge can permanently
-  # starve Azure while Vercel keeps advancing. Keep the active branch push alive;
-  # GitHub still coalesces older pending runs in this concurrency group.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   DOTNET_VERSION: '10.0.x'
   NODE_VERSION: '24'
   BACKEND_SOLUTION: src/BE/WorkslipApi/Workslip.slnx
+  PLAYWRIGHT_VERSION: '1.55.0'
 
 jobs:
   changes:
-    name: Detect changes
+    name: Detect impact
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       code: ${{ steps.detect.outputs.code }}
+      backend: ${{ steps.detect.outputs.backend }}
+      frontend: ${{ steps.detect.outputs.frontend }}
+      integration: ${{ steps.detect.outputs.integration }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-
-      - name: Detect non-documentation changes
+      - name: Detect affected areas
         id: detect
         shell: bash
         env:
@@ -54,268 +51,216 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
         run: |
           set -Eeuo pipefail
-          # Fail-safe: anything uncertain runs the full pipeline (code=true).
-          if [[ "${EVENT_NAME}" == 'pull_request' ]]; then
-            base="${PR_BASE_SHA}"
-          else
-            base="${PUSH_BEFORE_SHA}"
+          # Main/release pushes remain the full regression gate. Impact routing only
+          # shortens PR feedback; uncertainty always falls back to the full suite.
+          if [[ "${EVENT_NAME}" != 'pull_request' ]]; then
+            printf 'code=true\nbackend=true\nfrontend=true\nintegration=true\n' >> "${GITHUB_OUTPUT}"
+            exit 0
           fi
+          base="${PR_BASE_SHA}"
           if [[ -z "${base}" || "${base}" =~ ^0+$ ]] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
-            echo "No usable base ref; running full CI (fail-safe)."
-            echo "code=true" >> "${GITHUB_OUTPUT}"
+            printf 'code=true\nbackend=true\nfrontend=true\nintegration=true\n' >> "${GITHUB_OUTPUT}"
             exit 0
           fi
           files="$(git diff --name-only "${base}" "${HEAD_SHA}")"
-          echo "Changed files:"
           printf '%s\n' "${files}"
-          code=false
+          code=false; backend=false; frontend=false; integration=false
           while IFS= read -r f; do
             [[ -z "${f}" ]] && continue
             case "${f}" in
-              *.md|*.markdown|*.mdx|*.txt|*.rst|*.adoc|Docs/*|docs/*|LICENSE|CHANGELOG*) ;;
-              *) code=true ;;
+              *.md|*.markdown|*.mdx|*.txt|*.rst|*.adoc|Docs/*|docs/*|LICENSE|CHANGELOG*) continue ;;
+            esac
+            code=true
+            case "${f}" in
+              src/BE/*|Directory.*|global.json|NuGet.config) backend=true; integration=true ;;
+              src/FE/*) frontend=true; integration=true ;;
+              .github/actions/generate-frontend-api/*) backend=true; frontend=true; integration=true ;;
+              .github/workflows/frontend-validation.yml) backend=true; frontend=true; integration=true ;;
+              *) backend=true; frontend=true; integration=true ;;
             esac
           done <<< "${files}"
-          echo "code=${code}" >> "${GITHUB_OUTPUT}"
-          echo "Non-documentation changes: ${code}"
+          printf 'code=%s\nbackend=%s\nfrontend=%s\nintegration=%s\n' "$code" "$backend" "$frontend" "$integration" >> "${GITHUB_OUTPUT}"
 
   backend:
     name: Backend
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' }}
+    if: ${{ needs.changes.outputs.backend == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ env.DOTNET_VERSION }}-${{ hashFiles('src/BE/**/*.csproj', 'src/BE/**/*.props', 'src/BE/**/*.targets', 'Directory.*', 'global.json', 'NuGet.config') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-${{ env.DOTNET_VERSION }}-
+      - run: dotnet restore "${BACKEND_SOLUTION}" --nologo
+      - run: dotnet build "${BACKEND_SOLUTION}" --configuration Release --no-restore --nologo
+      - run: dotnet test "${BACKEND_SOLUTION}" --configuration Release --no-build --nologo
 
-      - name: Restore
-        run: dotnet restore "${BACKEND_SOLUTION}" --nologo
-
-      - name: Build
-        run: dotnet build "${BACKEND_SOLUTION}" --configuration Release --no-restore --nologo
-
-      - name: Test
-        run: >-
-          dotnet test "${BACKEND_SOLUTION}"
-          --configuration Release
-          --no-build
-          --nologo
-
-  frontend:
-    name: Frontend + API contract
+  frontend-lint:
+    name: Frontend lint debt
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' }}
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: src/FE
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: src/FE/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci --prefer-offline --no-audit --no-fund
-
-      - name: Test lint debt comparator
-        run: node --test scripts/compare-eslint-results.test.mjs
-
-      - name: Resolve lint baseline
-        id: lint-base
-        shell: bash
-        working-directory: .
-        env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PUSH_BEFORE_SHA: ${{ github.event.before }}
-        run: |
-          set -Eeuo pipefail
-          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request' ]]; then
-            base_sha="${PR_BASE_SHA}"
-          else
-            base_sha="${PUSH_BEFORE_SHA}"
-          fi
-
-          if [[ ! "${base_sha}" =~ ^[0-9a-fA-F]{40}$ || "${base_sha}" =~ ^0{40}$ ]]; then
-            echo "::error::Unable to resolve a valid lint baseline SHA."
-            exit 1
-          fi
-
-          echo "sha=${base_sha}" >> "${GITHUB_OUTPUT}"
-
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - run: node --test scripts/compare-eslint-results.test.mjs
       - name: Capture current lint findings
         shell: bash
         run: |
-          set -Eeuo pipefail
           set +e
           npm run lint -- --format json --output-file "${RUNNER_TEMP}/eslint-current.json"
-          lint_status=$?
+          status=$?
           set -e
-
-          if [[ "${lint_status}" -gt 1 ]]; then
-            echo "::error::ESLint failed to execute for the current revision (exit ${lint_status})."
-            exit "${lint_status}"
-          fi
-
+          [[ "$status" -le 1 ]] || exit "$status"
       - name: Capture baseline lint findings
         shell: bash
         working-directory: .
         env:
-          LINT_BASE_SHA: ${{ steps.lint-base.outputs.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -Eeuo pipefail
           base_dir="${RUNNER_TEMP}/workslip-lint-base"
-
-          cleanup() {
-            git -C "${GITHUB_WORKSPACE}" worktree remove --force "${base_dir}" >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
-
-          if ! git -C "${GITHUB_WORKSPACE}" cat-file -e "${LINT_BASE_SHA}^{commit}" 2>/dev/null; then
-            git -C "${GITHUB_WORKSPACE}" fetch --no-tags origin "${LINT_BASE_SHA}"
-          fi
-          git -C "${GITHUB_WORKSPACE}" worktree add --detach "${base_dir}" "${LINT_BASE_SHA}"
-
+          trap 'git -C "${GITHUB_WORKSPACE}" worktree remove --force "'"${base_dir}"'" >/dev/null 2>&1 || true' EXIT
+          git -C "${GITHUB_WORKSPACE}" worktree add --detach "${base_dir}" "${BASE_SHA}"
           cd "${base_dir}/src/FE"
           npm ci --prefer-offline --no-audit --no-fund
-
           set +e
           npm run lint -- --format json --output-file "${RUNNER_TEMP}/eslint-base.json"
-          lint_status=$?
+          status=$?
           set -e
+          [[ "$status" -le 1 ]] || exit "$status"
+      - run: node scripts/compare-eslint-results.mjs "${RUNNER_TEMP}/eslint-base.json" "${RUNNER_TEMP}/eslint-current.json"
 
-          if [[ "${lint_status}" -gt 1 ]]; then
-            echo "::error::ESLint failed to execute for baseline ${LINT_BASE_SHA} (exit ${lint_status})."
-            exit "${lint_status}"
-          fi
+  frontend-test:
+    name: Frontend tests
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: src/FE
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - run: npm run test -- --run
 
-      - name: Block new lint errors
-        run: >-
-          node scripts/compare-eslint-results.mjs
-          "${RUNNER_TEMP}/eslint-base.json"
-          "${RUNNER_TEMP}/eslint-current.json"
-
+  frontend-build:
+    name: Frontend build + API contract
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: src/FE
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ env.DOTNET_VERSION }}-${{ hashFiles('src/BE/**/*.csproj', 'src/BE/**/*.props', 'src/BE/**/*.targets', 'Directory.*', 'global.json', 'NuGet.config') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-${{ env.DOTNET_VERSION }}-
+      - run: npm ci --prefer-offline --no-audit --no-fund
       - name: Generate branch-matched API client
         uses: ./.github/actions/generate-frontend-api
-
-      - name: Test
-        run: npm run test -- --run
-
-      - name: Build
-        run: npm run build
+      - run: npm run build
 
   contracts:
     name: Contracts + docs
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
       - name: Validate production release policy
         run: |
           node --check tools/release/resolve-release-environment.mjs
           node --test tools/release/resolve-release-environment.test.mjs
           node tools/release/resolve-release-environment.mjs --environment production --require-runnable
-
       - name: Validate database migration sources
         shell: pwsh
-        run: >-
-          ./src/BE/infrastructure/run-database-migrations.ps1
-          -Environment prod
-          -ValidateOnly
-
+        run: ./src/BE/infrastructure/run-database-migrations.ps1 -Environment prod -ValidateOnly
       - name: Install lightweight Playwright runtime
         working-directory: src/FE
-        run: >-
-          npm install
-          --prefix scripts
-          --no-save
-          --package-lock=false
-          --ignore-scripts
-          --no-audit
-          --no-fund
-          playwright@1.55.0
-
+        run: npm install --prefix scripts --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@${{ env.PLAYWRIGHT_VERSION }}
       - name: Validate Playwright sources
         working-directory: src/FE
         run: |
-          node --check scripts/playwright-release-runner.mjs
-          node --check scripts/playwright-release-policy.mjs
-          node --check scripts/playwright-prod-smoke.mjs
-          node --check scripts/playwright-critical-contract.mjs
-          node --check scripts/playwright-critical-domain.mjs
-          node --check scripts/playwright-scenarios-core.mjs
-          node --check scripts/playwright-scenarios-admin.mjs
-          node --check scripts/playwright-synthetic-auth.mjs
-          node --check scripts/playwright-ephemeral-auth.mjs
-          node --check scripts/playwright-ephemeral-smoke.mjs
-          node --check scripts/playwright-auth-brand.mjs
-          node --check scripts/playwright-shared-state-semantics.mjs
-          node --check scripts/playwright-overview-status-navigation.mjs
-          node --check scripts/playwright-release-runner.test.mjs
-          node --check scripts/playwright-scenarios-admin.test.mjs
-          node --check scripts/playwright-ephemeral-auth.test.mjs
+          for f in scripts/playwright-*.mjs; do node --check "$f"; done
           node --test scripts/playwright-release-runner.test.mjs
           node --test scripts/playwright-scenarios-admin.test.mjs
           node --test scripts/playwright-synthetic-auth.test.mjs
           node --test scripts/playwright-ephemeral-auth.test.mjs
-
       - name: Validate hosted integration runner syntax
         run: |
           bash -n src/BE/WorkslipApi/Postman/run-hosted-integration.sh
           bash -n src/BE/WorkslipApi/Postman/run-integration-tests.sh
           bash -n src/FE/scripts/run-playwright-ephemeral.sh
-          node -e "JSON.parse(require('node:fs').readFileSync('src/BE/WorkslipApi/Postman/postman_collection.json', 'utf8')); console.log('Postman collection JSON OK');"
-
-      - name: Validate documentation
-        run: python tools/docs/check_docs.py
+          node -e "JSON.parse(require('node:fs').readFileSync('src/BE/WorkslipApi/Postman/postman_collection.json', 'utf8'));"
+      - run: python tools/docs/check_docs.py
 
   postman:
     name: Postman integration (ephemeral)
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' }}
+    if: ${{ needs.changes.outputs.backend == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Run isolated Postman integration suite
-        shell: bash
-        run: bash src/BE/WorkslipApi/Postman/run-hosted-integration.sh
-
-      - name: Upload backend diagnostics on failure
-        if: ${{ failure() }}
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ env.DOTNET_VERSION }}-${{ hashFiles('src/BE/**/*.csproj', 'src/BE/**/*.props', 'src/BE/**/*.targets', 'Directory.*', 'global.json', 'NuGet.config') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-${{ env.DOTNET_VERSION }}-
+      - run: bash src/BE/WorkslipApi/Postman/run-hosted-integration.sh
+      - if: ${{ failure() }}
         uses: actions/upload-artifact@v7
         with:
           name: postman-integration-backend-${{ github.run_id }}
@@ -327,32 +272,36 @@ jobs:
     name: Playwright integration (ephemeral)
     needs: changes
     if: >-
-      needs.changes.outputs.code == 'true' &&
+      needs.changes.outputs.integration == 'true' &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: src/FE/package-lock.json
-
-      - name: Run authenticated browser integration suite
-        shell: bash
-        run: bash src/FE/scripts/run-playwright-ephemeral.sh
-
-      - name: Upload diagnostics on failure
-        if: ${{ failure() }}
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ env.DOTNET_VERSION }}-${{ hashFiles('src/BE/**/*.csproj', 'src/BE/**/*.props', 'src/BE/**/*.targets', 'Directory.*', 'global.json', 'NuGet.config') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-${{ env.DOTNET_VERSION }}-
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}
+      - run: bash src/FE/scripts/run-playwright-ephemeral.sh
+      - if: ${{ failure() }}
         uses: actions/upload-artifact@v7
         with:
           name: playwright-integration-diagnostics-${{ github.run_id }}
@@ -367,13 +316,7 @@ jobs:
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
-    needs:
-      - changes
-      - backend
-      - frontend
-      - contracts
-      - postman
-      - playwright
+    needs: [changes, backend, frontend-lint, frontend-test, frontend-build, contracts, postman, playwright]
     steps:
       - name: Verify required checks
         shell: bash
@@ -381,62 +324,30 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PR_DRAFT: ${{ github.event.pull_request.draft || false }}
           CODE_CHANGED: ${{ needs.changes.outputs.code }}
+          BACKEND_NEEDED: ${{ needs.changes.outputs.backend }}
+          FRONTEND_NEEDED: ${{ needs.changes.outputs.frontend }}
+          INTEGRATION_NEEDED: ${{ needs.changes.outputs.integration }}
           BACKEND_RESULT: ${{ needs.backend.result }}
-          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          LINT_RESULT: ${{ needs.frontend-lint.result }}
+          TEST_RESULT: ${{ needs.frontend-test.result }}
+          BUILD_RESULT: ${{ needs.frontend-build.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
           POSTMAN_RESULT: ${{ needs.postman.result }}
           PLAYWRIGHT_RESULT: ${{ needs.playwright.result }}
         run: |
           set -Eeuo pipefail
-
-          # Documentation validation (contracts) always runs and must pass.
-          if [[ "${CONTRACTS_RESULT}" != 'success' ]]; then
-            echo "::error::Contracts + docs job did not succeed."
-            exit 1
+          [[ "${CONTRACTS_RESULT}" == success ]] || { echo '::error::Contracts + docs failed.'; exit 1; }
+          if [[ "${BACKEND_NEEDED}" == true ]]; then
+            [[ "${BACKEND_RESULT}" == success && "${POSTMAN_RESULT}" == success ]] || { echo '::error::Backend/API validation failed.'; exit 1; }
           fi
-
-          if [[ "${CODE_CHANGED}" == 'true' ]]; then
-            # Deterministic code/API checks run during implementation as well as review.
-            if [[ "${BACKEND_RESULT}" != 'success' ||
-                  "${FRONTEND_RESULT}" != 'success' ||
-                  "${POSTMAN_RESULT}" != 'success' ]]; then
-              echo "::error::One or more deterministic/API CI jobs failed."
-              exit 1
-            fi
-
-            if [[ "${EVENT_NAME}" == 'pull_request' && "${PR_DRAFT}" == 'true' ]]; then
-              # Draft is the implementation lane. Expensive browser evidence is deliberately deferred
-              # until Ready for review, which acts as the browser-evidence code-freeze transition.
-              if [[ "${PLAYWRIGHT_RESULT}" != 'skipped' && "${PLAYWRIGHT_RESULT}" != 'success' ]]; then
-                echo "::error::Playwright job unexpectedly '${PLAYWRIGHT_RESULT}' on a draft PR."
-                exit 1
-              fi
-              echo "Draft implementation lane: deterministic/API checks succeeded; Playwright evidence deferred until Ready for review."
+          if [[ "${FRONTEND_NEEDED}" == true ]]; then
+            [[ "${LINT_RESULT}" == success && "${TEST_RESULT}" == success && "${BUILD_RESULT}" == success ]] || { echo '::error::Frontend validation failed.'; exit 1; }
+          fi
+          if [[ "${INTEGRATION_NEEDED}" == true ]]; then
+            if [[ "${EVENT_NAME}" == pull_request && "${PR_DRAFT}" == true ]]; then
+              [[ "${PLAYWRIGHT_RESULT}" == skipped || "${PLAYWRIGHT_RESULT}" == success ]] || exit 1
             else
-              # Ready PRs and branch pushes require exact-revision authenticated browser evidence.
-              if [[ "${PLAYWRIGHT_RESULT}" != 'success' ]]; then
-                echo "::error::Playwright integration must succeed for this exact ready/push revision."
-                exit 1
-              fi
-              echo "All required CI checks, including exact-revision Playwright evidence, succeeded."
+              [[ "${PLAYWRIGHT_RESULT}" == success ]] || { echo '::error::Exact-revision Playwright evidence failed.'; exit 1; }
             fi
-          else
-            # Documentation-only changes skip code/runtime jobs by design.
-            if [[ "${BACKEND_RESULT}" != 'skipped' && "${BACKEND_RESULT}" != 'success' ]]; then
-              echo "::error::Backend job unexpectedly '${BACKEND_RESULT}' on a documentation-only change."
-              exit 1
-            fi
-            if [[ "${FRONTEND_RESULT}" != 'skipped' && "${FRONTEND_RESULT}" != 'success' ]]; then
-              echo "::error::Frontend job unexpectedly '${FRONTEND_RESULT}' on a documentation-only change."
-              exit 1
-            fi
-            if [[ "${POSTMAN_RESULT}" != 'skipped' && "${POSTMAN_RESULT}" != 'success' ]]; then
-              echo "::error::Postman job unexpectedly '${POSTMAN_RESULT}' on a documentation-only change."
-              exit 1
-            fi
-            if [[ "${PLAYWRIGHT_RESULT}" != 'skipped' && "${PLAYWRIGHT_RESULT}" != 'success' ]]; then
-              echo "::error::Playwright job unexpectedly '${PLAYWRIGHT_RESULT}' on a documentation-only change."
-              exit 1
-            fi
-            echo "Documentation-only change: runtime jobs skipped by design; documentation validated."
           fi
+          echo "CI Gate v2 passed (impact-routed, parallel deterministic checks, cached package/browser layers)."

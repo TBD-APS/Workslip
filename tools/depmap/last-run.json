@@ -11,11 +11,11 @@
       },
       "Api/Endpoints": {
         "files": 22,
-        "loc": 2261
+        "loc": 2254
       },
       "Api/Helpers": {
-        "files": 5,
-        "loc": 480
+        "files": 6,
+        "loc": 650
       },
       "Api/Middleware": {
         "files": 1,
@@ -71,7 +71,7 @@
       },
       "Application/Jobs": {
         "files": 32,
-        "loc": 3823
+        "loc": 3829
       },
       "Application/Notifications": {
         "files": 8,
@@ -135,7 +135,7 @@
       },
       "Infrastructure/Repositories": {
         "files": 20,
-        "loc": 5837
+        "loc": 5834
       },
       "Infrastructure/Resilience": {
         "files": 2,
@@ -330,7 +330,7 @@
       {
         "name": "Jobs",
         "files": 32,
-        "loc": 3823,
+        "loc": 3829,
         "fanIn": 5,
         "fanOut": 3,
         "inRefs": 7,
@@ -465,7 +465,7 @@
       },
       {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs",
-        "loc": 1077
+        "loc": 1078
       },
       {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Schema/AuditPolicies.cs",
@@ -497,7 +497,7 @@
       },
       {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/SqlJobConversationRepository.cs",
-        "loc": 473
+        "loc": 471
       },
       {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Seeding/PlatformIdentityBootstrapper.cs",
@@ -509,7 +509,7 @@
       },
       {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfWorksheetRepository.cs",
-        "loc": 449
+        "loc": 447
       },
       {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Mappers/JobReportMapper.cs",
@@ -532,8 +532,8 @@
       },
       {
         "name": "jobs",
-        "files": 53,
-        "loc": 9902,
+        "files": 54,
+        "loc": 9988,
         "sharedRefs": 186,
         "crossRefs": 2
       },
@@ -547,15 +547,15 @@
       {
         "name": "superadmin",
         "files": 16,
-        "loc": 3400,
-        "sharedRefs": 9,
+        "loc": 3398,
+        "sharedRefs": 10,
         "crossRefs": 1
       },
       {
         "name": "users",
         "files": 8,
-        "loc": 1218,
-        "sharedRefs": 30,
+        "loc": 1249,
+        "sharedRefs": 32,
         "crossRefs": 1
       },
       {
@@ -582,8 +582,8 @@
       {
         "name": "customers",
         "files": 6,
-        "loc": 1530,
-        "sharedRefs": 41,
+        "loc": 1583,
+        "sharedRefs": 43,
         "crossRefs": 0
       },
       {
@@ -608,10 +608,17 @@
         "crossRefs": 0
       },
       {
+        "name": "platformFlags",
+        "files": 5,
+        "loc": 637,
+        "sharedRefs": 1,
+        "crossRefs": 0
+      },
+      {
         "name": "worksheets",
         "files": 6,
-        "loc": 912,
-        "sharedRefs": 10,
+        "loc": 1209,
+        "sharedRefs": 15,
         "crossRefs": 0
       }
     ],
@@ -632,8 +639,12 @@
         "loc": 751
       },
       {
+        "file": "src/FE/src/features/worksheets/routes/MyWorksheets.tsx",
+        "loc": 710
+      },
+      {
         "file": "src/FE/src/features/jobs/routes/CompletedJobReport.tsx",
-        "loc": 680
+        "loc": 682
       },
       {
         "file": "src/FE/src/features/superadmin/routes/CacheDiagnostics.tsx",
@@ -641,23 +652,31 @@
       },
       {
         "file": "src/FE/src/features/jobs/routes/AdminCompletedJobReport.tsx",
-        "loc": 645
+        "loc": 649
       },
       {
         "file": "src/FE/src/components/common/NotificationsDrawer.tsx",
         "loc": 553
       },
       {
-        "file": "src/FE/src/features/worksheets/routes/MyWorksheets.tsx",
-        "loc": 532
+        "file": "src/FE/src/features/customers/routes/CustomerList.tsx",
+        "loc": 505
       },
       {
         "file": "src/FE/src/features/docs/DocsPage.tsx",
         "loc": 497
       },
       {
+        "file": "src/FE/src/features/users/routes/UserDetail.tsx",
+        "loc": 493
+      },
+      {
         "file": "src/FE/src/features/superadmin/diagnostics/ErrorDiagnosticsDashboard.tsx",
         "loc": 490
+      },
+      {
+        "file": "src/FE/src/features/jobs/components/JobDetailBlocks.tsx",
+        "loc": 484
       },
       {
         "file": "src/FE/src/features/auditor/routes/AuditorReportList.tsx",
@@ -665,19 +684,7 @@
       },
       {
         "file": "src/FE/src/features/jobs/components/JobDetails.tsx",
-        "loc": 483
-      },
-      {
-        "file": "src/FE/src/features/users/routes/UserDetail.tsx",
-        "loc": 478
-      },
-      {
-        "file": "src/FE/src/features/jobs/components/JobDetailBlocks.tsx",
-        "loc": 472
-      },
-      {
-        "file": "src/FE/src/features/customers/routes/CustomerList.tsx",
-        "loc": 467
+        "loc": 470
       },
       {
         "file": "src/FE/src/features/images/JobImagesSection.tsx",
