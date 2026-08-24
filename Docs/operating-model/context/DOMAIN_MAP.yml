@@ -1,32 +1,106 @@
-version: 1
+version: 2
+
+principles:
+  domains_are_ownership_boundaries: true
+  changes_should_identify_affected_domains: true
+  semantic_ownership_is_separate_from_code_ownership: true
 
 domains:
   cases:
-    owns: [assignments, workflow_state, related_cases, comments]
-    impacts: [timers, approvals, reporting]
+    owns:
+      - cases
+      - assignments
+      - workflow_state
+      - related_cases
+      - comments
+    impacts:
+      - timers
+      - approvals
+      - reporting
+
   quality_kls:
-    owns: [control_points, relevance, approvals, auditor_scope]
-    impacts: [pdf, compliance, case_completion]
+    owns:
+      - control_points
+      - relevance
+      - approvals
+      - auditor_scope
+    impacts:
+      - pdf
+      - compliance
+      - case_completion
+
   time_tracking:
-    owns: [worked_time, employee_time_entries, payroll_exports]
-    impacts: [cases, reporting, payroll]
+    owns:
+      - worked_time
+      - employee_time_entries
+      - payroll_exports
+    impacts:
+      - cases
+      - reporting
+
   inventory:
-    owns: [products, stock_balances, stock_movements, qr_identifiers]
-    impacts: [jobs, costing, reporting]
+    owns:
+      - products
+      - stock_balances
+      - stock_movements
+      - qr_identifiers
+    impacts:
+      - jobs
+      - costing
+      - reporting
+
   documents:
-    owns: [images, attachments, generated_pdf]
-    impacts: [cases, quality_kls, auditor, storage]
+    owns:
+      - images
+      - attachments
+      - generated_pdf
+    impacts:
+      - cases
+      - quality_kls
+      - auditor
+      - storage
+
   reporting:
-    owns: [pdf_outputs, analytics_exports, power_bi_boundaries]
-    impacts: [customers, admin, auditor]
+    owns:
+      - pdf_outputs
+      - analytics_exports
+      - power_bi_boundaries
+    impacts:
+      - customers
+      - admin
+      - auditor
+
   identity_access:
-    owns: [users, companies, roles, permissions, tenant_isolation]
-    impacts: [all_domains]
+    owns:
+      - users
+      - companies
+      - roles
+      - permissions
+      - tenant_isolation
+    impacts:
+      - all_domains
+
   notifications:
-    owns: [email, push_subscriptions, operational_user_notifications]
-    impacts: [onboarding, case_workflow, support]
+    owns:
+      - email
+      - push_subscriptions
+      - operational_user_notifications
+    impacts:
+      - onboarding
+      - case_workflow
+      - support
+
+  platform:
+    owns:
+      - azure
+      - containers
+      - ci_cd
+      - monitoring
+    impacts:
+      - all_domains
 
 rules:
   - Domain ownership describes semantic responsibility, not file ownership.
   - Cross-domain changes must identify affected domains before implementation.
   - Identity/access and tenant isolation are cross-cutting constraints and may not be weakened by feature routing.
+  - Platform changes must include operational impact analysis.
