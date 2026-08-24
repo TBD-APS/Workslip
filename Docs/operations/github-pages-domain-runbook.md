@@ -17,7 +17,8 @@ Approved domain layout:
 | `mrsoftware.dk` | Canonical public marketing site |
 | `www.mrsoftware.dk` | Redirect to the canonical marketing site |
 | `app.mrsoftware.dk` | Production Workslip application |
-| `demo.mrsoftware.dk` | Isolated interactive demo, only after demo security gates |
+| `mrsoftware.dk/demo/` | Loginfri, klient-only produktwalkthrough med fiktive data og ingen integrationer |
+| `demo.mrsoftware.dk` | Reserveret til en isoleret, integreret demo efter særskilte sikkerhedsgates |
 
 The product may continue to be named Workslip while the company and public platform domain use MR Software.
 
@@ -48,7 +49,7 @@ The GitHub Pages fallback remains available through the repository Pages URL, bu
 2. Configure the apex records for `mrsoftware.dk` using GitHub's current Pages addresses.
 3. Configure `www.mrsoftware.dk` as a CNAME to the GitHub Pages hostname shown for the account.
 4. Point `app.mrsoftware.dk` to the production Vercel deployment.
-5. Keep `demo.mrsoftware.dk` separate from production hosting and data.
+5. Keep `demo.mrsoftware.dk` separate from production hosting and data if an integrated demo is launched.
 6. Validate DNS from more than one resolver.
 7. Verify HTTPS and canonical redirects for both apex and `www`.
 8. Verify that `app.mrsoftware.dk` still reaches the application and can call the API without CORS errors.
@@ -63,7 +64,8 @@ The marketing site and production application are separate deployments:
 - `app.mrsoftware.dk` serves the React/Vite application.
 - the API permits the production application origin through the `Frontend` CORS policy.
 - the marketing site must not receive production API access merely because it shares the parent domain.
-- the demo must not use production data, credentials or integrations.
+- `/demo/` may only be a client-only walkthrough with bundled, fictional data; it must not use credentials, browser persistence, production data or integrations.
+- `demo.mrsoftware.dk`, if launched, remains a separately deployed integrated demo with its own security gates.
 
 Any OAuth redirect URI, logout URI, CORS origin, CSP source or external-service callback that previously referenced a temporary Vercel hostname must be reviewed before domain cutover. Temporary hostnames may remain only where they are intentionally retained as rollback paths.
 
@@ -79,7 +81,7 @@ Any OAuth redirect URI, logout URI, CORS origin, CSP source or external-service 
 - `www.mrsoftware.dk` redirects to `mrsoftware.dk`.
 - `app.mrsoftware.dk` resolves to the production frontend.
 - authenticated and unauthenticated API calls from `app.mrsoftware.dk` do not fail CORS checks.
-- `demo.mrsoftware.dk` remains isolated from production.
+- `/demo/` has no API, authentication, persistence or production-data access; `demo.mrsoftware.dk` remains isolated if it is launched.
 - no active configuration references `workslip.dk`.
 - no private repository data or secrets appear in generated HTML.
 
