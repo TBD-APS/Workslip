@@ -42,6 +42,7 @@ export function buildQuickNavigatorCommands({
   canViewTimer,
   canManageUsers,
   canViewCustomers,
+  canViewDocs,
   canEditCustomers,
   canCreateJobs,
   canManageOrganization,
@@ -58,6 +59,11 @@ export function buildQuickNavigatorCommands({
       keywords: ['hjem', 'overblik', 'oversigt', 'sag', 'sager', 'rapport', 'rapporter'],
       icon: ClipboardList,
     });
+  }
+
+  // Inventory uses the same user-only capability boundary as job creation.
+  // Auditors do not have this permission and must not be offered a route whose API is user-policy protected.
+  if (canUseAppCommands && canCreateJobs) {
     commands.push({
       id: 'inventory',
       label: 'Lager',
