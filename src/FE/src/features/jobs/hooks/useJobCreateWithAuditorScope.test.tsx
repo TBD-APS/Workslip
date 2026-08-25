@@ -52,12 +52,12 @@ describe('useJobCreateWithAuditorScope', () => {
     mocks.setJobAuditorScope.mockReset();
   });
 
-  it('forwards visible jobs without an auditor-scope mutation', async () => {
+  it('forwards jobs without an auditor-scope mutation when they are internal', async () => {
     const onCreated = vi.fn();
     const { result } = renderHook(() => useJobCreateWithAuditorScope(onCreated));
 
     act(() => {
-      result.current.updateAuditorScope({ isInAuditorScope: true, reason: '' });
+      result.current.updateAuditorScope({ isInAuditorScope: false, reason: '' });
     });
 
     act(() => {
@@ -68,17 +68,17 @@ describe('useJobCreateWithAuditorScope', () => {
     expect(mocks.setJobAuditorScope).not.toHaveBeenCalled();
   });
 
-  it('keeps a failed internal-scope write in the create flow and retries only failed jobs', async () => {
+  it('keeps a failed auditor-scope write in the create flow and retries only failed jobs', async () => {
     const onCreated = vi.fn();
     mocks.setJobAuditorScope
-      .mockResolvedValueOnce({ isInAuditorScope: false, reason: 'Intern opgave' })
+      .mockResolvedValueOnce({ isInAuditorScope: true, reason: 'Auditør opgave' })
       .mockRejectedValueOnce(new Error('500'))
-      .mockResolvedValueOnce({ isInAuditorScope: false, reason: 'Intern opgave' });
+      .mockResolvedValueOnce({ isInAuditorScope: true, reason: 'Auditør opgave' });
 
     const { result } = renderHook(() => useJobCreateWithAuditorScope(onCreated));
 
     act(() => {
-      result.current.updateAuditorScope({ isInAuditorScope: false, reason: 'Intern opgave' });
+      result.current.updateAuditorScope({ isInAuditorScope: true, reason: 'Auditør opgave' });
     });
     act(() => {
       mocks.baseOnCreated?.(['job-1', 'job-2']);
