@@ -8,6 +8,17 @@
     ]
   },
   "owners": {
+    "repository.text-normalization": {
+      "path": ".gitattributes",
+      "instructions": "AGENTS.md",
+      "intents": [
+        "line-ending",
+        "eol",
+        "gitattributes",
+        "text-normalization"
+      ],
+      "summary": "Canonical repository-wide text normalization and platform-specific line-ending ownership."
+    },
     "frontend.presentation": {
       "path": "src/FE/src/lib/presentation",
       "instructions": "src/FE/src/lib/presentation/AGENTS.md",
