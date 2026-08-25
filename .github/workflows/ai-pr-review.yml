@@ -21,6 +21,9 @@ concurrency:
 
 env:
   TRUSTED_BRANCH: main
+  # Bot authors (our automation agents) count as trusted only when their head
+  # branch uses one of these prefixes. Same-repo head is still required upstream.
+  TRUSTED_BOT_BRANCH_PREFIXES: ${{ vars.TRUSTED_BOT_BRANCH_PREFIXES || 'claude/,agent/' }}
 
 jobs:
   prepare:
@@ -75,6 +78,8 @@ jobs:
           pr_json="$(gh api "/repos/${GITHUB_REPOSITORY}/pulls/${pr_number}")"
           head_sha="$(printf '%s' "$pr_json" | jq -r '.head.sha // ""')"
           association="$(printf '%s' "$pr_json" | jq -r '.author_association // "NONE"')"
+          author_type="$(printf '%s' "$pr_json" | jq -r '.user.type // ""')"
+          head_ref="$(printf '%s' "$pr_json" | jq -r '.head.ref // ""')"
 
           if [ -z "$head_sha" ]; then
             echo "Unable to resolve PR head SHA." >&2
@@ -91,17 +96,27 @@ jobs:
           fi
 
           if [ "$automatic" = true ]; then
+            trusted_author=false
             case "$association" in
-              OWNER|MEMBER|COLLABORATOR) ;;
-              *)
-                echo "Skipping automatic AI review for author association ${association}; use workflow_dispatch for an explicit external-contributor review."
-                echo "eligible=false" >> "$GITHUB_OUTPUT"
-                echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
-                echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
-                echo "ci_conclusion=$conclusion" >> "$GITHUB_OUTPUT"
-                exit 0
-                ;;
+              OWNER|MEMBER|COLLABORATOR) trusted_author=true ;;
             esac
+            # Our automation agents open PRs as Bots (association CONTRIBUTOR).
+            # Trust them only on a controlled agent branch prefix.
+            if [ "$trusted_author" != true ] && [ "$author_type" = "Bot" ]; then
+              for prefix in ${TRUSTED_BOT_BRANCH_PREFIXES//,/ }; do
+                case "$head_ref" in
+                  "$prefix"*) trusted_author=true; break ;;
+                esac
+              done
+            fi
+            if [ "$trusted_author" != true ]; then
+              echo "Skipping automatic AI review for author association ${association} (type ${author_type:-User}, branch ${head_ref}); use workflow_dispatch for an explicit external-contributor review."
+              echo "eligible=false" >> "$GITHUB_OUTPUT"
+              echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+              echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+              echo "ci_conclusion=$conclusion" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           fi
 
           echo "eligible=true" >> "$GITHUB_OUTPUT"

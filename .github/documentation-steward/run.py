@@ -18,6 +18,13 @@ MARKER = '<!-- documentation-steward:v1 -->'
 PREFERRED_MODELS = ('kimi-k2.6', 'kimi-k2.5', 'kimi-k2', 'kimi-k1.5')
 VALID_STATES = {'NO_CHANGE', 'DRAFT_UPDATE', 'HUMAN_REVIEW', 'BLOCKED'}
 TRUSTED_AUTHOR_ASSOCIATIONS = {'OWNER', 'MEMBER', 'COLLABORATOR'}
+# Our own automation agents open PRs as GitHub Apps, which GitHub reports with
+# author_association CONTRIBUTOR even though creating the same-repository head
+# branch already required write access. Trust a Bot author only when its head
+# branch uses a controlled agent prefix, so external contributors stay untrusted.
+TRUSTED_BOT_BRANCH_PREFIXES = ('claude/', 'agent/')
+# Trusted PR base branches: the production trunk plus the active release train.
+TRUSTED_BASE_PATTERN = re.compile(r'^(?:main|release-.+)$')
 MAX_PATCH_CHARS = 36000
 MAX_DOCUMENT_CHARS = 48000
 MAX_UPDATE_DELTA_CHARS = 14000
@@ -102,15 +109,34 @@ def is_safe_target_path(path: object) -> bool:
     return not path.startswith(PROTECTED_PREFIXES)
 
 
-def is_trusted_pr(pr: object, repository: str, trusted_branch: str) -> bool:
+def has_trusted_author(pr: dict, bot_branch_prefixes: tuple[str, ...]) -> bool:
+    if pr.get('author_association') in TRUSTED_AUTHOR_ASSOCIATIONS:
+        return True
+    user = pr.get('user') if isinstance(pr.get('user'), dict) else {}
+    head = pr.get('head') if isinstance(pr.get('head'), dict) else {}
+    head_ref = str(head.get('ref') or '')
+    return user.get('type') == 'Bot' and any(head_ref.startswith(prefix) for prefix in bot_branch_prefixes)
+
+
+def is_trusted_pr(
+    pr: object,
+    repository: str,
+    trusted_branch: str,
+    *,
+    base_pattern: re.Pattern[str] = TRUSTED_BASE_PATTERN,
+    bot_branch_prefixes: tuple[str, ...] = TRUSTED_BOT_BRANCH_PREFIXES,
+) -> bool:
     if not isinstance(pr, dict):
         return False
-    if pr.get('author_association') not in TRUSTED_AUTHOR_ASSOCIATIONS:
+    if not has_trusted_author(pr, bot_branch_prefixes):
         return False
     base = pr.get('base') if isinstance(pr.get('base'), dict) else {}
     head = pr.get('head') if isinstance(pr.get('head'), dict) else {}
     head_repo = head.get('repo') if isinstance(head.get('repo'), dict) else {}
-    return base.get('ref') == trusted_branch and head_repo.get('full_name') == repository
+    if head_repo.get('full_name') != repository:
+        return False
+    base_ref = str(base.get('ref') or '')
+    return base_ref == trusted_branch or bool(base_pattern.match(base_ref))
 
 
 def parse_classification(
@@ -379,13 +405,32 @@ def main() -> None:
     pr_number = int(os.environ['PR_NUMBER'])
     expected_head_sha = os.environ.get('EXPECTED_HEAD_SHA', '')
     trusted_branch = os.environ.get('TRUSTED_BRANCH', 'main')
+    bot_branch_prefixes = tuple(
+        prefix.strip()
+        for prefix in os.environ.get('TRUSTED_BOT_BRANCH_PREFIXES', 'claude/,agent/').split(',')
+        if prefix.strip()
+    ) or TRUSTED_BOT_BRANCH_PREFIXES
+    base_pattern_source = os.environ.get('TRUSTED_BASE_PATTERN', '').strip()
+    base_pattern = re.compile(base_pattern_source) if base_pattern_source else TRUSTED_BASE_PATTERN
     api_key = os.environ.get('KIMI_API_KEY', '').strip()
     base_url = os.environ.get('MOONSHOT_BASE_URL', 'https://api.moonshot.ai/v1').rstrip('/')
 
     try:
         pr = github(f'/pulls/{pr_number}')
-        if not is_trusted_pr(pr, repository, trusted_branch):
-            publish_safe_result(pr_number, expected_head_sha, 'BLOCKED', 'PR is not a trusted same-repository pull request targeting main.')
+        if not is_trusted_pr(
+            pr,
+            repository,
+            trusted_branch,
+            base_pattern=base_pattern,
+            bot_branch_prefixes=bot_branch_prefixes,
+        ):
+            publish_safe_result(
+                pr_number,
+                expected_head_sha,
+                'BLOCKED',
+                'PR is not trusted: it must come from a repository member or an agent branch, '
+                'stay within this repository, and target main or a release-* branch.',
+            )
             return
         assert isinstance(pr, dict)
         head = pr.get('head') if isinstance(pr.get('head'), dict) else {}
