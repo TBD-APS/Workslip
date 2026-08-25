@@ -411,13 +411,18 @@ export const AppLayout = () => {
         </div>
       </nav>
 
-      {(location.pathname === '/app' || location.pathname === '/app/overblik') && (
-        <Can permission="job:create">
-          <button className="fab-create" onClick={() => setCreateSheetOpen(true)} aria-label="Opret ny sag">
-            <PlusCircle size={22} />
-          </button>
-        </Can>
-      )}
+       {(location.pathname === '/app' || location.pathname === '/app/overblik') && (
+         <Can permission="job:create">
+           <button
+             id="app-fab-create-job"
+             className="fab-create"
+             onClick={() => setCreateSheetOpen(true)}
+             aria-label="Opret ny sag"
+           >
+             <PlusCircle size={22} />
+           </button>
+         </Can>
+       )}
 
       {location.pathname === '/app/customers' && (
         <Can permission="user:manage">
