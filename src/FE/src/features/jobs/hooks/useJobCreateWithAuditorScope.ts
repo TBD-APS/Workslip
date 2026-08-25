@@ -7,7 +7,7 @@ import type { JobForm } from '../types';
 import { useJobCreate } from './useJobCreate';
 
 const DEFAULT_AUDITOR_SCOPE: JobAuditorScopeDraft = {
-  isInAuditorScope: true,
+  isInAuditorScope: false,
   reason: '',
 };
 
@@ -38,7 +38,7 @@ export function useJobCreateWithAuditorScope(
     jobIds: string[],
     completeCreatedJobIds: string[],
   ): Promise<boolean> => {
-    if (auditorScope.isInAuditorScope) {
+    if (!auditorScope.isInAuditorScope) {
       setPendingAuditorScopeJobIds([]);
       setAllCreatedJobIds([]);
       setAuditorScopeError(false);
@@ -53,7 +53,7 @@ export function useJobCreateWithAuditorScope(
     const results = await Promise.allSettled(
       jobIds.map(async (jobId) => {
         await setJobAuditorScope(jobId, {
-          isInAuditorScope: false,
+          isInAuditorScope: auditorScope.isInAuditorScope,
           reason,
         });
         return jobId;

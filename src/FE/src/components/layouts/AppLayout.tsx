@@ -411,7 +411,7 @@ export const AppLayout = () => {
         </div>
       </nav>
 
-      {location.pathname === '/app' && (
+      {(location.pathname === '/app' || location.pathname === '/app/overblik') && (
         <Can permission="job:create">
           <button className="fab-create" onClick={() => setCreateSheetOpen(true)} aria-label="Opret ny sag">
             <PlusCircle size={22} />

@@ -76,7 +76,7 @@ export const JobCreate = () => {
   };
 
   const auditorScopeChanged = isAdmin
-    && (!create.auditorScope.isInAuditorScope || create.auditorScope.reason.length > 0);
+    && !create.auditorScope.isInAuditorScope;
   const hasUnsavedChanges = createdJobIds.length === 0 && (
     !sameForm(create.form, initialFormBaseline)
     || create.linkedJobIds.length > 0
