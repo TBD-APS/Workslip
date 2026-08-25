@@ -46,7 +46,7 @@ export const emptyForm: JobForm = {
     allIrrelevantReason: '',
     closureFlags: [],
   },
-  jobType: 'Diverse',
+   jobType: 'KLS',
   timesheets: [],
 };
 

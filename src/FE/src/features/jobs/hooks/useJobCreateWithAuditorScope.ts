@@ -7,7 +7,7 @@ import type { JobForm } from '../types';
 import { useJobCreate } from './useJobCreate';
 
 const DEFAULT_AUDITOR_SCOPE: JobAuditorScopeDraft = {
-  isInAuditorScope: true,
+  isInAuditorScope: false,
   reason: '',
 };
 

@@ -10,32 +10,12 @@ type JobAuditorScopeControlProps = {
 };
 
 export function JobAuditorScopeControl({ value, onChange, disabled = false }: JobAuditorScopeControlProps) {
-  const [editingReason, setEditingReason] = useState(false);
-  const [draftReason, setDraftReason] = useState(value.reason);
-
-  const normalizedReason = draftReason.trim();
-  const canMakeInternal = normalizedReason.length >= 3 && !disabled;
-
-  const startInternalEdit = () => {
-    setDraftReason(value.reason);
-    setEditingReason(true);
-  };
-
-  const cancelInternalEdit = () => {
-    setDraftReason(value.reason);
-    setEditingReason(false);
-  };
-
   const makeInternal = () => {
-    if (!canMakeInternal) return;
-    onChange({ isInAuditorScope: false, reason: normalizedReason });
-    setEditingReason(false);
+    onChange({ isInAuditorScope: false, reason: '' });
   };
 
   const makeVisible = () => {
     onChange({ isInAuditorScope: true, reason: '' });
-    setDraftReason('');
-    setEditingReason(false);
   };
 
   return (
@@ -54,37 +34,14 @@ export function JobAuditorScopeControl({ value, onChange, disabled = false }: Jo
               {value.isInAuditorScope ? 'Med i auditørvisningen' : 'Intern sag'}
             </h2>
           </div>
-          {!editingReason && (
-            value.isInAuditorScope ? (
-              <button
-                className="btn btn-secondary"
-                type="button"
-                onClick={startInternalEdit}
-                disabled={disabled}
-              >
-                Gør intern
-              </button>
-            ) : (
-              <div className="auditor-scope-card__actions auditor-scope-card__actions--heading">
-                <button
-                  className="btn btn-secondary"
-                  type="button"
-                  onClick={startInternalEdit}
-                  disabled={disabled}
-                >
-                  Rediger begrundelse
-                </button>
-                <button
-                  className="btn btn-secondary"
-                  type="button"
-                  onClick={makeVisible}
-                  disabled={disabled}
-                >
-                  Vis for auditør
-                </button>
-              </div>
-            )
-          )}
+          <button
+            className="btn btn-secondary"
+            type="button"
+            onClick={value.isInAuditorScope ? makeInternal : makeVisible}
+            disabled={disabled}
+          >
+            {value.isInAuditorScope ? 'Gør intern' : 'Vis for auditør'}
+          </button>
         </div>
 
         <p className="auditor-scope-card__description">
@@ -92,49 +49,6 @@ export function JobAuditorScopeControl({ value, onChange, disabled = false }: Jo
             ? 'Sagen kan vises til auditør, når den også matcher auditørens faglige scope.'
             : 'Sagen oprettes som intern og holdes ude af auditørens arbejdsflade.'}
         </p>
-
-        {!value.isInAuditorScope && value.reason && !editingReason && (
-          <p className="auditor-scope-card__reason">
-            <strong>Begrundelse:</strong> {value.reason}
-          </p>
-        )}
-
-        {editingReason && (
-          <div className="auditor-scope-card__editor">
-            <label htmlFor="auditor-scope-create-reason">Hvorfor skal sagen være intern?</label>
-            <textarea
-              id="auditor-scope-create-reason"
-              value={draftReason}
-              onChange={(event) => setDraftReason(event.target.value)}
-              maxLength={500}
-              rows={3}
-              autoFocus
-              disabled={disabled}
-              placeholder="Fx intern opgave uden for kundens aftalte audit-scope"
-            />
-            <div className="auditor-scope-card__editor-footer">
-              <span>{draftReason.length}/500</span>
-              <div className="auditor-scope-card__actions">
-                <button
-                  className="btn btn-secondary"
-                  type="button"
-                  onClick={cancelInternalEdit}
-                  disabled={disabled}
-                >
-                  Annuller
-                </button>
-                <button
-                  className="btn btn-primary"
-                  type="button"
-                  onClick={makeInternal}
-                  disabled={!canMakeInternal}
-                >
-                  Gør sagen intern
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </section>
   );
