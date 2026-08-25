@@ -27,6 +27,7 @@ MAINTAINED_DOC_PATTERNS = (
     "Docs/architecture/*.md",
     "Docs/architecture/adr/*.md",
     "Docs/compliance/GDPR_AI_ACT_BASELINE.md",
+    "Docs/operating-model/**/*.md",
     "Docs/operations/*.md",
     "Docs/release/*.md",
     "Docs/strategy/*.md",
