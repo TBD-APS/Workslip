@@ -12,6 +12,7 @@ const APP_URL = requireLoopbackOrigin(
   'WORKSLIP_PLAYWRIGHT_APP_URL',
 );
 const UI_TIMEOUT = 25_000;
+const MASCOT_PAINT_POLL_MS = 80;
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, '../../..');
 const VISUAL_QA_PROJECT = path.join(REPO_ROOT, 'tools/visual-qa/Workslip.VisualQa.csproj');
@@ -55,13 +56,13 @@ async function verifyVisualPresence({ name, viewport }) {
     assert.equal(await toggle.getAttribute('aria-expanded'), 'false', `${name}: launcher must start closed.`);
 
     // The mascot is rendered by a CSS background image. A DOM-visible SVG can have
-    // valid bounds before that image has decoded/painted, which would make the two
-    // screenshots identical and create a false "visually absent" result. Prove the
-    // actual asset is loaded and give Chromium two paint frames before evidence capture.
-    await waitForMascotPaint(page);
-
-    const bounds = await wizard.boundingBox();
-    assert.ok(bounds, `${name}: HelpWizard must expose DOM bounds.`);
+    // valid bounds — and Chromium can even resolve background-image decode() — before
+    // the element's own layer has actually painted, which makes the visible/hidden
+    // screenshots identical and produces a false "visually absent" result. Worse,
+    // Chromium resolves decode() as successful on a truncated/corrupt PNG, so an
+    // asset check cannot prove on-screen presence. Poll the live launcher region
+    // against its hidden control until real pixels are painted before capturing.
+    const bounds = await waitForMascotToPaint(page, wizard, name);
 
     const visiblePath = path.join(EVIDENCE_DIR, `${name}-clippy-visible.png`);
     const hiddenPath = path.join(EVIDENCE_DIR, `${name}-clippy-hidden-control.png`);
@@ -106,26 +107,88 @@ async function verifyVisualPresence({ name, viewport }) {
   }
 }
 
-async function waitForMascotPaint(page) {
-  await page.waitForFunction(async () => {
+// Prove the mascot is actually painted on screen (not merely present in the DOM
+// with a "decoded" asset) and return its DOM bounds. Returns only once the live
+// launcher region diverges from its hidden control, so the caller's evidence
+// capture is guaranteed to contain painted pixels.
+async function waitForMascotToPaint(page, wizard, name) {
+  await assertMascotAssetDecodable(page, name);
+
+  const bounds = await wizard.boundingBox();
+  assert.ok(bounds, `${name}: HelpWizard must expose DOM bounds.`);
+  const clip = {
+    x: Math.max(0, Math.round(bounds.x)),
+    y: Math.max(0, Math.round(bounds.y)),
+    width: Math.max(1, Math.round(bounds.width)),
+    height: Math.max(1, Math.round(bounds.height)),
+  };
+
+  // Blank control: with the mascot hidden the region is a flat colour that
+  // encodes to a tiny PNG. A painted mascot is many times larger, which lets us
+  // detect genuine paint without a pixel decoder while tolerating the mascot's
+  // idle micro-animations (which byte-equality checks would trip over).
+  const blankShot = await withHiddenWizard(page, wizard, () => page.screenshot({ clip }));
+  const paintedThreshold = Math.max(blankShot.length * 2, blankShot.length + 512);
+
+  const deadline = Date.now() + UI_TIMEOUT;
+  let consecutivePainted = 0;
+  while (Date.now() < deadline) {
+    await waitForPaintFrames(page);
+    const shot = await page.screenshot({ clip });
+    if (shot.length >= paintedThreshold) {
+      consecutivePainted += 1;
+      if (consecutivePainted >= 2) return bounds;
+    } else {
+      consecutivePainted = 0;
+    }
+    await page.waitForTimeout(MASCOT_PAINT_POLL_MS);
+  }
+
+  return assert.fail(
+    `${name}: Clippy mascot never painted pixels within ${UI_TIMEOUT}ms; the launcher region stayed blank `
+    + '(asset missing/corrupt, or the element rendered transparently).',
+  );
+}
+
+async function assertMascotAssetDecodable(page, name) {
+  const decoded = await page.evaluate(async () => {
     const mascot = document.getElementById('help-wizard-character');
-    if (!mascot) return false;
+    if (!mascot) return { ok: false, reason: 'missing #help-wizard-character' };
 
     const backgroundImage = getComputedStyle(mascot).backgroundImage;
     const match = backgroundImage.match(/^url\(["']?(.*?)["']?\)$/);
-    if (!match?.[1]) return false;
+    if (!match?.[1]) return { ok: false, reason: `no background-image (${backgroundImage})` };
 
     const image = new Image();
     image.src = new URL(match[1], document.baseURI).href;
     try {
       await image.decode();
-    } catch {
-      return false;
+    } catch (error) {
+      return { ok: false, reason: `background-image failed to decode: ${String(error)}` };
     }
-    return image.naturalWidth > 0 && image.naturalHeight > 0;
-  }, null, { timeout: UI_TIMEOUT });
+    return {
+      ok: image.naturalWidth > 0 && image.naturalHeight > 0,
+      reason: 'background-image has zero intrinsic size',
+    };
+  });
+  assert.ok(decoded.ok, `${name}: mascot asset is not a usable image (${decoded.reason}).`);
+}
 
+async function withHiddenWizard(page, wizard, action) {
+  await wizard.evaluate((element) => {
+    element.dataset.visualQaGateOpacity = element.style.opacity;
+    element.style.setProperty('opacity', '0', 'important');
+  });
   await waitForPaintFrames(page);
+  try {
+    return await action();
+  } finally {
+    await wizard.evaluate((element) => {
+      element.style.opacity = element.dataset.visualQaGateOpacity || '';
+      delete element.dataset.visualQaGateOpacity;
+    });
+    await waitForPaintFrames(page);
+  }
 }
 
 async function waitForPaintFrames(page) {
