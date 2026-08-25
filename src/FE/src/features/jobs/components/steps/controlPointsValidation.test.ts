@@ -48,7 +48,7 @@ describe('validateControlPoints', () => {
   it('still requires a selection in relevant categories', () => {
     const form = {
       ...emptyForm,
-      jobType: 'KLS',
+      jobType: 'KLS' as const,
       work: { ...emptyForm.work, categoryIds: [typeId] },
     };
 
