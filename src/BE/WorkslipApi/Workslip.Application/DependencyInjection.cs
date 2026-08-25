@@ -12,6 +12,7 @@ using Workslip.Application.Users;
 using Workslip.Application.Customers;
 using Workslip.Application.Documents;
 using Workslip.Application.Images;
+using Workslip.Application.ModuleAccess;
 using Workslip.Application.Notifications;
 
 namespace Workslip.Application;
@@ -53,6 +54,10 @@ public static IServiceCollection AddWorkslipApplication(this IServiceCollection 
     services.AddScoped<IImageService, ImageService>();
     services.AddScoped<INotificationService, NotificationService>();
     services.AddScoped<IPushSubscriptionService, PushSubscriptionService>();
+
+    // Tenant module entitlement gate. Interim default entitles every module
+    // (no behaviour change); swap for the product-owned adapter later. See ADR 0015.
+    services.AddScoped<IWorkslipModuleAccess, AllModulesEnabledAccess>();
 
     // Add FluentValidation validators (scans the entire assembly)
     services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
