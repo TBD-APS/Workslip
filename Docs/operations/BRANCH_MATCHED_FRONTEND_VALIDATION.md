@@ -52,7 +52,7 @@ The `Frontend + API contract` job owns:
 7. Vitest; and
 8. the production frontend build, including application and service-worker type checking.
 
-On pull requests the lint baseline is the exact pull-request base SHA. On a push event it is the previous SHA for that branch, so a bypassed or unexpected regression cannot silently grow the lint baseline.
+On pull requests the lint baseline is the exact pull-request base SHA. On a push event it is the previous SHA for that branch, with a parent-commit fallback when the baseline is empty, invalid, or missing, so a bypassed or unexpected regression cannot silently grow the lint baseline.
 
 ## Security boundary
 
