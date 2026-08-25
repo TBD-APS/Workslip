@@ -67,7 +67,11 @@ async function verifySharedStateSemantics({ name, theme, viewport }) {
     await page.locator('#app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
     if (viewport.width < 768) {
-      await page.locator('#bottom-nav-search').click();
+      // On phones the navigation lives in the hamburger drawer; open it first.
+      await page.locator('#mobile-nav-toggle').click();
+      const searchTrigger = page.locator('#bottom-nav-search');
+      await searchTrigger.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+      await searchTrigger.click();
     } else {
       await page.keyboard.press('Control+K');
     }
