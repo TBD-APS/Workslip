@@ -49,6 +49,7 @@ const buildOpenApiDocument = async (outputDirectory) => {
       apiProject,
       '--configuration',
       'Release',
+      '--no-incremental',
       ...(skipRestore ? ['--no-restore'] : []),
       '--nologo',
       '-p:OpenApiGenerateDocuments=true',

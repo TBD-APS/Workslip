@@ -130,6 +130,22 @@ public sealed class InfrastructureConfigurationTests
     }
 
     [Fact]
+    public void ConfigureInfrastructure_ExplicitBootstrapInDevelopment_RequiresSqlConnectionString()
+    {
+        var args = new[]
+        {
+            $"--{PlatformIdentityBootstrapCommand.ConfigurationKey}={PlatformIdentityBootstrapCommand.OperationName}",
+            $"--{SqlConnectionStringKey}="
+        };
+        var builder = CreateBuilder(Environments.Development, args);
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            builder.ConfigureInfrastructure(args));
+
+        Assert.Contains("explicit operator SQL connection string", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void ConfigureInfrastructure_InProduction_PreservesManagedIdentityAuthentication()
     {
         var builder = CreateBuilder(Environments.Production);
