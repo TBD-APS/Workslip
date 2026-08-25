@@ -54,7 +54,11 @@ describe('useJobCreateWithAuditorScope', () => {
 
   it('forwards visible jobs without an auditor-scope mutation', async () => {
     const onCreated = vi.fn();
-    renderHook(() => useJobCreateWithAuditorScope(onCreated));
+    const { result } = renderHook(() => useJobCreateWithAuditorScope(onCreated));
+
+    act(() => {
+      result.current.updateAuditorScope({ isInAuditorScope: true, reason: '' });
+    });
 
     act(() => {
       mocks.baseOnCreated?.(['job-1']);
