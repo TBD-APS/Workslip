@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { EyeOff, ShieldCheck } from 'lucide-react';
 import type { JobAuditorScopeDraft } from '../api/auditorScopeApi';
 import './jobAuditorScope.css';
