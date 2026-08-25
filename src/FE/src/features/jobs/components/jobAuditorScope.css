@@ -1,11 +1,11 @@
 .auditor-scope-card {
   display: flex;
-  gap: 0.875rem;
-  margin: 0 auto 1rem;
+  gap: 0.5rem;
+  margin: 0 auto 0.75rem;
   max-width: 72rem;
-  padding: 1rem;
+  padding: 0.75rem;
   border: 1px solid var(--border-color, #d8dee6);
-  border-radius: 0.875rem;
+  border-radius: 0.625rem;
   background: var(--surface-card, #fff);
 }
 
@@ -24,8 +24,8 @@
 
 .auditor-scope-card__icon {
   display: grid;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 1.75rem;
+  height: 1.75rem;
   flex: 0 0 auto;
   place-items: center;
   border-radius: 999px;
@@ -56,12 +56,13 @@
 
 .auditor-scope-card h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.875rem;
 }
 
 .auditor-scope-card__description,
 .auditor-scope-card__reason {
-  margin: 0.5rem 0 0;
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
   color: var(--text-muted, #667085);
 }
 
@@ -155,5 +156,7 @@
   .auditor-scope-card__actions .btn,
   .auditor-scope-create-error .btn {
     width: 100%;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
   }
 }
