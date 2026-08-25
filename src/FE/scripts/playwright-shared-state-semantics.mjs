@@ -75,6 +75,14 @@ async function verifySharedStateSemantics({ name, theme, viewport }) {
     await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     const activeResult = dialog.locator('.quick-nav-result.active').first();
     await activeResult.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await page.waitForFunction(
+      () => {
+        const icon = document.querySelector('.quick-nav-result.active .quick-nav-result-icon');
+        return icon instanceof HTMLElement && getComputedStyle(icon).color === 'rgb(20, 122, 126)';
+      },
+      null,
+      { timeout: UI_TIMEOUT },
+    );
     const activeNavigatorIcon = await activeResult.locator('.quick-nav-result-icon').evaluate(
       (element) => getComputedStyle(element).color,
     );
