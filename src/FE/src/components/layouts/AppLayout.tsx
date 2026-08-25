@@ -1,5 +1,5 @@
 import { useNavigate, useLocation, NavLink, Navigate, Outlet } from 'react-router-dom';
-import { BookOpen, ClipboardList, Building2, CalendarDays, LogOut, Menu, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell, Search, X } from 'lucide-react';
+import { BookOpen, ClipboardList, Building2, CalendarDays, LogOut, Menu, PackageSearch, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell, Search, X } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can, useCan, useIsSuperAdmin } from '../../providers/permissions';
 import { useEffect, useRef, useState } from 'react';
@@ -370,6 +370,14 @@ export const AppLayout = () => {
             <span>Timer</span>
           </NavLink>
         </Can>
+        {canUseAppCommands && (
+          <Can permission="job:create">
+            <NavLink id="bottom-nav-inventory" to="/app/lager" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/lager')}>
+              <PackageSearch size={24} />
+              <span>Lager</span>
+            </NavLink>
+          </Can>
+        )}
         <Can permission="user:manage">
           <NavLink id="bottom-nav-people" to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/users')}>
             <Users size={24} />
