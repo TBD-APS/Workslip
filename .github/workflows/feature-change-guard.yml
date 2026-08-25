@@ -77,20 +77,8 @@ jobs:
           echo '::error::Feature change classifier failed before producing a valid risk decision.'
           exit 1
 
-      - name: Check if hotfix
-        if: github.event_name != 'merge_group'
-        id: hotfix
-        shell: bash
-        run: |
-          TITLE="${{ github.event.pull_request.title }}"
-          if [[ "$TITLE" =~ ^\[Hotfix\] ]]; then
-            echo "is_hotfix=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_hotfix=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Validate flow-level browser intent
-        if: github.event_name != 'merge_group' && steps.hotfix.outputs.is_hotfix != 'true'
+        if: github.event_name != 'merge_group'
         id: browser
         shell: bash
         env:
@@ -108,7 +96,7 @@ jobs:
             --body-file "$body_file"
 
       - name: Reject new non-ID Playwright selectors
-        if: github.event_name != 'merge_group' && steps.hotfix.outputs.is_hotfix != 'true'
+        if: github.event_name != 'merge_group'
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
