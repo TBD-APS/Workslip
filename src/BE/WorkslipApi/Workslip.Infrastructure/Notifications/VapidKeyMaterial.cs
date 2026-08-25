@@ -23,7 +23,7 @@ public sealed class VapidKeyMaterial : IVapidPublicKeyProvider
         if (string.IsNullOrWhiteSpace(configured.PrivateKey) && environment?.IsDevelopment() == true)
         {
             privateKeyBytes = CreateDevelopmentPrivateKey();
-            logger?.LogWarning(
+            logger?.LogInformation(
                 "VAPID private key is not configured. Using an ephemeral Development key; browser push subscriptions will be reconciled after API restart.");
         }
         else

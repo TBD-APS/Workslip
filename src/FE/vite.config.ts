@@ -53,6 +53,15 @@ export default defineConfig({
         enabled: true,
         type: 'module',
       },
+      integration: {
+        configureCustomSWViteBuild(inlineConfig) {
+          const output = inlineConfig.build?.rollupOptions?.output
+          if (output && !Array.isArray(output)) {
+            delete output.inlineDynamicImports
+            output.codeSplitting = false
+          }
+        },
+      },
       injectManifest: {
         // Install only the navigation shell and bootstrap JavaScript. CSS,
         // fonts, images and lazy chunks are cached when the browser actually
