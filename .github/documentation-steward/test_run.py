@@ -83,6 +83,49 @@ class DocumentationStewardPolicyTest(unittest.TestCase):
         trusted['head']['repo']['full_name'] = 'outside/contributor'
         self.assertFalse(steward.is_trusted_pr(trusted, 'rasm105k/Workslip-v2.0', 'main'))
 
+    def test_trusts_agent_bot_on_a_controlled_branch_prefix(self) -> None:
+        agent_pr = {
+            'author_association': 'CONTRIBUTOR',
+            'user': {'type': 'Bot'},
+            'base': {'ref': 'main'},
+            'head': {'ref': 'claude/module-access', 'repo': {'full_name': 'rasm105k/Workslip-v2.0'}},
+        }
+        self.assertTrue(steward.is_trusted_pr(agent_pr, 'rasm105k/Workslip-v2.0', 'main'))
+
+    def test_rejects_bot_on_an_uncontrolled_branch_prefix(self) -> None:
+        dependency_bot = {
+            'author_association': 'CONTRIBUTOR',
+            'user': {'type': 'Bot'},
+            'base': {'ref': 'main'},
+            'head': {'ref': 'dependabot/npm_and_yarn/x', 'repo': {'full_name': 'rasm105k/Workslip-v2.0'}},
+        }
+        self.assertFalse(steward.is_trusted_pr(dependency_bot, 'rasm105k/Workslip-v2.0', 'main'))
+
+    def test_rejects_non_bot_external_contributor(self) -> None:
+        external = {
+            'author_association': 'CONTRIBUTOR',
+            'user': {'type': 'User'},
+            'base': {'ref': 'main'},
+            'head': {'ref': 'claude/looks-like-agent', 'repo': {'full_name': 'rasm105k/Workslip-v2.0'}},
+        }
+        self.assertFalse(steward.is_trusted_pr(external, 'rasm105k/Workslip-v2.0', 'main'))
+
+    def test_trusts_a_release_train_base(self) -> None:
+        release_pr = {
+            'author_association': 'MEMBER',
+            'base': {'ref': 'release-5.1'},
+            'head': {'ref': 'claude/module-access', 'repo': {'full_name': 'rasm105k/Workslip-v2.0'}},
+        }
+        self.assertTrue(steward.is_trusted_pr(release_pr, 'rasm105k/Workslip-v2.0', 'main'))
+
+    def test_rejects_an_untrusted_base_branch(self) -> None:
+        feature_base = {
+            'author_association': 'MEMBER',
+            'base': {'ref': 'some-feature-branch'},
+            'head': {'ref': 'claude/module-access', 'repo': {'full_name': 'rasm105k/Workslip-v2.0'}},
+        }
+        self.assertFalse(steward.is_trusted_pr(feature_base, 'rasm105k/Workslip-v2.0', 'main'))
+
     def test_rejects_unbounded_document_update(self) -> None:
         current = '# Current\n\nShort content.\n'
         with self.assertRaisesRegex(ValueError, 'bounded update size'):
