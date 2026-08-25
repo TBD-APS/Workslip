@@ -18,6 +18,10 @@ function setVisibleRect(element: HTMLElement, left: number, top: number, width: 
   });
 }
 
+function enableClippy() {
+  localStorage.setItem('workslip.flag.help-wizard', 'on');
+}
+
 describe('HelpWizard', () => {
   afterEach(() => {
     cleanup();
@@ -26,7 +30,17 @@ describe('HelpWizard', () => {
     document.querySelectorAll('[data-test-clippy-fixture]').forEach((element) => element.remove());
   });
 
-  it('renders Clippy 2.0 by default without opening a message', () => {
+  it('renders Clippy by default while keeping the help bubble closed', () => {
+    render(<HelpWizard />);
+
+    const toggle = screen.getByRole('button', { name: 'Hjælp' });
+    expect(screen.getByTestId('help-wizard')).toBeInTheDocument();
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('renders Clippy when explicitly enabled without opening a message', () => {
+    enableClippy();
     render(<HelpWizard />);
 
     const toggle = screen.getByRole('button', { name: 'Hjælp' });
@@ -36,6 +50,7 @@ describe('HelpWizard', () => {
   });
 
   it('keeps the original gold clip identity with wand and free-hand finger gun', () => {
+    enableClippy();
     render(<HelpWizard />);
 
     const wizard = screen.getByTestId('help-wizard');
@@ -53,6 +68,7 @@ describe('HelpWizard', () => {
   });
 
   it('opens and closes a concise contextual help prompt', () => {
+    enableClippy();
     render(<HelpWizard />);
 
     const toggle = screen.getByRole('button', { name: 'Hjælp' });
@@ -67,6 +83,7 @@ describe('HelpWizard', () => {
   });
 
   it('uses route-specific copy without starting a tour', () => {
+    enableClippy();
     window.history.replaceState({}, '', '/app/timer');
     render(<HelpWizard />);
 
@@ -76,6 +93,7 @@ describe('HelpWizard', () => {
   });
 
   it('moves to registered app targets and can return home', () => {
+    enableClippy();
     const target = document.createElement('button');
     target.id = 'clippy-test-target';
     target.dataset.testClippyFixture = 'true';
@@ -97,6 +115,7 @@ describe('HelpWizard', () => {
   });
 
   it('uses real Workslip feedback to point at invalid fields and celebrate success', async () => {
+    enableClippy();
     const input = document.createElement('input');
     input.id = 'feedback-invalid-field';
     input.setAttribute('aria-invalid', 'true');
@@ -118,6 +137,7 @@ describe('HelpWizard', () => {
   });
 
   it('points at a validation error after a form submit', async () => {
+    enableClippy();
     const form = document.createElement('form');
     form.dataset.testClippyFixture = 'true';
     const input = document.createElement('input');

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { evaluateHelpWizard } from './evaluateHelpWizard';
 
 describe('evaluateHelpWizard off-path', () => {
-  it('kill beats default-on and identity on', () => {
+  it('kill beats explicit identity on', () => {
     expect(evaluateHelpWizard({ killed: true, identity: true })).toEqual({
       enabled: false,
       source: 'platform-kill',
@@ -16,7 +16,7 @@ describe('evaluateHelpWizard off-path', () => {
     });
   });
 
-  it('application can explicitly turn the default-on wizard off', () => {
+  it('application can explicitly keep the wizard off', () => {
     expect(evaluateHelpWizard({ application: false })).toEqual({
       enabled: false,
       source: 'application',
@@ -25,7 +25,7 @@ describe('evaluateHelpWizard off-path', () => {
 });
 
 describe('evaluateHelpWizard on-path', () => {
-  it('is on when no assignment exists', () => {
+  it('defaults on when no assignment exists', () => {
     expect(evaluateHelpWizard({})).toEqual({ enabled: true, source: 'default-on' });
   });
 
@@ -33,6 +33,13 @@ describe('evaluateHelpWizard on-path', () => {
     expect(evaluateHelpWizard({ application: true })).toEqual({
       enabled: true,
       source: 'application',
+    });
+  });
+
+  it('tenant on enables when identity is unset', () => {
+    expect(evaluateHelpWizard({ tenant: true, application: false })).toEqual({
+      enabled: true,
+      source: 'tenant',
     });
   });
 });

@@ -1,4 +1,4 @@
-/** Mirrors MR SAAS'y platform.help-wizard. Default on. Kill wins. */
+/** Mirrors MR SAAS'y platform.help-wizard. Visible by default; explicit overrides and platform kill still win. */
 
 export const PLATFORM_HELP_WIZARD = 'platform.help-wizard';
 
