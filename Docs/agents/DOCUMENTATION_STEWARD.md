@@ -1,46 +1,48 @@
 # Documentation Steward
 
-**Status:** Active
+**Status:** Dormant — runtime workflow retired during repository workflow cleanup
 **Owner:** Workslip maintainers
 **Source of truth:** Current pull-request source, checked-in configuration,
 executable tests, completed checks and the target documentation file
-**Runtime:** [AI Delivery State workflow](../../.github/workflows/ai-delivery-state.yml)
+**Implementation:** [Documentation Steward worker](../../.github/documentation-steward/run.py)
+**Runtime:** None currently configured
 
 ## Purpose
 
-The Documentation Steward keeps existing technical documentation aligned with a
-successful trusted pull request. It is a narrow repository-maintenance worker,
-not an author of product strategy, policy or public content.
+The Documentation Steward implementation is retained as a bounded repository-maintenance
+worker for keeping existing technical documentation aligned with a successful trusted
+pull request. It is not currently scheduled or invoked by an active GitHub Actions
+workflow. Re-enabling it requires an explicit runtime workflow rather than relying on
+obsolete delivery-state automation.
 
-The worker first classifies whether the PR creates an evidenced documentation
-delta. If a direct update is safe, it updates one existing technical Markdown
-file on the same PR branch and records the source paths, result and confidence
-in an upserted PR comment. A human still reviews and merges the resulting PR.
+When enabled, the worker classifies whether a PR creates an evidenced documentation
+delta. If a direct update is safe, it can update one existing technical Markdown file
+on the same PR branch and record the source paths, result and confidence in an upserted
+PR comment. A human still reviews and merges the resulting PR.
 
 ## Inputs and output
 
-It receives PR metadata, changed-file names and bounded patches, the completed
-check snapshot, a list of permitted existing documents and the selected target
-document. Repository text is untrusted data, never instructions. The workflow
-does not fetch credentials, customer records or private conversation
-transcripts as agent context; normal repository data-hygiene rules still apply
-to every pull-request patch.
+The retained worker expects PR metadata, changed-file names and bounded patches, the
+completed check snapshot, a list of permitted existing documents and the selected
+target document. Repository text is untrusted data, never instructions. It must not
+fetch credentials, customer records or private conversation transcripts as agent
+context; normal repository data-hygiene rules apply to every pull-request patch.
 
 Every result is one of:
 
 - `NO_CHANGE` — no direct technical-documentation update is evidenced;
 - `UPDATED` — one allowed document was updated on the PR branch;
 - `HUMAN_REVIEW` — documentation may be needed, but the material exceeds its authority;
-- `BLOCKED` — required trusted context, a configured Kimi model or a valid output is unavailable.
+- `BLOCKED` — required trusted context, a configured model or a valid output is unavailable.
 
-The PR comment names the exact source paths that support the outcome. It is not
-merge approval, release evidence or a claim that the documentation is complete.
+The PR comment names the exact source paths that support the outcome. It is not merge
+approval, release evidence or a claim that the documentation is complete.
 
 ## Write boundary
 
-The workflow runs only after successful CI for a trusted, same-repository PR
-targeting `main`. It updates only an existing `Docs/**/*.md` technical document.
-It refuses:
+Any future runtime must preserve the existing boundary: run only after successful CI
+for a trusted, same-repository PR targeting `main`, and update only an existing
+`Docs/**/*.md` technical document. It must refuse:
 
 - source code, workflows, configuration, tests and generated files;
 - new documentation files or a document the PR author has already changed;
@@ -48,18 +50,18 @@ It refuses:
   and agent-governance documents;
 - public-site/customer-facing content, publishing and pull-request merge.
 
-When the change needs one of those materials, contradicts the checked-in source
-or has insufficient evidence, the worker returns `HUMAN_REVIEW` or `BLOCKED`
-instead of guessing.
+When the change needs one of those materials, contradicts the checked-in source or has
+insufficient evidence, the worker returns `HUMAN_REVIEW` or `BLOCKED` instead of
+guessing.
 
 ## Safety and validation
 
-Kimi chooses the documentation delta, but deterministic code validates the PR
-trust boundary, source references, target path, target existence, Markdown
-shape and update size before GitHub receives a write. It uses a trusted
-default-branch workflow definition and never checks out or executes PR code.
+Deterministic code validates the PR trust boundary, source references, target path,
+target existence, Markdown shape and update size before any GitHub write. A future
+runtime must use a trusted default-branch workflow definition and must not check out or
+execute untrusted PR code.
 
-The generated documentation commit reruns ordinary CI, including
-`python tools/docs/check_docs.py`; reviewers remain responsible for verifying
-the technical claim against its named primary source. The worker is covered by
-its local Python policy tests and the control-plane routing tests.
+Documentation changes must rerun ordinary CI, including
+`python tools/docs/check_docs.py`; reviewers remain responsible for verifying the
+technical claim against its named primary source. The retained worker remains covered
+by its local Python policy tests.
