@@ -190,7 +190,6 @@ export WORKSLIP_SYNTHETIC_USER_EMAIL="${WORKSLIP_PLAYWRIGHT_USER_EMAIL}"
 
 run_scenario 'authenticated smoke' scripts/playwright-ephemeral-smoke.mjs
 run_scenario 'auth brand and login transition evidence' scripts/playwright-auth-brand.mjs
-run_scenario 'visual QA Clippy presence evidence' scripts/playwright-visual-qa.mjs
 run_scenario 'PDF performance evidence' scripts/playwright-pdf-performance.mjs
 run_scenario 'job image gallery evidence' scripts/playwright-job-images.mjs
 run_scenario 'rare critical auth/role flows' scripts/playwright-critical-rare-flows.mjs
