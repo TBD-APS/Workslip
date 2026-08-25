@@ -1,5 +1,5 @@
 import { useNavigate, useLocation, NavLink, Navigate, Outlet } from 'react-router-dom';
-import { BookOpen, ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell, Search } from 'lucide-react';
+import { BookOpen, ClipboardList, Building2, CalendarDays, LogOut, Menu, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell, Search, X } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can, useCan, useIsSuperAdmin } from '../../providers/permissions';
 import { useEffect, useRef, useState } from 'react';
@@ -68,6 +68,8 @@ export const AppLayout = () => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [quickNavigatorOpen, setQuickNavigatorOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobileNavRoute, setMobileNavRoute] = useState(location.pathname);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [desktopRailCollapsed, setDesktopRailCollapsed] = useState(readDesktopRailCollapsed);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -98,6 +100,23 @@ export const AppLayout = () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [settingsMenuOpen]);
+
+  // Close the mobile navigation drawer whenever the route changes. Adjusting
+  // state during render (rather than in an effect) avoids a cascading re-render.
+  if (location.pathname !== mobileNavRoute) {
+    setMobileNavRoute(location.pathname);
+    setMobileNavOpen(false);
+  }
+
+  // Let Escape close the mobile drawer.
+  useEffect(() => {
+    if (!mobileNavOpen) return undefined;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileNavOpen(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [mobileNavOpen]);
 
   const scrollToTopIfActive = (path: string) => {
     if (location.pathname === path) {
@@ -144,8 +163,19 @@ export const AppLayout = () => {
   return (
     <AppScrollRestoreBoundary restoreKey={restoreScrollKey}>
     <DropdownProvider>
-      <div id="app-shell" ref={scrollContainerRef} className="app-shell">
+      <div id="app-shell" ref={scrollContainerRef} className={`app-shell${mobileNavOpen ? ' mobile-nav-open' : ''}`}>
       <header className="app-header">
+        <button
+          id="mobile-nav-toggle"
+          type="button"
+          className="app-nav-toggle"
+          onClick={() => setMobileNavOpen((open) => !open)}
+          aria-label={mobileNavOpen ? 'Luk menu' : 'Åbn menu'}
+          aria-controls="bottom-nav"
+          aria-expanded={mobileNavOpen}
+        >
+          {mobileNavOpen ? <X size={22} aria-hidden="true" /> : <Menu size={22} aria-hidden="true" />}
+        </button>
         <button className="logo logo-header" onClick={() => navigate(isSuperadmin && !organizationSession ? '/superadmin' : appHomePath)}>
           <svg className="logo-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -321,7 +351,15 @@ export const AppLayout = () => {
         <Outlet />
       </main>
 
-      <nav id="bottom-nav" className="bottom-nav">
+      <button
+        type="button"
+        className="mobile-nav-scrim"
+        aria-hidden="true"
+        tabIndex={-1}
+        onClick={() => setMobileNavOpen(false)}
+      />
+
+      <nav id="bottom-nav" className="bottom-nav" onClick={() => setMobileNavOpen(false)}>
         <NavLink id="bottom-nav-home" to={appHomePath} end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive(appHomePath)}>
           <ClipboardList size={24} />
           <span>{isAuditorSession ? 'Rapporter' : 'Overblik'}</span>

@@ -174,4 +174,6 @@ jobs:
           PR_NUMBER: ${{ steps.resolve.outputs.pr_number }}
           EXPECTED_HEAD_SHA: ${{ steps.resolve.outputs.head_sha }}
           KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
+          TRUSTED_BRANCH: ${{ env.TRUSTED_BRANCH }}
+          TRUSTED_BOT_BRANCH_PREFIXES: ${{ vars.TRUSTED_BOT_BRANCH_PREFIXES || 'claude/,agent/' }}
         run: python3 .github/documentation-steward/run.py

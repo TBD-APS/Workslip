@@ -9,6 +9,21 @@
 | SQL Server | `localhost,1433` | sa / `WorkslipLocal123!` (matches `appsettings.Local.json`) |
 | Seq | http://localhost:5341 | structured log viewer |
 
+## Cleaner startup
+
+On the **first** start Compose waits ~1 minute for SQL Server to report healthy before it creates the API (which `depends_on` the db healthcheck). During that wait some terminals redraw the progress line repeatedly, printing many identical `[+] up 6/7... Created` lines. This is expected waiting, not an error — the stack finishes once the db is healthy (subsequent starts are faster because the SQL volume is already initialized).
+
+To avoid the redraw noise, use the `make` wrappers, which run with plain, line-based progress and wait until the stack is ready:
+
+```bash
+make up        # start; clean output; waits until ready
+make down      # stop (keeps data)
+make down-hard # stop and wipe the local DB volume
+make logs      # follow logs
+```
+
+Equivalent raw command: `docker compose up -d --wait --quiet-pull --progress plain`.
+
 ## How it fits together
 
 - `db` runs SQL Server 2022 with a persistent `sql-data` volume.
