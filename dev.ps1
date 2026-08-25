@@ -6,7 +6,7 @@ if ($switchToMain) {
     $git = Get-Command git -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($null -eq $git) {
         throw 'git is required to use -Main.'
-    }
+    } 
 
     $status = @(& $git.Source -C $repoRoot status --porcelain)
     if ($LASTEXITCODE -ne 0) {
