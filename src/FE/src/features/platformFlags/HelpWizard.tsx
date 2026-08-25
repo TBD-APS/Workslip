@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { animate } from 'motion';
-import { motion, useMotionValue, useReducedMotion } from 'motion/react';
 import { findValidationTargetId, subscribeWorkslipUiFeedback } from '../../lib/uiFeedback';
 import {
   calculateClippyTargetOffset,
@@ -80,9 +78,6 @@ export function HelpWizard() {
   const rootRef = useRef<HTMLDivElement>(null);
   const reactionTimerRef = useRef<number | null>(null);
   const feedbackTimerRef = useRef<number | null>(null);
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const shouldReduceMotion = useReducedMotion();
 
   const stopReactionTimer = useCallback(() => {
     if (reactionTimerRef.current !== null) {
@@ -110,50 +105,18 @@ export function HelpWizard() {
     }
   }, [stopReactionTimer]);
 
-  const moveToOffset = useCallback((nextX: number, nextY: number) => {
-    if (shouldReduceMotion) {
-      x.set(nextX);
-      y.set(nextY);
-      return;
-    }
-
-    animate(x, nextX, { type: 'spring', stiffness: 280, damping: 28, mass: 0.72 });
-    animate(y, nextY, { type: 'spring', stiffness: 280, damping: 28, mass: 0.72 });
-  }, [shouldReduceMotion, x, y]);
-
   const goHome = useCallback(() => {
-    moveToOffset(0, 0);
     setMode('home');
-  }, [moveToOffset]);
+  }, []);
 
   const moveToTarget = useCallback((targetId: string, pointAt = false) => {
     const root = rootRef.current;
     const target = resolveClippyTarget(targetId);
     if (!root || !target) return;
 
-    const currentRect = root.getBoundingClientRect();
-    const currentX = x.get();
-    const currentY = y.get();
-    const homeRect = {
-      left: currentRect.left - currentX,
-      top: currentRect.top - currentY,
-      right: currentRect.right - currentX,
-      bottom: currentRect.bottom - currentY,
-      width: currentRect.width,
-      height: currentRect.height,
-    };
-    const offset = calculateClippyTargetOffset(
-      homeRect,
-      target.getBoundingClientRect(),
-      { width: window.innerWidth, height: window.innerHeight },
-    );
-
-    if (!offset) return;
-
-    moveToOffset(offset.x, offset.y);
     setMode('target');
     if (pointAt) triggerReaction('attention');
-  }, [moveToOffset, triggerReaction, x, y]);
+  }, [triggerReaction]);
 
   const pointAtValidationTarget = useCallback((root: ParentNode = document) => {
     const targetId = findValidationTargetId(root);
@@ -235,20 +198,17 @@ export function HelpWizard() {
     return null;
   }
 
-  const characterAnimation = shouldReduceMotion
-    ? reactionAnimations.idle
-    : reactionAnimations[reaction];
+  const characterAnimation = reactionAnimations[reaction];
   const bubbleCopy = getClippyBubbleCopy(window.location.pathname, reaction);
 
   return (
-    <motion.div
+    <div
       ref={rootRef}
       id="help-wizard"
       className="help-wizard"
       data-testid="help-wizard"
       data-clippy-mode={mode}
       data-clippy-reaction={reaction}
-      style={{ x, y }}
     >
       {open && (
         <div id="help-wizard-message" className="help-wizard-bubble" role="status">
@@ -265,14 +225,12 @@ export function HelpWizard() {
         aria-controls="help-wizard-message"
         onClick={() => setOpen((value) => !value)}
       >
-        <motion.span
+        <span
           className="clippy-character-stage"
-          animate={characterAnimation}
-          transition={{ duration: shouldReduceMotion ? 0 : 0.5, ease: 'easeOut' }}
         >
           <GoldClippyWizard />
-        </motion.span>
+        </span>
       </button>
-    </motion.div>
+    </div>
   );
 }
