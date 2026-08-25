@@ -27,7 +27,7 @@ public sealed class DevelopmentCustomerSeedPrivacyTests
         Assert.Equal(40, customers.Count);
         Assert.All(customers, customer =>
         {
-            Assert.True(customer.Name.StartsWith("Demokunde ", StringComparison.Ordinal));
+            Assert.StartsWith("Demokunde ", customer.Name, StringComparison.Ordinal);
             Assert.True(customer.CustomerNumber?.StartsWith("DEMO-", StringComparison.Ordinal) == true);
             Assert.True(customer.Email?.EndsWith("@example.invalid", StringComparison.OrdinalIgnoreCase) == true);
             Assert.True(customer.Address?.StartsWith("Testvej ", StringComparison.Ordinal) == true);

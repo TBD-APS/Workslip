@@ -48,12 +48,16 @@ services:
       - -c
       - >-
         export Jwt__SigningKey="$$(head -c 48 /dev/urandom | base64)" &&
-        exec dotnet watch --project Workslip.Api.csproj run --urls http://0.0.0.0:5262
+        exec dotnet watch --project Workslip.Api.csproj run --no-launch-profile
     ports:
       - "5262:5262"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=5262
       - DOTNET_USE_POLLING_FILE_WATCHER=true
+      # The local-only Data Protection volume is deliberately unencrypted;
+      # retain persistence across container recreation without a noisy warning.
+      - Serilog__MinimumLevel__Override__Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager=Error
       - Jwt__Issuer=workslip-local
       - Jwt__Audience=workslip-local
       - Workslip__SeedDevelopmentData=true
@@ -79,6 +83,7 @@ services:
       - /src/BE/WorkslipApi/Workslip.Tests/bin
       - /src/BE/WorkslipApi/Workslip.Tests/obj
       - nuget-cache:/root/.nuget/packages
+      - data-protection-keys:/root/.aspnet/DataProtection-Keys
 
   fe:
     image: node:24
@@ -104,4 +109,5 @@ volumes:
   seq-data:
   sql-data:
   nuget-cache:
+  data-protection-keys:
   fe-node-modules:
