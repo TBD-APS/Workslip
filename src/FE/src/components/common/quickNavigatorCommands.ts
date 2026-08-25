@@ -42,7 +42,6 @@ export function buildQuickNavigatorCommands({
   canViewTimer,
   canManageUsers,
   canViewCustomers,
-  canViewDocs,
   canEditCustomers,
   canCreateJobs,
   canManageOrganization,
