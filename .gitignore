@@ -121,3 +121,4 @@ nul
 
 # Git worktrees
 .worktrees/
+.codex/worktrees/
