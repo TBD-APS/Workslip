@@ -17,7 +17,7 @@ on:
       - 'release/**'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
