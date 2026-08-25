@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { findValidationTargetId, subscribeWorkslipUiFeedback } from '../../lib/uiFeedback';
 import {
-  calculateClippyTargetOffset,
   resolveClippyTarget,
   subscribeClippyCommands,
   type ClippyReaction,
@@ -13,14 +12,6 @@ import './help-wizard.css';
 
 const DEFAULT_REACTION_DURATION_MS = 850;
 const FEEDBACK_REACTION_DURATION_MS = 1_100;
-
-const reactionAnimations: Record<ClippyReaction, Record<string, number | number[]>> = {
-  idle: { x: 0, y: 0, rotate: 0, scale: 1 },
-  attention: { rotate: [0, -5, 5, 0], scale: [1, 1.06, 1] },
-  success: { y: [0, -8, 0], scale: [1, 1.08, 1] },
-  warning: { x: [0, -4, 4, -3, 3, 0] },
-  thinking: { rotate: [0, -3, 0, -3, 0] },
-};
 
 function GoldClippyWizard() {
   return (
@@ -198,7 +189,6 @@ export function HelpWizard() {
     return null;
   }
 
-  const characterAnimation = reactionAnimations[reaction];
   const bubbleCopy = getClippyBubbleCopy(window.location.pathname, reaction);
 
   return (
