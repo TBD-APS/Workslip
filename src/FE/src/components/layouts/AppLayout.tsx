@@ -117,6 +117,7 @@ export const AppLayout = () => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [mobileNavOpen]);
+
   const scrollToTopIfActive = (path: string) => {
     if (location.pathname === path) {
       scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
