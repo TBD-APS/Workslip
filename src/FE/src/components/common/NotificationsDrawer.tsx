@@ -332,11 +332,13 @@ export function NotificationsDrawer({
     >
       <div className="notifications-overview" aria-live="polite">
         <div>
-          <strong>{unreadCount === 0 ? 'Alt er set' : `${unreadCount} ulæst${unreadCount === 1 ? '' : 'e'}`}</strong>
+          <strong id="notifications-unread-count" data-count={unreadCount}>
+            {unreadCount === 0 ? 'Alt er set' : `${unreadCount} ulæst${unreadCount === 1 ? '' : 'e'}`}
+          </strong>
           <span>Aktivitet, der vedrører dig, samlet ét sted.</span>
         </div>
         {unreadCount > 0 && (
-          <button type="button" onClick={() => void markAllRead()}>
+          <button id="notifications-mark-all-read" type="button" onClick={() => void markAllRead()}>
             <CheckCheck size={16} />
             Marker alle læst
           </button>
@@ -402,6 +404,7 @@ export function NotificationsDrawer({
 
               return (
                 <div
+                  id={`notification-row-${latest.id}`}
                   key={group.key}
                   className={`activity-row notification-item${group.unreadCount > 0 ? ' activity-row-unread notification-item-unread' : ''}${isDeletingSingle ? ' notification-item-deleting' : ''}`}
                 >
@@ -411,6 +414,7 @@ export function NotificationsDrawer({
 
                   <div className="activity-content">
                     <button
+                      id={`${isGrouped ? 'notification-group-open' : 'notification-open'}-${latest.id}`}
                       type="button"
                       className="activity-primary-action notification-activity-main"
                       onClick={() => void openNotifications(group.items, group.url)}
@@ -441,6 +445,7 @@ export function NotificationsDrawer({
                     <div className="activity-actions">
                       {isAssignSelfAction(latest) && (
                         <button
+                          id={`notification-assign-self-${latest.id}`}
                           type="button"
                           className="activity-action notification-action-primary"
                           onClick={() => void resolveAssignSelf(latest)}
@@ -453,6 +458,7 @@ export function NotificationsDrawer({
                       )}
                       {isGrouped && (
                         <button
+                          id={`notification-group-toggle-${latest.id}`}
                           type="button"
                           className="activity-action notification-group-toggle"
                           onClick={() => toggleGroup(group.key)}
@@ -470,6 +476,7 @@ export function NotificationsDrawer({
                       )}
                       {!isGrouped && (
                         <button
+                          id={`notification-delete-${latest.id}`}
                           type="button"
                           className="activity-action notification-delete-inline"
                           onClick={() => void deleteNotification(latest)}
@@ -492,6 +499,7 @@ export function NotificationsDrawer({
                           return (
                             <div key={item.id} className="activity-subrow">
                               <button
+                                id={`notification-open-${item.id}`}
                                 type="button"
                                 className="activity-primary-action activity-subrow-main"
                                 onClick={() => void openNotifications([item], item.url)}
@@ -507,6 +515,7 @@ export function NotificationsDrawer({
                               <div className="notification-subrow-actions">
                                 {isAssignSelfAction(item) && (
                                   <button
+                                    id={`notification-subrow-assign-self-${item.id}`}
                                     type="button"
                                     className="activity-action notification-action-primary"
                                     onClick={() => void resolveAssignSelf(item)}
@@ -518,6 +527,7 @@ export function NotificationsDrawer({
                                   </button>
                                 )}
                                 <button
+                                  id={`notification-delete-${item.id}`}
                                   type="button"
                                   className="activity-action notification-delete-inline"
                                   onClick={() => void deleteNotification(item)}
