@@ -68,6 +68,26 @@ describe('useJobCreateWithAuditorScope', () => {
     expect(mocks.setJobAuditorScope).not.toHaveBeenCalled();
   });
 
+  it('calls auditor-scope API and forwards jobs when they are visible', async () => {
+    const onCreated = vi.fn();
+    mocks.setJobAuditorScope.mockResolvedValue({ isInAuditorScope: true, reason: 'Test reason' });
+    const { result } = renderHook(() => useJobCreateWithAuditorScope(onCreated));
+
+    act(() => {
+      result.current.updateAuditorScope({ isInAuditorScope: true, reason: 'Test reason' });
+    });
+
+    act(() => {
+      mocks.baseOnCreated?.(['job-1']);
+    });
+
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith(['job-1']));
+    expect(mocks.setJobAuditorScope).toHaveBeenCalledWith('job-1', {
+      isInAuditorScope: true,
+      reason: 'Test reason',
+    });
+  });
+
   it('keeps a failed auditor-scope write in the create flow and retries only failed jobs', async () => {
     const onCreated = vi.fn();
     mocks.setJobAuditorScope
