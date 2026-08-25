@@ -348,7 +348,11 @@ async function verifyMobileQuickNavigator() {
       if (message.type() === 'error') consoleErrors.push(message.text());
     });
 
-    await page.locator('#bottom-nav-search').click();
+    // On phones the navigation lives in the hamburger drawer; open it first.
+    await page.locator('#mobile-nav-toggle').click();
+    const searchTrigger = page.locator('#bottom-nav-search');
+    await searchTrigger.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await searchTrigger.click();
     const dialog = page.locator('#quick-nav-dialog');
     await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     await assertGlobalSearchSurface(page, dialog);
