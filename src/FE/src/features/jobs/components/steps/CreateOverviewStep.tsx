@@ -1,4 +1,4 @@
-import { FileText, MessageCircle, MessageSquare } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import type { useJobCreate } from '../../hooks/useJobCreate';
 import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock, AssignmentBlock, DestinationAddressBlock } from '../JobDetailBlocks';
 import type { LinkableJob } from '../../types';
@@ -98,28 +98,6 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
         onChange={create.updateTaskDescription}
         placeholder="Beskriv opgaven..."
       />
-
-      {!isSimpleJob && (
-        <>
-          <TextAreaBlock
-            icon={<MessageSquare size={18} />}
-            title="Oplysninger til kunden"
-            value={create.form.customerObservations}
-            onChange={create.updateCustomerObservations}
-            placeholder="Notér oplysninger til kunden..."
-          />
-
-          <TextAreaBlock
-            icon={<MessageCircle size={18} />}
-            title="Skriv en kommentar til sagen"
-            value={create.form.technicalObservations}
-            onChange={create.updateTechnicalObservations}
-            placeholder="Skriv en kommentar til sagen..."
-            triggerId="job-technical-observations-trigger"
-            textareaId="job-technical-observations"
-          />
-        </>
-      )}
     </>
   );
 }

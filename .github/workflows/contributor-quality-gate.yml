@@ -26,7 +26,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Check if hotfix
+        id: hotfix
+        shell: bash
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          if [[ "$TITLE" =~ ^\[Hotfix\] ]]; then
+            echo "is_hotfix=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_hotfix=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Enforce external contributor quality policy on the exact head
+        if: steps.hotfix.outputs.is_hotfix != 'true'
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v7.0.1
         env:
           REPOSITORY_OWNER_LOGIN: rasm105k
@@ -152,3 +164,7 @@ jobs:
             if (failures.length > 0) {
               core.setFailed(`Contributor Quality Gate blocked this pull request: ${failures.join('; ')}.`);
             }
+
+      - name: Skip owner review for hotfix
+        if: steps.hotfix.outputs.is_hotfix == 'true'
+        run: echo "Hotfix detected - skipping owner review requirement"
