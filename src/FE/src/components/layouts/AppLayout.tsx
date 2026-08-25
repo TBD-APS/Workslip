@@ -166,7 +166,12 @@ export const AppLayout = () => {
             >
               <Bell size={18} />
               {unreadNotifications > 0 && (
-                <span className="notification-badge" aria-hidden="true">
+                <span
+                  id="app-notifications-badge"
+                  className="notification-badge"
+                  data-count={unreadNotifications}
+                  aria-hidden="true"
+                >
                   {unreadNotifications > 99 ? '99+' : unreadNotifications}
                 </span>
               )}

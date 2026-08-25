@@ -228,7 +228,7 @@ export function AdminCompletedJobReport() {
   };
 
   return (
-    <div className="page-container admin-case-reference-page">
+    <div id="job-report-page" className="page-container admin-case-reference-page">
       <button type="button" className="admin-case-reference-back" onClick={() => navigate(from, { replace: true })}>
         <ArrowLeft size={17} aria-hidden="true" />
         Tilbage til sager

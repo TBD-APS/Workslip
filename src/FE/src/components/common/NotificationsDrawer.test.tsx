@@ -155,7 +155,12 @@ describe('NotificationsDrawer', () => {
 
     renderDrawer();
 
-    expect(await screen.findByRole('button', { name: 'Ny sag, 1 ulæst' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Ny sag, 1 ulæst' })).toHaveAttribute(
+      'id',
+      'notification-open-notification-2',
+    );
+    expect(document.querySelector('#notification-row-notification-2')).toBeInTheDocument();
+    expect(document.querySelector('#notifications-unread-count')).toHaveAttribute('data-count', '1');
     expect(screen.getByRole('button', { name: 'Eksisterende' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('tab', { name: /Ulæste/ }));
@@ -163,7 +168,9 @@ describe('NotificationsDrawer', () => {
     expect(screen.getByRole('button', { name: 'Ny sag, 1 ulæst' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Eksisterende' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Marker alle læst/ }));
+    const markAllRead = document.querySelector('#notifications-mark-all-read');
+    expect(markAllRead).toBeInstanceOf(HTMLButtonElement);
+    fireEvent.click(markAllRead as HTMLButtonElement);
 
     await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith(
       '/api/notifications/read-all',
@@ -193,10 +200,31 @@ describe('NotificationsDrawer', () => {
     const toggle = screen.getByRole('button', {
       name: 'Vis 2 hændelser for Sag opdateret',
     });
+    expect(toggle).toHaveAttribute('id', 'notification-group-toggle-notification-3');
     fireEvent.click(toggle);
 
     expect(screen.getByRole('button', { name: 'Sag opdateret, ulæst' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ny sag, ulæst' })).toBeInTheDocument();
+  });
+
+  it('keeps grouped AssignSelf action selectors unique when expanded', async () => {
+    const olderNotification = {
+      ...assignSelfNotification,
+      id: 'notification-assign-older',
+      messageId: 'message-assign-older',
+      createdUtc: '2026-08-16T11:59:00.000Z',
+    };
+    vi.mocked(apiClient.get).mockResolvedValue([assignSelfNotification, olderNotification]);
+
+    renderDrawer();
+
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Vis 2 hændelser for Admin beder dig handle · SAG-R-1',
+    }));
+
+    expect(document.querySelectorAll('#notification-assign-self-notification-assign')).toHaveLength(1);
+    expect(document.querySelector('#notification-subrow-assign-self-notification-assign')).toBeInTheDocument();
+    expect(document.querySelector('#notification-subrow-assign-self-notification-assign-older')).toBeInTheDocument();
   });
 
   it('does not group unrelated notifications without a resource link', async () => {
@@ -225,9 +253,11 @@ describe('NotificationsDrawer', () => {
 
     renderDrawer({ onClose });
 
-    fireEvent.click(await screen.findByRole('button', {
+    const openGroup = await screen.findByRole('button', {
       name: 'Sag opdateret, 2 hændelser, 2 ulæste',
-    }));
+    });
+    expect(openGroup).toHaveAttribute('id', 'notification-group-open-notification-3');
+    fireEvent.click(openGroup);
 
     await waitFor(() => expect(apiClient.patch).toHaveBeenCalledTimes(2));
     expect(apiClient.patch).toHaveBeenCalledWith(
@@ -264,9 +294,11 @@ describe('NotificationsDrawer', () => {
 
     renderDrawer({ onClose });
 
-    fireEvent.click(await screen.findByRole('button', {
+    const assignSelf = await screen.findByRole('button', {
       name: /Tag sagen fra Admin beder dig handle/,
-    }));
+    });
+    expect(assignSelf).toHaveAttribute('id', 'notification-assign-self-notification-assign');
+    fireEvent.click(assignSelf);
 
     await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith(
       '/api/jobs/job-assign/conversation/messages/message-assign/resolve',

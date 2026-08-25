@@ -2,7 +2,7 @@
 
 **Status:** Active stabilization inventory
 
-**Owner:** WOR-705 / Workslip release maintainers
+**Owner:** WOR-702 / Workslip release maintainers
 
 This map prioritizes browser tests by user impact and by how unlikely the flow is to be exercised during ordinary manual acceptance. It distinguishes the blocking ephemeral PR lane from the broader maintained critical harness.
 
@@ -19,6 +19,8 @@ This map prioritizes browser tests by user impact and by how unlikely the flow i
 | Document attachment upload | frontend → API → storage contract and large upload behavior | Blocking |
 | Brand day/night responsive contract | token/palette regressions | Blocking |
 | Shared focus/state semantics | focus ring, selection/info/action semantics and overflow | Blocking |
+| Notification rejection inbox | missing/duplicate rejection event, stale unread state, wrong deep-link, or Auditor exposure | **Blocking in WOR-718 on desktop and mobile** |
+| People assignment lifecycle | stale assignment/unassignment state or User access to Admin controls | **Blocking in WOR-718 on desktop and mobile** |
 
 ## Maintained critical flows that are not yet part of every PR
 
@@ -38,13 +40,11 @@ These already have scenario implementations in the broader critical harness, but
 
 ## High-value gaps without sufficient browser coverage yet
 
-1. **Notifications and rejection inbox** — unread count, opening the correct rejected job, comment visibility, read/unread persistence and mobile drawer behavior.
-2. **Job validation/error routing** — submitting an incomplete flow must take the user to the exact missing field/step instead of only showing a generic error.
-3. **Auditor deep-link authorization** — navigation hides worksheets for Auditor, but `/app/timer` currently lacks the same route-level `worksheet:view` guard used by the permission model. This is a discovered boundary inconsistency and must be fixed before adding a passing direct-link assertion.
-4. **Related/duplicated jobs** — each assignee must only mutate their own copy; related-case navigation must not leak permissions or state.
-5. **Back-navigation and scroll restoration** — open job/customer from Overview/Search, return to origin and preserve the expected list/filter/scroll position.
-6. **Offline/reconnect/PWA mutations** — browser refresh/reconnect around an in-progress mutation must not duplicate submit or silently lose state.
-7. **Empty/error states** — API 403/404/409/500 presentation and retry paths are less exercised than happy paths and should be tested where the user has a recovery action.
+1. **Job validation/error routing** — submitting an incomplete flow must take the user to the exact missing field/step instead of only showing a generic error.
+2. **Related/duplicated jobs** — each assignee must only mutate their own copy; related-case navigation must not leak permissions or state.
+3. **Back-navigation and scroll restoration** — open job/customer from Overview/Search, return to origin and preserve the expected list/filter/scroll position.
+4. **Offline/reconnect/PWA mutations** — browser refresh/reconnect around an in-progress mutation must not duplicate submit or silently lose state.
+5. **Empty/error states** — API 403/404/409/500 presentation and retry paths are less exercised than happy paths and should be tested where the user has a recovery action.
 
 ## Promotion rule
 
