@@ -148,7 +148,6 @@ public static class InfrastructureConfiguration
 
         if (platformBootstrapRequested)
         {
-            
             ConfigureExplicitOperatorSqlAuthentication(configuration, connectionString);
             Log.Information("[STARTUP 02.4] Enforce development SQL isolation - EXPLICIT OPERATOR EXCEPTION (bootstrap-superadmins)");
             return;
@@ -214,8 +213,14 @@ public static class InfrastructureConfiguration
 
     private static void ConfigureExplicitOperatorSqlAuthentication(
         ConfigurationManager configuration,
-        string connectionString)
+        string? connectionString)
     {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "The explicit operator SQL connection string is required.");
+        }
+
         SqlConnectionStringBuilder connectionStringBuilder;
         try
         {

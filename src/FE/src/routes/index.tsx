@@ -53,6 +53,12 @@ const MyWorksheets = lazy(() =>
 );
 const CustomerDetail = lazy(() =>
   import('../features/customers/routes/CustomerDetail').then((module) => ({ default: module.CustomerDetail })),
+); // eslint-disable-next-line react-refresh/only-export-components
+const InventoryPage = lazy(() =>
+  import('../features/inventory/routes/InventoryPage').then((module) => ({ default: module.InventoryPage })),
+); // eslint-disable-next-line react-refresh/only-export-components
+const InventoryOnboarding = lazy(() =>
+  import('../features/inventory/routes/InventoryOnboarding').then((module) => ({ default: module.InventoryOnboarding })),
 );
 const docsPageElement = createElement(lazy(() =>
   import('../features/docs/DocsPage').then((module) => ({ default: module.DocsPage })),
@@ -252,6 +258,8 @@ export const router = createBrowserRouter([
           { index: true, element: <JobList /> },
           { path: 'overblik', element: <Overview /> },
           { path: 'timer', element: <RoleGuard permission="worksheet:view"><MyWorksheets /></RoleGuard> },
+          { path: 'lager', element: <InventoryPage /> },
+          { path: 'lager/opsaetning', element: <RoleGuard permission="user:manage"><InventoryOnboarding /></RoleGuard> },
           { path: 'create', element: <Create /> },
           { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
           { path: 'job/simple/new', element: <RoleGuard permission="job:create"><SimpleJobCreate /></RoleGuard> },

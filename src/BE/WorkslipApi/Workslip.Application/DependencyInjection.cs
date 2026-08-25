@@ -5,6 +5,7 @@ using Workslip.Application.Auth;
 using Workslip.Application.Conversations;
 using Workslip.Application.Worksheets;
 using Workslip.Application.Invitations;
+using Workslip.Application.Inventory;
 using Workslip.Application.Jobs;
 using Workslip.Application.Organizations;
 using Workslip.Application.Users;
@@ -31,6 +32,7 @@ public static IServiceCollection AddWorkslipApplication(this IServiceCollection 
     services.AddScoped<IJobConversationService, JobConversationService>();
     services.AddScoped<JobValidationService>();
     services.AddScoped<JobDeletionNotificationService>();
+    services.AddScoped<IInventoryService, InventoryService>();
     services.AddScoped<IOrganizationService, OrganizationService>();
     services.AddScoped<IOrganizationSessionService, OrganizationSessionService>();
     services.AddScoped<IUserService, UserService>();
