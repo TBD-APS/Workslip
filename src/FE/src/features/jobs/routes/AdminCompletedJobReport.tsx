@@ -35,6 +35,7 @@ import { formatDateLong, formatDateTime } from '../../../lib/formatDate';
 import { notify } from '../../../lib/toast';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { useAuth } from '../../../providers/useAuth';
+import { FeatureGate } from '../../../providers/moduleAccess';
 import { compactPairs, formatNumber, formatUnit, parseNullableNumber } from '../../../lib/formatUtils';
 import { ConfirmActionDialog } from '../components/ConfirmActionDialog';
 import { JobConversationLauncher } from '../components/JobConversationLauncher';
@@ -406,6 +407,7 @@ export function AdminCompletedJobReport() {
           )}
 
           {!isDiverseInReview && (
+            <FeatureGate module="compliance-evidence">
             <section className="admin-case-reference-card admin-case-reference-section" aria-labelledby="admin-case-controlpoints-title">
               <h2 id="admin-case-controlpoints-title">
                 <CheckCircle2 size={18} aria-hidden="true" /> Kontrolpunkter
@@ -420,6 +422,7 @@ export function AdminCompletedJobReport() {
                 )}
               </div>
             </section>
+            </FeatureGate>
           )}
 
           <section className="admin-case-reference-card admin-case-reference-section" aria-labelledby="admin-case-worksheets-title">
