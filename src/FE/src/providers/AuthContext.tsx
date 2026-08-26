@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { FullscreenSystemState } from '../components/common/FullscreenSystemState';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '../lib/react-query';
 import { preloadPrimaryAppRoute } from '../routes/preloadPrimaryAppRoute';
 import {
   AUTH_TOKEN_KEY,
@@ -8,15 +9,29 @@ import {
   AuthStorage,
   clearReauthInFlight,
   type AuthContextType,
+  type AuthMeQuery,
   USER_EMAIL_KEY,
 } from './authContextValue';
 
-const AuthenticatedAppProvider = lazy(() =>
-  import('./AuthenticatedAppProvider').then((module) => ({ default: module.AuthenticatedAppProvider })),
+// The authenticated session logic (identity query, push reconciliation, job
+// prefetch) stays code-split. It no longer wraps the app; it runs as a sibling
+// of `children` and reports the resolved auth value up, so the routed app is
+// never unmounted and remounted when the token flips at login/logout.
+const AuthenticatedSessionEffects = lazy(() =>
+  import('./AuthenticatedAppProvider').then((module) => ({
+    default: module.AuthenticatedSessionEffects,
+  })),
 );
 
-const publicMeQuery: AuthContextType['meQuery'] = {
+const publicMeQuery: AuthMeQuery = {
   isPending: false,
+  isError: false,
+  refetch: async () => null,
+  data: null,
+};
+
+const pendingMeQuery: AuthMeQuery = {
+  isPending: true,
   isError: false,
   refetch: async () => null,
   data: null,
@@ -24,6 +39,8 @@ const publicMeQuery: AuthContextType['meQuery'] = {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authToken, setAuthToken] = useState<string | null>(() => AuthStorage.getItem(AUTH_TOKEN_KEY));
+  // Populated by AuthenticatedSessionEffects once the identity query resolves.
+  const [authedValue, setAuthedValue] = useState<AuthContextType | null>(null);
 
   useEffect(() => {
     if (!authToken) return;
@@ -45,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     AuthStorage.removeItem(USER_EMAIL_KEY);
     clearReauthInFlight();
     document.documentElement.removeAttribute(AUTH_TRANSITION_ATTRIBUTE);
+    setAuthedValue(null);
     setAuthToken(null);
   }, []);
 
@@ -78,26 +96,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [clearStoredSession, establishSession, login],
   );
 
-  if (!authToken) {
-    return <AuthContext.Provider value={publicValue}>{children}</AuthContext.Provider>;
-  }
+  // A token exists but the authenticated session module has not reported real
+  // identity yet. Expose a loading identity so route guards keep waiting (and
+  // never flash the login card) exactly as before.
+  const pendingValue = useMemo<AuthContextType>(
+    () => ({
+      ...publicValue,
+      hasAuthToken: true,
+      isLoading: true,
+      meQuery: pendingMeQuery,
+    }),
+    [publicValue],
+  );
+
+  const value = authToken ? authedValue ?? pendingValue : publicValue;
 
   return (
-    <Suspense
-      fallback={(
-        <FullscreenSystemState
-          title="Tjekker login"
-          message="Vi kontrollerer din session og forbinder til Workslip."
-        />
-      )}
-    >
-      <AuthenticatedAppProvider
-        login={login}
-        establishSession={establishSession}
-        clearSession={clearStoredSession}
-      >
+    <QueryClientProvider client={queryClient}>
+      <AuthContext.Provider value={value}>
+        {authToken && (
+          <Suspense fallback={null}>
+            <AuthenticatedSessionEffects
+              login={login}
+              establishSession={establishSession}
+              clearSession={clearStoredSession}
+              onValueChange={setAuthedValue}
+            />
+          </Suspense>
+        )}
         {children}
-      </AuthenticatedAppProvider>
-    </Suspense>
+      </AuthContext.Provider>
+    </QueryClientProvider>
   );
 }
