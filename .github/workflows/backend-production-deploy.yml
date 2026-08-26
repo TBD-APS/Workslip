@@ -1,4 +1,4 @@
-name: Backend · Production deploy
+name: Deploy backend · Azure API
 
 on:
   workflow_run:
@@ -6,19 +6,6 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
-    inputs:
-      confirmation:
-        description: Type DEPLOY NEW TENANT AFTER DATA VERIFIED
-        required: true
-        type: string
-      data_manifest_sha256:
-        description: SHA-256 of the reviewed non-personal SQL/blob comparison manifest
-        required: true
-        type: string
-      data_manifest_evidence_url:
-        description: URL to the reviewed manifest evidence in WOR-430 or this repository
-        required: true
-        type: string
 
 env:
   DOTNET_VERSION: '10.0.x'
@@ -26,11 +13,11 @@ env:
   API_PROJECT: src/BE/WorkslipApi/Workslip.Api.csproj
   PUBLISH_DIR: ${{ github.workspace }}/publish/api
   DEPLOY_PACKAGE: ${{ github.workspace }}/publish/workslip-api.zip
-  AZURE_WEBAPP_NAME: ${{ github.event_name == 'workflow_dispatch' && 'api-mrsoftwarev2-live' || 'api-mrsoftware-prod' }}
-  AZURE_RESOURCE_GROUP: ${{ github.event_name == 'workflow_dispatch' && 'rg-mrsoftwarev2-live' || 'rg-mrsoftware-prod' }}
-  AZURE_MIGRATION_IDENTITY_NAME: ${{ github.event_name == 'workflow_dispatch' && 'id-mrsoftwarev2-live-migration' || 'id-mrsoftware-prod-migration' }}
-  TARGET_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && 'live' || 'prod' }}
-  TARGET_COMPANY_NAME: ${{ github.event_name == 'workflow_dispatch' && 'mrsoftwarev2' || 'mrsoftware' }}
+  AZURE_WEBAPP_NAME: api-mrsoftwarev2-live
+  AZURE_RESOURCE_GROUP: rg-mrsoftwarev2-live
+  AZURE_MIGRATION_IDENTITY_NAME: id-mrsoftwarev2-live-migration
+  TARGET_ENVIRONMENT: live
+  TARGET_COMPANY_NAME: mrsoftwarev2
   RELEASE_SHA: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
   CI_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || '' }}
   DEPLOYMENT_SLOT: staging
@@ -39,7 +26,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: workslip-production
+  group: workslip-live-backend
   cancel-in-progress: false
 
 jobs:
@@ -51,20 +38,12 @@ jobs:
       contents: read
       actions: read
     steps:
-      - name: Verify manual new-tenant deployment intent
+      - name: Verify manual deployment branch
         if: ${{ github.event_name == 'workflow_dispatch' }}
         shell: bash
-        env:
-          CONFIRMATION: ${{ inputs.confirmation }}
-          DATA_MANIFEST_SHA256: ${{ inputs.data_manifest_sha256 }}
-          DATA_MANIFEST_EVIDENCE_URL: ${{ inputs.data_manifest_evidence_url }}
         run: |
           set -Eeuo pipefail
-          [[ "${GITHUB_REF}" == 'refs/heads/main' ]] || { echo "::error::Manual production deploy may only run from main."; exit 1; }
-          [[ "${CONFIRMATION}" == 'DEPLOY NEW TENANT AFTER DATA VERIFIED' ]] || { echo "::error::Invalid confirmation."; exit 1; }
-          [[ "${DATA_MANIFEST_SHA256}" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Invalid data manifest SHA-256."; exit 1; }
-          evidence_pattern='^https://(github\.com/rasm105k/Workslip-v2\.0/(issues|pull)/[0-9]+(#issuecomment-[0-9]+)?|linear\.app/[A-Za-z0-9._-]+/issue/WOR-430/[A-Za-z0-9._~/-]+)$'
-          [[ "${DATA_MANIFEST_EVIDENCE_URL}" =~ ${evidence_pattern} ]] || { echo "::error::Invalid data manifest evidence URL."; exit 1; }
+          [[ "${GITHUB_REF}" == 'refs/heads/main' ]] || { echo "::error::Manual backend deploy may only run from main."; exit 1; }
 
       - name: Checkout trusted release policy
         uses: actions/checkout@v7
@@ -73,8 +52,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Require protected new-tenant deployment environment
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+      - name: Require protected live deployment environment
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: >-
@@ -176,12 +154,12 @@ jobs:
           retention-days: 14
 
   deploy:
-    name: Backend · Production migration and deploy
+    name: Backend · Live migration and deploy
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: build
     environment:
-      name: ${{ github.event_name == 'workflow_dispatch' && 'live' || 'prod' }}
+      name: live
     permissions:
       id-token: write
       contents: read
@@ -370,10 +348,12 @@ jobs:
             --settings "Workslip__ReleaseSha=${RELEASE_SHA}" "Workslip__ReleaseArtifactSha256=${ARTIFACT_SHA256}" \
             --output none
           {
-            echo "### Backend production release"
+            echo "### Backend live release"
             echo
             echo "- SHA: \`${RELEASE_SHA}\`"
             echo "- Artifact SHA-256: \`${ARTIFACT_SHA256}\`"
+            echo "- Azure app: \`${AZURE_WEBAPP_NAME}\`"
+            echo "- Resource group: \`${AZURE_RESOURCE_GROUP}\`"
             echo "- Slot mode: \`${{ steps.mode.outputs.slot_enabled }}\`"
             echo "- Candidate smoke: passed when slot mode enabled"
             echo "- Production smoke: passed"
