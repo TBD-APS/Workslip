@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Hash, Heart, Mail, MapPin, MoreHorizontal, Phone, PlusCircle, Users } from 'lucide-react';
 import { Can } from '../../../providers/permissions/Can';
+import { FeatureGate } from '../../../providers/moduleAccess';
 import { ErrorState } from '../../../components/ErrorState';
 import { CopyAddressButton } from '../../../components/CopyAddressButton';
 import { CopyableValue } from '../../../components/CopyableValue';
@@ -137,6 +138,7 @@ export const CustomerDetail = () => {
         </Can>
       </div>
 
+      <FeatureGate module="compliance-evidence">
       <Can permission="job:create">
         <button
           id="customer-create-job-button"
@@ -161,6 +163,7 @@ export const CustomerDetail = () => {
           <PlusCircle size={22} />
         </button>
       </Can>
+      </FeatureGate>
 
       <section className="detail-section">
         <div className="customer-detail-info">

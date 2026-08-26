@@ -8,6 +8,7 @@ import { NotFoundPage } from '../components/common/NotFoundPage';
 import { Login } from '../features/auth/routes/Login';
 import { ErrorFallback } from '../providers/ErrorFallback';
 import { RoleGuard } from '../providers/permissions';
+import { FeatureGate } from '../providers/moduleAccess';
 import { useAuth } from '../providers/useAuth';
 
 const AUTH_STARTUP_GRACE_MS = 6_000;
@@ -261,7 +262,7 @@ export const router = createBrowserRouter([
           { path: 'lager', element: <InventoryPage /> },
           { path: 'lager/opsaetning', element: <RoleGuard permission="user:manage"><InventoryOnboarding /></RoleGuard> },
           { path: 'create', element: <Create /> },
-          { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
+          { path: 'job/new', element: <FeatureGate module="compliance-evidence" fallback={<Navigate to="/app/job/simple/new" replace />}><RoleGuard permission="job:create"><JobCreate /></RoleGuard></FeatureGate> },
           { path: 'job/simple/new', element: <RoleGuard permission="job:create"><SimpleJobCreate /></RoleGuard> },
           { path: 'job/:id', lazy: loadJobEntryRoute },
           { path: 'completed/:id', lazy: loadJobEntryRoute },
