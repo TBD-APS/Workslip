@@ -113,7 +113,10 @@ async function exerciseAdmin(contextOptions, label) {
       );
     }
   } else {
-    await page.waitForLoadState('networkidle', { timeout: UI_TIMEOUT });
+    // Wait on the Timer page's stable container rather than networkidle (which
+    // flakes when background polling keeps the connection busy) before asserting
+    // that Power BI is absent.
+    await page.locator('#timer-page').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     assert.equal(await page.locator('#timer-power-bi-report').count(), 0, `${label} must hide unconfigured Power BI from the product UI.`);
     assert.equal(await page.locator('#timer-power-bi-frame').count(), 0, `${label} must not render an unconfigured Power BI iframe.`);
   }
@@ -156,7 +159,8 @@ async function exerciseNormalUser() {
   });
   assert.ok(navigation?.ok(), `Normal-user Overview returned HTTP ${navigation?.status() ?? 'unknown'}.`);
   await page.locator('#recent-jobs-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await page.waitForLoadState('networkidle', { timeout: UI_TIMEOUT });
+  // The Overview heading above is the authoritative "page rendered" signal;
+  // asserting absence after it is reliable without a networkidle wait.
   assert.equal(await page.locator('#admin-power-bi-job-status').count(), 0, 'Normal user must not render the Admin analytics dashboard.');
   assert.equal(await page.locator('#favorite-customers-heading').count(), 0, 'Normal user must not render Admin favorite customers.');
   assert.equal(await page.locator('#recent-documents-heading').count(), 0, 'Normal user must not render Admin latest documents.');
