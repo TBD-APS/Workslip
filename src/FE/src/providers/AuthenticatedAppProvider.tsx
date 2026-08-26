@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, type ReactNode } from 'react';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useGetApiAuthMe, getGetApiAuthMeQueryKey } from '../api/generated/auth/auth';
 import type { UserViewModel } from '../api/generated/models';
 import {
@@ -11,16 +10,15 @@ import { usePushNotifications } from '../features/users/hooks/usePushNotificatio
 import { queryClient } from '../lib/react-query';
 import {
   AUTH_TRANSITION_ATTRIBUTE,
-  AuthContext,
   type AuthContextType,
 } from './authContextValue';
 import { canUseSessionNotifications } from './sessionFeaturePolicy';
 
-interface AuthenticatedAppProviderProps {
-  children: ReactNode;
+interface AuthenticatedSessionEffectsProps {
   login: AuthContextType['login'];
   establishSession: AuthContextType['establishSession'];
   clearSession: () => void;
+  onValueChange: (value: AuthContextType) => void;
 }
 
 function shouldPrefetchJobs(): boolean {
@@ -30,12 +28,20 @@ function shouldPrefetchJobs(): boolean {
     || window.location.pathname === '/app/';
 }
 
-function AuthenticatedSessionProvider({
-  children,
+/**
+ * Runs the authenticated session side-effects (identity query, push
+ * reconciliation, initial job prefetch) and reports the resolved auth value up
+ * via `onValueChange`. It renders nothing and sits as a sibling of the routed
+ * app so that logging in or out never unmounts and remounts the router. Only
+ * mounted while a token exists; the react-query provider is supplied by the
+ * always-mounted AuthProvider ancestor.
+ */
+export function AuthenticatedSessionEffects({
   login,
   establishSession,
   clearSession,
-}: AuthenticatedAppProviderProps) {
+  onValueChange,
+}: AuthenticatedSessionEffectsProps) {
   const { register: registerPush } = usePushNotifications();
 
   const meQuery = useGetApiAuthMe({
@@ -165,13 +171,9 @@ function AuthenticatedSessionProvider({
     [clearLocalSession, establishSession, isAuthenticated, login, logout, meQuery.isPending, publicMeQuery, updateUser, user],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
+  useEffect(() => {
+    onValueChange(value);
+  }, [value, onValueChange]);
 
-export function AuthenticatedAppProvider(props: AuthenticatedAppProviderProps) {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AuthenticatedSessionProvider {...props} />
-    </QueryClientProvider>
-  );
+  return null;
 }
