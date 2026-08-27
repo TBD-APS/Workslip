@@ -30,6 +30,7 @@ var sqlServerName = 'db-mrsoftware-demo-server'
 var databaseName = 'db-mrsoftware-demo'
 var runtimeIdentityName = 'id-${namePrefix}'
 var migrationIdentityName = 'id-mrsoftware-demo-migration'
+var deploymentIdentityName = 'id-mrsoftware-demo-github'
 
 var tags = {
   environment: 'demo'
@@ -109,6 +110,12 @@ resource migrationIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@202
   tags: tags
 }
 
+resource deploymentIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: deploymentIdentityName
+  location: location
+  tags: tags
+}
+
 resource migrationFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30' = {
   parent: migrationIdentity
   name: 'github-demo'
@@ -118,6 +125,32 @@ resource migrationFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIde
     ]
     issuer: 'https://token.actions.githubusercontent.com'
     subject: 'repo:${githubOwner}@${githubOwnerId}/${githubRepository}@${githubRepositoryId}:environment:${githubEnvironment}'
+  }
+}
+
+resource deploymentFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30' = {
+  parent: deploymentIdentity
+  name: 'github-demo'
+  properties: {
+    audiences: [
+      'api://AzureADTokenExchange'
+    ]
+    issuer: 'https://token.actions.githubusercontent.com'
+    subject: 'repo:${githubOwner}@${githubOwnerId}/${githubRepository}@${githubRepositoryId}:environment:${githubEnvironment}'
+  }
+}
+
+var contributorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'b24988ac-6180-42a0-ab88-20f7382dd24c'
+)
+
+resource deploymentContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, deploymentIdentity.id, contributorRoleId)
+  properties: {
+    principalId: deploymentIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: contributorRoleId
   }
 }
 
@@ -203,6 +236,21 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   }
 }
 
+var sqlSecurityManagerRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '056cd41c-7e88-42e1-933e-88ba6a50c9c3'
+)
+
+resource migrationSqlSecurityManager 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(sqlServer.id, migrationIdentity.id, sqlSecurityManagerRoleId)
+  scope: sqlServer
+  properties: {
+    principalId: migrationIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: sqlSecurityManagerRoleId
+  }
+}
+
 // The deployment-only migration identity is the Azure SQL Entra administrator.
 // The ordinary Container App identity receives only contained database roles later
 // from the migration workflow and never receives server-level administration.
@@ -244,6 +292,8 @@ output runtimeIdentityPrincipalId string = runtimeIdentity.properties.principalI
 output runtimeIdentityClientId string = runtimeIdentity.properties.clientId
 output migrationIdentityName string = migrationIdentity.name
 output migrationIdentityClientId string = migrationIdentity.properties.clientId
+output deploymentIdentityName string = deploymentIdentity.name
+output deploymentIdentityClientId string = deploymentIdentity.properties.clientId
 output storageAccountName string = storage.name
 output sqlServerName string = sqlServer.name
 output sqlServerFqdn string = sqlServer.properties.fullyQualifiedDomainName
