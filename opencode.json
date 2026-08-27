@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "workslip-visuals": {
+      "type": "local",
+      "command": ["npx", "tsx", "mcp/workslip-visuals/src/index.ts"],
+      "enabled": true,
+      "environment": {
+        "WORKSLIP_API_URL": "http://127.0.0.1:5262",
+        "WORKSLIP_API_TOKEN": "{env:WORKSLIP_API_TOKEN}",
+        "WORKSLIP_APP_URL": "http://127.0.0.1:5270"
+      }
+    }
+  }
+}

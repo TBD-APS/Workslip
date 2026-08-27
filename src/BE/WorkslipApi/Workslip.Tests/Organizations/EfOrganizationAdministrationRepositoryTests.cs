@@ -207,6 +207,7 @@ public sealed class EfOrganizationAdministrationRepositoryTests
                     Id TEXT NOT NULL PRIMARY KEY,
                     Name TEXT NOT NULL,
                     Cvr TEXT NOT NULL,
+                    AccountingProviderId TEXT,
                     CreatedAt TEXT NOT NULL,
                     UpdatedAt TEXT NOT NULL
                 );
