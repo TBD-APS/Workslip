@@ -8,10 +8,12 @@ import {
   Clock,
   CreditCard,
   FileText,
+  Landmark,
   Loader2,
   Mail,
   MailPlus,
   Plus,
+  Save,
   Send,
   Trash2,
   X,
@@ -20,7 +22,13 @@ import { Link } from 'react-router-dom';
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { ErrorState } from '../../../components/ErrorState';
 import { usePostApiAuthInvite } from '../../../api/generated/auth/auth';
-import { useDeleteApiAuthInvite, useGetApiAuthInvites, type InviteTokenResponse } from '../api';
+import {
+  useDeleteApiAuthInvite,
+  useGetApiAccountingProviderSettings,
+  useGetApiAuthInvites,
+  usePutApiAccountingProviderSettings,
+  type InviteTokenResponse,
+} from '../api';
 
 type InviteRole = 'User' | 'Auditor';
 
@@ -52,10 +60,18 @@ export const Settings = () => {
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [clearingInviteId, setClearingInviteId] = useState<string | null>(null);
   const [inviteToClear, setInviteToClear] = useState<InviteTokenResponse | null>(null);
+  const [accountingProviderDraft, setAccountingProviderDraft] = useState<string | undefined>();
 
   const invitesQuery = useGetApiAuthInvites();
   const inviteMutation = usePostApiAuthInvite();
   const clearInviteMutation = useDeleteApiAuthInvite();
+  const accountingSettingsQuery = useGetApiAccountingProviderSettings();
+  const accountingSettingsMutation = usePutApiAccountingProviderSettings();
+
+  const persistedAccountingProviderId = accountingSettingsQuery.data?.providerId ?? '';
+  const selectedAccountingProviderId = accountingProviderDraft ?? persistedAccountingProviderId;
+  const hasAccountingProviderChanges = accountingProviderDraft !== undefined
+    && selectedAccountingProviderId !== persistedAccountingProviderId;
 
   const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
@@ -145,6 +161,21 @@ export const Settings = () => {
       const errorMessage = 'Kunne ikke sende invitationer';
       setInviteError(errorMessage);
       notify.error(errorMessage);
+    }
+  };
+
+  const handleSaveAccountingProvider = async () => {
+    if (!hasAccountingProviderChanges) return;
+
+    try {
+      await accountingSettingsMutation.mutateAsync({
+        providerId: selectedAccountingProviderId || null,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['/api/settings/accounting'] });
+      setAccountingProviderDraft(undefined);
+      notify.success('Regnskabssystem gemt');
+    } catch {
+      notify.error('Kunne ikke gemme regnskabssystem');
     }
   };
 
@@ -337,6 +368,59 @@ export const Settings = () => {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+
+        <div className="section-card" style={{ marginTop: '1rem' }}>
+          <h3 className="section-card-title">
+            <Landmark size={18} aria-hidden="true" />
+            Regnskabsintegration
+          </h3>
+
+          {accountingSettingsQuery.isLoading && (
+            <p className="subtitle" style={{ padding: '1rem 0' }}>Henter regnskabssystemer...</p>
+          )}
+
+          {accountingSettingsQuery.isError && (
+            <ErrorState message="Kunne ikke hente regnskabsindstillinger" />
+          )}
+
+          {accountingSettingsQuery.data && (
+            <div className="form-group">
+              <label className="form-label" htmlFor="accounting-provider-selector">
+                Regnskabssystem
+              </label>
+              <select
+                id="accounting-provider-selector"
+                className="form-input"
+                value={selectedAccountingProviderId}
+                onChange={(event) => setAccountingProviderDraft(event.target.value)}
+                disabled={accountingSettingsMutation.isPending}
+              >
+                <option value="">Ikke valgt</option>
+                {accountingSettingsQuery.data.providers.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.displayName}
+                  </option>
+                ))}
+              </select>
+              <p className="form-help-text">
+                Vælg hvilket regnskabssystem virksomheden vil bruge. Selve forbindelsen og adgangsoplysningerne opsættes separat.
+              </p>
+              <button
+                id="accounting-provider-save"
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSaveAccountingProvider}
+                disabled={!hasAccountingProviderChanges || accountingSettingsMutation.isPending}
+              >
+                {accountingSettingsMutation.isPending ? (
+                  <><Loader2 size={16} className="spin" aria-hidden="true" /> Gemmer...</>
+                ) : (
+                  <><Save size={16} aria-hidden="true" /> Gem valg</>
+                )}
+              </button>
             </div>
           )}
         </div>
