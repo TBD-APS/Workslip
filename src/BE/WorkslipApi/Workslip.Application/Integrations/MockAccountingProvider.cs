@@ -12,20 +12,6 @@ public class MockAccountingProvider : IAccountingProvider
 
     public async Task<bool> TestConnectionAsync(string tenantId) => await Task.FromResult(true);
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
-namespace Workslip.Application.Integrations;
-
-public class MockAccountingProvider : IAccountingProvider
-{
-    public string ProviderId => "mock";
-    public string DisplayName => "Mock Accounting (Dev)";
-
-    public async Task<bool> TestConnectionAsync(string tenantId) => await Task.FromResult(true);
-
     public async Task<IEnumerable<AccountingDocument>> GetDocumentsForUserAsync(string tenantId, string userId, string startDate, string endDate)
     {
         // Create a deterministic set of documents based on userId to simulate real data
@@ -55,7 +41,10 @@ public class MockAccountingProvider : IAccountingProvider
     }
 
     public async Task<bool> SyncHoursAsync(string tenantId, object hoursData) => await Task.FromResult(true);
-}
 
-    public async Task<bool> SyncHoursAsync(string tenantId, object hoursData) => await Task.FromResult(true);
+    public async Task<Stream> GetDocumentStreamAsync(string tenantId, string documentId)
+    {
+        var content = System.Text.Encoding.UTF8.GetBytes($"Mock content for document {documentId}");
+        return new MemoryStream(content);
+    }
 }

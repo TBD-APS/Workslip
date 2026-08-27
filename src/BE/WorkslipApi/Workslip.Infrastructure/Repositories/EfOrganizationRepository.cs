@@ -90,6 +90,13 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
             token => UpdateAdminAsyncCoreAsync(admin, expectedEmail, expectedEntraId, token),
             cancellationToken);
 
+    public Task<bool> UpdateAccountingProviderAsync(Guid organizationId, string? providerId, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync(
+            "organization-admin.update-accounting-provider",
+            token => UpdateAccountingProviderAsyncCoreAsync(organizationId, providerId, token),
+            cancellationToken);
+
+
     private async Task<bool> CvrExistsAsyncCoreAsync(string normalizedCvr, CancellationToken cancellationToken) =>
         await _dbContext.Organizations.AnyAsync(organization => organization.Cvr == normalizedCvr, cancellationToken);
 

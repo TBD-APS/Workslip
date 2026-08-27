@@ -252,23 +252,8 @@ export const AppLayout = () => {
                     <ShieldCheck size={16} aria-hidden="true" />
                     <span>Superadmin</span>
                   </button>
-                )}
-                {canViewDocs && canUseAppCommands && (
-                  <button
-                    id="account-menu-docs"
-                    type="button"
-                    className="app-header-settings-item"
-                    role="menuitem"
-                    onClick={() => {
-                      setSettingsMenuOpen(false);
-                      navigate('/app/docs');
-                    }}
-                  >
-                    <BookOpen size={16} aria-hidden="true" />
-                    <span>Docs</span>
-                  </button>
-                )}
-                <button
+                 )}
+                 <button
                   id="account-menu-theme"
                   type="button"
                   className="app-header-settings-item"
@@ -388,9 +373,15 @@ export const AppLayout = () => {
           <NavLink id="bottom-nav-customers" to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/customers')}>
             <Building2 size={24} />
             <span>Kunder</span>
-          </NavLink>
-        </Can>
-        <button
+             </NavLink>
+           </Can>
+           <Can permission="docs:view">
+             <NavLink id="bottom-nav-docs" to="/app/docs" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/docs')}>
+               <BookOpen size={24} />
+               <span>Dokumenter</span>
+             </NavLink>
+           </Can>
+           <button
           id="bottom-nav-search"
           type="button"
           className={`nav-item quick-nav-mobile-trigger ${quickNavigatorOpen ? 'active' : ''}`}
