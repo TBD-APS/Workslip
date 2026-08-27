@@ -61,18 +61,6 @@ public static class OrganizationEndpoints
             return ResultExtensions.ToHttpResult(result, OrganizationViewModelBuilder.ToOrganizationUser);
         }).Produces<OrganizationUserViewModel>();
 
-        group.MapPut("/{organizationId:guid}/accounting-provider", async (
-            Guid organizationId,
-            UpdateAccountingProviderRequest request,
-            IOrganizationService service,
-            HttpContext httpContext,
-            CancellationToken cancellationToken) =>
-        {
-            HttpCacheHeaders.SetNoStore(httpContext);
-            var result = await service.UpdateAccountingProviderAsync(organizationId, request, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
-        });
-
         return app;
     }
 }
