@@ -4,7 +4,11 @@ param(
     [string]$Repository = 'Workslip-v2.0',
     [string]$ReleasePattern = 'release-*',
     [string]$FeaturePattern = 'rbj--*',
-    [string[]]$RequiredStatusChecks = @('CI Gate', 'Feature change guard', 'Contributor Quality Gate'),
+    # 'CI Gate' is the aggregating rollup that verifies every impact-routed check.
+    # 'Feature change guard' and 'Contributor Quality Gate' were retired (their
+    # workflows no longer exist), so requiring them here would reintroduce
+    # contexts no job can ever report and permanently block protected PRs.
+    [string[]]$RequiredStatusChecks = @('CI Gate'),
     [switch]$VerifyOnly
 )
 
