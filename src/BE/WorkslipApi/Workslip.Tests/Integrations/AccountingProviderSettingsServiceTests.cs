@@ -13,8 +13,8 @@ public sealed class AccountingProviderSettingsServiceTests
     public async Task GetAsync_ReturnsSelectedProviderAndHidesDevelopmentMock()
     {
         var organizationId = Guid.NewGuid();
-        var repository = new FakeOrganizationRepository(CreateOrganization(organizationId, "economics"));
-        var store = new FakeConfigurationStore();
+        var repository = new FakeOrganizationRepository(CreateOrganization(organizationId));
+        var store = new FakeConfigurationStore("economics");
         var service = CreateService(
             organizationId,
             repository,
@@ -35,7 +35,7 @@ public sealed class AccountingProviderSettingsServiceTests
     public async Task UpdateAsync_WhenProviderIsUnsupported_ReturnsInvalidWithoutPersisting()
     {
         var organizationId = Guid.NewGuid();
-        var repository = new FakeOrganizationRepository(CreateOrganization(organizationId, null));
+        var repository = new FakeOrganizationRepository(CreateOrganization(organizationId));
         var store = new FakeConfigurationStore();
         var service = CreateService(
             organizationId,
@@ -55,7 +55,7 @@ public sealed class AccountingProviderSettingsServiceTests
     public async Task UpdateAsync_PersistsCanonicalProviderIdForCurrentOrganization()
     {
         var organizationId = Guid.NewGuid();
-        var repository = new FakeOrganizationRepository(CreateOrganization(organizationId, null));
+        var repository = new FakeOrganizationRepository(CreateOrganization(organizationId));
         var store = new FakeConfigurationStore();
         var service = CreateService(
             organizationId,
@@ -84,13 +84,12 @@ public sealed class AccountingProviderSettingsServiceTests
             providers,
             new FakeCurrentUserContext(organizationId));
 
-    private static OrganizationRow CreateOrganization(Guid id, string? providerId) =>
+    private static OrganizationRow CreateOrganization(Guid id) =>
         new()
         {
             Id = id,
             Name = "Test organization",
             Cvr = "12345678",
-            AccountingProviderId = providerId,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
@@ -120,20 +119,25 @@ public sealed class AccountingProviderSettingsServiceTests
             Task.FromResult<OrganizationRow?>(id == organization.Id ? organization : null);
     }
 
-    private sealed class FakeConfigurationStore : IAccountingProviderConfigurationStore
+    private sealed class FakeConfigurationStore(string? providerId = null) : IAccountingProviderConfigurationStore
     {
         public int SetCalls { get; private set; }
         public Guid? OrganizationId { get; private set; }
-        public string? ProviderId { get; private set; }
+        public string? ProviderId { get; private set; } = providerId;
+
+        public Task<string?> GetProviderAsync(
+            Guid organizationId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(ProviderId);
 
         public Task<bool> SetProviderAsync(
             Guid organizationId,
-            string? providerId,
+            string? nextProviderId,
             CancellationToken cancellationToken)
         {
             SetCalls++;
             OrganizationId = organizationId;
-            ProviderId = providerId;
+            ProviderId = nextProviderId;
             return Task.FromResult(true);
         }
     }
