@@ -227,9 +227,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          & ./src/BE/infrastructure/demo/configure-runtime-database-access.ps1 \
-            -CompanyName mrsoftware \
-            -Environment demo \
+          & ./src/BE/infrastructure/demo/configure-runtime-database-access.ps1 `
+            -CompanyName mrsoftware `
+            -Environment demo `
             -RuntimeIdentityName '${{ steps.foundation.outputs.runtime_identity_name }}'
 
       - name: Logout demo migration identity
