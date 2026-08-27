@@ -30,6 +30,7 @@ public static class EndpointConfiguration
         app.MapPowerBiOverviewEndpoints();
         app.MapReferenceDataEndpoints();
         app.MapPushNotificationEndpoints();
+        app.MapAccountingProviderSettingsEndpoints();
         app.MapCacheEndpoints();
         app.MapDiagnosticsEndpoints();
         app.MapControlCenterEndpoints();
