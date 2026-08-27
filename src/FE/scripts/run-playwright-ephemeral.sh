@@ -193,6 +193,7 @@ run_scenario 'auth brand and login transition evidence' scripts/playwright-auth-
 run_scenario 'PDF performance evidence' scripts/playwright-pdf-performance.mjs
 run_scenario 'job image gallery evidence' scripts/playwright-job-images.mjs
 run_scenario 'rare critical auth/role flows' scripts/playwright-critical-rare-flows.mjs
+run_scenario 'Admin accounting provider selector evidence' scripts/playwright-accounting-provider-settings.mjs
 run_scenario 'critical job lifecycle flows' scripts/playwright-critical-job-lifecycle.mjs
 run_scenario 'customer lifecycle evidence' scripts/playwright-customer-lifecycle.mjs
 run_scenario 'worksheet integrity evidence' scripts/playwright-worksheet-integrity.mjs
