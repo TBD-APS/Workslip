@@ -19,7 +19,7 @@ public class EconomicsProvider : IAccountingProvider
     }
 
     public string ProviderId => "economics";
-    public string DisplayName => "e-conomics";
+    public string DisplayName => "e-conomic";
 
     public async Task<bool> TestConnectionAsync(string tenantId)
     {
