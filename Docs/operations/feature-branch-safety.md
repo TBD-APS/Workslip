@@ -21,7 +21,7 @@ pwsh ./tools/release/configure-github-branch-rules.ps1 -VerifyOnly
 
 The intended repository rules are:
 
-- `main`: pull request required, `CI Gate`, `Feature change guard` and `Contributor Quality Gate` required, squash only, **no bypass actors**, ref deletion and non-fast-forward updates blocked;
+- `main`: pull request required, `CI Gate` required (the `Feature change guard` and `Contributor Quality Gate` checks are retired and no longer required), squash only, **no bypass actors**, ref deletion and non-fast-forward updates blocked;
 - `release-*`: same integration protection;
 - `rbj--*`: no bypass actors, ref deletion and non-fast-forward updates blocked while ordinary fast-forward development pushes remain allowed.
 
@@ -33,7 +33,9 @@ Do not claim the external protection is active from repository code or green CI 
 
 ## High-risk product changes
 
-`Feature change guard` compares the PR base and head. It focuses on product source under frontend feature/shared-component areas and backend endpoint/application/domain/infrastructure areas. Documentation-only cleanup does not count as product feature removal.
+> **Retired.** `Feature change guard` has been removed and is no longer a required status. The description below is retained for historical context only. High-risk change review now relies on `CI Gate` and ordinary pull-request review.
+
+`Feature change guard` compared the PR base and head. It focused on product source under frontend feature/shared-component areas and backend endpoint/application/domain/infrastructure areas. Documentation-only cleanup did not count as product feature removal.
 
 A PR is classified high risk when it crosses one of the maintained thresholds, including multiple deleted product-code files or a strongly deletion-dominant product-code diff. The workflow prints the affected files and counts.
 
