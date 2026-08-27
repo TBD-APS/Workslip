@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowRight,
+  BarChart3,
   CheckCircle2,
   CircleDot,
   Clock3,
@@ -241,6 +242,38 @@ export const Overview = () => {
             <AdminPowerBiJobStatusChart />
             {recentJobsSection}
           </div>
+
+          <section id="overview-leader-analysis-card" className="overview-list-card" aria-labelledby="leader-analysis-heading">
+            <div className="overview-section-header">
+              <div>
+                <h3 id="leader-analysis-heading">Lederanalyse</h3>
+                <p>Nøgletal for bemanding, kvalitet og sagsflow.</p>
+              </div>
+              <button
+                id="overview-leader-analysis-link"
+                type="button"
+                className="overview-text-link"
+                onClick={() => navigate('/app/lederanalyse')}
+              >
+                Åbn analyse
+              </button>
+            </div>
+            <button
+              id="overview-leader-analysis-cta"
+              type="button"
+              className="overview-simple-row"
+              onClick={() => navigate('/app/lederanalyse')}
+            >
+              <span className="overview-simple-row__icon">
+                <BarChart3 size={17} aria-hidden="true" />
+              </span>
+              <span>
+                <strong>Se driftsnøgletal</strong>
+                <small>{overview ? `${overview.activeCount + overview.inReviewCount + overview.approvedCount + overview.rejectedCount} sager i alt · ${overview.inReviewCount} til gennemsyn` : 'Henter nøgletal…'}</small>
+              </span>
+              <ArrowRight size={16} aria-hidden="true" />
+            </button>
+          </section>
 
           <div className="overview-secondary-grid">
             <section

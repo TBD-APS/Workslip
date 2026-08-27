@@ -84,6 +84,9 @@ const SuperAdmin = lazy(() =>
 const CacheDiagnostics = lazy(() =>
   import('../features/superadmin/routes/CacheDiagnostics').then((module) => ({ default: module.CacheDiagnostics })),
 );
+const Lederanalyse = lazy(() =>
+  import('../features/leader-analysis/routes/Lederanalyse').then((module) => ({ default: module.Lederanalyse })),
+);
 
 const loadJobEntryRoute = () =>
   import('../features/jobs/routes/JobEntryRoute').then((module) => ({ Component: module.JobEntryRoute }));
@@ -275,6 +278,7 @@ export const router = createBrowserRouter([
           { path: 'docs/new', element: <RoleGuard permission="docs:edit">{docsPageElement}</RoleGuard> },
           { path: 'docs/:id', element: <RoleGuard permission="docs:view">{docsPageElement}</RoleGuard> },
           { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
+          { path: 'lederanalyse', element: <RoleGuard permission="leader-analysis:view"><Lederanalyse /></RoleGuard> },
           { path: 'profil', element: <Profile /> },
           { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
           { path: 'settings/billing-guide', element: <RoleGuard permission="user:manage">{billingGuidePageElement}</RoleGuard> },
