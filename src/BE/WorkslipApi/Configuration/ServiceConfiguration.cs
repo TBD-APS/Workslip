@@ -44,6 +44,13 @@ public static class ServiceConfiguration
         builder.Services.AddWorkslipInfrastructure(
             includeHostedServices: !DatabaseStartup.IsOpenApiGeneration(builder.Configuration));
 
+        if (DemoModeConfiguration.IsEnabled(builder.Environment, builder.Configuration))
+        {
+            // Demo must never send invitations/OTC messages to external recipients.
+            // Register last so it replaces the normal ACS implementation for IEmailService.
+            builder.Services.AddScoped<IEmailService, DemoEmailService>();
+        }
+
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<IApplicationEnvironmentRegistry, WorkslipApplicationEnvironmentRegistry>();
         builder.Services.AddScoped<IControlCenterReadService, ControlCenterReadService>();
