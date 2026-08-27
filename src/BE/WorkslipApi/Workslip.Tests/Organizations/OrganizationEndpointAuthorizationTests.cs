@@ -28,7 +28,7 @@ public sealed class OrganizationEndpointAuthorizationTests
             .Where(endpoint => endpoint.RoutePattern.RawText?.StartsWith("/api/organizations", StringComparison.Ordinal) == true)
             .ToList();
 
-        Assert.Equal(5, organizationEndpoints.Count);
+        Assert.Equal(4, organizationEndpoints.Count);
         Assert.Contains(
             organizationEndpoints,
             endpoint => endpoint.RoutePattern.RawText == "/api/organizations/{organizationId:guid}/session");
@@ -60,12 +60,6 @@ public sealed class OrganizationEndpointAuthorizationTests
             UpsertOrganizationAdminRequest request,
             CancellationToken cancellationToken) =>
             Task.FromResult(Result<OrganizationUserResponse>.NotFound());
-
-        public Task<Result> UpdateAccountingProviderAsync(
-            Guid organizationId,
-            UpdateAccountingProviderRequest request,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(Result.NotFound());
     }
 
     private sealed class StubOrganizationSessionService : IOrganizationSessionService

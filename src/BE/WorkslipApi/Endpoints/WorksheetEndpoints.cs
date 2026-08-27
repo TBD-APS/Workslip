@@ -212,40 +212,20 @@ namespace Workslip.Api.Endpoints
                 [FromQuery] string startDate,
                 [FromQuery] string endDate,
                 [FromServices] IIntegrationEngine integrationEngine,
-                [FromServices] IDocumentSyncService syncService,
                 [FromServices] ICurrentUserContext currentUser,
                 CancellationToken cancellationToken) =>
             {
                 if (currentUser.OrganizationId is not Guid organizationId)
                     return Results.Unauthorized();
 
-                var tenantId = organizationId.ToString();
-                var provider = await integrationEngine.GetAccountingProviderAsync(tenantId);
-                var externalDocs = await provider.GetDocumentsForUserAsync(tenantId, userId, startDate, endDate);
+                var provider = await integrationEngine.GetAccountingProviderAsync(organizationId.ToString());
+                var documents = await provider.GetDocumentsForUserAsync(organizationId.ToString(), userId, startDate, endDate);
 
-                var syncTasks = externalDocs.Select(doc => syncService.SyncExternalDocumentAsync(
-                    tenantId,
-                    doc.DocumentId,
-                    $"{doc.DocumentNumber} - {doc.Type}",
-                    "application/pdf",
-                    doc.ExternalLink,
-                    cancellationToken));
-
-                var mirroredIds = await Task.WhenAll(syncTasks);
-
-                // To return the full details, we would need to fetch them from the repository.
-                // For now, let's return the mapping of external ID to internal ID and link.
-                return Results.Ok(externalDocs.Zip(mirroredIds, (doc, internalId) => new {
-                    doc.DocumentId,
-                    internalId,
-                    doc.DocumentNumber,
-                    doc.Amount,
-                    doc.Date,
-                    doc.ExternalLink
-                }));
+                return Results.Ok(documents);
             })
             .Produces(StatusCodes.Status200OK)
-            .RequireAuthorization(AuthPolicies.RequireAdmin);
+            .RequireAuthorization(AuthPolicies.RequireAdmin)
+            .ExcludeFromDescription();
 
             return app;
         }

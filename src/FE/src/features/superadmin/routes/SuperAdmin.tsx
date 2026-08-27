@@ -14,10 +14,8 @@ import {
   superadminOrganizationQueryKey,
   superadminUserOptionsQueryKey,
   superadminUserQueryKey,
-  updateOrganizationAccountingProvider,
 } from '../api';
 import { AdminInviteForm } from '../components/AdminInviteForm';
-import { OrganizationAccountingProviderForm } from '../components/OrganizationAccountingProviderForm';
 import { OrganizationCreateForm } from '../components/OrganizationCreateForm';
 import { SuperAdminUsersPanel } from '../components/SuperAdminUsersPanel';
 import { DiagnosticsSupportCopyButton } from '../diagnostics/DiagnosticsSupportCopyButton';
@@ -46,7 +44,6 @@ export function SuperAdmin() {
   const [requestedOrganizationId, setRequestedOrganizationId] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
-  const [accountingProviderError, setAccountingProviderError] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [lastAdminResult, setLastAdminResult] = useState<OrganizationAdmin | null>(null);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
@@ -75,10 +72,6 @@ export function SuperAdmin() {
 
   const inviteMutation = useMutation({
     mutationFn: inviteOrganizationAdmin,
-  });
-
-  const accountingProviderMutation = useMutation({
-    mutationFn: updateOrganizationAccountingProvider,
   });
 
   const sessionMutation = useMutation({
@@ -126,22 +119,6 @@ export function SuperAdmin() {
     } catch (error) {
       const message = getSuperadminErrorMessage(error);
       setInviteError(message);
-      throw error;
-    }
-  };
-
-  const handleUpdateAccountingProvider = async (input: { organizationId: string; providerId: string | null }) => {
-    setAccountingProviderError(null);
-
-    try {
-      await accountingProviderMutation.mutateAsync(input);
-      await queryClient.invalidateQueries({ queryKey: superadminOrganizationQueryKey });
-      const org = organizations.find((o) => o.id === input.organizationId);
-      const orgName = org?.name ?? 'Organisationen';
-      notify.success(`Regnskabsintegration opdateret for ${orgName}`);
-    } catch (error) {
-      const message = getSuperadminErrorMessage(error);
-      setAccountingProviderError(message);
       throw error;
     }
   };
@@ -324,7 +301,6 @@ export function SuperAdmin() {
               setInviteError(null);
               setSessionError(null);
               setLastAdminResult(null);
-              setAccountingProviderError(null);
             }}
             onSubmit={handleInviteAdmin}
           />
@@ -341,27 +317,6 @@ export function SuperAdmin() {
                   ? `Invitationen er sendt til ${lastAdminResult.email}.`
                   : `${lastAdminResult.displayName} havde allerede en Entra-konto og er nu administrator.`}
               </span>
-            </div>
-          )}
-        </div>
-
-        <div>
-          <OrganizationAccountingProviderForm
-            organizations={organizations}
-            selectedOrganizationId={selectedOrganizationId}
-            isSubmitting={accountingProviderMutation.isPending}
-            onOrganizationChange={(organizationId) => {
-              setRequestedOrganizationId(organizationId);
-              setInviteError(null);
-              setSessionError(null);
-              setLastAdminResult(null);
-              setAccountingProviderError(null);
-            }}
-            onSubmit={handleUpdateAccountingProvider}
-          />
-          {accountingProviderError && (
-            <div className="superadmin-alert superadmin-alert-error" role="alert">
-              {accountingProviderError}
             </div>
           )}
         </div>
@@ -418,7 +373,6 @@ export function SuperAdmin() {
                   <span className="superadmin-organization-name">{organization.name}</span>
                   <span className="superadmin-organization-cvr">
                     CVR {organization.cvr}{isActive ? ' · Aktiv session' : ''}
-                    {organization.accountingProviderId ? ` · ${organization.accountingProviderId === 'economics' ? 'e-conomic' : organization.accountingProviderId}` : ''}
                   </span>
                 </button>
               );

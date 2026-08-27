@@ -5,7 +5,6 @@ import {
   createOrganizationSession,
   getOrganizations,
   inviteOrganizationAdmin,
-  updateOrganizationAccountingProvider,
 } from './api';
 
 vi.mock('../../lib/axios', () => ({
@@ -103,32 +102,6 @@ describe('Superadmin API', () => {
         displayName: 'Administrator',
         phone: null,
       },
-      { skipGlobalErrorToast: true },
-    );
-  });
-
-  it('updates accounting provider with trimmed or null provider ID', async () => {
-    vi.mocked(apiClient.put).mockResolvedValue(undefined);
-
-    await updateOrganizationAccountingProvider({
-      organizationId: 'organization-1',
-      providerId: ' economics ',
-    });
-
-    expect(apiClient.put).toHaveBeenCalledWith(
-      '/api/organizations/organization-1/accounting-provider',
-      { providerId: 'economics' },
-      { skipGlobalErrorToast: true },
-    );
-
-    await updateOrganizationAccountingProvider({
-      organizationId: 'organization-2',
-      providerId: '',
-    });
-
-    expect(apiClient.put).toHaveBeenCalledWith(
-      '/api/organizations/organization-2/accounting-provider',
-      { providerId: null },
       { skipGlobalErrorToast: true },
     );
   });

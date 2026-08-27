@@ -54,17 +54,6 @@ export async function inviteOrganizationAdmin(input: InviteOrganizationAdminInpu
   }) as unknown as OrganizationAdmin;
 }
 
-export async function updateOrganizationAccountingProvider(input: {
-  organizationId: string;
-  providerId: string | null;
-}): Promise<void> {
-  await apiClient.put(`/api/organizations/${input.organizationId}/accounting-provider`, {
-    providerId: input.providerId?.trim() || null,
-  }, {
-    skipGlobalErrorToast: true,
-  });
-}
-
 export async function getSuperadminUsers(input: {
   limit: number;
   offset: number;
