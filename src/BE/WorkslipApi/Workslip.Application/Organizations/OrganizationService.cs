@@ -42,7 +42,8 @@ public sealed class OrganizationService(
                 organization.Name,
                 organization.Cvr,
                 organization.CreatedAt,
-                organization.UpdatedAt))
+                organization.UpdatedAt,
+                organization.AccountingProviderId))
             .ToList();
 
         return Result<IReadOnlyList<OrganizationResponse>>.Success(response);

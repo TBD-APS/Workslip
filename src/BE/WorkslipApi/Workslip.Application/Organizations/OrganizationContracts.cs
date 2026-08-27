@@ -22,7 +22,8 @@ public sealed record OrganizationResponse(
     string Name,
     string Cvr,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? AccountingProviderId = null);
 
 public sealed record OrganizationUserResponse(
     Guid Id,

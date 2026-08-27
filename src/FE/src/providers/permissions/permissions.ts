@@ -26,7 +26,8 @@ export type Permission =
   | 'docs:view'
   | 'docs:edit'
   | 'notification:use'
-  | 'organization:manage';
+  | 'organization:manage'
+  | 'leader-analysis:view';
 
 const ADMIN_PERMISSIONS: readonly Role[] = [ROLES.Admin, ROLES.Superadmin];
 const SUPERADMIN_PERMISSIONS: readonly Role[] = [ROLES.Superadmin];
@@ -51,6 +52,7 @@ const PERMISSIONS: Record<Permission, readonly Role[]> = {
   'docs:edit': ADMIN_PERMISSIONS,
   'notification:use': NOTIFICATION_PERMISSIONS,
   'organization:manage': SUPERADMIN_PERMISSIONS,
+  'leader-analysis:view': ADMIN_PERMISSIONS,
 };
 
 export function hasPermission(role: string | null | undefined, permission: Permission): boolean {

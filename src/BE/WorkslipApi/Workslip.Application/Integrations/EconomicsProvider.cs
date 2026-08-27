@@ -63,7 +63,7 @@ public class EconomicsProvider : IAccountingProvider
         ));
     }
 
-    public async Task<Stream> GetDocumentStreamAsync(string tenantId, string documentId)
+    public async Task<Stream?> GetDocumentStreamAsync(string tenantId, string documentId)
     {
         using var client = _httpClientFactory.CreateClient();
         client.DefaultRequestHeaders.Add("X-AgreementGrantToken", "demo");

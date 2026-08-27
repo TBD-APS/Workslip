@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Workslip.Application.Documents;
 using Workslip.Application.Integrations;
-using Workslip.Infrastructure.Repositories;
 
 namespace Workslip.Application.Integrations;
 
