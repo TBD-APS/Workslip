@@ -2,7 +2,6 @@ export interface Organization {
   id: string;
   name: string;
   cvr: string;
-  accountingProviderId?: string | null;
 }
 
 export interface OrganizationAdmin {

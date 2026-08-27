@@ -65,8 +65,7 @@ public sealed class OrganizationSessionService(
                 organization.Name,
                 organization.Cvr,
                 organization.CreatedAt,
-                organization.UpdatedAt,
-                organization.AccountingProviderId));
+                organization.UpdatedAt));
 
         logger.LogInformation(
             "Delegated organization session authorized. UserId: {UserId}. HomeOrganizationId: {HomeOrganizationId}. EffectiveOrganizationId: {EffectiveOrganizationId}.",

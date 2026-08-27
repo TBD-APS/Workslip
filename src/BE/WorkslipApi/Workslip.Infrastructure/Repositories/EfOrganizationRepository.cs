@@ -90,15 +90,6 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
             token => UpdateAdminAsyncCoreAsync(admin, expectedEmail, expectedEntraId, token),
             cancellationToken);
 
-    public Task<bool> UpdateAccountingProviderAsync(
-        Guid organizationId,
-        string? providerId,
-        CancellationToken cancellationToken) =>
-        _retryPolicy.ExecuteAsync(
-            "organization-admin.update-provider",
-            token => UpdateAccountingProviderAsyncCoreAsync(organizationId, providerId, token),
-            cancellationToken);
-
     private async Task<bool> CvrExistsAsyncCoreAsync(string normalizedCvr, CancellationToken cancellationToken) =>
         await _dbContext.Organizations.AnyAsync(organization => organization.Cvr == normalizedCvr, cancellationToken);
 
@@ -219,8 +210,7 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
                 OrganizationName = organization.Name,
                 OrganizationCvr = organization.Cvr,
                 OrganizationCreatedAt = organization.CreatedAt,
-                OrganizationUpdatedAt = organization.UpdatedAt,
-                OrganizationAccountingProviderId = organization.AccountingProviderId
+                OrganizationUpdatedAt = organization.UpdatedAt
             }).FirstOrDefaultAsync(cancellationToken);
 
         return row is null
@@ -236,8 +226,7 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
                     row.OrganizationName,
                     row.OrganizationCvr,
                     row.OrganizationCreatedAt,
-                    row.OrganizationUpdatedAt,
-                    row.OrganizationAccountingProviderId));
+                    row.OrganizationUpdatedAt));
     }
 
     private async Task<IReadOnlyList<OrganizationRow>> ListOrganizationsAsyncCoreAsync(CancellationToken cancellationToken) =>
@@ -313,22 +302,6 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
                     .SetProperty(user => user.EntraEmail, admin.EntraEmail)
                     .SetProperty(user => user.Role, Roles.Admin)
                     .SetProperty(user => user.UpdatedAt, admin.UpdatedAt),
-                cancellationToken);
-
-        return affectedRows == 1;
-    }
-
-    private async Task<bool> UpdateAccountingProviderAsyncCoreAsync(
-        Guid organizationId,
-        string? providerId,
-        CancellationToken cancellationToken)
-    {
-        var affectedRows = await _dbContext.Organizations
-            .Where(org => org.Id == organizationId)
-            .ExecuteUpdateAsync(
-                setters => setters
-                    .SetProperty(org => org.AccountingProviderId, providerId)
-                    .SetProperty(org => org.UpdatedAt, DateTimeOffset.UtcNow),
                 cancellationToken);
 
         return affectedRows == 1;

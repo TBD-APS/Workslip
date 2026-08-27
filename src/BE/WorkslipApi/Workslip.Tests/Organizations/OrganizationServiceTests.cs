@@ -422,9 +422,6 @@ public sealed class OrganizationServiceTests
             EmailUser = admin;
             return Task.FromResult(true);
         }
-
-        public Task<bool> UpdateAccountingProviderAsync(Guid organizationId, string? providerId, CancellationToken cancellationToken) =>
-            Task.FromResult(true);
     }
 
     private sealed class FakeEntraService : IUserEntraService
