@@ -25,6 +25,7 @@ using Workslip.Infrastructure.Jobs;
 using Workslip.Infrastructure.Notifications;
 using Workslip.Infrastructure.Operations;
 using Workslip.Infrastructure.Repositories;
+using Workslip.Application.Integrations;
 using Workslip.Infrastructure.Reporting;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
@@ -150,6 +151,13 @@ public static class DependencyInjection
             serviceProvider.GetRequiredService<VapidKeyMaterial>());
         services.AddScoped<IPushSender, WebPushSender>();
         services.AddScoped<PushNotificationProcessor>();
+
+        services.AddScoped<IIntegrationEngine, IntegrationEngine>();
+        services.AddScoped<IIntegrationProvider, MockAccountingProvider>();
+        services.AddScoped<IAccountingProvider, MockAccountingProvider>();
+        services.AddScoped<IIntegrationProvider, EconomicsProvider>();
+        services.AddScoped<IAccountingProvider, EconomicsProvider>();
+        services.AddScoped<IDocumentSyncService, DocumentSyncService>();
 
         if (includeHostedServices)
         {

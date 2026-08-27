@@ -6,6 +6,7 @@ using Workslip.Api.ViewModels;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
 using Workslip.Application.Worksheets;
+using Workslip.Application.Integrations;
 using Workslip.Infrastructure.Schema;
 
 namespace Workslip.Api.Endpoints
@@ -204,6 +205,25 @@ namespace Workslip.Api.Endpoints
             .Produces<MonthlyHoursPdfPreviewResponse>(StatusCodes.Status200OK)
             .ProducesValidationProblem()
             .Produces(StatusCodes.Status404NotFound)
+            .RequireAuthorization(AuthPolicies.RequireAdmin);
+
+            group.MapGet("/all/documents/{userId}", async (
+                string userId,
+                [FromQuery] string startDate,
+                [FromQuery] string endDate,
+                IIntegrationEngine integrationEngine,
+                [FromServices] ICurrentUserContext currentUser,
+                CancellationToken cancellationToken) =>
+            {
+                if (currentUser.OrganizationId is not Guid organizationId)
+                    return Results.Unauthorized();
+
+                var provider = await integrationEngine.GetAccountingProviderAsync(organizationId.ToString());
+                var documents = await provider.GetDocumentsForUserAsync(organizationId.ToString(), userId, startDate, endDate);
+
+                return Results.Ok(documents);
+            })
+            .Produces(StatusCodes.Status200OK)
             .RequireAuthorization(AuthPolicies.RequireAdmin);
 
             return app;
