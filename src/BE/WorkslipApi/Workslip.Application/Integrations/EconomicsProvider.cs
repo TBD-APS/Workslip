@@ -40,27 +40,33 @@ public class EconomicsProvider : IAccountingProvider
 
     public async Task<IEnumerable<AccountingDocument>> GetDocumentsForUserAsync(string tenantId, string userId, string startDate, string endDate)
     {
-        using var client = _httpClientFactory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-AgreementGrantToken", "demo");
-        client.DefaultRequestHeaders.Add("X-AppSecretToken", "demo");
+        try
+        {
+            using var client = _httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("X-AgreementGrantToken", "demo");
+            client.DefaultRequestHeaders.Add("X-AppSecretToken", "demo");
 
-        // Note: In a real scenario, we would filter by userId and date.
-        // For the demo, we fetch invoices and map them.
-        var response = await client.GetAsync($"{BaseUrl}/invoices");
-        if (!response.IsSuccessStatusCode) return Enumerable.Empty<AccountingDocument>();
+            // e-conomic demo: /invoices returns links, actual data is under /invoices/booked
+            var response = await client.GetAsync($"{BaseUrl}/invoices/booked");
+            if (!response.IsSuccessStatusCode) return Enumerable.Empty<AccountingDocument>();
 
-        var data = await response.Content.ReadFromJsonAsync<List<EconomicsInvoice>>();
-        if (data == null) return Enumerable.Empty<AccountingDocument>();
+            var wrapper = await response.Content.ReadFromJsonAsync<EconomicsBookedCollection>();
+            if (wrapper?.Collection == null) return Enumerable.Empty<AccountingDocument>();
 
-        return data.Select(inv => new AccountingDocument(
-            DocumentId: inv.Id.ToString(),
-            DocumentNumber: inv.Number,
-            Type: "Invoice",
-            Amount: inv.Amount,
-            Date: inv.Date,
-            Status: "Demo",
-            ExternalLink: $"{BaseUrl}/invoices/{inv.Id}"
-        ));
+            return wrapper.Collection.Select(inv => new AccountingDocument(
+                DocumentId: inv.BookedInvoiceNumber.ToString(),
+                DocumentNumber: $"FAK-{inv.BookedInvoiceNumber:D4}",
+                Type: "Invoice",
+                Amount: inv.NetAmount,
+                Date: inv.Date,
+                Status: inv.Remainder == 0 ? "Paid" : "Unpaid",
+                ExternalLink: $"{BaseUrl}/invoices/booked/{inv.BookedInvoiceNumber}"
+            ));
+        }
+        catch
+        {
+            return Enumerable.Empty<AccountingDocument>();
+        }
     }
 
     public async Task<Stream?> GetDocumentStreamAsync(string tenantId, string documentId)
@@ -81,9 +87,14 @@ public class EconomicsProvider : IAccountingProvider
         return false;
     }
 
-    private record EconomicsInvoice(
-        Guid Id,
-        string Number,
-        decimal Amount,
-        string Date);
+    private record EconomicsBookedCollection(List<EconomicsBookedInvoice> Collection);
+    private record EconomicsBookedInvoice(
+        int BookedInvoiceNumber,
+        int OrderNumber,
+        string Date,
+        string Currency,
+        decimal NetAmount,
+        decimal GrossAmount,
+        decimal VatAmount,
+        decimal Remainder);
 }

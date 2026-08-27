@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchLeaderAnalysisSummary } from './api';
+import { fetchLeaderAnalysisSummary, fetchLeaderEconomicsSummary } from './api';
 import { apiClient } from '../../lib/axios';
 
 vi.mock('../../lib/axios', () => ({
@@ -45,5 +45,28 @@ describe('leader-analysis api', () => {
 
     expect(result.approvalRate).toBeNull();
     expect(result.rejectionRate).toBeNull();
+  });
+
+  it('fetches economics summary from leader-analysis endpoint', async () => {
+    const economics = {
+      providerId: 'economics',
+      providerDisplayName: 'e-conomic',
+      documentCount: 3,
+      invoiceCount: 2,
+      receiptCount: 1,
+      totalAmount: 9999,
+      averageAmount: 3333,
+      recentDocuments: [
+        { documentId: '1', documentNumber: 'FAK-1', type: 'Invoice', amount: 5000, date: '2026-08-01', status: 'Paid', externalLink: 'https://example.com' },
+      ],
+    };
+    vi.mocked(apiClient.get).mockResolvedValue(economics);
+
+    const result = await fetchLeaderEconomicsSummary();
+
+    expect(result.providerId).toBe('economics');
+    expect(result.totalAmount).toBe(9999);
+    expect(result.recentDocuments).toHaveLength(1);
+    expect(apiClient.get).toHaveBeenCalledWith('/api/leader-analysis/economics/summary');
   });
 });

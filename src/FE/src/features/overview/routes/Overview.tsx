@@ -2,18 +2,12 @@ import { useQuery } from '@tanstack/react-query';
 import {
   ArrowRight,
   BarChart3,
-  CheckCircle2,
-  CircleDot,
-  Clock3,
   FileText,
   Heart,
-  XCircle,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { JobStatus, type JobListItemViewModel } from '../../../api/generated/models';
 import { ErrorState } from '../../../components/ErrorState';
-import { saveStatusFilter } from '../../../components/filters/StatusFilter';
 import { apiClient } from '../../../lib/axios';
 import { formatDateTimeShort } from '../../../lib/formatDate';
 import { ROLES } from '../../../providers/permissions/roles';
@@ -21,7 +15,6 @@ import { useHasRole } from '../../../providers/permissions/usePermissions';
 import { listDocuments } from '../../docs/docsApi';
 import { JobCard } from '../../../components/JobCard';
 import { getApiCustomersFavorite } from '../../../api/generated/customers/customers';
-import { AdminPowerBiJobStatusChart } from '../components/AdminPowerBiJobStatusChart';
 import './Overview.css';
 import './Overview.dashboard-inspiration.css';
 
@@ -33,14 +26,6 @@ type JobOverviewResponse = {
   recentJobs: JobListItemViewModel[];
 };
 
-type StatusCard = {
-  status: JobStatus;
-  label: string;
-  count: number | undefined;
-  icon: ReactNode;
-  className: string;
-};
-
 const REFRESH_INTERVAL_MS = 30_000;
 
 const fetchOverview = async () =>
@@ -50,9 +35,6 @@ const getJobPath = (job: JobListItemViewModel) =>
   job.status === JobStatus.InReview || job.status === JobStatus.Approved
     ? `/app/completed/${job.id}`
     : `/app/job/${job.id}`;
-
-const getStatusListPath = (status: JobStatus) =>
-  `/app?status=${encodeURIComponent(status)}`;
 
 export const Overview = () => {
   const navigate = useNavigate();
@@ -81,11 +63,6 @@ export const Overview = () => {
     refetchOnWindowFocus: true,
   });
 
-  const navigateToStatus = (status: JobStatus) => {
-    saveStatusFilter('mine-jobs', [status]);
-    navigate(getStatusListPath(status));
-  };
-
   if (overviewQuery.isError) {
     return (
       <div className="page-container overview-page">
@@ -98,36 +75,6 @@ export const Overview = () => {
   }
 
   const overview = overviewQuery.data;
-  const statusCards: StatusCard[] = [
-    {
-      status: JobStatus.Draft,
-      label: 'Aktive sager',
-      count: overview?.activeCount,
-      icon: <CircleDot size={22} aria-hidden="true" />,
-      className: 'overview-status-card--active',
-    },
-    {
-      status: JobStatus.InReview,
-      label: 'Til gennemsyn',
-      count: overview?.inReviewCount,
-      icon: <Clock3 size={22} aria-hidden="true" />,
-      className: 'overview-status-card--review',
-    },
-    {
-      status: JobStatus.Approved,
-      label: 'Godkendte sager',
-      count: overview?.approvedCount,
-      icon: <CheckCircle2 size={22} aria-hidden="true" />,
-      className: 'overview-status-card--approved',
-    },
-    {
-      status: JobStatus.Rejected,
-      label: 'Afviste sager',
-      count: overview?.rejectedCount,
-      icon: <XCircle size={22} aria-hidden="true" />,
-      className: 'overview-status-card--rejected',
-    },
-  ];
 
   const recentJobs = overview?.recentJobs.slice(0, 5) ?? [];
   const favoriteCustomers = favoritesQuery.data ?? [];
@@ -210,38 +157,9 @@ export const Overview = () => {
         </button>
       </div>
 
-      <section className="overview-status-grid" aria-label="Sagsstatus">
-        {statusCards.map((card) => (
-          <button
-            key={card.status}
-            type="button"
-            className={`overview-status-card ${card.className}`}
-            onClick={() => navigateToStatus(card.status)}
-          >
-            <span className="overview-status-card__icon">{card.icon}</span>
-            <span className="overview-status-card__content">
-              <span className="overview-status-card__count">
-                {overviewQuery.isPending && card.count === undefined
-                  ? '–'
-                  : card.count ?? 0}
-              </span>
-              <span className="overview-status-card__label">{card.label}</span>
-            </span>
-            <ArrowRight
-              className="overview-status-card__arrow"
-              size={18}
-              aria-hidden="true"
-            />
-          </button>
-        ))}
-      </section>
-
       {isAdmin ? (
         <>
-          <div className="overview-admin-grid">
-            <AdminPowerBiJobStatusChart />
-            {recentJobsSection}
-          </div>
+          {recentJobsSection}
 
           <section id="overview-leader-analysis-card" className="overview-list-card" aria-labelledby="leader-analysis-heading">
             <div className="overview-section-header">
