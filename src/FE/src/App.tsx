@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { RouterProvider } from 'react-router-dom';
 import { GamificationFeedback } from './components/common/GamificationFeedback';
-import { PwaUpdateBanner } from './components/common/PwaUpdateBanner';
 import { AppProvider } from './providers/AppProvider';
 import { router } from './routes';
 import { scheduleDeferredTelemetry } from './lib/scheduleAfterInitialLoad';
@@ -11,7 +10,6 @@ import './public-shell.css';
 import './public-error.css';
 import './public-performance.css';
 import './workslip-brand.css';
-import './pwa-update.css';
 import './gamification-feedback.css';
 
 const VercelTelemetry = lazy(() =>
@@ -33,7 +31,6 @@ function App() {
   return (
     <AppProvider>
       <RouterProvider router={router} />
-      <PwaUpdateBanner />
       <GamificationFeedback />
       <Suspense fallback={null}>
         <HelpWizard />
