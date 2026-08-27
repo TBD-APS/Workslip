@@ -4,12 +4,18 @@ param location string = resourceGroup().location
 @description('Stable prefix used for all demo resources.')
 param namePrefix string = 'workslip-demo'
 
-@description('SQL administrator login used only by the deployment/migration workflow.')
-param sqlAdminLogin string = 'workslipdemoadmin'
+@description('SQL administrator login retained only as the Azure SQL creation bootstrap. Runtime and normal migrations use Entra identities.')
+param sqlAdminLogin string = 'workslipdemobootstrap'
 
 @secure()
-@description('Deployment-only SQL administrator password. Never passed to the runtime container.')
+@description('Random bootstrap-only SQL administrator password. Never passed to the runtime container or migration runner.')
 param sqlAdminPassword string
+
+param githubOwner string = 'rasm105k'
+param githubOwnerId string = '31623093'
+param githubRepository string = 'Workslip-v2.0'
+param githubRepositoryId string = '1245555609'
+param githubEnvironment string = 'demo'
 
 var suffix = uniqueString(subscription().id, resourceGroup().id)
 var compactPrefix = replace(namePrefix, '-', '')
@@ -18,9 +24,12 @@ var appInsightsName = 'appi-${namePrefix}'
 var environmentName = 'cae-${namePrefix}'
 var registryName = take('acr${compactPrefix}${suffix}', 50)
 var storageName = take('st${compactPrefix}${suffix}', 24)
-var sqlServerName = take('sql-${namePrefix}-${suffix}', 63)
-var identityName = 'id-${namePrefix}'
-var databaseName = 'workslip-demo'
+// Match the repository's canonical migration runner naming contract so demo uses
+// the exact same reviewed migration mechanism as other Workslip environments.
+var sqlServerName = 'db-mrsoftware-demo-server'
+var databaseName = 'db-mrsoftware-demo'
+var runtimeIdentityName = 'id-${namePrefix}'
+var migrationIdentityName = 'id-mrsoftware-demo-migration'
 
 var tags = {
   environment: 'demo'
@@ -84,18 +93,32 @@ resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
       quarantinePolicy: {
         status: 'disabled'
       }
-      retentionPolicy: {
-        days: 7
-        status: 'enabled'
-      }
     }
   }
 }
 
 resource runtimeIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: identityName
+  name: runtimeIdentityName
   location: location
   tags: tags
+}
+
+resource migrationIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: migrationIdentityName
+  location: location
+  tags: tags
+}
+
+resource migrationFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30' = {
+  parent: migrationIdentity
+  name: 'github-demo'
+  properties: {
+    audiences: [
+      'api://AzureADTokenExchange'
+    ]
+    issuer: 'https://token.actions.githubusercontent.com'
+    subject: 'repo:${githubOwner}@${githubOwnerId}/${githubRepository}@${githubRepositoryId}:environment:${githubEnvironment}'
+  }
 }
 
 var acrPullRoleId = subscriptionResourceId(
@@ -177,16 +200,20 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
     administratorLoginPassword: sqlAdminPassword
     minimalTlsVersion: '1.2'
     publicNetworkAccess: 'Enabled'
-    restrictOutboundNetworkAccess: 'Disabled'
   }
 }
 
-resource allowAzureServices 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = {
+// The deployment-only migration identity is the Azure SQL Entra administrator.
+// The ordinary Container App identity receives only contained database roles later
+// from the migration workflow and never receives server-level administration.
+resource sqlEntraAdministrator 'Microsoft.Sql/servers/administrators@2023-08-01-preview' = {
   parent: sqlServer
-  name: 'AllowAzureServices'
+  name: 'ActiveDirectory'
   properties: {
-    startIpAddress: '0.0.0.0'
-    endIpAddress: '0.0.0.0'
+    administratorType: 'ActiveDirectory'
+    login: migrationIdentity.name
+    sid: migrationIdentity.properties.principalId
+    tenantId: tenant().tenantId
   }
 }
 
@@ -213,7 +240,10 @@ output containerRegistryName string = registry.name
 output containerRegistryLoginServer string = registry.properties.loginServer
 output runtimeIdentityName string = runtimeIdentity.name
 output runtimeIdentityId string = runtimeIdentity.id
+output runtimeIdentityPrincipalId string = runtimeIdentity.properties.principalId
 output runtimeIdentityClientId string = runtimeIdentity.properties.clientId
+output migrationIdentityName string = migrationIdentity.name
+output migrationIdentityClientId string = migrationIdentity.properties.clientId
 output storageAccountName string = storage.name
 output sqlServerName string = sqlServer.name
 output sqlServerFqdn string = sqlServer.properties.fullyQualifiedDomainName
