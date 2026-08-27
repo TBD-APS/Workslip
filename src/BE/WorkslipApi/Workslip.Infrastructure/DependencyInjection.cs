@@ -20,6 +20,7 @@ using Workslip.Application.Users;
 using Workslip.Application.Worksheets;
 using Workslip.Infrastructure.Configuration;
 using Workslip.Infrastructure.Diagnostics;
+using Workslip.Infrastructure.Integrations;
 using Workslip.Infrastructure.Invitations;
 using Workslip.Infrastructure.Jobs;
 using Workslip.Infrastructure.Notifications;
@@ -153,6 +154,8 @@ public static class DependencyInjection
         services.AddScoped<PushNotificationProcessor>();
 
         services.AddScoped<IIntegrationEngine, IntegrationEngine>();
+        services.AddScoped<IAccountingProviderConfigurationStore, EfAccountingProviderConfigurationStore>();
+        services.AddScoped<IAccountingProviderSettingsService, AccountingProviderSettingsService>();
         services.AddScoped<IIntegrationProvider, MockAccountingProvider>();
         services.AddScoped<IAccountingProvider, MockAccountingProvider>();
         services.AddScoped<IIntegrationProvider, EconomicsProvider>();
