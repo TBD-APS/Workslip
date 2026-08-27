@@ -9,9 +9,6 @@ public sealed record CreateOrganizationRequest(
     string? AdminEmail,
     string? AdminPhone);
 
-public sealed record UpdateAccountingProviderRequest(
-    string? ProviderId);
-
 public sealed record UpsertOrganizationAdminRequest(
     string Email,
     string DisplayName,
@@ -22,8 +19,7 @@ public sealed record OrganizationResponse(
     string Name,
     string Cvr,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt,
-    string? AccountingProviderId = null);
+    DateTimeOffset UpdatedAt);
 
 public sealed record OrganizationUserResponse(
     Guid Id,
