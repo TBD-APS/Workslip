@@ -2,6 +2,14 @@
 
 Root [`../../../AGENTS.md`](../../../AGENTS.md) applies. These rules cover `src/BE/infrastructure/` and related deployment wiring.
 
+## Platform ownership
+
+MR SAAS'y is the authoritative owner of shared Azure/cloud topology. The canonical Workslip Azure baseline lives in `TBD-APS/mr-saassy/infrastructure/workloads/workslip/azure`.
+
+Files that remain in this product repository are compatibility and product-operation material only. Do not evolve App Service plans/SKUs, SQL topology, Storage, App Configuration, Key Vault, managed identities, GitHub OIDC/RBAC, ACS, monitoring or Azure budgets here. Make those changes in `mr-saassy` first. Product-owned schema/migrations, product artifacts and product-specific deployment hooks stay here.
+
+This ownership boundary does not require extra deployment gates and must not be used to reintroduce redundant approval/validation layers.
+
 ## Boundaries
 
 - Keep provisioning separate from application runtime behaviour.
@@ -28,4 +36,4 @@ Keep workflows purpose-specific. Use GitHub OIDC rather than publish profiles/st
 
 ## Validation delta
 
-Follow [`../../../Docs/agents/VALIDATION.md`](../../../Docs/agents/VALIDATION.md). Infrastructure changes normally require Bicep/script/workflow static validation and a plan/what-if; deployment and runtime smoke are separate evidence and only run when explicitly in scope.
+Follow [`../../../Docs/agents/VALIDATION.md`](../../../Docs/agents/VALIDATION.md). Infrastructure changes normally require the validation that protects the changed surface; deployment and runtime smoke are separate evidence and only run when explicitly in scope. Do not add duplicate gates solely because ownership moved repositories.
