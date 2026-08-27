@@ -18,6 +18,11 @@ public interface IOrganizationService
         Guid organizationId,
         UpsertOrganizationAdminRequest request,
         CancellationToken cancellationToken);
+
+    Task<Result> UpdateAccountingProviderAsync(
+        Guid organizationId,
+        UpdateAccountingProviderRequest request,
+        CancellationToken cancellationToken);
 }
 
 public sealed class OrganizationService(
@@ -177,6 +182,24 @@ public sealed class OrganizationService(
             entraUser.Created);
 
         return Result<OrganizationUserResponse>.Success(ToOrganizationUserResponse(persistedAdmin, entraUser.Created));
+    }
+
+    public async Task<Result> UpdateAccountingProviderAsync(
+        Guid organizationId,
+        UpdateAccountingProviderRequest request,
+        CancellationToken cancellationToken)
+    {
+        var updated = await administrationRepository.UpdateAccountingProviderAsync(
+            organizationId,
+            request.ProviderId,
+            cancellationToken);
+
+        if (!updated)
+        {
+            return Result.NotFound();
+        }
+
+        return Result.Success();
     }
 
     private async Task<AdminPersistenceResult> PersistAdminAsync(

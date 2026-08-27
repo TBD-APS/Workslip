@@ -40,12 +40,183 @@ const TIMER_OVERVIEW_STATE_KEY = 'workslip.timerOverviewState';
 function AdminWeeklyOverview({
   data,
   currentWeekStart,
+  selectedUserId,
+  setSelectedUserId,
+  onOpenJob,
 }: {
   data: MyWorksheetsMonthResponse;
   currentWeekStart: string;
+  selectedUserId: string | null;
+  setSelectedUserId: (id: string | null) => void;
+  onOpenJob: (jobId: string) => void;
 }) {
+  const users = useMemo(() => {
+    const userMap = new Map<string, { displayName: string }>();
+    data.weeks.forEach((week) => {
+      week.days.forEach((day) => {
+        day.entries.forEach((entry) => {
+          const userId = getWorksheetEntryIdentity(entry);
+          userMap.set(userId, {
+            displayName: entry.userDisplayName?.trim() || 'Ukendt medarbejder',
+          });
+        });
+      });
+    });
+    return Array.from(userMap.entries()).sort((a, b) => compareUiText(a[1].displayName, b[1].displayName));
+  }, [data]);
+
   return (
     <section id="timer-week-overview" className="admin-weekly-overview timer-admin-week-view">
+      <div className="admin-overview-toolbar">
+        <label htmlFor="admin-user-filter">Medarbejder</label>
+        <select
+          id="admin-user-filter"
+          value={selectedUserId ?? ''}
+          onChange={(e) => setSelectedUserId(e.target.value || null)}
+          className="admin-user-select"
+        >
+          <option value="">Alle medarbejdere</option>
+          {users.map(([id, user]) => (
+            <option key={id} value={id}>{user.displayName}</option>
+          ))}
+        </select>
+      </div>
+
+      {selectedUserId ? (
+        <AdminEmployeeDetail
+          data={data}
+          userId={selectedUserId}
+          userName={users.find(([id]) => id === selectedUserId)?.[1].displayName ?? 'Ukendt medarbejder'}
+          onOpenJob={onOpenJob}
+        />
+      ) : (
+        <AdminWeeklyMatrix data={data} currentWeekStart={currentWeekStart} />
+      )}
+    </section>
+  );
+}
+
+function AdminEmployeeDetail({
+  data,
+  userId,
+  userName,
+  onOpenJob,
+}: {
+  data: MyWorksheetsMonthResponse;
+  userId: string;
+  userName: string;
+  onOpenJob: (jobId: string) => void;
+}) {
+  const userStats = useMemo(() => {
+    let totalHours = 0;
+    const days = new Map<string, { date: string; hours: number; entries: MyWorksheetEntryResponse[] }>();
+
+    data.weeks.forEach((week) => {
+      week.days.forEach((day) => {
+        const userEntries = day.entries.filter((e) => getWorksheetEntryIdentity(e) === userId);
+        if (userEntries.length > 0) {
+          const dayHours = userEntries.reduce((sum, e) => sum + Number(e.hoursWorked), 0);
+          days.set(day.date, {
+            date: day.date,
+            hours: dayHours,
+            entries: userEntries,
+          });
+          totalHours += dayHours;
+        }
+      });
+    });
+
+    return { totalHours, days: Array.from(days.values()).sort((a, b) => a.date.localeCompare(b.date)) };
+  }, [data, userId]);
+
+  const docsQuery = useQuery({
+    queryKey: ['accounting-docs', userId, data.monthStart, data.monthEnd],
+    queryFn: async () => {
+      const res = await apiClient.get(`/api/worksheets/all/documents/${userId}`, {
+        params: { startDate: data.monthStart, endDate: data.monthEnd },
+      });
+      return res.data as any[];
+    },
+  });
+
+  return (
+    <div className="admin-employee-detail">
+      <header className="admin-employee-detail-header">
+        <div>
+          <h2>{userName}</h2>
+          <p>Økonomisk overblik for valgte periode</p>
+        </div>
+        <div className="admin-employee-detail-total">
+          <span className="label">Total timer</span>
+          <strong className="value">{formatNumeric(userStats.totalHours)} t</strong>
+        </div>
+      </header>
+
+      <div className="admin-employee-content-grid">
+        <div className="admin-employee-days">
+          {userStats.days.map((day) => (
+            <div key={day.date} className="admin-employee-day">
+              <div className="admin-employee-day-header">
+                <span className="admin-employee-day-date">{formatWeekdayDay(parseDate(day.date))}</span>
+                <span className="admin-employee-day-hours">{formatNumeric(day.hours)} t</span>
+              </div>
+              <div className="admin-employee-entries">
+                {day.entries.map((entry) => (
+                  <div
+                    key={entry.jobId}
+                    className="admin-employee-entry"
+                    onClick={() => onOpenJob(entry.jobId)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenJob(entry.jobId); }}
+                    role="link"
+                    tabIndex={0}
+                  >
+                    <div className="admin-employee-entry-main">
+                      <span className="admin-employee-entry-case">SAG-{(entry.reportNumber || entry.jobId.slice(0, 4)).toUpperCase()}</span>
+                      <span className="admin-employee-entry-customer">{entry.customerName}</span>
+                    </div>
+                    <span className="admin-employee-entry-hours">{formatNumeric(entry.hoursWorked)} t</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="admin-employee-docs">
+          <div className="admin-employee-docs-header">
+            <h3>Eksterne bilag & fakturaer</h3>
+            <span className="badge">Integration aktiv</span>
+          </div>
+          <div className="admin-employee-docs-list">
+            {docsQuery.isLoading ? (
+              <div className="docs-skeleton">Henter dokumenter...</div>
+            ) : docsQuery.data?.length === 0 ? (
+              <div className="docs-empty">Ingen eksterne dokumenter fundet.</div>
+            ) : (
+              docsQuery.data?.map((doc) => (
+                <div key={doc.documentId} className="admin-employee-doc-item">
+                  <div className="admin-employee-doc-main">
+                    <span className="admin-employee-doc-number">{doc.documentNumber}</span>
+                    <span className="admin-employee-doc-type">{doc.type === 'Invoice' ? 'Faktura' : 'Bilag'}</span>
+                  </div>
+                  <div className="admin-employee-doc-meta">
+                    <span className="admin-employee-doc-date">{doc.date}</span>
+                    <span className="admin-employee-doc-amount">{formatNumeric(doc.amount)} kr.</span>
+                    <a href={doc.externalLink} target="_blank" rel="noopener noreferrer" className="admin-employee-doc-link">Åbn</a>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminWeeklyMatrix({ data, currentWeekStart }: { data: MyWorksheetsMonthResponse; currentWeekStart: string }) {
+  return (
+    <div className="admin-weekly-matrix">
       {data.weeks.map((week) => {
         const isCurrentWeek = week.weekStart === currentWeekStart;
         const users = new Map<string, AdminUserWeek>();
@@ -141,7 +312,7 @@ function AdminWeeklyOverview({
           </div>
         );
       })}
-    </section>
+    </div>
   );
 }
 
@@ -157,6 +328,7 @@ function TimerDesktopOverview({
   onOpenJob: (jobId: string) => void;
 }) {
   const [view, setView] = useState<TimerDesktopView>('ledger');
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   return (
     <div className="timer-desktop-overview">
@@ -168,7 +340,10 @@ function TimerDesktopOverview({
               type="button"
               className={`timer-view-button ${view === 'ledger' ? 'is-active' : ''}`}
               aria-pressed={view === 'ledger'}
-              onClick={() => setView('ledger')}
+              onClick={() => {
+                setView('ledger');
+                setSelectedUserId(null);
+              }}
             >
               Registreringer
             </button>
@@ -179,7 +354,7 @@ function TimerDesktopOverview({
               aria-pressed={view === 'week'}
               onClick={() => setView('week')}
             >
-              Ugeoversigt
+              Økonomioversigt
             </button>
           </div>
         </div>
@@ -188,7 +363,13 @@ function TimerDesktopOverview({
       {view === 'ledger' || !isAdmin ? (
         <TimerLedger data={data} isAdmin={isAdmin} currentWeekStart={currentWeekStart} onOpenJob={onOpenJob} />
       ) : (
-        <AdminWeeklyOverview data={data} currentWeekStart={currentWeekStart} />
+        <AdminWeeklyOverview
+          data={data}
+          currentWeekStart={currentWeekStart}
+          selectedUserId={selectedUserId}
+          setSelectedUserId={setSelectedUserId}
+          onOpenJob={onOpenJob}
+        />
       )}
     </div>
   );
@@ -206,7 +387,7 @@ function TimerLedger({
   onOpenJob: (jobId: string) => void;
 }) {
   return (
-    <section id="timer-ledger" className={`timer-ledger ${isAdmin ? 'is-admin' : ''}`} aria-label="Timeregistreringer">
+    <section id="timer-ledger" className={`timer-ledger ${isAdmin ? 'is-admin' : ''}`} aria-label="Økonomioversigt">
       <div className="timer-ledger-columns" aria-hidden="true">
         <span>Dato</span>
         {isAdmin && <span>Medarbejder</span>}
@@ -355,8 +536,8 @@ export function MyWorksheets() {
     <div id="timer-page" className={`page-container time-overview-page ${isAdmin ? 'time-overview-page--admin' : ''}`}>
       <div className="page-header time-overview-header">
         <div>
-          <h2>{isAdmin ? 'Alles timer' : 'Mine timer'}</h2>
-          <p className="subtitle">Ugentligt overblik over sager, timer og udlæg</p>
+          <h2>{isAdmin ? 'Alles økonomi' : 'Min økonomi'}</h2>
+          <p className="subtitle">Ugentlig økonomioversigt over sager, timer og udlæg</p>
         </div>
         <div className="time-month-controls">
           <div id="timer-month-switcher" className="time-month-switcher" aria-label="Vælg måned">
