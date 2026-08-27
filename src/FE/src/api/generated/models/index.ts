@@ -5,6 +5,8 @@
  * OpenAPI spec version: 1.0.0
  */
 
+export * from './accountingProviderOptionResponse';
+export * from './accountingProviderSettingsResponse';
 export * from './applicationEnvironmentKey';
 export * from './applicationEnvironmentRegistration';
 export * from './applyInventoryMovementRequest';
@@ -147,6 +149,7 @@ export * from './superAdminUpdateUserRequest';
 export * from './superAdminUserListResponse';
 export * from './superAdminUserOptionsResponse';
 export * from './superAdminUserResponse';
+export * from './updateAccountingProviderRequest';
 export * from './updateBillableHourlyRateRequest';
 export * from './updateCustomerRequest';
 export * from './updateDocumentRequest';
