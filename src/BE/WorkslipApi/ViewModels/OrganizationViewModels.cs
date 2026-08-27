@@ -5,8 +5,7 @@ namespace Workslip.Api.ViewModels;
 public sealed record OrganizationViewModel(
     Guid Id,
     string Name,
-    string Cvr,
-    string? AccountingProviderId = null);
+    string Cvr);
 
 public sealed record OrganizationUserViewModel(
     Guid Id,
@@ -34,8 +33,7 @@ public static class OrganizationViewModelBuilder
     public static OrganizationViewModel ToOrganization(OrganizationResponse organization) => new(
         organization.Id,
         organization.Name,
-        organization.Cvr,
-        organization.AccountingProviderId);
+        organization.Cvr);
 
     public static OrganizationUserViewModel ToOrganizationUser(OrganizationUserResponse user) => new(
         user.Id,
