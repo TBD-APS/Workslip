@@ -4,11 +4,13 @@ import { MemoryRouter } from 'react-router-dom';
 import { Settings } from './Settings';
 
 const {
+  accountingMutation,
   inviteMutation,
   invalidateQueries,
   notifySuccess,
   notifyError,
 } = vi.hoisted(() => ({
+  accountingMutation: vi.fn(),
   inviteMutation: vi.fn(),
   invalidateQueries: vi.fn(),
   notifySuccess: vi.fn(),
@@ -51,6 +53,18 @@ vi.mock('../api', () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   }),
+  useGetApiAccountingProviderSettings: () => ({
+    isLoading: false,
+    isError: false,
+    data: {
+      providerId: null,
+      providers: [{ id: 'economics', displayName: 'e-conomic' }],
+    },
+  }),
+  usePutApiAccountingProviderSettings: () => ({
+    mutateAsync: accountingMutation,
+    isPending: false,
+  }),
 }));
 
 vi.mock('../../../lib/toast', () => ({
@@ -62,6 +76,7 @@ vi.mock('../../../lib/toast', () => ({
 
 afterEach(() => {
   cleanup();
+  accountingMutation.mockReset();
   inviteMutation.mockReset();
   invalidateQueries.mockReset();
   notifySuccess.mockReset();
@@ -180,5 +195,35 @@ describe('Settings invitation role', () => {
       'title',
       'very.long.invitation.email@example.com',
     );
+  });
+});
+
+describe('Settings accounting provider', () => {
+  it('saves the selected provider for the organization', async () => {
+    accountingMutation.mockResolvedValueOnce(undefined);
+    invalidateQueries.mockResolvedValue(undefined);
+
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>,
+    );
+
+    const selector = document.getElementById('accounting-provider-selector');
+    const saveButton = document.getElementById('accounting-provider-save');
+
+    expect(selector).toHaveValue('');
+    expect(saveButton).toBeDisabled();
+
+    fireEvent.change(selector!, { target: { value: 'economics' } });
+    expect(saveButton).toBeEnabled();
+    fireEvent.click(saveButton!);
+
+    await waitFor(() => {
+      expect(accountingMutation).toHaveBeenCalledWith({ providerId: 'economics' });
+    });
+
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['/api/settings/accounting'] });
+    expect(notifySuccess).toHaveBeenCalledWith('Regnskabssystem gemt');
   });
 });
