@@ -1,6 +1,5 @@
+using Workslip.Api.Helpers;
 using Workslip.Application.Integrations;
-using Workslip.Infrastructure;
-using ResultExtensions = Workslip.Api.Helpers.ResultExtensions;
 
 namespace Workslip.Api.Endpoints;
 
