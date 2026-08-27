@@ -38,21 +38,32 @@ function BarChart({ data, x, y, color = '#d2542a' }: { data: Array<Record<string
   );
 }
 
-function DonutChart({ data, value, category: _category }: { data: Array<Record<string, string | number>>; category: string; value: string }) {
+function DonutChart({ data, value, category }: { data: Array<Record<string, string | number>>; category: string; value: string }) {
   if (!data.length) return <div style={{ color: 'var(--muted)', fontSize: '13px' }}>Ingen data</div>;
-  const total = data.reduce((s, d) => s + Number(d[value] ?? 0), 0) || 1;
-  let offset = 0;
+  const total = data.reduce((sum, item) => sum + Number(item[value] ?? 0), 0) || 1;
+  const percentages = data.map(item => (Number(item[value] ?? 0) / total) * 100);
   const colors = ['#d2542a', '#2a7d8f', '#6a9e3f', '#8a6a00', '#6b6b6b'];
   return (
-    <svg viewBox="0 0 200 200" role="img" aria-label="Donut" style={{ width: '200px', height: '200px', display: 'block', margin: '0 auto' }}>
+    <svg viewBox="0 0 200 200" role="img" aria-label={`Donutdiagram efter ${category}`} style={{ width: '200px', height: '200px', display: 'block', margin: '0 auto' }}>
       <circle cx={100} cy={100} r={70} fill="none" stroke="var(--border)" strokeWidth={20} />
-      {data.map((d, i) => {
-        const v = Number(d[value] ?? 0);
-        const pct = (v / total) * 100;
+      {data.map((_item, index) => {
+        const pct = percentages[index];
+        const offset = percentages.slice(0, index).reduce((sum, segment) => sum + segment, 0);
         const dash = `${pct} ${100 - pct}`;
-        const el = <circle key={i} cx={100} cy={100} r={70} fill="none" stroke={colors[i % colors.length]} strokeWidth={20} strokeDasharray={dash} strokeDashoffset={-offset} transform="rotate(-90 100 100)" />;
-        offset += pct;
-        return el;
+        return (
+          <circle
+            key={`${category}-${index}`}
+            cx={100}
+            cy={100}
+            r={70}
+            fill="none"
+            stroke={colors[index % colors.length]}
+            strokeWidth={20}
+            strokeDasharray={dash}
+            strokeDashoffset={-offset}
+            transform="rotate(-90 100 100)"
+          />
+        );
       })}
       <text x={100} y={100} textAnchor="middle" fontSize="22" fontWeight={750} fill="var(--text)">{total}</text>
       <text x={100} y={118} textAnchor="middle" fontSize="10" fill="var(--muted)">I alt</text>
@@ -145,21 +156,19 @@ export function LeaderVisualsPanel() {
       for (const h of pb.workHours) byUser[h.userId] = (byUser[h.userId] ?? 0) + h.hours;
       return pb.employees.slice(0, 6).map(e => ({ employee: e.employee, hours: Math.round((byUser[e.userId] ?? 0) * 10) / 10 }));
     }
-    // sla
     const items = (slaQuery.data as unknown as { items?: Array<{ reportNumber: string | null; updatedAt: string }> })?.items ?? (slaQuery.data as unknown as Array<{ reportNumber: string | null; updatedAt: string }>) ?? [];
-    // slaQuery returns {items} but our query returns items array directly — handle both
     const list = Array.isArray(items) ? items : [];
-    const now = Date.now();
+    const referenceTime = slaQuery.dataUpdatedAt;
     return list.slice(0, 6).map(j => ({
       sag: j.reportNumber ? `SAG-${j.reportNumber}` : '—',
-      dage: Math.max(0, Math.floor((now - new Date((j as { updatedAt: string }).updatedAt).getTime()) / 86400000)),
+      dage: Math.max(0, Math.floor((referenceTime - new Date(j.updatedAt).getTime()) / 86400000)),
     }));
-  }, [dataSource, chartType, overviewQuery.data, economicsQuery.data, bemandingQuery.data, slaQuery.data]);
+  }, [dataSource, chartType, overviewQuery.data, economicsQuery.data, bemandingQuery.data, slaQuery.data, slaQuery.dataUpdatedAt]);
 
   const mapPoints = useMemo(() => {
     const items = (jobsForMapQuery.data as unknown as Array<Record<string, unknown>>) ?? [];
     return items.slice(0, 12).map((j: Record<string, unknown>) => {
-      const addr = (j.destinationAddress as string) || (j.address as string) || (j as { customer?: { address?: string | null } }).customer?.address || "";
+      const addr = (j.destinationAddress as string) || (j.address as string) || (j as { customer?: { address?: string | null } }).customer?.address || '';
       const id = (j.id as string) || String(hash(addr));
       const h = hash(addr || id);
       const lat = 56.15 + ((h % 1000) / 1000 - 0.5) * 0.8;
@@ -167,7 +176,7 @@ export function LeaderVisualsPanel() {
       const label = (j.reportNumber as string) ? `SAG-${j.reportNumber}` : ((j.name as string) || id.slice(0, 8));
       return { id, label, lat, lng };
     });
-  }, [jobsForMapQuery.data, mapSource]);
+  }, [jobsForMapQuery.data]);
 
   return (
     <section id="leader-analysis-visuals" className="leader-analysis-card" aria-labelledby="visuals-heading">
