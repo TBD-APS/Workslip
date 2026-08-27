@@ -20,13 +20,6 @@ runs:
       working-directory: src/FE
       run: node scripts/generate-api-client.mjs --no-restore
 
-    - name: Upload generated API client snapshot
-      uses: actions/upload-artifact@v7
-      with:
-        name: generated-frontend-api-${{ github.sha }}
-        path: src/FE/src/api/generated
-        if-no-files-found: error
-
     # Vercel production deliberately does not call a remote dev/prod OpenAPI
     # endpoint. The generated client committed in the release SHA must therefore
     # already match the backend contract that CI just generated. Porcelain status
