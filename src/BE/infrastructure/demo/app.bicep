@@ -7,10 +7,9 @@ param storageAccountName string
 param frontendImage string
 param apiImage string
 param applicationInsightsConnectionString string
+param sqlServerFqdn string
+param sqlDatabaseName string
 param demoAdminEmail string = 'admin@17v3ygzs.mailosaur.net'
-
-@secure()
-param sqlConnectionString string
 
 @secure()
 param jwtSigningKey string
@@ -38,6 +37,8 @@ resource runtimeIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
 resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
   name: storageAccountName
 }
+
+var sqlConnectionString = 'Server=tcp:${sqlServerFqdn},1433;Initial Catalog=${sqlDatabaseName};Authentication=Active Directory Managed Identity;User Id=${runtimeIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 
 resource demoApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: appName
@@ -67,10 +68,6 @@ resource demoApp 'Microsoft.App/containerApps@2024-03-01' = {
       ]
       secrets: [
         {
-          name: 'sql-connection'
-          value: sqlConnectionString
-        }
-        {
           name: 'jwt-signing-key'
           value: jwtSigningKey
         }
@@ -82,7 +79,7 @@ resource demoApp 'Microsoft.App/containerApps@2024-03-01' = {
           name: 'frontend'
           image: frontendImage
           resources: {
-            cpu: json('0.25')
+            cpu: 0.25
             memory: '0.5Gi'
           }
           probes: [
@@ -132,7 +129,7 @@ resource demoApp 'Microsoft.App/containerApps@2024-03-01' = {
             }
             {
               name: 'Azure__Sql__ConnectionString'
-              secretRef: 'sql-connection'
+              value: sqlConnectionString
             }
             {
               name: 'Jwt__Issuer'
@@ -156,7 +153,7 @@ resource demoApp 'Microsoft.App/containerApps@2024-03-01' = {
             }
           ]
           resources: {
-            cpu: json('0.5')
+            cpu: 0.5
             memory: '1Gi'
           }
         }
