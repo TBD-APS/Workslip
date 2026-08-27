@@ -17,7 +17,10 @@ public static class AccountingProviderSettingsEndpoints
             HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.GetAsync(cancellationToken);
             return ResultExtensions.ToHttpResult(result);
-        });
+        })
+        .Produces<AccountingProviderSettingsResponse>(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status401Unauthorized)
+        .Produces(StatusCodes.Status404NotFound);
 
         group.MapPut("/", async (
             UpdateAccountingProviderRequest request,
@@ -28,7 +31,11 @@ public static class AccountingProviderSettingsEndpoints
             HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.UpdateAsync(request, cancellationToken);
             return ResultExtensions.ToHttpResult(result);
-        });
+        })
+        .Produces(StatusCodes.Status204NoContent)
+        .ProducesValidationProblem()
+        .Produces(StatusCodes.Status401Unauthorized)
+        .Produces(StatusCodes.Status404NotFound);
 
         return app;
     }
