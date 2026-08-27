@@ -60,6 +60,12 @@ public sealed class OrganizationEndpointAuthorizationTests
             UpsertOrganizationAdminRequest request,
             CancellationToken cancellationToken) =>
             Task.FromResult(Result<OrganizationUserResponse>.NotFound());
+
+        public Task<Result> UpdateAccountingProviderAsync(
+            Guid organizationId,
+            UpdateAccountingProviderRequest request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Result.NotFound());
     }
 
     private sealed class StubOrganizationSessionService : IOrganizationSessionService
