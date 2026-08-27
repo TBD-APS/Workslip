@@ -66,6 +66,9 @@ try
     var releaseTestingEnabled = ReleaseTestingConfiguration.IsEnabled(
         app.Environment,
         app.Configuration);
+    var demoModeEnabled = DemoModeConfiguration.IsEnabled(
+        app.Environment,
+        app.Configuration);
     var seedDevelopmentData = DatabaseStartup.ShouldSeedDevelopmentData(
         app.Environment,
         app.Configuration);
@@ -85,7 +88,7 @@ try
         DatabaseStartup.VerifyIfRequiredAsync(
             app.Services,
             app.Configuration,
-            seedDevelopmentData,
+            seedDevelopmentData || demoModeEnabled,
             seedDevelopmentEntraIdentities,
             app.Environment));
 
@@ -98,6 +101,7 @@ try
     {
         app.ConfigureEndpoints();
         app.MapJobCostingEndpoints();
+        app.MapDemoEndpoints();
         app.ConfigureDevEnvironment(releaseTestingEnabled);
     });
 

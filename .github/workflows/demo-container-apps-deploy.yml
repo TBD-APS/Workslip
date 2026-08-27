@@ -1,0 +1,336 @@
+name: Deploy Workslip Demo
+
+on:
+  workflow_dispatch:
+    inputs:
+      reset_data:
+        description: Recreate the isolated demo database before deployment
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: workslip-demo
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Demo · Container Apps
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    environment: demo
+    env:
+      AZURE_RESOURCE_GROUP: rg-mrsoftware-demo
+      AZURE_LOCATION: westeurope
+      DEMO_SQL_SERVER: db-mrsoftware-demo-server
+      DEMO_SQL_DATABASE: db-mrsoftware-demo
+      DEMO_RUNTIME_IDENTITY: id-workslip-demo
+      DEMO_CUSTOM_DOMAIN: demo.mrsoftware.dk
+    steps:
+      - name: Require main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "$GITHUB_REF" != 'refs/heads/main' ]]; then
+            echo "::error::The public Workslip demo may only be deployed from main. Selected ref: $GITHUB_REF"
+            exit 1
+          fi
+
+      - name: Checkout exact selected revision
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify protected demo bootstrap configuration
+        shell: bash
+        env:
+          INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID }}
+          TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          SQL_BOOTSTRAP_PASSWORD: ${{ secrets.DEMO_SQL_BOOTSTRAP_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          missing=()
+          [[ -n "$INFRA_CLIENT_ID" ]] || missing+=(AZURE_INFRA_CLIENT_ID)
+          [[ -n "$TENANT_ID" ]] || missing+=(AZURE_TENANT_ID)
+          [[ -n "$SUBSCRIPTION_ID" ]] || missing+=(AZURE_SUBSCRIPTION_ID)
+          [[ -n "$SQL_BOOTSTRAP_PASSWORD" ]] || missing+=(DEMO_SQL_BOOTSTRAP_PASSWORD)
+          if (( ${#missing[@]} > 0 )); then
+            printf '::error::GitHub environment demo is missing: %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+      - name: Azure login as infrastructure bootstrap identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_INFRA_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate demo Bicep
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az bicep build --file src/BE/infrastructure/demo/foundation.bicep --stdout >/dev/null
+          az bicep build --file src/BE/infrastructure/demo/app.bicep --stdout >/dev/null
+
+      - name: Ensure isolated demo resource group
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az group create \
+            --name "$AZURE_RESOURCE_GROUP" \
+            --location "$AZURE_LOCATION" \
+            --tags environment=demo workload=workslip dataClassification=synthetic-only managedBy=github-actions \
+            --only-show-errors \
+            --output none
+
+      - name: Reconcile demo foundation
+        shell: bash
+        env:
+          SQL_BOOTSTRAP_PASSWORD: ${{ secrets.DEMO_SQL_BOOTSTRAP_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          az deployment group create \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name workslip-demo-foundation \
+            --template-file src/BE/infrastructure/demo/foundation.bicep \
+            --parameters location="$AZURE_LOCATION" sqlAdminPassword="$SQL_BOOTSTRAP_PASSWORD" \
+            --only-show-errors \
+            --output none
+
+      - name: Resolve demo foundation outputs
+        id: foundation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          output() {
+            az deployment group show \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name workslip-demo-foundation \
+              --query "properties.outputs.$1.value" \
+              --output tsv
+          }
+          {
+            echo "environment_name=$(output containerAppsEnvironmentName)"
+            echo "acr_name=$(output containerRegistryName)"
+            echo "acr_login_server=$(output containerRegistryLoginServer)"
+            echo "runtime_identity_name=$(output runtimeIdentityName)"
+            echo "runtime_principal_id=$(output runtimeIdentityPrincipalId)"
+            echo "runtime_client_id=$(output runtimeIdentityClientId)"
+            echo "migration_client_id=$(output migrationIdentityClientId)"
+            echo "deployment_client_id=$(output deploymentIdentityClientId)"
+            echo "storage_name=$(output storageAccountName)"
+            echo "sql_server_name=$(output sqlServerName)"
+            echo "sql_server_fqdn=$(output sqlServerFqdn)"
+            echo "sql_database_name=$(output sqlDatabaseName)"
+            echo "app_insights_connection_string=$(output applicationInsightsConnectionString)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Allow new federated identities to propagate
+        shell: bash
+        run: sleep 20
+
+      - name: Logout infrastructure bootstrap identity
+        shell: bash
+        run: az logout
+
+      - name: Azure login as dedicated demo deployment identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.foundation.outputs.deployment_client_id }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Reset isolated demo database
+        if: ${{ inputs.reset_data }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "$AZURE_RESOURCE_GROUP" != 'rg-mrsoftware-demo' || "$DEMO_SQL_SERVER" != 'db-mrsoftware-demo-server' || "$DEMO_SQL_DATABASE" != 'db-mrsoftware-demo' ]]; then
+            echo '::error::Demo reset boundary guard rejected the selected resources.'
+            exit 1
+          fi
+
+          az sql db delete \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --server "$DEMO_SQL_SERVER" \
+            --name "$DEMO_SQL_DATABASE" \
+            --yes \
+            --only-show-errors
+
+          az sql db create \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --server "$DEMO_SQL_SERVER" \
+            --name "$DEMO_SQL_DATABASE" \
+            --service-objective Basic \
+            --max-size 2GB \
+            --backup-storage-redundancy Local \
+            --only-show-errors \
+            --output none
+
+      - name: Build immutable demo API image in ACR
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az acr build \
+            --registry '${{ steps.foundation.outputs.acr_name }}' \
+            --image "workslip-demo-api:$GITHUB_SHA" \
+            --file src/BE/WorkslipApi/Dockerfile.demo \
+            .
+
+      - name: Build immutable demo frontend image in ACR
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az acr build \
+            --registry '${{ steps.foundation.outputs.acr_name }}' \
+            --image "workslip-demo-frontend:$GITHUB_SHA" \
+            --file src/FE/Dockerfile.demo \
+            .
+
+      - name: Logout demo deployment identity before database mutation
+        shell: bash
+        run: az logout
+
+      - name: Azure login as dedicated demo migration identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.foundation.outputs.migration_client_id }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install SQL migration tooling
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+            Install-Module SqlServer -Scope CurrentUser -Repository PSGallery -Force -AllowClobber
+          }
+          Import-Module SqlServer -ErrorAction Stop
+          Get-Command Invoke-Sqlcmd -ErrorAction Stop | Out-Null
+
+      - name: Apply reviewed Workslip migrations to demo
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./src/BE/infrastructure/run-database-migrations.ps1 `
+            -Environment demo `
+            -CompanyName mrsoftware
+
+      - name: Grant runtime identity least-privilege database roles
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./src/BE/infrastructure/demo/configure-runtime-database-access.ps1 `
+            -CompanyName mrsoftware `
+            -Environment demo `
+            -RuntimeIdentityName '${{ steps.foundation.outputs.runtime_identity_name }}'
+
+      - name: Logout demo migration identity
+        shell: bash
+        run: az logout
+
+      - name: Azure login as dedicated demo deployment identity for release
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.foundation.outputs.deployment_client_id }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy demo Container App revision
+        id: app
+        shell: bash
+        env:
+          ACR_LOGIN_SERVER: ${{ steps.foundation.outputs.acr_login_server }}
+          APP_INSIGHTS_CONNECTION_STRING: ${{ steps.foundation.outputs.app_insights_connection_string }}
+        run: |
+          set -Eeuo pipefail
+          jwt_signing_key="$(openssl rand -base64 48 | tr -d '\n')"
+          frontend_image="$ACR_LOGIN_SERVER/workslip-demo-frontend:$GITHUB_SHA"
+          api_image="$ACR_LOGIN_SERVER/workslip-demo-api:$GITHUB_SHA"
+
+          az deployment group create \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name workslip-demo-app \
+            --template-file src/BE/infrastructure/demo/app.bicep \
+            --parameters \
+              location="$AZURE_LOCATION" \
+              containerAppsEnvironmentName='${{ steps.foundation.outputs.environment_name }}' \
+              containerRegistryName='${{ steps.foundation.outputs.acr_name }}' \
+              runtimeIdentityName='${{ steps.foundation.outputs.runtime_identity_name }}' \
+              storageAccountName='${{ steps.foundation.outputs.storage_name }}' \
+              frontendImage="$frontend_image" \
+              apiImage="$api_image" \
+              applicationInsightsConnectionString="$APP_INSIGHTS_CONNECTION_STRING" \
+              sqlServerName='${{ steps.foundation.outputs.sql_server_name }}' \
+              sqlServerFqdn='${{ steps.foundation.outputs.sql_server_fqdn }}' \
+              sqlDatabaseName='${{ steps.foundation.outputs.sql_database_name }}' \
+              jwtSigningKey="$jwt_signing_key" \
+            --only-show-errors \
+            --output none
+
+          fqdn="$(az deployment group show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name workslip-demo-app \
+            --query properties.outputs.containerAppFqdn.value \
+            --output tsv)"
+          echo "fqdn=$fqdn" >> "$GITHUB_OUTPUT"
+          echo "url=https://$fqdn" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke-test public demo and authenticated API
+        shell: bash
+        env:
+          DEMO_URL: ${{ steps.app.outputs.url }}
+        run: |
+          set -Eeuo pipefail
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error --max-time 15 "$DEMO_URL/login" >/dev/null; then
+              break
+            fi
+            if [[ "$attempt" == 30 ]]; then
+              echo '::error::Demo frontend did not become healthy in time.'
+              exit 1
+            fi
+            sleep 10
+          done
+
+          token_response="$(curl --fail --silent --show-error \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            "$DEMO_URL/api/demo/token")"
+          token="$(printf '%s' "$token_response" | jq -r '.token // empty')"
+          if [[ -z "$token" ]]; then
+            echo '::error::Demo token endpoint did not return a token.'
+            exit 1
+          fi
+
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $token" \
+            "$DEMO_URL/api/auth/me" >/dev/null
+
+      - name: Publish demo handoff
+        shell: bash
+        env:
+          DEMO_URL: ${{ steps.app.outputs.url }}
+          DEMO_FQDN: ${{ steps.app.outputs.fqdn }}
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Workslip demo deployed
+
+          - Revision: \`$GITHUB_SHA\`
+          - Azure URL: $DEMO_URL
+          - Intended hostname: \`$DEMO_CUSTOM_DOMAIN\`
+          - Cloudflare CNAME target: \`$DEMO_FQDN\`
+          - Data boundary: \`rg-mrsoftware-demo / db-mrsoftware-demo\`
+          - Reset requested: \`${{ inputs.reset_data }}\`
+          - Smoke: frontend + demo token + authenticated \`/api/auth/me\` passed
+
+          The CNAME alone is not the final hostname cutover: bind \`$DEMO_CUSTOM_DOMAIN\` to the Container App and issue its managed certificate after DNS verification.
+          EOF

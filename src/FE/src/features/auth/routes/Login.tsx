@@ -29,6 +29,7 @@ const LOGIN_INTERRUPTED_MESSAGE = 'Login afbrudt. Klik på knappen for at prøve
 const AUTH_LOADING_TITLE = 'Tjekker login';
 const AUTH_LOADING_MESSAGE = 'Vi kontrollerer din session og forbinder til Workslip.';
 const devLoginEnabled = import.meta.env.DEV;
+const demoLoginEnabled = import.meta.env.VITE_DEMO_MODE === 'true';
 
 const beginAuthTransition = () => {
   document.documentElement.setAttribute(AUTH_TRANSITION_ATTRIBUTE, '');
@@ -139,10 +140,6 @@ export const Login = () => {
       return;
     }
 
-    // Silent reauth is useful only when Microsoft knows which account to try.
-    // Without a login hint, `prompt=none` commonly bounces back with
-    // interaction_required/account_selection_required and creates an avoidable
-    // second Microsoft roundtrip. Go interactive immediately in that case.
     if (!loginHint) {
       startInteractiveLogin().catch(() => {
         recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
@@ -174,6 +171,25 @@ export const Login = () => {
       endAuthTransition();
       const message = (err as Error)?.message || 'Kunne ikke starte Microsoft login.';
       setErrorMsg(message);
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDemoLogin = async () => {
+    if (!demoLoginEnabled) return;
+
+    setErrorMsg(null);
+    beginAuthTransition();
+    setIsSubmitting(true);
+
+    try {
+      const { getDemoToken } = await import('../api/demoLogin');
+      const response = await getDemoToken();
+      establishSession(response.token, response.user.email, response.user.role);
+      navigate(getAuthenticatedHomePath(response.user.role), { replace: true });
+    } catch {
+      endAuthTransition();
+      setErrorMsg('Demoen kunne ikke startes. Prøv igen om et øjeblik.');
       setIsSubmitting(false);
     }
   };
@@ -264,8 +280,10 @@ export const Login = () => {
                   <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
-              <h2>Log ind på Workslip</h2>
-              <p>Log ind med Microsoft passkey. Brug kun engangskode hvis passkey ikke virker eller du har fået ny telefon.</p>
+              <h2>{demoLoginEnabled ? 'Prøv Workslip' : 'Log ind på Workslip'}</h2>
+              <p>{demoLoginEnabled
+                ? 'Start den isolerede demo med fiktive data. Du får administratoradgang med ét klik.'
+                : 'Log ind med Microsoft passkey. Brug kun engangskode hvis passkey ikke virker eller du har fået ny telefon.'}</p>
             </div>
 
             {errorMsg && (
@@ -275,25 +293,42 @@ export const Login = () => {
               </div>
             )}
 
-            <div className="login-email-step">
-              <button
-                type="button"
-                className="btn btn-primary login-submit-btn"
-                onClick={handleMicrosoftLogin}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
-                <span>{isSubmitting ? 'Sender til Microsoft...' : 'Log ind med Microsoft passkey'}</span>
-              </button>
+            {demoLoginEnabled && (
+              <div className="login-email-step" aria-label="Workslip demo">
+                <button
+                  type="button"
+                  className="btn btn-primary login-submit-btn"
+                  onClick={() => void handleDemoLogin()}
+                  disabled={isSubmitting}
+                >
+                  <ShieldCheck size={18} />
+                  <span>Start demo</span>
+                </button>
+                <small>Fiktive data · isoleret miljø · kan nulstilles</small>
+              </div>
+            )}
 
-              <button
-                type="button"
-                onClick={() => setShowOtcLogin(true)}
-                className="login-otc-btn"
-              >
-                Mistet dit login? Modtag engangskode
-              </button>
-            </div>
+            {!demoLoginEnabled && (
+              <div className="login-email-step">
+                <button
+                  type="button"
+                  className="btn btn-primary login-submit-btn"
+                  onClick={handleMicrosoftLogin}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
+                  <span>{isSubmitting ? 'Sender til Microsoft...' : 'Log ind med Microsoft passkey'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowOtcLogin(true)}
+                  className="login-otc-btn"
+                >
+                  Mistet dit login? Modtag engangskode
+                </button>
+              </div>
+            )}
 
             {devLoginEnabled && (
               <div className="login-email-step" aria-label="Developer login">
