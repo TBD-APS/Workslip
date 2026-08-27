@@ -14,6 +14,10 @@ public sealed record UpdateAccountingProviderRequest(string? ProviderId);
 
 public interface IAccountingProviderConfigurationStore
 {
+    Task<string?> GetProviderAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken);
+
     Task<bool> SetProviderAsync(
         Guid organizationId,
         string? providerId,
@@ -49,11 +53,10 @@ public sealed class AccountingProviderSettingsService(
                 provider.ProviderId,
                 provider.DisplayName))
             .ToArray();
+        var providerId = await configurationStore.GetProviderAsync(organizationId, cancellationToken);
 
         return Result<AccountingProviderSettingsResponse>.Success(
-            new AccountingProviderSettingsResponse(
-                organization.AccountingProviderId,
-                providers));
+            new AccountingProviderSettingsResponse(providerId, providers));
     }
 
     public async Task<Result> UpdateAsync(
