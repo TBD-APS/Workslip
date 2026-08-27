@@ -253,23 +253,8 @@ export const AppLayout = () => {
                     <ShieldCheck size={16} aria-hidden="true" />
                     <span>Superadmin</span>
                   </button>
-                )}
-                {canViewDocs && canUseAppCommands && (
-                  <button
-                    id="account-menu-docs"
-                    type="button"
-                    className="app-header-settings-item"
-                    role="menuitem"
-                    onClick={() => {
-                      setSettingsMenuOpen(false);
-                      navigate('/app/docs');
-                    }}
-                  >
-                    <BookOpen size={16} aria-hidden="true" />
-                    <span>Docs</span>
-                  </button>
-                )}
-                <button
+                 )}
+                 <button
                   id="account-menu-theme"
                   type="button"
                   className="app-header-settings-item"
@@ -396,6 +381,12 @@ export const AppLayout = () => {
           <NavLink id="bottom-nav-leader-analysis" to="/app/lederanalyse" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/lederanalyse')}>
             <BarChart3 size={24} />
             <span>Lederanalyse</span>
+          </NavLink>
+        </Can>
+        <Can permission="docs:view">
+          <NavLink id="bottom-nav-docs" to="/app/docs" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/docs')}>
+            <BookOpen size={24} />
+            <span>Dokumenter</span>
           </NavLink>
         </Can>
         <button

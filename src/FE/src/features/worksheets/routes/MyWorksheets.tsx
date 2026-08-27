@@ -183,10 +183,16 @@ function AdminEmployeeDetail({
         </div>
 
         <div className="admin-employee-docs">
-          <div className="admin-employee-docs-header">
-            <h3>Eksterne bilag & fakturaer</h3>
-            <span className="badge">Integration aktiv</span>
-          </div>
+           <div className="admin-employee-docs-header">
+             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+               Eksterne bilag & fakturaer
+               <span className="sync-health-indicator" title="Tjekker sync status...">
+                 <div className="health-dot" />
+                 <span className="health-text">Sjekker...</span>
+               </span>
+             </h3>
+             <span className="badge">Integration aktiv</span>
+           </div>
           <div className="admin-employee-docs-list">
             {docsQuery.isLoading ? (
               <div className="docs-skeleton">Henter dokumenter...</div>
@@ -199,11 +205,14 @@ function AdminEmployeeDetail({
                     <span className="admin-employee-doc-number">{doc.documentNumber}</span>
                     <span className="admin-employee-doc-type">{doc.type === 'Invoice' ? 'Faktura' : 'Bilag'}</span>
                   </div>
-                  <div className="admin-employee-doc-meta">
-                    <span className="admin-employee-doc-date">{doc.date}</span>
-                    <span className="admin-employee-doc-amount">{formatNumeric(doc.amount)} kr.</span>
-                    <a href={doc.externalLink} target="_blank" rel="noopener noreferrer" className="admin-employee-doc-link">Åbn</a>
-                  </div>
+                    <div className="admin-employee-doc-meta">
+                      <span className="admin-employee-doc-date">{doc.date}</span>
+                      <span className="admin-employee-doc-amount">{formatNumeric(doc.amount)} kr.</span>
+                      <div className="admin-employee-doc-links">
+                        <a href={doc.externalLink} target="_blank" rel="noopener noreferrer" className="admin-employee-doc-link">Original</a>
+                        <a href={`/app/docs/${doc.internalId}`} className="admin-employee-doc-link">Spejl</a>
+                      </div>
+                    </div>
                 </div>
               ))
             )}

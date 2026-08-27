@@ -98,7 +98,6 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
             "organization-admin.update-provider",
             token => UpdateAccountingProviderAsyncCoreAsync(organizationId, providerId, token),
             cancellationToken);
-
     private async Task<bool> CvrExistsAsyncCoreAsync(string normalizedCvr, CancellationToken cancellationToken) =>
         await _dbContext.Organizations.AnyAsync(organization => organization.Cvr == normalizedCvr, cancellationToken);
 

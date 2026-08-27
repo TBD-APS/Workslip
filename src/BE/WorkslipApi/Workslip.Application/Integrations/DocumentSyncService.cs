@@ -16,6 +16,7 @@ public interface IDocumentSyncService
         string externalDocumentId,
         string fileName,
         string contentType,
+        string externalLink,
         CancellationToken cancellationToken);
 }
 
@@ -30,6 +31,7 @@ public class DocumentSyncService(
         string externalDocumentId,
         string fileName,
         string contentType,
+        string externalLink,
         CancellationToken cancellationToken)
     {
         var organizationId = Guid.Parse(tenantId);
@@ -57,8 +59,8 @@ public class DocumentSyncService(
             null,
             new DocumentWriteData(
                 Title: $"Mirrored: {fileName}",
-                Content: $"External reference: {externalDocumentId}",
-                Tags: new[] { $"ext-doc:{externalDocumentId}", "mirrored" }),
+                Content: $"External reference: {externalDocumentId}\nExternal link: {externalLink}",
+                Tags: new[] { $"ext-doc:{externalDocumentId}", $"ext-url:{externalLink}", "mirrored" }),
             cancellationToken);
 
         // Create attachment metadata.
