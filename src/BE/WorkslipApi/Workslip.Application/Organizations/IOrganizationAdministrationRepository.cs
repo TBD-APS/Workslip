@@ -22,4 +22,6 @@ public interface IOrganizationAdministrationRepository
         string expectedEmail,
         string expectedEntraId,
         CancellationToken cancellationToken);
+
+    Task<bool> UpdateAccountingProviderAsync(Guid organizationId, string? providerId, CancellationToken cancellationToken);
 }
