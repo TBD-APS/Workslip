@@ -30,6 +30,7 @@ jobs:
       DEMO_SQL_DATABASE: db-mrsoftware-demo
       DEMO_RUNTIME_IDENTITY: id-workslip-demo
       DEMO_CUSTOM_DOMAIN: demo.mrsoftware.dk
+      INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
     steps:
       - name: Require main
         shell: bash
@@ -46,29 +47,34 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Verify protected demo bootstrap configuration
+      - name: Verify Azure bootstrap configuration
         shell: bash
         env:
-          INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID }}
           TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          SQL_BOOTSTRAP_PASSWORD: ${{ secrets.DEMO_SQL_BOOTSTRAP_PASSWORD }}
         run: |
           set -Eeuo pipefail
           missing=()
-          [[ -n "$INFRA_CLIENT_ID" ]] || missing+=(AZURE_INFRA_CLIENT_ID)
+          [[ -n "$INFRA_CLIENT_ID" ]] || missing+=(AZURE_INFRA_CLIENT_ID-or-AZURE_CLIENT_ID)
           [[ -n "$TENANT_ID" ]] || missing+=(AZURE_TENANT_ID)
           [[ -n "$SUBSCRIPTION_ID" ]] || missing+=(AZURE_SUBSCRIPTION_ID)
-          [[ -n "$SQL_BOOTSTRAP_PASSWORD" ]] || missing+=(DEMO_SQL_BOOTSTRAP_PASSWORD)
           if (( ${#missing[@]} > 0 )); then
-            printf '::error::GitHub environment demo is missing: %s\n' "${missing[*]}"
+            printf '::error::Missing existing Azure OIDC configuration: %s\n' "${missing[*]}"
             exit 1
           fi
+
+      - name: Generate ephemeral SQL bootstrap credential
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          password="$(openssl rand -base64 48 | tr -d '\n' | tr '/+' '_-')"
+          echo "::add-mask::$password"
+          echo "SQL_BOOTSTRAP_PASSWORD=$password" >> "$GITHUB_ENV"
 
       - name: Azure login as infrastructure bootstrap identity
         uses: azure/login@v3
         with:
-          client-id: ${{ vars.AZURE_INFRA_CLIENT_ID }}
+          client-id: ${{ env.INFRA_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
@@ -92,8 +98,6 @@ jobs:
 
       - name: Reconcile demo foundation
         shell: bash
-        env:
-          SQL_BOOTSTRAP_PASSWORD: ${{ secrets.DEMO_SQL_BOOTSTRAP_PASSWORD }}
         run: |
           set -Eeuo pipefail
           az deployment group create \
@@ -162,7 +166,7 @@ jobs:
             --server "$DEMO_SQL_SERVER" \
             --name "$DEMO_SQL_DATABASE" \
             --yes \
-            --only-show-errors
+            --only-show-errors || true
 
           az sql db create \
             --resource-group "$AZURE_RESOURCE_GROUP" \
@@ -252,6 +256,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           jwt_signing_key="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$jwt_signing_key"
           frontend_image="$ACR_LOGIN_SERVER/workslip-demo-frontend:$GITHUB_SHA"
           api_image="$ACR_LOGIN_SERVER/workslip-demo-api:$GITHUB_SHA"
 
@@ -332,5 +337,5 @@ jobs:
           - Reset requested: \`${{ inputs.reset_data }}\`
           - Smoke: frontend + demo token + authenticated \`/api/auth/me\` passed
 
-          The CNAME alone is not the final hostname cutover: bind \`$DEMO_CUSTOM_DOMAIN\` to the Container App and issue its managed certificate after DNS verification.
+          No demo-specific SQL secret is required in GitHub. The workflow generates its bootstrap credential ephemerally for each run.
           EOF
