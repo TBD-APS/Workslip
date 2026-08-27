@@ -39,6 +39,7 @@ public static class DemoEndpoints
         })
         .Produces<AuthTokenResponse>()
         .ProducesProblem(StatusCodes.Status503ServiceUnavailable)
+        .RequireRateLimiting("demo-session")
         .AllowAnonymous();
 
         return app;
