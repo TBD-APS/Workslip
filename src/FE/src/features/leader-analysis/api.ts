@@ -32,7 +32,32 @@ type JobOverviewResponse = {
   }[];
 };
 
+export type LeaderEconomicsSummary = {
+  providerId: string;
+  providerDisplayName: string;
+  documentCount: number;
+  invoiceCount: number;
+  receiptCount: number;
+  totalAmount: number;
+  averageAmount: number;
+  recentDocuments: Array<{
+    documentId: string;
+    documentNumber: string;
+    type: string;
+    amount: number;
+    date: string;
+    status: string;
+    externalLink: string;
+  }>;
+};
+
 export const leaderAnalysisQueryKey = ['leader-analysis', 'summary'] as const;
+export const leaderEconomicsQueryKey = ['leader-analysis', 'economics'] as const;
+
+export async function fetchLeaderEconomicsSummary(): Promise<LeaderEconomicsSummary> {
+  const data = (await apiClient.get('/api/leader-analysis/economics/summary')) as unknown as LeaderEconomicsSummary;
+  return data;
+}
 
 export async function fetchLeaderAnalysisSummary(): Promise<LeaderAnalysisSummary> {
   const overview = (await apiClient.get('/api/jobs/overview')) as unknown as JobOverviewResponse;
