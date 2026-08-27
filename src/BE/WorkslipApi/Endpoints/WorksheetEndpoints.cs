@@ -224,7 +224,8 @@ namespace Workslip.Api.Endpoints
                 return Results.Ok(documents);
             })
             .Produces(StatusCodes.Status200OK)
-            .RequireAuthorization(AuthPolicies.RequireAdmin);
+            .RequireAuthorization(AuthPolicies.RequireAdmin)
+            .ExcludeFromDescription();
 
             return app;
         }
