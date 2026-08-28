@@ -79,7 +79,7 @@ python site/scripts/validate_output.py site/_site
 
 The validator checks required pages, one H1 and one `main-content` landmark per generated HTML page, plus local links and assets.
 
-Pull requests that only change `site/**` or `.github/workflows/pages.yml` use the dedicated **Static site fast lane**: strict Jekyll build plus generated-output/link validation. They do not run Workslip backend tests, frontend-app build/tests, Postman or app Playwright. Browser/screenshot checks are optional review evidence rather than a deployment gate. Pull-request runs never deploy GitHub Pages.
+Pull requests that only change `site/**` or `.github/workflows/pages.yml` use the dedicated **Static site fast lane**: strict Jekyll build plus generated-output/link validation. They do not run Workslip backend tests, frontend-app build/tests, Postman or app Playwright. Pull-request runs never deploy GitHub Pages.
 
 ## Deployment
 
