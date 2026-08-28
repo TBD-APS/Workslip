@@ -84,7 +84,7 @@ const SuperAdmin = lazy(() =>
 );
 const CacheDiagnostics = lazy(() =>
   import('../features/superadmin/routes/CacheDiagnostics').then((module) => ({ default: module.CacheDiagnostics })),
-);
+); // eslint-disable-next-line react-refresh/only-export-components
 const Lederanalyse = lazy(() =>
   import('../features/leader-analysis/routes/Lederanalyse').then((module) => ({ default: module.Lederanalyse })),
 );
