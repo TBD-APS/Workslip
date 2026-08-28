@@ -285,7 +285,8 @@ public sealed class AuthServiceEntraLoginTests
                         Name TEXT NOT NULL,
                         Cvr TEXT NOT NULL,
                         CreatedAt TEXT NOT NULL,
-                        UpdatedAt TEXT NOT NULL
+                        UpdatedAt TEXT NOT NULL,
+                        AccountingProviderId TEXT
                     );
 
                     CREATE TABLE Users (
