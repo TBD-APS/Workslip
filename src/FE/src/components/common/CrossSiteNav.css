@@ -8,9 +8,9 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 0 1rem;
-  border-bottom: 1px solid rgba(151, 174, 213, 0.16);
-  background: #050d1b;
-  color: #c9d6f3;
+  border-bottom: 1px solid var(--border);
+  background: var(--nav-bg);
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -21,7 +21,7 @@
 
 .cross-site-nav__brand {
   flex: 0 0 auto;
-  color: #fff !important;
+  color: var(--text) !important;
   font-weight: 800;
 }
 
@@ -51,17 +51,17 @@
 
 .cross-site-nav__links a:hover,
 .cross-site-nav__links a:focus-visible {
-  background: rgba(177, 196, 255, 0.11);
-  color: #fff;
+  background: var(--surface-raised);
+  color: var(--text);
 }
 
 .cross-site-nav__links .is-active {
-  background: rgba(131, 167, 255, 0.16);
-  color: #fff;
+  background: var(--surface-selected);
+  color: var(--text);
 }
 
 .cross-site-nav__login {
-  color: #fff !important;
+  color: var(--text) !important;
 }
 
 .cross-site-app-offset {
