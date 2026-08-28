@@ -16,13 +16,16 @@
   const detailDescription = root.querySelector('[data-detail-description]');
   const detailList = root.querySelector('[data-detail-list]');
   const coreLevel = root.querySelector('[data-core-level]');
+  const connectionStatus = root.querySelector('[data-connection-status]');
 
   const enabled = new Set();
   let activeDetail = null;
+  let activationTimer;
 
   const moduleCopy = {
     kls: {
       icon: '✓',
+      label: 'KLS',
       eyebrow: 'KLS & kvalitetssikring',
       title: 'Dokumentation bliver en del af selve arbejdet.',
       description: 'KLS kobles direkte på sagen, så kontrolpunkter, billeder og godkendelse følger samme workflow som resten af opgaven.',
@@ -30,6 +33,7 @@
     },
     inventory: {
       icon: '◇',
+      label: 'Lager',
       eyebrow: 'Lager & materialer',
       title: 'Materialerne kobles på jobbet i stedet for et separat regneark.',
       description: 'Lager-modulet gør QR, beholdning og materialeforbrug til en del af Workslips fælles datagrundlag.',
@@ -37,6 +41,7 @@
     },
     time: {
       icon: '◷',
+      label: 'Timer',
       eyebrow: 'Timer',
       title: 'Tiden registreres dér, hvor arbejdet allerede sker.',
       description: 'Timer bliver koblet direkte til opgaven og kan bruges videre i godkendelse, rapportering og økonomisk opfølgning.',
@@ -44,6 +49,7 @@
     },
     insights: {
       icon: '▥',
+      label: 'Rapportering',
       eyebrow: 'Rapportering & indsigt',
       title: 'Når data hænger sammen, bliver Workslip markant klogere.',
       description: 'Rapportering samler signalerne fra arbejdet og gør dem til et operationelt overblik for ledelsen.',
@@ -83,6 +89,32 @@
     detail.classList.toggle('has-selection', Boolean(moduleName));
   };
 
+  const setConnectionStatus = (message) => {
+    connectionStatus.textContent = message;
+  };
+
+  const pulseCore = (moduleName) => {
+    const capability = capabilities.find((item) => item.dataset.capability === moduleName);
+
+    window.clearTimeout(activationTimer);
+    core.classList.remove('is-activating');
+    capability?.classList.remove('is-new');
+
+    window.requestAnimationFrame(() => {
+      core.classList.add('is-activating');
+      capability?.classList.add('is-new');
+
+      if (enabled.size > 1) {
+        core.classList.add('is-flowing');
+      }
+    });
+
+    activationTimer = window.setTimeout(() => {
+      core.classList.remove('is-activating', 'is-flowing');
+      capability?.classList.remove('is-new');
+    }, 920);
+  };
+
   const render = () => {
     const count = enabled.size;
 
@@ -114,20 +146,30 @@
 
   const addModule = (moduleName) => {
     if (!moduleCopy[moduleName]) return;
+    if (enabled.has(moduleName)) {
+      setDetail(moduleName);
+      setConnectionStatus(`${moduleCopy[moduleName].label} er allerede koblet på`);
+      return;
+    }
+
     enabled.add(moduleName);
     setDetail(moduleName);
     render();
+    setConnectionStatus(`${moduleCopy[moduleName].label} er koblet på`);
+    pulseCore(moduleName);
   };
 
   const toggleModule = (moduleName) => {
     if (!moduleCopy[moduleName]) return;
     if (enabled.has(moduleName)) {
       enabled.delete(moduleName);
+      setDetail(Array.from(enabled).at(-1) || null);
+      render();
+      setConnectionStatus(`${moduleCopy[moduleName].label} er fjernet`);
+      pulseCore();
     } else {
-      enabled.add(moduleName);
+      addModule(moduleName);
     }
-    setDetail(enabled.has(moduleName) ? moduleName : Array.from(enabled).at(-1) || null);
-    render();
   };
 
   cards.forEach((card) => {
@@ -183,6 +225,8 @@
     enabled.clear();
     setDetail(null);
     render();
+    setConnectionStatus('Kernen er klar til nye moduler');
+    pulseCore();
   });
 
   setDetail(null);
