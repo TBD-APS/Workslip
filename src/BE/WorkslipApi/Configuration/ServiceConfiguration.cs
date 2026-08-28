@@ -3,7 +3,6 @@ using System.Threading.RateLimiting;
 using Azure.Core;
 using Microsoft.ApplicationInsights;
 using Microsoft.Graph;
-using Workslip.Api.Configuration;
 using Workslip.Api.Services;
 using Workslip.Api.Telemetry;
 using Workslip.Application;
@@ -44,8 +43,6 @@ public static class ServiceConfiguration
         builder.Services.AddWorkslipApplication();
         builder.Services.AddWorkslipInfrastructure(
             includeHostedServices: !DatabaseStartup.IsOpenApiGeneration(builder.Configuration));
-
-        builder.Services.AddShopifyTenantMapping(builder.Configuration);
 
         if (DemoModeConfiguration.IsEnabled(builder.Environment, builder.Configuration))
         {

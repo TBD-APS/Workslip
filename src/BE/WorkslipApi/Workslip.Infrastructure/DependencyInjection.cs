@@ -26,7 +26,6 @@ using Workslip.Infrastructure.Notifications;
 using Workslip.Infrastructure.Operations;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Application.Integrations;
-using Microsoft.Extensions.Options;
 using Workslip.Infrastructure.Reporting;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
@@ -159,7 +158,6 @@ public static class DependencyInjection
         services.AddScoped<IIntegrationProvider, EconomicsProvider>();
         services.AddScoped<IAccountingProvider, EconomicsProvider>();
         services.AddScoped<IDocumentSyncService, DocumentSyncService>();
-        services.AddScoped<IShopifyTenantMappingRepository, EfShopifyTenantMappingRepository>();
 
         if (includeHostedServices)
         {
@@ -172,17 +170,6 @@ public static class DependencyInjection
         services.AddOptions<VapidOptions>()
             .Configure<IConfiguration>((options, config) =>
                 config.GetSection(VapidOptions.SectionName).Bind(options));
-
-        services.AddOptions<ShopifyPaymentOptions>()
-            .Configure<IConfiguration>((options, config) =>
-                config.GetSection(ShopifyPaymentOptions.SectionName).Bind(options));
-
-        services.AddHttpClient<IPaymentProvider, ShopifyPaymentProvider>(client =>
-        {
-            client.Timeout = TimeSpan.FromSeconds(30);
-        });
-
-        services.AddScoped<IPaymentProvider, ShopifyPaymentProvider>();
 
         return services;
     }
