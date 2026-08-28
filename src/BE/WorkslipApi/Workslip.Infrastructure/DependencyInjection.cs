@@ -161,8 +161,6 @@ public static class DependencyInjection
         services.AddScoped<IAccountingProvider, EconomicsProvider>();
         services.AddScoped<IDocumentSyncService, DocumentSyncService>();
         services.AddScoped<ILeaderEconomicsService, LeaderEconomicsService>();
-        services.AddScoped<IShopifyTenantMappingRepository, EfShopifyTenantMappingRepository>();
-
         if (includeHostedServices)
         {
             services.AddHostedService<JobDeletionCleanupService>();
