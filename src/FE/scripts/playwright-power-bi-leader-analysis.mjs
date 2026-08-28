@@ -51,18 +51,18 @@ async function exerciseAdmin(contextOptions, label) {
       && url.pathname === '/api/worksheets/all/report/power-bi/data';
   }, { timeout: UI_TIMEOUT });
 
-  const navigation = await page.goto(`${APP_URL}/app/overblik`, {
+  const navigation = await page.goto(`${APP_URL}/app/lederanalyse`, {
     waitUntil: 'domcontentloaded',
     timeout: UI_TIMEOUT,
   });
-  assert.ok(navigation?.ok(), `${label} Overview returned HTTP ${navigation?.status() ?? 'unknown'}.`);
+  assert.ok(navigation?.ok(), `${label} Lederanalyse returned HTTP ${navigation?.status() ?? 'unknown'}.`);
   assert.equal((await analyticsResponse).status(), 200, `${label} analytics endpoint must return 200 for Admin.`);
 
+  await page.locator('#leader-analysis-page').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.locator('#leader-analysis-powerbi').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await page.locator('#admin-power-bi-job-status').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await page.locator('#overview-power-bi-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await page.locator('#recent-jobs-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await page.locator('#favorite-customers-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await page.locator('#recent-documents-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.locator('#leader-analysis-kpi-active').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
   await page.locator('#overview-analytics-tab-employees').click();
   const employeePanel = page.locator('#overview-analytics-panel-employees');
@@ -174,7 +174,7 @@ try {
   await exerciseAdmin({ viewport: { width: 1280, height: 800 } }, 'admin-desktop');
   await exerciseAdmin(devices['iPhone 13'], 'admin-mobile');
   await exerciseNormalUser();
-  console.log('[playwright] Live Admin Overview dashboard + Timer Power BI integration passed on desktop/mobile.');
+  console.log('[playwright] Live Admin Lederanalyse + Timer Power BI integration passed on desktop/mobile.');
 } finally {
   await browser.close();
 }

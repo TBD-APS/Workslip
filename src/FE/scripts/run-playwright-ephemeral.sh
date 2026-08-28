@@ -200,6 +200,6 @@ run_scenario 'notification and people lifecycle evidence' scripts/playwright-not
 run_scenario 'duplicate assignment lifecycle evidence' scripts/playwright-duplicate-assignment-lifecycle.mjs
 run_scenario 'global copyability evidence' scripts/playwright-copyability-lifecycle.mjs
 run_scenario 'shared state semantics evidence' scripts/playwright-shared-state-semantics.mjs
-run_scenario 'WOR-542 Admin Overview + Timer Power BI evidence' scripts/playwright-power-bi-admin-overview.mjs
+run_scenario 'Admin Lederanalyse + Timer Power BI evidence' scripts/playwright-power-bi-leader-analysis.mjs
 
 echo "Authenticated ephemeral Playwright suite completed successfully."
