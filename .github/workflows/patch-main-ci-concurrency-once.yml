@@ -25,7 +25,7 @@ jobs:
           from pathlib import Path
           path = Path('.github/workflows/frontend-validation.yml')
           text = path.read_text()
-          old = "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}"
+          old = "  cancel-in-progress: " + chr(36) + "{{ github.event_name == 'pull_request' }}"
           if old not in text:
               raise SystemExit('expected concurrency policy not found')
           path.write_text(text.replace(old, '  cancel-in-progress: true', 1))
