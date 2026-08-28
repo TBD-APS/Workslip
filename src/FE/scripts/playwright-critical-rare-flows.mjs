@@ -188,13 +188,14 @@ async function verifyUserPermissionBoundaries() {
     await expectRoute(page, '/app/customers');
 
     await page.locator('#bottom-nav-customers').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await page.locator('#bottom-nav-docs').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     assert.equal(await page.locator('#bottom-nav-people').count(), 0, 'User navigation must not expose user management.');
 
     await page.locator('#account-menu-button').click();
     const menu = page.locator('#account-menu');
     await menu.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     assert.equal(await page.locator('#account-menu-settings').count(), 0, 'User account menu must not expose admin settings.');
-    await page.locator('#account-menu-docs').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal(await page.locator('#account-menu-docs').count(), 0, 'Docs belongs in the primary navigation, not the account menu.');
     await page.keyboard.press('Escape');
 
     await navigateAndExpect(page, '/app/timer', '/app/timer');
