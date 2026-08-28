@@ -14,6 +14,9 @@
     {% if page.pricing %}
     <link rel="stylesheet" href="{{ '/assets/css/pricing.css' | relative_url }}">
     {% endif %}
+    {% if page.roadmap %}
+    <link rel="stylesheet" href="{{ '/assets/css/roadmap.css' | relative_url }}">
+    {% endif %}
     {% if page.module_builder %}
     <link rel="stylesheet" href="{{ '/assets/css/module-builder.css' | relative_url }}">
     {% endif %}
@@ -104,7 +107,7 @@
       </div>
     </header>
 
-    <main id="main-content"{% if page.demo %} class="demo-page"{% elsif page.pricing %} class="pricing-page"{% elsif page.url == '/' %} class="homepage"{% else %} class="content-page"{% endif %}>
+    <main id="main-content"{% if page.demo %} class="demo-page"{% elsif page.pricing %} class="pricing-page"{% elsif page.roadmap %} class="roadmap-page"{% elsif page.url == '/' %} class="homepage"{% else %} class="content-page"{% endif %}>
       {{ content }}
     </main>
 

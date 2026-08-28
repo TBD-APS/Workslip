@@ -1,0 +1,48 @@
+# Customer-safe roadmap snapshot, curated from active Workslip product work in Linear.
+# Keep this file free of issue IDs, assignees, estimates, internal labels and delivery dates.
+updated: "2026-08-29"
+updated_label: "29. august 2026"
+source_label: "Status afstemt med aktivt produktarbejde"
+lanes:
+  - key: live
+    status: "Tilgængeligt"
+    title: "I drift nu"
+    description: "Funktioner I kan tage i brug i dag."
+    items:
+      - label: "Kerneflow"
+        title: "Job flow"
+        description: "Opret, planlæg og udfør jobs med et fælles overblik for mark og kontor."
+      - label: "Økonomi på jobbet"
+        title: "Tid & jobøkonomi"
+        description: "Registrér tid, kørsel og materialer, og følg lønsomheden på det enkelte job."
+      - label: "Fælles handlinger"
+        title: "Samtaler & handlinger"
+        description: "Saml opfølgning og næste skridt tættere på den sag, hvor arbejdet sker."
+  - key: building
+    status: "Under udvikling"
+    title: "Næste i Workslip"
+    description: "Spor vi arbejder aktivt videre på."
+    items:
+      - label: "Enklere hverdag"
+        title: "Et klarere Workslip"
+        description: "Tydeligere navigation, mindre visuelt støj og hurtigere vej til de sager og kunder, I arbejder med."
+      - label: "Driftsindsigt"
+        title: "Indsigt"
+        description: "Rapporter og nøgletal, der skal gøre det lettere at følge drift og performance uden regneark."
+      - label: "På telefonen"
+        title: "Mobil Workslip"
+        description: "En mere enkel og robust mobil oplevelse, så de vigtigste funktioner er lige ved hånden i marken."
+  - key: upcoming
+    status: "På vej"
+    title: "Det næste lag"
+    description: "Områder vi prioriterer, når vi har lært mere i brug."
+    items:
+      - label: "Selvhjælp"
+        title: "Hjælp & Academy"
+        description: "Et samlet sted for hjælp, vejledning og viden tæt på de funktioner, I bruger."
+      - label: "Sammenhæng"
+        title: "Integrationer, der passer til jeres flow"
+        description: "Vi undersøger, hvordan Workslip bedst kan arbejde sammen med systemerne omkring jer."
+      - label: "Mere ro i driften"
+        title: "Fokus på det, der kræver jer"
+        description: "Mindre administrativt støj og et tydeligere blik på de undtagelser, der behøver handling."
