@@ -3,7 +3,6 @@ using System.Threading.RateLimiting;
 using Azure.Core;
 using Microsoft.ApplicationInsights;
 using Microsoft.Graph;
-using Workslip.Api.Configuration;
 using Workslip.Api.Services;
 using Workslip.Api.Telemetry;
 using Workslip.Application;
