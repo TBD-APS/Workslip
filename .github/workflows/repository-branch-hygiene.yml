@@ -107,7 +107,7 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload hygiene report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: repository-branch-hygiene
           path: artifacts/github/branch-hygiene.tsv
