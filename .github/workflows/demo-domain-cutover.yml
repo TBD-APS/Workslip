@@ -1,0 +1,233 @@
+name: Cut over Workslip Demo Domain
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - Deploy Workslip Demo
+    types:
+      - completed
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: workslip-demo-domain
+  cancel-in-progress: false
+
+jobs:
+  cutover:
+    name: Demo · custom domain
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: demo
+    env:
+      AZURE_RESOURCE_GROUP: rg-mrsoftware-demo
+      DEMO_CONTAINER_APP: ca-workslip-demo
+      DEMO_CONTAINER_ENVIRONMENT: cae-workslip-demo
+      DEMO_CUSTOM_DOMAIN: demo.mrsoftware.dk
+      INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+
+    steps:
+      - name: Verify Azure bootstrap configuration
+        shell: bash
+        env:
+          TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          set -Eeuo pipefail
+          missing=()
+          [[ -n "$INFRA_CLIENT_ID" ]] || missing+=(AZURE_INFRA_CLIENT_ID-or-AZURE_CLIENT_ID)
+          [[ -n "$TENANT_ID" ]] || missing+=(AZURE_TENANT_ID)
+          [[ -n "$SUBSCRIPTION_ID" ]] || missing+=(AZURE_SUBSCRIPTION_ID)
+          if (( ${#missing[@]} > 0 )); then
+            printf '::error::Missing Azure OIDC configuration: %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+      - name: Azure login as infrastructure bootstrap identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ env.INFRA_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure Container Apps CLI support
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az extension add --name containerapp --upgrade --yes --only-show-errors
+
+      - name: Resolve demo domain handoff values
+        id: demo
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          deployment_client_id="$(az identity show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name id-mrsoftware-demo-github \
+            --query clientId \
+            --output tsv)"
+
+          fqdn="$(az containerapp show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$DEMO_CONTAINER_APP" \
+            --query properties.configuration.ingress.fqdn \
+            --output tsv)"
+
+          verification_id="$(az containerapp env show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$DEMO_CONTAINER_ENVIRONMENT" \
+            --query properties.customDomainConfiguration.customDomainVerificationId \
+            --output tsv)"
+
+          [[ -n "$deployment_client_id" ]] || { echo '::error::Dedicated demo deployment identity is missing.'; exit 1; }
+          [[ -n "$fqdn" ]] || { echo '::error::Demo Container App FQDN is missing. Deploy the demo first.'; exit 1; }
+          [[ -n "$verification_id" ]] || { echo '::error::Container Apps domain verification ID is missing.'; exit 1; }
+
+          {
+            echo "deployment_client_id=$deployment_client_id"
+            echo "fqdn=$fqdn"
+            echo "verification_id=$verification_id"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish exact Cloudflare DNS handoff
+        shell: bash
+        env:
+          DEMO_FQDN: ${{ steps.demo.outputs.fqdn }}
+          VERIFICATION_ID: ${{ steps.demo.outputs.verification_id }}
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Cloudflare DNS required for Workslip demo
+
+          Keep the CNAME **DNS only** (Cloudflare proxy disabled) so Azure can issue and renew its managed certificate.
+
+          | Type | Name | Value |
+          | --- | --- | --- |
+          | CNAME | \`demo\` | \`$DEMO_FQDN\` |
+          | TXT | \`asuid.demo\` | \`$VERIFICATION_ID\` |
+
+          The workflow will bind the hostname and managed certificate automatically as soon as public DNS matches these values.
+          EOF
+
+      - name: Logout infrastructure bootstrap identity
+        shell: bash
+        run: az logout
+
+      - name: Azure login as dedicated demo deployment identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.demo.outputs.deployment_client_id }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify public DNS is ready
+        id: dns
+        shell: bash
+        env:
+          DEMO_FQDN: ${{ steps.demo.outputs.fqdn }}
+          VERIFICATION_ID: ${{ steps.demo.outputs.verification_id }}
+        run: |
+          set -Eeuo pipefail
+
+          cname="$(dig +short CNAME "$DEMO_CUSTOM_DOMAIN" | head -n 1 | sed 's/\.$//')"
+          verification_txt="$(dig +short TXT "asuid.$DEMO_CUSTOM_DOMAIN" | head -n 1 | tr -d '"')"
+          caa="$(dig +short CAA mrsoftware.dk || true)"
+
+          echo "Resolved CNAME: ${cname:-<none>}"
+          echo "Resolved verification TXT: ${verification_txt:-<none>}"
+
+          if [[ -n "$caa" ]] && ! grep -Eqi 'issue(wild)?[[:space:]]+"?digicert\.com' <<<"$caa"; then
+            echo '::error::mrsoftware.dk has CAA records but none authorizes DigiCert. Azure managed certificate issuance would fail.'
+            printf '%s\n' "$caa"
+            exit 1
+          fi
+
+          if [[ "$cname" != "$DEMO_FQDN" || "$verification_txt" != "$VERIFICATION_ID" ]]; then
+            echo 'dns_ready=false' >> "$GITHUB_OUTPUT"
+            cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+
+          ### Cutover waiting for DNS
+
+          Public DNS does not yet match the required CNAME/TXT values. No Azure hostname or certificate change was attempted.
+          EOF
+            exit 0
+          fi
+
+          echo 'dns_ready=true' >> "$GITHUB_OUTPUT"
+
+      - name: Bind custom hostname and Azure managed certificate
+        if: ${{ steps.dns.outputs.dns_ready == 'true' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          # `hostname add` is idempotent in intent; if the hostname already exists,
+          # `hostname bind` below remains the authoritative operation and must succeed.
+          az containerapp hostname add \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$DEMO_CONTAINER_APP" \
+            --hostname "$DEMO_CUSTOM_DOMAIN" \
+            --only-show-errors || true
+
+          az containerapp hostname bind \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$DEMO_CONTAINER_APP" \
+            --environment "$DEMO_CONTAINER_ENVIRONMENT" \
+            --hostname "$DEMO_CUSTOM_DOMAIN" \
+            --validation-method CNAME \
+            --only-show-errors
+
+      - name: Smoke-test custom HTTPS hostname
+        if: ${{ steps.dns.outputs.dns_ready == 'true' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          demo_url="https://$DEMO_CUSTOM_DOMAIN"
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error --max-time 15 "$demo_url/login" >/dev/null; then
+              break
+            fi
+            if [[ "$attempt" == 30 ]]; then
+              echo '::error::Custom demo hostname did not become healthy over HTTPS in time.'
+              exit 1
+            fi
+            sleep 10
+          done
+
+          token_response="$(curl --fail --silent --show-error \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            "$demo_url/api/demo/token")"
+          token="$(printf '%s' "$token_response" | jq -r '.token // empty')"
+          [[ -n "$token" ]] || { echo '::error::Custom demo hostname did not return a demo token.'; exit 1; }
+
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $token" \
+            "$demo_url/api/auth/me" >/dev/null
+
+          prod_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            https://app.mrsoftware.dk/api/demo/token || true)"
+          if [[ "$prod_status" == '200' ]]; then
+            echo '::error::Production unexpectedly exposes the demo token endpoint.'
+            exit 1
+          fi
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+
+          ## Demo custom domain secured
+
+          - URL: $demo_url
+          - HTTPS: passed
+          - Demo token: passed
+          - Authenticated \`/api/auth/me\`: passed
+          - Production demo-token isolation: passed (HTTP $prod_status)
+
+          The marketing/store routing can now advertise \`demo.mrsoftware.dk\`.
+          EOF
