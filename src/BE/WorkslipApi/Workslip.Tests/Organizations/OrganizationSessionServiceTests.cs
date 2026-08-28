@@ -160,6 +160,12 @@ public sealed class OrganizationSessionServiceTests
             string expectedEntraId,
             CancellationToken cancellationToken) =>
             Task.FromResult(false);
+
+        public Task<bool> UpdateAccountingProviderAsync(
+            Guid organizationId,
+            string? providerId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(true);
     }
 
     private sealed class FakeUserRepository(UserDataRow? user) : IUserRepository

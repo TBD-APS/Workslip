@@ -356,6 +356,12 @@ public sealed class OrganizationServiceTests
         public Task<OrganizationRow?> GetOrganizationAsync(Guid organizationId, CancellationToken cancellationToken) =>
             Task.FromResult(Organization?.Id == organizationId ? Organization : null);
 
+        public Task<bool> UpdateAccountingProviderAsync(
+            Guid organizationId,
+            string? providerId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(true);
+
         public Task<UserDataRow?> GetUserByEmailAsync(string normalizedEmail, CancellationToken cancellationToken)
         {
             if (EmailResults.Count > 0)
