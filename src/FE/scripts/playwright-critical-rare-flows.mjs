@@ -188,10 +188,16 @@ async function verifyUserPermissionBoundaries() {
     await expectRoute(page, '/app/customers');
 
     await page.locator('#bottom-nav-customers').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    const docsNavigation = page.locator('#bottom-nav-docs');
-    assert.equal(await docsNavigation.count(), 1, 'User navigation must expose the permitted Docs destination.');
-    await docsNavigation.scrollIntoViewIfNeeded();
-    await docsNavigation.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal(
+      await page.locator('#bottom-nav-docs').count(),
+      1,
+      'The Docs navigation link must remain mounted so its field-worker presentation policy can be asserted.',
+    );
+    assert.equal(
+      await page.locator('#bottom-nav-docs').isVisible(),
+      false,
+      'Docs is intentionally absent from the field-worker primary navigation; it remains an authorized direct route.',
+    );
     assert.equal(await page.locator('#bottom-nav-people').count(), 0, 'User navigation must not expose user management.');
 
     await page.locator('#account-menu-button').click();
@@ -202,6 +208,7 @@ async function verifyUserPermissionBoundaries() {
     await page.keyboard.press('Escape');
 
     await navigateAndExpect(page, '/app/timer', '/app/timer');
+    await navigateAndExpect(page, '/app/docs', '/app/docs');
     await navigateAndExpect(page, '/app/settings', '/app');
     await navigateAndExpect(page, '/app/users', '/app');
     await navigateAndExpect(page, '/app/auditor', '/app');
