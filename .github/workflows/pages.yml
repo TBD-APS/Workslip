@@ -6,6 +6,11 @@ on:
     paths:
       - "site/**"
       - ".github/workflows/pages.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
@@ -14,37 +19,98 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: website-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       BUNDLE_FROZEN: "true"
     steps:
       - uses: actions/checkout@v7
+
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
           bundler-cache: true
           working-directory: site
+
       - name: Compile output validator
         run: python -m py_compile site/scripts/validate_output.py
-      - id: pages
+
+      - name: Setup Pages
+        if: github.event_name != 'pull_request'
+        id: pages
         uses: actions/configure-pages@v6
-      - name: Build Jekyll site
+
+      - name: Build Jekyll preview
+        if: github.event_name == 'pull_request'
+        working-directory: site
+        run: bundle exec jekyll build --strict_front_matter
+        env:
+          JEKYLL_ENV: production
+
+      - name: Build Jekyll production artifact
+        if: github.event_name != 'pull_request'
         working-directory: site
         run: bundle exec jekyll build --strict_front_matter --baseurl "${{ steps.pages.outputs.base_path }}"
         env:
           JEKYLL_ENV: production
-      - name: Validate generated Pages output
+
+      - name: Validate pull-request output
+        if: github.event_name == 'pull_request'
+        run: python site/scripts/validate_output.py site/_site
+
+      - name: Validate Pages output
+        if: github.event_name != 'pull_request'
         run: python site/scripts/validate_output.py site/_site "${{ steps.pages.outputs.base_path }}"
-      - uses: actions/upload-pages-artifact@v5
+
+      - name: Upload built pull-request site
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-preview-pr-${{ github.event.pull_request.number }}
+          path: site/_site
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Install browser preview runtime
+        if: github.event_name == 'pull_request'
+        run: |
+          mkdir -p /tmp/workslip-site-playwright
+          cd /tmp/workslip-site-playwright
+          npm init -y
+          npm install playwright@1.55.0
+          npx playwright install --with-deps chromium
+          echo "NODE_PATH=/tmp/workslip-site-playwright/node_modules" >> "$GITHUB_ENV"
+
+      - name: Run module-builder browser preview
+        if: github.event_name == 'pull_request'
+        run: |
+          python -m http.server 4000 --bind 127.0.0.1 --directory site/_site >/tmp/workslip-site-preview.log 2>&1 &
+          echo $! > /tmp/workslip-site-preview.pid
+          curl --fail --retry 20 --retry-connrefused --retry-delay 1 http://127.0.0.1:4000/ >/dev/null
+          node site/scripts/capture_module_builder_preview.cjs
+
+      - name: Upload browser preview evidence
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: module-builder-browser-preview-pr-${{ github.event.pull_request.number }}
+          path: site-preview-artifacts
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site/_site
 
   deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
