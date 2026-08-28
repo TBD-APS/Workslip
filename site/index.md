@@ -1,48 +1,24 @@
 ---
 title: Workslip
 description: Saml planlægning, registrering og godkendelse af arbejde ét sted.
+module_builder: true
 ---
 
-<section class="hero">
-  <div class="hero-glow hero-glow-one" aria-hidden="true"></div>
-  <div class="hero-glow hero-glow-two" aria-hidden="true"></div>
-  <div class="container hero-grid">
+<section class="hero hero-fullscreen">
+  <div class="hero-video-layer" aria-hidden="true">
+    <video class="hero-video" autoplay muted loop playsinline preload="metadata" poster="{{ '/assets/video/workslip-hero-poster.jpg' | relative_url }}">
+      <source src="{{ '/assets/video/workslip-hero-video.mp4' | relative_url }}" type="video/mp4">
+    </video>
+  </div>
+  <div class="container hero-fullscreen-content">
     <div class="hero-copy">
       <p class="eyebrow"><span class="pulse-dot" aria-hidden="true"></span> Workslip for virksomheder i marken</p>
-      <h1>Giv din <span>forretning</span> superkræfter nu.</h1>
-      <p class="lead">Saml opgaver, timer, noter og godkendelser i én enkel arbejdsgang – så dit team kan bruge mindre tid på administration og mere tid på arbejdet, der flytter forretningen.</p>
+      <h1>Få styr på arbejdet. <span>Uden at miste tempoet.</span></h1>
+      <p class="lead">Planlæg, registrér og godkend arbejdet, mens det sker. Workslip samler teamet i marken og kontoret i ét klart flow.</p>
       <div class="actions">
-        <a class="button" href="{{ '/features/' | relative_url }}">Udforsk Workslip <span aria-hidden="true">→</span></a>
-        <a class="text-link" href="{{ '/demo/' | relative_url }}">Prøv demoen – uden login <span aria-hidden="true">↗</span></a>
+        <a class="button" href="{{ '/demo/' | relative_url }}">Prøv demoen <span aria-hidden="true">→</span></a>
+        <a class="button hero-secondary-button" href="{{ '/features/' | relative_url }}">Se funktionerne</a>
       </div>
-      <div class="hero-proof" aria-label="Workslips centrale arbejdsgange">
-        <span>Planlægning</span><i aria-hidden="true"></i><span>Registrering</span><i aria-hidden="true"></i><span>Godkendelse</span>
-      </div>
-    </div>
-
-    <div class="product-showcase" aria-hidden="true">
-      <div class="showcase-orbit orbit-one"></div>
-      <div class="showcase-orbit orbit-two"></div>
-      <div class="product-window">
-        <div class="window-bar"><span></span><span></span><span></span><div class="window-search"></div></div>
-        <div class="workspace">
-          <aside class="workspace-rail"><b>M</b><i></i><i></i><i></i><i></i></aside>
-          <div class="workspace-content">
-            <div class="workspace-heading"><div><small>Overblik</small><strong>Godmorgen, Mads</strong></div><span class="avatar">M</span></div>
-            <div class="metric-row">
-              <div class="metric-card"><small>Aktive opgaver</small><strong>24</strong><span class="up">+12%</span></div>
-              <div class="metric-card"><small>Afventer godkendelse</small><strong>08</strong><span class="soft-dot"></span></div>
-            </div>
-            <div class="activity-card">
-              <div class="activity-title"><strong>Dagens arbejde</strong><span>Se alle</span></div>
-              <div class="activity-item"><span class="task-icon cyan"></span><div><strong>Serviceeftersyn</strong><small>Hansen &amp; Søn</small></div><b>09:30</b></div>
-              <div class="activity-item"><span class="task-icon violet"></span><div><strong>Montering</strong><small>Nordic Byg</small></div><b>11:15</b></div>
-              <div class="activity-item"><span class="task-icon orange"></span><div><strong>Dokumentation</strong><small>Vestergaard ApS</small></div><b>13:45</b></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="floating-status"><span class="status-icon">✓</span><div><small>Opdateret</small><strong>Arbejdsseddel godkendt</strong></div></div>
     </div>
   </div>
 </section>
@@ -53,6 +29,8 @@ description: Saml planlægning, registrering og godkendelse af arbejde ét sted.
     <span>Opgaver</span><span>Timer</span><span>Noter</span><span>Godkendelser</span>
   </div>
 </section>
+
+{% include module-builder.html %}
 
 <section class="section workflow-section">
   <div class="container">

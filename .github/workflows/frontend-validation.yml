@@ -8,6 +8,9 @@ on:
       - rbj--622-playwright-coverage
       - 'release-*'
       - 'release/**'
+    paths-ignore:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   merge_group:
     types: [checks_requested]
@@ -16,6 +19,9 @@ on:
       - main
       - 'release-*'
       - 'release/**'
+    paths-ignore:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
 
 permissions:
   contents: write
@@ -97,7 +103,7 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ env.DOTNET_VERSION }}-${{ hashFiles('src/BE/**/*.csproj', 'src/BE/**/*.props', 'src/BE/**/*.targets', 'Directory.*', 'global.json', 'NuGet.config') }}
@@ -198,7 +204,7 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ env.DOTNET_VERSION }}-${{ hashFiles('src/BE/**/*.csproj', 'src/BE/**/*.props', 'src/BE/**/*.targets', 'Directory.*', 'global.json', 'NuGet.config') }}
@@ -262,7 +268,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ env.DOTNET_VERSION }}-${{ hashFiles('src/BE/**/*.csproj', 'src/BE/**/*.props', 'src/BE/**/*.targets', 'Directory.*', 'global.json', 'NuGet.config') }}
@@ -298,14 +304,14 @@ jobs:
           cache: npm
           cache-dependency-path: src/FE/package-lock.json
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ env.DOTNET_VERSION }}-${{ hashFiles('src/BE/**/*.csproj', 'src/BE/**/*.props', 'src/BE/**/*.targets', 'Directory.*', 'global.json', 'NuGet.config') }}
           restore-keys: |
             nuget-${{ runner.os }}-${{ env.DOTNET_VERSION }}-
       - name: Cache Playwright Chromium
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}

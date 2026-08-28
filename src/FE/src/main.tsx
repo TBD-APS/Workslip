@@ -3,12 +3,15 @@ import { createRoot } from 'react-dom/client';
 import './base.css';
 import App from './App.tsx';
 import { initializeApplicationInsights, installGlobalApplicationInsightsHandlers } from './applicationInsights';
+import { CrossSiteNav } from './components/common/CrossSiteNav';
 import { isJobFamilyQueryKey } from './lib/jobQueryKeys';
 import { NOTIFICATION_QUERY_PREFIX } from './lib/notificationQueryKeys';
 import { scheduleAfterInitialLoad, scheduleDeferredTelemetry } from './lib/scheduleAfterInitialLoad';
 import { queryClient } from './lib/react-query';
 import { installNotificationNavigationHandler, installNotificationReceivedInvalidator } from './pwa/notificationNavigationClient';
 import { router } from './routes';
+
+const demoModeEnabled = import.meta.env.VITE_DEMO_MODE === 'true';
 
 if (typeof window !== 'undefined') {
   // Install lightweight handlers before React renders. Errors are sanitized and
@@ -54,7 +57,16 @@ if (typeof window !== 'undefined') {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    {demoModeEnabled ? (
+      <>
+        <CrossSiteNav />
+        <div className="cross-site-app-offset">
+          <App />
+        </div>
+      </>
+    ) : (
+      <App />
+    )}
   </StrictMode>,
 );
 
