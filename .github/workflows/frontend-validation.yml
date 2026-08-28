@@ -8,9 +8,6 @@ on:
       - rbj--622-playwright-coverage
       - 'release-*'
       - 'release/**'
-    paths-ignore:
-      - 'site/**'
-      - '.github/workflows/pages.yml'
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   merge_group:
     types: [checks_requested]
@@ -19,9 +16,6 @@ on:
       - main
       - 'release-*'
       - 'release/**'
-    paths-ignore:
-      - 'site/**'
-      - '.github/workflows/pages.yml'
 
 permissions:
   contents: write
@@ -61,8 +55,8 @@ jobs:
         run: |
           set -Eeuo pipefail
           # Main/release pushes and merge-group candidates remain full regression gates.
-          # Impact routing only shortens PR feedback; uncertainty always falls back
-          # to the full suite.
+          # Impact routing only shortens pull-request feedback; uncertainty always
+          # falls back to the full suite.
           if [[ "${EVENT_NAME}" != 'pull_request' ]]; then
             printf 'code=true\nbackend=true\nfrontend=true\nintegration=true\n' >> "${GITHUB_OUTPUT}"
             exit 0
@@ -78,6 +72,7 @@ jobs:
           while IFS= read -r f; do
             [[ -z "${f}" ]] && continue
             case "${f}" in
+              site/**) continue ;;
               *.md|*.markdown|*.mdx|*.txt|*.rst|*.adoc|Docs/*|docs/*|LICENSE|CHANGELOG*) continue ;;
             esac
             code=true
