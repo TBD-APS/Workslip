@@ -21,30 +21,12 @@ module_builder: true
       </div>
     </div>
 
-    <div class="product-showcase" aria-hidden="true">
-      <div class="showcase-orbit orbit-one"></div>
-      <div class="showcase-orbit orbit-two"></div>
-      <div class="product-window">
-        <div class="window-bar"><span></span><span></span><span></span><div class="window-search"></div></div>
-        <div class="workspace">
-          <aside class="workspace-rail"><b>M</b><i></i><i></i><i></i><i></i></aside>
-          <div class="workspace-content">
-            <div class="workspace-heading"><div><small>Overblik</small><strong>Godmorgen, Mads</strong></div><span class="avatar">M</span></div>
-            <div class="metric-row">
-              <div class="metric-card"><small>Aktive opgaver</small><strong>24</strong><span class="up">+12%</span></div>
-              <div class="metric-card"><small>Afventer godkendelse</small><strong>08</strong><span class="soft-dot"></span></div>
-            </div>
-            <div class="activity-card">
-              <div class="activity-title"><strong>Dagens arbejde</strong><span>Se alle</span></div>
-              <div class="activity-item"><span class="task-icon cyan"></span><div><strong>Serviceeftersyn</strong><small>Hansen &amp; Søn</small></div><b>09:30</b></div>
-              <div class="activity-item"><span class="task-icon violet"></span><div><strong>Montering</strong><small>Nordic Byg</small></div><b>11:15</b></div>
-              <div class="activity-item"><span class="task-icon orange"></span><div><strong>Dokumentation</strong><small>Vestergaard ApS</small></div><b>13:45</b></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="floating-status"><span class="status-icon">✓</span><div><small>Opdateret</small><strong>Arbejdsseddel godkendt</strong></div></div>
-    </div>
+    <figure class="hero-video-showcase">
+      <video class="hero-video" autoplay muted loop playsinline preload="metadata" poster="{{ '/assets/video/workslip-hero-poster.jpg' | relative_url }}" aria-label="En montør bruger Workslip ved sin varebil">
+        <source src="{{ '/assets/video/workslip-hero-video.mp4' | relative_url }}" type="video/mp4">
+      </video>
+      <figcaption class="hero-video-caption"><span class="status-icon" aria-hidden="true">✓</span><span><small>Workslip i marken</small><strong>Planlagt, registreret og klar</strong></span></figcaption>
+    </figure>
   </div>
 </section>
 
