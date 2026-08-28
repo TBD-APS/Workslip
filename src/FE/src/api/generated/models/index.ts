@@ -32,6 +32,8 @@ export * from './conversationActionStatus';
 export * from './conversationActionType';
 export * from './conversationMessageResponse';
 export * from './conversationParticipantResponse';
+export * from './createCheckoutRequest';
+export * from './createCheckoutResponse';
 export * from './createConversationMessageRequest';
 export * from './createCustomerRequest';
 export * from './createDocumentRequest';
