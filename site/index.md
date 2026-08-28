@@ -4,29 +4,22 @@ description: Saml planlægning, registrering og godkendelse af arbejde ét sted.
 module_builder: true
 ---
 
-<section class="hero">
-  <div class="hero-glow hero-glow-one" aria-hidden="true"></div>
-  <div class="hero-glow hero-glow-two" aria-hidden="true"></div>
-  <div class="container hero-grid">
+<section class="hero hero-fullscreen">
+  <div class="hero-video-layer" aria-hidden="true">
+    <video class="hero-video" autoplay muted loop playsinline preload="metadata" poster="{{ '/assets/video/workslip-hero-poster.jpg' | relative_url }}">
+      <source src="{{ '/assets/video/workslip-hero-video.mp4' | relative_url }}" type="video/mp4">
+    </video>
+  </div>
+  <div class="container hero-fullscreen-content">
     <div class="hero-copy">
       <p class="eyebrow"><span class="pulse-dot" aria-hidden="true"></span> Workslip for virksomheder i marken</p>
-      <h1>Giv din <span>forretning</span> superkræfter nu.</h1>
-      <p class="lead">Saml opgaver, timer, noter og godkendelser i én enkel arbejdsgang – så dit team kan bruge mindre tid på administration og mere tid på arbejdet, der flytter forretningen.</p>
+      <h1>Få styr på arbejdet. <span>Uden at miste tempoet.</span></h1>
+      <p class="lead">Planlæg, registrér og godkend arbejdet, mens det sker. Workslip samler teamet i marken og kontoret i ét klart flow.</p>
       <div class="actions">
-        <a class="button" href="{{ '/features/' | relative_url }}">Udforsk Workslip <span aria-hidden="true">→</span></a>
-        <a class="text-link" href="{{ '/demo/' | relative_url }}">Prøv demoen – uden login <span aria-hidden="true">↗</span></a>
-      </div>
-      <div class="hero-proof" aria-label="Workslips centrale arbejdsgange">
-        <span>Planlægning</span><i aria-hidden="true"></i><span>Registrering</span><i aria-hidden="true"></i><span>Godkendelse</span>
+        <a class="button" href="{{ '/demo/' | relative_url }}">Prøv demoen <span aria-hidden="true">→</span></a>
+        <a class="button hero-secondary-button" href="{{ '/features/' | relative_url }}">Se funktionerne</a>
       </div>
     </div>
-
-    <figure class="hero-video-showcase">
-      <video class="hero-video" autoplay muted loop playsinline preload="metadata" poster="{{ '/assets/video/workslip-hero-poster.jpg' | relative_url }}" aria-label="En montør bruger Workslip ved sin varebil">
-        <source src="{{ '/assets/video/workslip-hero-video.mp4' | relative_url }}" type="video/mp4">
-      </video>
-      <figcaption class="hero-video-caption"><span class="status-icon" aria-hidden="true">✓</span><span><small>Workslip i marken</small><strong>Planlagt, registreret og klar</strong></span></figcaption>
-    </figure>
   </div>
 </section>
 
