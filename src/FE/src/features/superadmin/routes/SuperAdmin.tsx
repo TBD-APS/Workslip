@@ -130,7 +130,7 @@ export function SuperAdmin() {
     }
   };
 
-  const handleUpdateAccountingProvider = async (input: { organizationId: string; providerId: string | null }) => {
+  const handleUpdateAccountingProvider = async (input: { organizationId: string; providerId: string | null; agreementGrantToken?: string | null; appSecretToken?: string | null }) => {
     setAccountingProviderError(null);
 
     try {

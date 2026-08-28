@@ -27,6 +27,7 @@ using Workslip.Infrastructure.Operations;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Application.Integrations;
 using Workslip.Application.LeaderAnalysis;
+using Workslip.Infrastructure.Integrations;
 using Workslip.Infrastructure.Reporting;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
@@ -153,6 +154,8 @@ public static class DependencyInjection
         services.AddScoped<IPushSender, WebPushSender>();
         services.AddScoped<PushNotificationProcessor>();
 
+        services.AddDataProtection();
+        services.AddScoped<IAccountingTokenStore, EncryptedOrganizationTokenStore>();
         services.AddScoped<IIntegrationEngine, IntegrationEngine>();
         services.AddScoped<IIntegrationProvider, MockAccountingProvider>();
         services.AddScoped<IAccountingProvider, MockAccountingProvider>();

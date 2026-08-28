@@ -60,6 +60,8 @@ describe('OrganizationAccountingProviderForm', () => {
       expect(onSubmit).toHaveBeenCalledWith({
         organizationId: 'org-2',
         providerId: 'mock',
+        agreementGrantToken: null,
+        appSecretToken: null,
       });
     });
   });
@@ -87,6 +89,8 @@ describe('OrganizationAccountingProviderForm', () => {
       expect(onSubmit).toHaveBeenCalledWith({
         organizationId: 'org-1',
         providerId: null,
+        agreementGrantToken: null,
+        appSecretToken: null,
       });
     });
   });

@@ -19,7 +19,14 @@ public sealed class EconomicsProviderTests
     private EconomicsProvider CreateProvider(HttpMessageHandler handler)
     {
         var factory = new FakeHttpClientFactory(handler);
-        return new EconomicsProvider(factory);
+        return new EconomicsProvider(factory, new FakeAccountingTokenStore());
+    }
+
+    private sealed class FakeAccountingTokenStore : IAccountingTokenStore
+    {
+        public Task<AccountingTokens> GetAsync(Guid organizationId, CancellationToken cancellationToken) =>
+            Task.FromResult(new AccountingTokens(null, null));
+        public Task SetAsync(Guid organizationId, string? agreementGrantToken, string? appSecretToken, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     [Fact]
@@ -53,12 +60,11 @@ public sealed class EconomicsProviderTests
     [Fact]
     public async Task GetDocumentsForUserAsync_MapsJsonCorrectly_WhenApiReturnsInvoices()
     {
-        // Arrange
-        var invId = Guid.NewGuid();
-        var json = @"[
-            { ""Id"": """ + invId + @""", ""Number"": ""INV-001"", ""Amount"": 1234.56, ""Date"": ""2023-01-01"" },
-            { ""Id"": """ + Guid.NewGuid() + @""", ""Number"": ""INV-002"", ""Amount"": 678.90, ""Date"": ""2023-01-02"" }
-        ]";
+        // Arrange — e-conomic demo returns { collection: [...] } from /invoices/booked
+        var json = @"{ ""collection"": [
+            { ""bookedInvoiceNumber"": 1, ""orderNumber"": 1, ""date"": ""2022-06-02"", ""currency"": ""DKK"", ""netAmount"": 70.00, ""grossAmount"": 87.50, ""vatAmount"": 17.50, ""remainder"": 0.00 },
+            { ""bookedInvoiceNumber"": 2, ""orderNumber"": 2, ""date"": ""2022-06-03"", ""currency"": ""DKK"", ""netAmount"": 1234.56, ""grossAmount"": 1500.00, ""vatAmount"": 265.44, ""remainder"": 100.00 }
+        ] }";
         var handler = new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json")
@@ -68,13 +74,47 @@ public sealed class EconomicsProviderTests
         // Act
         var docs = (await provider.GetDocumentsForUserAsync("t", "u", "s", "e")).ToList();
 
-        // Assert
+        // Assert — 1:1 mapping, beløb skal passe perfekt (netAmount)
         Assert.Equal(2, docs.Count);
         var first = docs.First();
-        Assert.Equal(invId.ToString(), first.DocumentId);
-        Assert.Equal("INV-001", first.DocumentNumber);
-        Assert.Equal(1234.56m, first.Amount);
+        Assert.Equal("1", first.DocumentId);
+        Assert.Equal("FAK-0001", first.DocumentNumber);
+        Assert.Equal(70.00m, first.Amount);
         Assert.Equal("Invoice", first.Type);
+        Assert.Equal("Paid", first.Status); // remainder 0 => Paid
+        Assert.Equal("2022-06-02", first.Date);
+        Assert.Equal("https://restapi.e-conomic.com/invoices/booked/1", first.ExternalLink);
+
+        var second = docs.Skip(1).First();
+        Assert.Equal("2", second.DocumentId);
+        Assert.Equal("FAK-0002", second.DocumentNumber);
+        Assert.Equal(1234.56m, second.Amount);
+        Assert.Equal("Unpaid", second.Status); // remainder !=0
+    }
+
+    [Fact]
+    public async Task GetDocumentsForUserAsync_ReturnsEmpty_WhenCollectionIsEmpty()
+    {
+        var json = @"{ ""collection"": [] }";
+        var handler = new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        });
+        var provider = CreateProvider(handler);
+        var docs = await provider.GetDocumentsForUserAsync("t", "u", "s", "e");
+        Assert.Empty(docs);
+    }
+
+    [Fact]
+    public async Task GetDocumentsForUserAsync_ReturnsEmpty_WhenJsonIsInvalid()
+    {
+        var handler = new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("not-json", Encoding.UTF8, "application/json")
+        });
+        var provider = CreateProvider(handler);
+        var docs = await provider.GetDocumentsForUserAsync("t", "u", "s", "e");
+        Assert.Empty(docs);
     }
 
     [Fact]

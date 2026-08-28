@@ -117,7 +117,7 @@ describe('Superadmin API', () => {
 
     expect(apiClient.put).toHaveBeenCalledWith(
       '/api/organizations/organization-1/accounting-provider',
-      { providerId: 'economics' },
+      { providerId: 'economics', agreementGrantToken: null, appSecretToken: null },
       { skipGlobalErrorToast: true },
     );
 
@@ -128,7 +128,24 @@ describe('Superadmin API', () => {
 
     expect(apiClient.put).toHaveBeenCalledWith(
       '/api/organizations/organization-2/accounting-provider',
-      { providerId: null },
+      { providerId: null, agreementGrantToken: null, appSecretToken: null },
+      { skipGlobalErrorToast: true },
+    );
+  });
+
+  it('sends economics tokens when provider is economics', async () => {
+    vi.mocked(apiClient.put).mockResolvedValue(undefined);
+
+    await updateOrganizationAccountingProvider({
+      organizationId: 'org-1',
+      providerId: 'economics',
+      agreementGrantToken: ' grant-123 ',
+      appSecretToken: ' secret-456 ',
+    });
+
+    expect(apiClient.put).toHaveBeenCalledWith(
+      '/api/organizations/org-1/accounting-provider',
+      { providerId: 'economics', agreementGrantToken: 'grant-123', appSecretToken: 'secret-456' },
       { skipGlobalErrorToast: true },
     );
   });

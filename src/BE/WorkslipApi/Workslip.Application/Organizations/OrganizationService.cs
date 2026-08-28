@@ -2,6 +2,7 @@ using Ardalis.Result;
 using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.Extensions.Logging;
+using Workslip.Application.Integrations;
 using Workslip.Application.Users;
 using Workslip.Domain;
 using Workslip.Domain.Models;
@@ -31,6 +32,7 @@ public sealed class OrganizationService(
     IValidator<CreateOrganizationRequest> createOrganizationValidator,
     IValidator<UpsertOrganizationAdminRequest> upsertAdminValidator,
     IUserEntraService entraService,
+    IAccountingTokenStore accountingTokenStore,
     ILogger<OrganizationService> logger) : IOrganizationService
 {
     public async Task<Result<IReadOnlyList<OrganizationResponse>>> ListAsync(CancellationToken cancellationToken)
@@ -198,6 +200,17 @@ public sealed class OrganizationService(
         if (!updated)
         {
             return Result.NotFound();
+        }
+
+        // Gem evt. e-conomic nøgler i Key Vault / krypteret DB (hullet)
+        if (request.ProviderId == "economics" && (!string.IsNullOrWhiteSpace(request.AgreementGrantToken) || !string.IsNullOrWhiteSpace(request.AppSecretToken)))
+        {
+            await accountingTokenStore.SetAsync(organizationId, request.AgreementGrantToken, request.AppSecretToken, cancellationToken);
+        }
+        else if (string.IsNullOrWhiteSpace(request.ProviderId))
+        {
+            // Ingen provider → ryd nøgler
+            await accountingTokenStore.SetAsync(organizationId, null, null, cancellationToken);
         }
 
         return Result.Success();
