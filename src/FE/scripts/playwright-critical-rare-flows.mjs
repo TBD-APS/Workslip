@@ -188,7 +188,10 @@ async function verifyUserPermissionBoundaries() {
     await expectRoute(page, '/app/customers');
 
     await page.locator('#bottom-nav-customers').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    await page.locator('#bottom-nav-docs').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    const docsNavigation = page.locator('#bottom-nav-docs');
+    assert.equal(await docsNavigation.count(), 1, 'User navigation must expose the permitted Docs destination.');
+    await docsNavigation.scrollIntoViewIfNeeded();
+    await docsNavigation.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     assert.equal(await page.locator('#bottom-nav-people').count(), 0, 'User navigation must not expose user management.');
 
     await page.locator('#account-menu-button').click();
