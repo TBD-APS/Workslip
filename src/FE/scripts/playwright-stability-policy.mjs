@@ -14,7 +14,6 @@ const BLOCKING_SCENARIOS = new Set([
   'playwright-duplicate-assignment-lifecycle.mjs',
   'playwright-copyability-lifecycle.mjs',
   'playwright-shared-state-semantics.mjs',
-  'playwright-overview-status-navigation.mjs',
   'playwright-critical-domain.mjs',
   'playwright-critical-contract.mjs',
 ]);
