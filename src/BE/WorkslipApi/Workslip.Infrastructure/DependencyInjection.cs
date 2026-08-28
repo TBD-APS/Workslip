@@ -161,6 +161,7 @@ public static class DependencyInjection
         services.AddScoped<IAccountingProvider, EconomicsProvider>();
         services.AddScoped<IDocumentSyncService, DocumentSyncService>();
         services.AddScoped<ILeaderEconomicsService, LeaderEconomicsService>();
+
         if (includeHostedServices)
         {
             services.AddHostedService<JobDeletionCleanupService>();
@@ -172,16 +173,6 @@ public static class DependencyInjection
         services.AddOptions<VapidOptions>()
             .Configure<IConfiguration>((options, config) =>
                 config.GetSection(VapidOptions.SectionName).Bind(options));
-
-        services.AddOptions<ShopifyPaymentOptions>()
-            .Configure<IConfiguration>((options, config) =>
-                config.GetSection(ShopifyPaymentOptions.SectionName).Bind(options));
-
-        services.AddHttpClient<IPaymentProvider, ShopifyPaymentProvider>(client =>
-        {
-            client.Timeout = TimeSpan.FromSeconds(30);
-            client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-        });
 
         return services;
     }
