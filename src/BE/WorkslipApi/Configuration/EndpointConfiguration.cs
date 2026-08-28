@@ -34,6 +34,7 @@ public static class EndpointConfiguration
         app.MapCacheEndpoints();
         app.MapDiagnosticsEndpoints();
         app.MapControlCenterEndpoints();
+        app.MapPaymentEndpoints();
 
         return app;
     }
