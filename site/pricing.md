@@ -2,6 +2,7 @@
 title: Priser
 description: Byg jeres Workslip-løsning og betal kun for de moduler, I vælger.
 pricing: true
+permalink: /pricing/
 ---
 
 <section class="pricing-hero">
