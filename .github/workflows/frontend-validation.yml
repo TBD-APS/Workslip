@@ -8,6 +8,9 @@ on:
       - rbj--622-playwright-coverage
       - 'release-*'
       - 'release/**'
+    paths-ignore:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   merge_group:
     types: [checks_requested]
@@ -16,6 +19,9 @@ on:
       - main
       - 'release-*'
       - 'release/**'
+    paths-ignore:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
 
 permissions:
   contents: write

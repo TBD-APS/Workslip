@@ -79,11 +79,11 @@ python site/scripts/validate_output.py site/_site
 
 The validator checks required pages, one H1 and one `main-content` landmark per generated HTML page, plus local links and assets.
 
-There is currently no dedicated pull-request workflow that builds the Jekyll site. The normal documentation checker covers the maintained Markdown surface, while a site-affecting change still requires the local Jekyll build/output validation above until equivalent PR automation is introduced.
+Pull requests that only change `site/**` or `.github/workflows/pages.yml` use the dedicated **Static site fast lane**: strict Jekyll build plus generated-output/link validation. They do not run Workslip backend tests, frontend-app build/tests, Postman or app Playwright. Pull-request runs never deploy GitHub Pages.
 
 ## Deployment
 
-Pushes to `main` that change `site/**` or `.github/workflows/pages.yml` run `.github/workflows/pages.yml`. That workflow builds the Jekyll site with strict front matter, validates the generated output and deploys through the `github-pages` environment. It can also be started manually through `workflow_dispatch`.
+Pushes to `main` that change `site/**` or `.github/workflows/pages.yml` run `.github/workflows/pages.yml`. That workflow builds the Jekyll site with strict front matter, validates the generated output and deploys through the `github-pages` environment. It can also be started manually through `workflow_dispatch`, but production deployment is hard-gated to `main`.
 
 The canonical marketing-site domain is `https://mrsoftware.dk`. GitHub Pages must use **GitHub Actions** as its source, and the repository Pages setting must use `mrsoftware.dk` as the custom domain. DNS, HTTPS and rollback steps are documented in `Docs/operations/github-pages-domain-runbook.md`.
 
