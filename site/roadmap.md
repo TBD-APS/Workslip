@@ -36,4 +36,4 @@ Rapporter og nøgletal, der skal gøre det lettere at følge drift, performance 
 
 ## Hvad sker der derefter?
 
-Vi opdaterer siden, når et område skifter status eller når vi kan stå inde for et konkret produktforløb. Vil I påvirke prioriteringen, så [prøv den guidede demo]({{ '/demo/' | relative_url }}) og fortæl os, hvor jeres arbejdsgang i dag mister tid eller overblik.
+Vi opdaterer siden, når et område skifter status eller når vi kan stå inde for et konkret produktforløb. Vil I påvirke prioriteringen, så <a href="{{ '/demo/' | relative_url }}">prøv den guidede demo</a> og fortæl os, hvor jeres arbejdsgang i dag mister tid eller overblik.
