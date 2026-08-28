@@ -1,0 +1,43 @@
+name: Patch main CI concurrency once
+
+on:
+  push:
+    branches:
+      - fix/ci-cancel-superseded-main-v2
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Cancel superseded CI runs on main too
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/frontend-validation.yml')
+          text = path.read_text()
+          old = "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}"
+          if old not in text:
+              raise SystemExit('expected concurrency policy not found')
+          path.write_text(text.replace(old, '  cancel-in-progress: true', 1))
+          PY
+
+      - name: Commit patch and remove one-shot workflow
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm .github/workflows/patch-main-ci-concurrency-once.yml
+          git config user.name 'MR Software automation'
+          git config user.email 'automation@mrsoftware.dk'
+          git add .github/workflows/frontend-validation.yml .github/workflows/patch-main-ci-concurrency-once.yml
+          git commit -m 'Cancel superseded main CI runs'
+          git push origin HEAD:${GITHUB_REF_NAME}
