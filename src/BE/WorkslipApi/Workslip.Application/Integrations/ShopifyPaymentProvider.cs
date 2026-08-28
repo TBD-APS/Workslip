@@ -1,35 +1,61 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Globalization;
+using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
-using Workslip.Application.Integrations;
 
 namespace Workslip.Application.Integrations;
 
-public class ShopifyPaymentOptions
+public sealed class ShopifyPaymentOptions
 {
     public const string SectionName = "ShopifyPayment";
+
+    public bool EnableHostedCheckout { get; set; }
     public string ShopDomain { get; set; } = string.Empty;
-    public string AccessToken { get; set; } = string.Empty;
-    public string ApiVersion { get; set; } = "2024-01";
-    public string WebhookSecret { get; set; } = string.Empty;
+    public string StorefrontPrivateAccessToken { get; set; } = string.Empty;
+    public string ProductVariantId { get; set; } = string.Empty;
+    public string ApiVersion { get; set; } = "2026-01";
 }
 
-public class ShopifyPaymentProvider : IPaymentProvider
+public sealed class ShopifyPaymentProvider : IPaymentProvider
 {
-    private readonly IHttpClientFactory _httpClientFactory;
+    private const string StorefrontPrivateTokenHeader = "Shopify-Storefront-Private-Token";
+    private const string StorefrontBuyerIpHeader = "Shopify-Storefront-Buyer-IP";
+    private const string CartCreateMutation = """
+        mutation CartCreate($input: CartInput!) {
+          cartCreate(input: $input) {
+            cart {
+              checkoutUrl
+              cost {
+                totalAmount {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """;
+    private const string ConnectionQuery = """
+        query StorefrontConnection {
+          shop {
+            name
+          }
+        }
+        """;
+
+    private readonly HttpClient _httpClient;
     private readonly ShopifyPaymentOptions _options;
 
-    public ShopifyPaymentProvider(IHttpClientFactory httpClientFactory, IOptions<ShopifyPaymentOptions> options)
+    public ShopifyPaymentProvider(HttpClient httpClient, IOptions<ShopifyPaymentOptions> options)
     {
-        _httpClientFactory = httpClientFactory;
+        _httpClient = httpClient;
         _options = options.Value;
     }
 
@@ -40,9 +66,15 @@ public class ShopifyPaymentProvider : IPaymentProvider
     {
         try
         {
-            using var client = CreateClient();
-            var response = await client.GetAsync($"/admin/api/{_options.ApiVersion}/shop.json");
-            return response.IsSuccessStatusCode;
+            ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
+            using var response = await SendStorefrontRequestAsync(ConnectionQuery, variables: null, buyerIp: null);
+            if (!response.IsSuccessStatusCode)
+            {
+                return false;
+            }
+
+            var payload = await response.Content.ReadFromJsonAsync<ShopifyGraphQlResponse<ShopifyConnectionData>>();
+            return payload?.Data?.Shop?.Name is not null && payload.Errors is not { Count: > 0 };
         }
         catch
         {
@@ -52,161 +84,121 @@ public class ShopifyPaymentProvider : IPaymentProvider
 
     public async Task<PaymentCheckout> CreateCheckoutAsync(
         string tenantId,
-        string customerId,
-        decimal amount,
-        string currency,
-        string returnUrl,
-        string cancelUrl,
-        Dictionary<string, string>? metadata = null)
+        int quantity,
+        string? buyerIp)
     {
-        using var client = CreateClient();
+        ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
+        ArgumentOutOfRangeException.ThrowIfLessThan(quantity, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(quantity, 100);
 
-        var lineItems = new[]
+        var variables = new
         {
-            new
+            input = new
             {
-                title = metadata?.GetValueOrDefault("description") ?? "Workslip Payment",
-                price = amount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
-                quantity = 1,
-                properties = metadata?.Where(kvp => kvp.Key != "description").Select(kvp => new { name = kvp.Key, value = kvp.Value }).ToArray() ?? Array.Empty<object>()
+                lines = new[]
+                {
+                    new
+                    {
+                        merchandiseId = _options.ProductVariantId,
+                        quantity
+                    }
+                }
             }
         };
 
-        long? parsedCustomerId = null;
-        if (!string.IsNullOrEmpty(customerId) && long.TryParse(customerId, out var cid))
-        {
-            parsedCustomerId = cid;
-        }
-
-        var checkoutRequest = new
-        {
-            checkout = new
-            {
-                line_items = lineItems,
-                customer_id = parsedCustomerId,
-                financial_status = "pending",
-                currency = currency,
-                note = metadata?.GetValueOrDefault("note"),
-                attributes = metadata?.Where(kvp => kvp.Key != "description" && kvp.Key != "note").Select(kvp => new { name = kvp.Key, value = kvp.Value }).ToArray() ?? Array.Empty<object>()
-            }
-        };
-
-        var response = await client.PostAsJsonAsync($"/admin/api/{_options.ApiVersion}/checkouts.json", checkoutRequest);
+        using var response = await SendStorefrontRequestAsync(CartCreateMutation, variables, buyerIp);
         if (!response.IsSuccessStatusCode)
         {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new InvalidOperationException($"Shopify checkout creation failed: {response.StatusCode} - {error}");
+            throw new InvalidOperationException($"Shopify Storefront API did not create a cart ({(int)response.StatusCode}).");
         }
 
-        var result = await response.Content.ReadFromJsonAsync<ShopifyCheckoutResponse>();
-        var checkout = result?.Checkout;
-
-        if (checkout == null)
+        var result = await response.Content.ReadFromJsonAsync<ShopifyGraphQlResponse<ShopifyCartCreateData>>();
+        var cartCreate = result?.Data?.CartCreate;
+        if (result?.Errors is { Count: > 0 } || cartCreate?.UserErrors is { Count: > 0 })
         {
-            throw new InvalidOperationException("Shopify returned empty checkout response");
+            throw new InvalidOperationException("Shopify Storefront API rejected the hosted checkout request.");
+        }
+
+        var cart = cartCreate?.Cart;
+
+        if (cart?.CheckoutUrl is null || cart.Cost?.TotalAmount is null)
+        {
+            throw new InvalidOperationException("Shopify Storefront API returned an incomplete cart response.");
+        }
+
+        if (!decimal.TryParse(cart.Cost.TotalAmount.Amount, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount))
+        {
+            throw new InvalidOperationException("Shopify Storefront API returned an invalid cart amount.");
         }
 
         return new PaymentCheckout(
-            CheckoutId: checkout.Id.ToString(),
-            CheckoutUrl: checkout.WebUrl,
-            OrderId: checkout.OrderId?.ToString() ?? string.Empty,
-            Amount: checkout.TotalPrice,
-            Currency: checkout.Currency,
-            Status: checkout.FinancialStatus
+            CheckoutUrl: cart.CheckoutUrl,
+            Amount: amount,
+            Currency: cart.Cost.TotalAmount.CurrencyCode
         );
     }
 
-    public async Task<PaymentResult> GetPaymentStatusAsync(string tenantId, string checkoutId)
+    private async Task<HttpResponseMessage> SendStorefrontRequestAsync(
+        string query,
+        object? variables,
+        string? buyerIp)
     {
-        using var client = CreateClient();
+        EnsureConfiguration();
 
-        var response = await client.GetAsync($"/admin/api/{_options.ApiVersion}/checkouts/{checkoutId}.json");
-        if (!response.IsSuccessStatusCode)
+        using var request = new HttpRequestMessage(HttpMethod.Post, GetStorefrontApiUri())
         {
-            return new PaymentResult(false, string.Empty, string.Empty, "Error", 0, string.Empty);
+            Content = JsonContent.Create(new { query, variables })
+        };
+        request.Headers.Add(StorefrontPrivateTokenHeader, _options.StorefrontPrivateAccessToken);
+
+        if (!string.IsNullOrWhiteSpace(buyerIp) && IPAddress.TryParse(buyerIp, out _))
+        {
+            request.Headers.Add(StorefrontBuyerIpHeader, buyerIp);
         }
 
-        var result = await response.Content.ReadFromJsonAsync<ShopifyCheckoutResponse>();
-        var checkout = result?.Checkout;
-
-        if (checkout == null)
-        {
-            return new PaymentResult(false, string.Empty, string.Empty, "NotFound", 0, string.Empty);
-        }
-
-        var isPaid = checkout.FinancialStatus == "paid" || checkout.FinancialStatus == "partially_paid";
-
-        return new PaymentResult(
-            Success: isPaid,
-            OrderId: checkout.OrderId?.ToString() ?? string.Empty,
-            TransactionId: checkout.Id.ToString(),
-            Status: checkout.FinancialStatus,
-            Amount: checkout.TotalPrice,
-            Currency: checkout.Currency
-        );
+        return await _httpClient.SendAsync(request);
     }
 
-    public async Task<bool> HandleWebhookAsync(string tenantId, string payload, string signature)
+    private void EnsureConfiguration()
     {
-        if (!VerifyWebhookSignature(payload, signature))
+        if (!_options.EnableHostedCheckout)
         {
-            return false;
+            throw new PaymentProviderConfigurationException("Shopify hosted checkout is disabled.");
         }
 
-        try
+        if (string.IsNullOrWhiteSpace(_options.ShopDomain) ||
+            string.IsNullOrWhiteSpace(_options.StorefrontPrivateAccessToken) ||
+            string.IsNullOrWhiteSpace(_options.ProductVariantId))
         {
-            using var doc = JsonDocument.Parse(payload);
-            var root = doc.RootElement;
-
-            if (root.TryGetProperty("id", out var idElement) &&
-                root.TryGetProperty("financial_status", out var statusElement))
-            {
-                var orderId = idElement.GetInt64().ToString();
-                var financialStatus = statusElement.GetString() ?? string.Empty;
-
-                // TODO: Update local payment/order status based on webhook
-                // This would typically call a domain service to mark payment as completed
-                // For now, we just acknowledge the webhook
-                return financialStatus == "paid" || financialStatus == "partially_paid";
-            }
-
-            return false;
+            throw new PaymentProviderConfigurationException("Shopify hosted checkout is not configured.");
         }
-        catch
+
+        if (Uri.CheckHostName(_options.ShopDomain.Trim()) != UriHostNameType.Dns ||
+            !_options.ShopDomain.Trim().EndsWith(".myshopify.com", StringComparison.OrdinalIgnoreCase))
         {
-            return false;
+            throw new PaymentProviderConfigurationException("Shopify shop domain must be a .myshopify.com host.");
+        }
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(_options.ApiVersion, "^\\d{4}-\\d{2}$") ||
+            !_options.ProductVariantId.StartsWith("gid://shopify/ProductVariant/", StringComparison.Ordinal))
+        {
+            throw new PaymentProviderConfigurationException("Shopify hosted checkout configuration is invalid.");
         }
     }
 
-    private HttpClient CreateClient()
+    private Uri GetStorefrontApiUri()
     {
-        var client = _httpClientFactory.CreateClient();
-        client.BaseAddress = new Uri($"https://{_options.ShopDomain}");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _options.AccessToken);
-        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        return client;
+        return new Uri($"https://{_options.ShopDomain.Trim().TrimEnd('/')}/api/{_options.ApiVersion}/graphql.json");
     }
 
-    private bool VerifyWebhookSignature(string payload, string signature)
-    {
-        if (string.IsNullOrEmpty(_options.WebhookSecret) || string.IsNullOrEmpty(signature))
-        {
-            return false;
-        }
-
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_options.WebhookSecret));
-        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
-        var computedSignature = Convert.ToBase64String(hash);
-        return CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(computedSignature), Encoding.UTF8.GetBytes(signature));
-    }
-
-    private record ShopifyCheckoutResponse(ShopifyCheckout Checkout);
-    private record ShopifyCheckout(
-        long Id,
-        string WebUrl,
-        long? OrderId,
-        decimal TotalPrice,
-        string Currency,
-        string FinancialStatus
-    );
+    private sealed record ShopifyGraphQlResponse<T>(T? Data, IReadOnlyList<ShopifyGraphQlError>? Errors);
+    private sealed record ShopifyGraphQlError(string Message);
+    private sealed record ShopifyConnectionData(ShopifyShop? Shop);
+    private sealed record ShopifyShop(string? Name);
+    private sealed record ShopifyCartCreateData(ShopifyCartCreate? CartCreate);
+    private sealed record ShopifyCartCreate(ShopifyCart? Cart, IReadOnlyList<ShopifyUserError>? UserErrors);
+    private sealed record ShopifyUserError(IReadOnlyList<string>? Field, string Message);
+    private sealed record ShopifyCart(string? CheckoutUrl, ShopifyCartCost? Cost);
+    private sealed record ShopifyCartCost(ShopifyMoney? TotalAmount);
+    private sealed record ShopifyMoney(string Amount, string CurrencyCode);
 }

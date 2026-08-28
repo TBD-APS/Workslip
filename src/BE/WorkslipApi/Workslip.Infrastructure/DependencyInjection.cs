@@ -159,8 +159,6 @@ public static class DependencyInjection
         services.AddScoped<IIntegrationProvider, EconomicsProvider>();
         services.AddScoped<IAccountingProvider, EconomicsProvider>();
         services.AddScoped<IDocumentSyncService, DocumentSyncService>();
-        services.AddScoped<IShopifyTenantMappingRepository, EfShopifyTenantMappingRepository>();
-
         if (includeHostedServices)
         {
             services.AddHostedService<JobDeletionCleanupService>();
@@ -180,9 +178,8 @@ public static class DependencyInjection
         services.AddHttpClient<IPaymentProvider, ShopifyPaymentProvider>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(30);
+            client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
         });
-
-        services.AddScoped<IPaymentProvider, ShopifyPaymentProvider>();
 
         return services;
     }

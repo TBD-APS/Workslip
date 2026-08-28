@@ -59,8 +59,6 @@ public sealed class SqlDbContext : DbContext
     public DbSet<JobViewRow> JobViews => Set<JobViewRow>();
     public DbSet<IdempotencyRecordRow> IdempotencyRecords => Set<IdempotencyRecordRow>();
 
-    public DbSet<ShopifyTenantMappingRow> ShopifyTenantMappings => Set<ShopifyTenantMappingRow>();
-
 
 
     public DbSet<JobReportInstallationRow> JobReportInstallations => Set<JobReportInstallationRow>();
@@ -132,7 +130,6 @@ public sealed class SqlDbContext : DbContext
         ConfigureNotificationDeliveryLog(modelBuilder);
         ConfigureJobViews(modelBuilder);
         ConfigureIdempotencyRecords(modelBuilder);
-        ConfigureShopifyTenantMappings(modelBuilder);
     }
 
 
@@ -1483,45 +1480,5 @@ entity.Property(e => e.Status)
         entity.HasIndex(x => new { x.Scope, x.Key }).IsUnique().HasDatabaseName("UX_IdempotencyRecords_Scope_Key");
         entity.HasIndex(x => x.ExpiresAt).HasDatabaseName("IX_IdempotencyRecords_ExpiresAt");
     }
-
-    private static void ConfigureShopifyTenantMappings(ModelBuilder modelBuilder)
-    {
-        var entity = modelBuilder.Entity<ShopifyTenantMappingRow>();
-
-        entity.ToTable("ShopifyTenantMappings");
-
-        entity.HasKey(e => e.Id);
-
-        entity.Property(e => e.ShopDomain)
-            .HasMaxLength(255)
-            .IsRequired();
-
-        entity.Property(e => e.AccessToken)
-            .HasMaxLength(500);
-
-        entity.Property(e => e.WebhookSecret)
-            .HasMaxLength(500);
-
-        entity.Property(e => e.CreatedAt)
-            .HasColumnType("datetimeoffset")
-            .HasDefaultValueSql("sysutcdatetime()");
-
-        entity.Property(e => e.UpdatedAt)
-            .HasColumnType("datetimeoffset")
-            .HasDefaultValueSql("sysutcdatetime()");
-
-        entity.HasOne<OrganizationRow>()
-            .WithMany()
-            .HasForeignKey(e => e.OrganizationId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        entity.HasIndex(e => e.ShopDomain)
-            .IsUnique()
-            .HasDatabaseName("UX_ShopifyTenantMappings_ShopDomain");
-
-        entity.HasIndex(e => e.OrganizationId)
-            .HasDatabaseName("IX_ShopifyTenantMappings_OrganizationId");
-    }
-
 
 }
