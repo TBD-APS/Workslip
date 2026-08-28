@@ -1,0 +1,15 @@
+FROM node:24-alpine AS build
+WORKDIR /app
+COPY src/FE/package.json src/FE/package-lock.json ./
+RUN npm ci
+COPY src/FE/ ./
+ARG VITE_DEMO_MODE=true
+ARG VITE_API_BASE_URL=/
+ENV VITE_DEMO_MODE=$VITE_DEMO_MODE \
+    VITE_API_BASE_URL=$VITE_API_BASE_URL
+RUN npm run build
+
+FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
+COPY src/FE/demo-nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist/ /usr/share/nginx/html/
+EXPOSE 8080

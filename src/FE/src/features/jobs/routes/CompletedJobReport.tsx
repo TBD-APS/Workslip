@@ -10,6 +10,7 @@ import { getGetApiJobsIdQueryKey, getGetApiJobsQueryKey, usePostApiJobsIdStatus 
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { useAuth } from '../../../providers/useAuth';
+import { FeatureGate } from '../../../providers/moduleAccess';
 import { validateControlPoints } from '../components/steps/controlPointsValidation';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { NavigationGuard } from '../../../components/forms/NavigationGuard';
@@ -519,21 +520,23 @@ export const CompletedJobReport = () => {
           </div>
 
           {!isDiverseInReview && (
-            <CollapsibleSection
-              icon={<CheckCircle2 size={18} />}
-              title="Kontrolpunkter"
-              className="kontrolpunkter-section"
-            >
-              <div className="attestation-control-section compact">
-                <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
-                {job.work.remarks?.trim() && (
-                  <div className="attestation-data-pair observation">
-                    <dt>Begrundelse for irrelevante kontrolpunkter</dt>
-                    <dd>{job.work.remarks.trim()}</dd>
-                  </div>
-                )}
-              </div>
-            </CollapsibleSection>
+            <FeatureGate module="compliance-evidence">
+              <CollapsibleSection
+                icon={<CheckCircle2 size={18} />}
+                title="Kontrolpunkter"
+                className="kontrolpunkter-section"
+              >
+                <div className="attestation-control-section compact">
+                  <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
+                  {job.work.remarks?.trim() && (
+                    <div className="attestation-data-pair observation">
+                      <dt>Begrundelse for irrelevante kontrolpunkter</dt>
+                      <dd>{job.work.remarks.trim()}</dd>
+                    </div>
+                  )}
+                </div>
+              </CollapsibleSection>
+            </FeatureGate>
           )}
 
           {!isDesktop && job.status === JobStatus.InReview && isAdmin && !readOnly && !isEditing && (

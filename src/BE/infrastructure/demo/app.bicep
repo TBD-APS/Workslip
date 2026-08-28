@@ -1,0 +1,199 @@
+param location string = resourceGroup().location
+param namePrefix string = 'workslip-demo'
+param containerAppsEnvironmentName string
+param containerRegistryName string
+param runtimeIdentityName string
+param storageAccountName string
+param frontendImage string
+param apiImage string
+param applicationInsightsConnectionString string
+param sqlServerName string
+param sqlServerFqdn string
+param sqlDatabaseName string
+param demoAdminEmail string = 'admin@17v3ygzs.mailosaur.net'
+
+@secure()
+param jwtSigningKey string
+
+var appName = 'ca-${namePrefix}'
+var tags = {
+  environment: 'demo'
+  workload: 'workslip'
+  dataClassification: 'synthetic-only'
+  managedBy: 'bicep'
+}
+
+resource environment 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
+  name: containerAppsEnvironmentName
+}
+
+resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
+  name: containerRegistryName
+}
+
+resource runtimeIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: runtimeIdentityName
+}
+
+resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
+  name: storageAccountName
+}
+
+resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' existing = {
+  name: sqlServerName
+}
+
+// Consumption Container Apps do not have a stable outbound IP unless a VNet/NAT
+// boundary is added. Network reachability therefore uses Azure SQL's Azure-services
+// firewall rule while authentication remains fail-closed to the dedicated managed
+// identity contained database user. This demo server contains synthetic data only.
+resource allowAzureRuntime 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = {
+  parent: sqlServer
+  name: 'AllowAzureDemoRuntime'
+  properties: {
+    startIpAddress: '0.0.0.0'
+    endIpAddress: '0.0.0.0'
+  }
+}
+
+var sqlConnectionString = 'Server=tcp:${sqlServerFqdn},1433;Initial Catalog=${sqlDatabaseName};Authentication=Active Directory Managed Identity;User Id=${runtimeIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
+
+resource demoApp 'Microsoft.App/containerApps@2024-03-01' = {
+  name: appName
+  location: location
+  tags: tags
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${runtimeIdentity.id}': {}
+    }
+  }
+  properties: {
+    managedEnvironmentId: environment.id
+    configuration: {
+      activeRevisionsMode: 'Single'
+      ingress: {
+        external: true
+        targetPort: 8080
+        transport: 'Auto'
+        allowInsecure: false
+      }
+      registries: [
+        {
+          server: registry.properties.loginServer
+          identity: runtimeIdentity.id
+        }
+      ]
+      secrets: [
+        {
+          name: 'jwt-signing-key'
+          value: jwtSigningKey
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: 'frontend'
+          image: frontendImage
+          resources: {
+            cpu: json('0.25')
+            memory: '0.5Gi'
+          }
+          probes: [
+            {
+              type: 'Liveness'
+              httpGet: {
+                path: '/login'
+                port: 8080
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 10
+              periodSeconds: 30
+            }
+          ]
+        }
+        {
+          name: 'api'
+          image: apiImage
+          env: [
+            {
+              name: 'ASPNETCORE_ENVIRONMENT'
+              value: 'Demo'
+            }
+            {
+              name: 'ASPNETCORE_HTTP_PORTS'
+              value: '5262'
+            }
+            {
+              name: 'DemoMode__Enabled'
+              value: 'true'
+            }
+            {
+              name: 'DemoMode__AdminEmail'
+              value: demoAdminEmail
+            }
+            {
+              name: 'Azure__ManagedIdentity__ClientId'
+              value: runtimeIdentity.properties.clientId
+            }
+            {
+              name: 'Azure__DocumentFileStorage__StorageAccountName'
+              value: storage.name
+            }
+            {
+              name: 'Azure__ApplicationInsights__ConnectionString'
+              value: applicationInsightsConnectionString
+            }
+            {
+              name: 'Azure__Sql__ConnectionString'
+              value: sqlConnectionString
+            }
+            {
+              name: 'Jwt__Issuer'
+              value: 'workslip-demo'
+            }
+            {
+              name: 'Jwt__Audience'
+              value: 'workslip-demo'
+            }
+            {
+              name: 'Jwt__SigningKey'
+              secretRef: 'jwt-signing-key'
+            }
+            {
+              name: 'Workslip__SeedDevelopmentData'
+              value: 'false'
+            }
+            {
+              name: 'ReleaseTesting__Enabled'
+              value: 'false'
+            }
+          ]
+          resources: {
+            cpu: json('0.5')
+            memory: '1Gi'
+          }
+        }
+      ]
+      scale: {
+        minReplicas: 0
+        maxReplicas: 2
+        rules: [
+          {
+            name: 'http'
+            http: {
+              metadata: {
+                concurrentRequests: '50'
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+
+output containerAppName string = demoApp.name
+output containerAppFqdn string = demoApp.properties.configuration.ingress.fqdn
+output demoUrl string = 'https://${demoApp.properties.configuration.ingress.fqdn}'

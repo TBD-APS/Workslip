@@ -13,6 +13,7 @@ import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { DeleteButton } from '../../../components/common/DeleteButton';
 import { ConfirmDeleteDialog } from '../../../components/common/ConfirmDeleteDialog';
 import { useCan } from '../../../providers/permissions';
+import { FeatureGate } from '../../../providers/moduleAccess';
 import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobType } from '../../../lib/statusLabels';
 import { ControlPointsStep } from './steps/ControlPointsStep';
@@ -230,23 +231,27 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
           <JobOverviewStep details={details} />
         )}
         {details.currentStep === 1 && (
-          <WorkCategoryStep
-            form={details.form}
-            referenceData={details.referenceData}
-            isLoading={details.isLoadingReferenceData}
-            onCategoriesChange={details.updateWorkCategories}
-            onWorkKindChange={details.updateWorkKind}
-            onCustomWorkKindChange={details.updateCustomWorkKind}
-          />
+          <FeatureGate module="compliance-evidence">
+            <WorkCategoryStep
+              form={details.form}
+              referenceData={details.referenceData}
+              isLoading={details.isLoadingReferenceData}
+              onCategoriesChange={details.updateWorkCategories}
+              onWorkKindChange={details.updateWorkKind}
+              onCustomWorkKindChange={details.updateCustomWorkKind}
+            />
+          </FeatureGate>
         )}
         {details.currentStep === 2 && (
-          <ControlPointsStep
-            form={details.form}
-            referenceData={details.referenceData}
-            onToggleControlPoint={details.toggleControlPoint}
-            onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
-            onAllIrrelevantReasonChange={details.updateAllIrrelevantReason}
-          />
+          <FeatureGate module="compliance-evidence">
+            <ControlPointsStep
+              form={details.form}
+              referenceData={details.referenceData}
+              onToggleControlPoint={details.toggleControlPoint}
+              onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
+              onAllIrrelevantReasonChange={details.updateAllIrrelevantReason}
+            />
+          </FeatureGate>
         )}
         {details.currentStep === 3 && (
           <JobWorksheetsStep

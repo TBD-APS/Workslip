@@ -307,22 +307,6 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
         return affectedRows == 1;
     }
 
-    private async Task<bool> UpdateAccountingProviderAsyncCoreAsync(
-        Guid organizationId,
-        string? providerId,
-        CancellationToken cancellationToken)
-    {
-        var affectedRows = await _dbContext.Organizations
-            .Where(org => org.Id == organizationId)
-            .ExecuteUpdateAsync(
-                setters => setters
-                    .SetProperty(org => org.AccountingProviderId, providerId)
-                    .SetProperty(org => org.UpdatedAt, DateTimeOffset.UtcNow),
-                cancellationToken);
-
-        return affectedRows == 1;
-    }
-
     private static bool IsUniqueConstraintViolation(DbUpdateException exception) =>
         exception.InnerException is SqlException sqlException && sqlException.Number is 2601 or 2627;
 

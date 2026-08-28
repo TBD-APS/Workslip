@@ -37,6 +37,7 @@ interface QuickNavigatorProps {
   canEditCustomers: boolean;
   canCreateJobs: boolean;
   canManageOrganization: boolean;
+  canViewLeaderAnalysis?: boolean;
   showProfile: boolean;
 }
 
@@ -59,6 +60,7 @@ export function QuickNavigator({
   canEditCustomers,
   canCreateJobs,
   canManageOrganization,
+  canViewLeaderAnalysis,
   showProfile,
 }: QuickNavigatorProps) {
   const navigate = useNavigate();
@@ -80,6 +82,7 @@ export function QuickNavigator({
     canEditCustomers,
     canCreateJobs,
     canManageOrganization,
+    canViewLeaderAnalysis,
     showProfile,
   }), [
     canCreateJobs,
@@ -89,6 +92,7 @@ export function QuickNavigator({
     canUseAppCommands,
     canViewCustomers,
     canViewDocs,
+    canViewLeaderAnalysis,
     canViewTimer,
     homeLabel,
     homePath,

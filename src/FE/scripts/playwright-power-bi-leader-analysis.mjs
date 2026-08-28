@@ -51,18 +51,18 @@ async function exerciseAdmin(contextOptions, label) {
       && url.pathname === '/api/worksheets/all/report/power-bi/data';
   }, { timeout: UI_TIMEOUT });
 
-  const navigation = await page.goto(`${APP_URL}/app/overblik`, {
+  const navigation = await page.goto(`${APP_URL}/app/lederanalyse`, {
     waitUntil: 'domcontentloaded',
     timeout: UI_TIMEOUT,
   });
-  assert.ok(navigation?.ok(), `${label} Overview returned HTTP ${navigation?.status() ?? 'unknown'}.`);
+  assert.ok(navigation?.ok(), `${label} Lederanalyse returned HTTP ${navigation?.status() ?? 'unknown'}.`);
   assert.equal((await analyticsResponse).status(), 200, `${label} analytics endpoint must return 200 for Admin.`);
 
+  await page.locator('#leader-analysis-page').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.locator('#leader-analysis-powerbi').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await page.locator('#admin-power-bi-job-status').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await page.locator('#overview-power-bi-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await page.locator('#recent-jobs-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await page.locator('#favorite-customers-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await page.locator('#recent-documents-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.locator('#leader-analysis-kpi-active').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
   await page.locator('#overview-analytics-tab-employees').click();
   const employeePanel = page.locator('#overview-analytics-panel-employees');
@@ -113,7 +113,10 @@ async function exerciseAdmin(contextOptions, label) {
       );
     }
   } else {
-    await page.waitForLoadState('networkidle', { timeout: UI_TIMEOUT });
+    // Wait on the Timer page's stable container rather than networkidle (which
+    // flakes when background polling keeps the connection busy) before asserting
+    // that Power BI is absent.
+    await page.locator('#timer-page').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     assert.equal(await page.locator('#timer-power-bi-report').count(), 0, `${label} must hide unconfigured Power BI from the product UI.`);
     assert.equal(await page.locator('#timer-power-bi-frame').count(), 0, `${label} must not render an unconfigured Power BI iframe.`);
   }
@@ -156,7 +159,8 @@ async function exerciseNormalUser() {
   });
   assert.ok(navigation?.ok(), `Normal-user Overview returned HTTP ${navigation?.status() ?? 'unknown'}.`);
   await page.locator('#recent-jobs-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await page.waitForLoadState('networkidle', { timeout: UI_TIMEOUT });
+  // The Overview heading above is the authoritative "page rendered" signal;
+  // asserting absence after it is reliable without a networkidle wait.
   assert.equal(await page.locator('#admin-power-bi-job-status').count(), 0, 'Normal user must not render the Admin analytics dashboard.');
   assert.equal(await page.locator('#favorite-customers-heading').count(), 0, 'Normal user must not render Admin favorite customers.');
   assert.equal(await page.locator('#recent-documents-heading').count(), 0, 'Normal user must not render Admin latest documents.');
@@ -170,7 +174,7 @@ try {
   await exerciseAdmin({ viewport: { width: 1280, height: 800 } }, 'admin-desktop');
   await exerciseAdmin(devices['iPhone 13'], 'admin-mobile');
   await exerciseNormalUser();
-  console.log('[playwright] Live Admin Overview dashboard + Timer Power BI integration passed on desktop/mobile.');
+  console.log('[playwright] Live Admin Lederanalyse + Timer Power BI integration passed on desktop/mobile.');
 } finally {
   await browser.close();
 }
