@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   build:
-    name: Static site build
+    name: Static site fast lane
     runs-on: ubuntu-latest
     timeout-minutes: 8
     env:
