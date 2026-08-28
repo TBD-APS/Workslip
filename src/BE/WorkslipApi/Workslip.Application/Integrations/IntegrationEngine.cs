@@ -31,7 +31,7 @@ public class IntegrationEngine : IIntegrationEngine
         // In a real scenario, we would lookup the tenant's configured provider in the DB.
         // For now, we default to the Mock provider for development.
         var providers = _serviceProvider.GetServices<IAccountingProvider>();
-        return providers.FirstOrDefault(p => p.ProviderId == "mock") 
+        return providers.FirstOrDefault(p => p.ProviderId == "mock")
                ?? throw new NotSupportedException("No accounting provider configured for this tenant.");
     }
 }
