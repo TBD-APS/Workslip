@@ -1,6 +1,7 @@
 ---
 title: Workslip
 description: Saml planlægning, registrering og godkendelse af arbejde ét sted.
+module_builder: true
 ---
 
 <section class="hero">
@@ -53,6 +54,8 @@ description: Saml planlægning, registrering og godkendelse af arbejde ét sted.
     <span>Opgaver</span><span>Timer</span><span>Noter</span><span>Godkendelser</span>
   </div>
 </section>
+
+{% include module-builder.html %}
 
 <section class="section workflow-section">
   <div class="container">
