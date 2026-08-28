@@ -211,7 +211,7 @@ namespace Workslip.Api.Endpoints
                 string userId,
                 [FromQuery] string startDate,
                 [FromQuery] string endDate,
-                IIntegrationEngine integrationEngine,
+                [FromServices] IIntegrationEngine integrationEngine,
                 [FromServices] ICurrentUserContext currentUser,
                 CancellationToken cancellationToken) =>
             {
@@ -224,7 +224,8 @@ namespace Workslip.Api.Endpoints
                 return Results.Ok(documents);
             })
             .Produces(StatusCodes.Status200OK)
-            .RequireAuthorization(AuthPolicies.RequireAdmin);
+            .RequireAuthorization(AuthPolicies.RequireAdmin)
+            .ExcludeFromDescription();
 
             return app;
         }
