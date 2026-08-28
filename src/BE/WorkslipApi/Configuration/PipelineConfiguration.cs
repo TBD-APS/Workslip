@@ -40,8 +40,6 @@ public static class PipelineConfiguration
         app.UseAuthentication();
         app.UseAuthorization();
 
-        app.UseShopifyTenantResolution();
-
         return app;
     }
 }

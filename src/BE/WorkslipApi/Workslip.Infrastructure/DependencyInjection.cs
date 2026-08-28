@@ -182,9 +182,8 @@ public static class DependencyInjection
         services.AddHttpClient<IPaymentProvider, ShopifyPaymentProvider>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(30);
+            client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
         });
-
-        services.AddScoped<IPaymentProvider, ShopifyPaymentProvider>();
 
         return services;
     }
