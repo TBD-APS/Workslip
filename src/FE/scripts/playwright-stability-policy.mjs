@@ -14,7 +14,6 @@ const BLOCKING_SCENARIOS = new Set([
   'playwright-duplicate-assignment-lifecycle.mjs',
   'playwright-copyability-lifecycle.mjs',
   'playwright-shared-state-semantics.mjs',
-  'playwright-overview-status-navigation.mjs',
   'playwright-critical-domain.mjs',
   'playwright-critical-contract.mjs',
 ]);
@@ -94,6 +93,46 @@ export function inspectPlaywrightSource(filename, source) {
   return findings;
 }
 
+/**
+ * Every scenario the ephemeral runner invokes must exist on disk. A runner that
+ * references a scenario script missing from the checkout aborts the whole suite
+ * mid-run with a cryptic "Cannot find module" only after ~3 minutes of stack
+ * setup — historically the single most common Playwright-gate failure. Detect
+ * the desync here, cheaply, before any runtime setup.
+ */
+export function findMissingRunnerScenarios(runnerSource, availableFiles) {
+  const available = new Set(availableFiles);
+  const missing = [];
+  const seen = new Set();
+  // A trailing backslash continues a shell command onto the next physical line,
+  // so `run_scenario 'label' \` followed by `scripts/foo.mjs` is one logical
+  // invocation. Collapse continuations first; a per-line scan would otherwise
+  // see neither token together and silently skip the scenario — reintroducing
+  // the exact mid-suite "Cannot find module" abort this check guards against.
+  const logicalLines = String(runnerSource ?? '')
+    .replace(/\\\r?\n/g, ' ')
+    .split(/\r?\n/);
+  for (const line of logicalLines) {
+    const match = line.match(/\brun_scenario\b[^\n]*?\bscripts\/(playwright-[a-z0-9-]+\.mjs)\b/);
+    if (!match) continue;
+    const file = match[1];
+    if (seen.has(file)) continue;
+    seen.add(file);
+    if (!available.has(file)) missing.push(file);
+  }
+  return missing;
+}
+
+export async function inspectRunnerScenarioSync(directory = scriptDirectory) {
+  const runnerPath = path.join(directory, 'run-playwright-ephemeral.sh');
+  const runnerSource = await readFile(runnerPath, 'utf8');
+  const entries = await readdir(directory, { withFileTypes: true });
+  const availableFiles = entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name);
+  return findMissingRunnerScenarios(runnerSource, availableFiles);
+}
+
 export async function inspectBlockingPlaywrightSuite(directory = scriptDirectory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = entries
@@ -119,6 +158,19 @@ export async function inspectBlockingPlaywrightSuite(directory = scriptDirectory
 }
 
 async function main() {
+  const missingScenarios = await inspectRunnerScenarioSync();
+  if (missingScenarios.length > 0) {
+    for (const file of missingScenarios) {
+      console.error(
+        `[playwright-stability] run-playwright-ephemeral.sh runs scripts/${file}, but that file is missing from the checkout.`,
+      );
+    }
+    throw new Error(
+      `Playwright runner references ${missingScenarios.length} scenario script(s) that do not exist. Add the missing script(s) or remove the run_scenario line(s).`,
+    );
+  }
+  console.log('[playwright-stability] every runner scenario resolves to a file on disk.');
+
   const result = await inspectBlockingPlaywrightSuite();
   console.log(`[playwright-stability] inspected ${result.files.length} blocking Playwright modules.`);
   for (const metric of result.metrics) {

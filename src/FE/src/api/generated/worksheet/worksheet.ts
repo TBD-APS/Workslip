@@ -24,7 +24,6 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  GetApiWorksheetsAllDocumentsUserIdParams,
   GetApiWorksheetsAllParams,
   GetApiWorksheetsAllReportPdfParams,
   GetApiWorksheetsAllReportPdfPreviewParams,
@@ -597,100 +596,6 @@ export function useGetApiWorksheetsAllReportPdfPreview<TData = Awaited<ReturnTyp
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetApiWorksheetsAllReportPdfPreviewQueryOptions(params,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-export const getApiWorksheetsAllDocumentsUserId = (
-    userId: string,
-    params: GetApiWorksheetsAllDocumentsUserIdParams,
- options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
-) => {
-
-
-      return customAxiosInstance<void>(
-      {url: `/api/worksheets/all/documents/${userId}`, method: 'GET',
-        params, signal
-    },
-      options);
-    }
-
-
-
-
-export const getGetApiWorksheetsAllDocumentsUserIdQueryKey = (userId: string,
-    params?: GetApiWorksheetsAllDocumentsUserIdParams,) => {
-    return [
-    `/api/worksheets/all/documents/${userId}`, ...(params ? [params] : [])
-    ] as const;
-    }
-
-
-export const getGetApiWorksheetsAllDocumentsUserIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>, TError = unknown>(userId: string,
-    params: GetApiWorksheetsAllDocumentsUserIdParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>, TError, TData>>, request?: SecondParameter<typeof customAxiosInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetApiWorksheetsAllDocumentsUserIdQueryKey(userId,params);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>> = ({ signal }) => getApiWorksheetsAllDocumentsUserId(userId,params, requestOptions, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, enabled: userId !== null && userId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetApiWorksheetsAllDocumentsUserIdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>>
-export type GetApiWorksheetsAllDocumentsUserIdQueryError = unknown
-
-
-export function useGetApiWorksheetsAllDocumentsUserId<TData = Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>, TError = unknown>(
- userId: string,
-    params: GetApiWorksheetsAllDocumentsUserIdParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>,
-          TError,
-          Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customAxiosInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiWorksheetsAllDocumentsUserId<TData = Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>, TError = unknown>(
- userId: string,
-    params: GetApiWorksheetsAllDocumentsUserIdParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>,
-          TError,
-          Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customAxiosInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiWorksheetsAllDocumentsUserId<TData = Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>, TError = unknown>(
- userId: string,
-    params: GetApiWorksheetsAllDocumentsUserIdParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>, TError, TData>>, request?: SecondParameter<typeof customAxiosInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
-export function useGetApiWorksheetsAllDocumentsUserId<TData = Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>, TError = unknown>(
- userId: string,
-    params: GetApiWorksheetsAllDocumentsUserIdParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiWorksheetsAllDocumentsUserId>>, TError, TData>>, request?: SecondParameter<typeof customAxiosInstance>}
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getGetApiWorksheetsAllDocumentsUserIdQueryOptions(userId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

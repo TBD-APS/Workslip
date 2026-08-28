@@ -1,0 +1,26 @@
+{
+  "name": "@workslip/visuals-mcp",
+  "version": "0.1.0",
+  "description": "Workslip Visuals MCP — grafer, maps og dashboards for Lederanalyse og bruger-engagement",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "workslip-visuals-mcp": "src/index.ts"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx --watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "test": "node test.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.10.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.1",
+    "tsx": "^4.20.0",
+    "typescript": "~6.0.2",
+    "vitest": "4.1.10"
+  }
+}

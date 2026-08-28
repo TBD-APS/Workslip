@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DOCUMENT_TYPES } from '../../features/create/documentTypes';
 import { Can } from '../../providers/permissions';
+import { FeatureGate } from '../../providers/moduleAccess';
 
 type Props = {
   isOpen: boolean;
@@ -68,19 +69,16 @@ export const CreateBottomSheet = ({ isOpen, onClose }: Props) => {
               </button>
             );
 
-            if (type.permission) {
-              return (
-                <li key={type.id} className="create-sheet-item">
-                  <Can permission={type.permission}>
-                    {tile}
-                  </Can>
-                </li>
-              );
-            }
+            const permissioned = type.permission
+              ? <Can permission={type.permission}>{tile}</Can>
+              : tile;
+            const gated = type.module
+              ? <FeatureGate module={type.module}>{permissioned}</FeatureGate>
+              : permissioned;
 
             return (
               <li key={type.id} className="create-sheet-item">
-                {tile}
+                {gated}
               </li>
             );
           })}

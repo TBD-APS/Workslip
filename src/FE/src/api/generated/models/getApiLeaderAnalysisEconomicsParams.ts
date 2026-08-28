@@ -5,7 +5,7 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export type GetApiWorksheetsAllDocumentsUserIdParams = {
-startDate: string;
-endDate: string;
+export type GetApiLeaderAnalysisEconomicsParams = {
+startDate?: string;
+endDate?: string;
 };

@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import { Building2, ClipboardList, FileText, Wrench, FileSpreadsheet } from 'lucide-react';
+import type { ModuleKey } from '../../providers/moduleAccess';
 
 
 export type DocumentTypeStatus = 'available' | 'coming_soon';
@@ -11,6 +12,8 @@ export interface DocumentType {
   icon: LucideIcon;
   path: string;
   permission?: 'job:create' | 'user:manage';
+  /** When set, the tile is only offered while the tenant is entitled to this module. */
+  module?: ModuleKey;
   status: DocumentTypeStatus;
 }
 
@@ -22,6 +25,7 @@ export const DOCUMENT_TYPES: readonly DocumentType[] = [
     icon: ClipboardList,
     path: '/app/job/new',
     permission: 'job:create',
+    module: 'compliance-evidence',
     status: 'available',
   },
   {
