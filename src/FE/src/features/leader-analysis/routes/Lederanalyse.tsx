@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, ArrowRight, Banknote, BarChart3, CheckCircle2, ClipboardList, Clock3, ExternalLink, TrendingUp, Users, WalletCards, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -439,14 +440,16 @@ function LeaderSlaPanel() {
     staleTime: 30_000,
   });
 
-  const now = Date.now();
-  const rows = (query.data ?? []).map(job => {
-    const days = Math.max(0, Math.floor((now - new Date(job.updatedAt).getTime()) / (1000 * 60 * 60 * 24)));
-    let sla: 'ok' | 'warning' | 'overdue' = 'ok';
-    if (days > 7) sla = 'overdue';
-    else if (days > 2) sla = 'warning';
-    return { ...job, days, sla };
-  });
+  const rows = useMemo(() => {
+    const observedAt = query.dataUpdatedAt;
+    return (query.data ?? []).map(job => {
+      const days = Math.max(0, Math.floor((observedAt - new Date(job.updatedAt).getTime()) / (1000 * 60 * 60 * 24)));
+      let sla: 'ok' | 'warning' | 'overdue' = 'ok';
+      if (days > 7) sla = 'overdue';
+      else if (days > 2) sla = 'warning';
+      return { ...job, days, sla };
+    });
+  }, [query.data, query.dataUpdatedAt]);
 
   return (
     <section id="leader-analysis-sla" className="leader-analysis-card" aria-labelledby="sla-heading">

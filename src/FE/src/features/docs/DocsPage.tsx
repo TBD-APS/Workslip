@@ -175,6 +175,8 @@ export const DocsPage = () => {
       setDraftState(null);
       setEditingDocumentId(null);
       await invalidateDocumentLists();
+      notify.success('Dokumentet er oprettet.');
+      navigate(`/app/docs/${document.id}`, { replace: true });
     },
     onError: () => notify.error('Dokumentet kunne ikke oprettes.'),
   });
@@ -260,7 +262,13 @@ export const DocsPage = () => {
 
   const submit = () => {
     if (!canSave) return;
-    if (isCreating) createMutation.mutate();
+    if (isCreating) {
+      createMutation.mutate({
+        title: draft.title,
+        content: draft.content,
+        tags: parsedTags,
+      });
+    }
     else updateMutation.mutate();
   };
 

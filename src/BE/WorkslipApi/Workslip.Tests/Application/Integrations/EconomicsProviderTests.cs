@@ -54,11 +54,30 @@ public sealed class EconomicsProviderTests
     public async Task GetDocumentsForUserAsync_MapsJsonCorrectly_WhenApiReturnsInvoices()
     {
         // Arrange
-        var invId = Guid.NewGuid();
-        var json = @"[
-            { ""Id"": """ + invId + @""", ""Number"": ""INV-001"", ""Amount"": 1234.56, ""Date"": ""2023-01-01"" },
-            { ""Id"": """ + Guid.NewGuid() + @""", ""Number"": ""INV-002"", ""Amount"": 678.90, ""Date"": ""2023-01-02"" }
-        ]";
+        var json = @"{
+            ""collection"": [
+                {
+                    ""bookedInvoiceNumber"": 101,
+                    ""orderNumber"": 501,
+                    ""date"": ""2023-01-01"",
+                    ""currency"": ""DKK"",
+                    ""netAmount"": 1234.56,
+                    ""grossAmount"": 1543.20,
+                    ""vatAmount"": 308.64,
+                    ""remainder"": 0
+                },
+                {
+                    ""bookedInvoiceNumber"": 102,
+                    ""orderNumber"": 502,
+                    ""date"": ""2023-01-02"",
+                    ""currency"": ""DKK"",
+                    ""netAmount"": 678.90,
+                    ""grossAmount"": 848.63,
+                    ""vatAmount"": 169.73,
+                    ""remainder"": 678.90
+                }
+            ]
+        }";
         var handler = new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json")
@@ -71,10 +90,12 @@ public sealed class EconomicsProviderTests
         // Assert
         Assert.Equal(2, docs.Count);
         var first = docs.First();
-        Assert.Equal(invId.ToString(), first.DocumentId);
-        Assert.Equal("INV-001", first.DocumentNumber);
+        Assert.Equal("101", first.DocumentId);
+        Assert.Equal("FAK-0101", first.DocumentNumber);
         Assert.Equal(1234.56m, first.Amount);
         Assert.Equal("Invoice", first.Type);
+        Assert.Equal("Paid", first.Status);
+        Assert.Equal("Unpaid", docs.Last().Status);
     }
 
     [Fact]

@@ -35,6 +35,16 @@ type AdminUserWeek = {
   days: Map<string, { hours: number; entries: MyWorksheetEntryResponse[] }>;
 };
 
+type AccountingDocumentResponse = {
+  documentId: string;
+  documentNumber: string;
+  type: string;
+  amount: number;
+  date: string;
+  status: string;
+  externalLink: string;
+};
+
 const TIMER_OVERVIEW_STATE_KEY = 'workslip.timerOverviewState';
 
 function AdminWeeklyOverview({
@@ -132,10 +142,10 @@ function AdminEmployeeDetail({
   const docsQuery = useQuery({
     queryKey: ['accounting-docs', userId, data.monthStart, data.monthEnd],
     queryFn: async () => {
-      const res = await apiClient.get(`/api/worksheets/all/documents/${userId}`, {
+      const res = await apiClient.get<AccountingDocumentResponse[]>(`/api/worksheets/all/documents/${userId}`, {
         params: { startDate: data.monthStart, endDate: data.monthEnd },
       });
-      return res.data as any[];
+      return res.data;
     },
   });
 
@@ -208,10 +218,7 @@ function AdminEmployeeDetail({
                     <div className="admin-employee-doc-meta">
                       <span className="admin-employee-doc-date">{doc.date}</span>
                       <span className="admin-employee-doc-amount">{formatNumeric(doc.amount)} kr.</span>
-                      <div className="admin-employee-doc-links">
-                        <a href={doc.externalLink} target="_blank" rel="noopener noreferrer" className="admin-employee-doc-link">Original</a>
-                        <a href={`/app/docs/${doc.internalId}`} className="admin-employee-doc-link">Spejl</a>
-                      </div>
+                      <a href={doc.externalLink} target="_blank" rel="noopener noreferrer" className="admin-employee-doc-link">Original</a>
                     </div>
                 </div>
               ))
@@ -476,11 +483,11 @@ export function MyWorksheets() {
   const navigate = useNavigate();
   const isAdmin = useIsAdmin();
   const restoreScrollKey = useAppScrollRestoreKey();
-  const savedState = useRef(readTimerOverviewState());
+  const [savedState] = useState(readTimerOverviewState);
   const restoredScrollKey = useRef<string | null>(null);
-  const [cursor, setCursor] = useState<MonthCursor>(() => savedState.current?.cursor ?? getCurrentMonthCursor());
+  const [cursor, setCursor] = useState<MonthCursor>(() => savedState?.cursor ?? getCurrentMonthCursor());
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(() => {
-    const saved = savedState.current?.expandedWeeks;
+    const saved = savedState?.expandedWeeks;
     if (saved && saved.length > 0) {
       return new Set(saved);
     }
@@ -508,13 +515,13 @@ export function MyWorksheets() {
       return;
     }
 
-    const scrollTop = savedState.current?.scrollTop ?? 0;
+    const scrollTop = savedState?.scrollTop ?? 0;
     const frame = requestAnimationFrame(() => {
       setAppScrollTop(scrollTop);
       restoredScrollKey.current = restoreScrollKey;
     });
     return () => cancelAnimationFrame(frame);
-  }, [data, restoreScrollKey]);
+  }, [data, restoreScrollKey, savedState?.scrollTop]);
 
   const selectMonth = (nextCursor: MonthCursor) => {
     setCursor(nextCursor);
