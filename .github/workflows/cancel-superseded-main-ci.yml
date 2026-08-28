@@ -1,0 +1,48 @@
+name: Cancel superseded main CI
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: cancel-superseded-main-ci
+  cancel-in-progress: true
+
+jobs:
+  cancel-old:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Cancel older main CI runs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          repo="${GITHUB_REPOSITORY}"
+          current_sha="${GITHUB_SHA}"
+          runs="$(gh api "/repos/${repo}/actions/workflows/frontend-validation.yml/runs?branch=main&per_page=50")"
+
+          mapfile -t stale_runs < <(
+            jq -r --arg current_sha "${current_sha}" '
+              .workflow_runs[]
+              | select(.head_sha != $current_sha)
+              | select(.status == "queued" or .status == "in_progress" or .status == "pending" or .status == "waiting" or .status == "requested")
+              | .id
+            ' <<<"${runs}"
+          )
+
+          if [[ ${#stale_runs[@]} -eq 0 ]]; then
+            echo "No superseded main CI runs to cancel."
+            exit 0
+          fi
+
+          for run_id in "${stale_runs[@]}"; do
+            echo "Cancelling superseded CI run ${run_id}"
+            gh api --method POST "/repos/${repo}/actions/runs/${run_id}/cancel" >/dev/null || true
+          done
