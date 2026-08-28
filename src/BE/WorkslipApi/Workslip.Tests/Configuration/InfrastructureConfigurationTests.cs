@@ -10,6 +10,7 @@ namespace Workslip.Tests.Configuration;
 
 public sealed class InfrastructureConfigurationTests
 {
+    private const string AppConfigurationEndpointKey = "Azure:AppConfiguration:Endpoint";
     private const string SqlConnectionStringKey = "Azure:Sql:ConnectionString";
     private const string ManagedIdentityClientId = "11111111-2222-3333-4444-555555555555";
 
@@ -104,6 +105,7 @@ public sealed class InfrastructureConfigurationTests
     {
         var args = new[] { $"--{DatabaseStartup.GenerateOpenApiOnlyKey}=true" };
         var builder = CreateBuilder(Environments.Development, args);
+        builder.Configuration[AppConfigurationEndpointKey] = "https://appcs.example.test";
 
         builder.ConfigureInfrastructure(args);
 
@@ -179,12 +181,21 @@ public sealed class InfrastructureConfigurationTests
         Assert.Equal("command-line", builder.Configuration[key]);
     }
 
-    private static WebApplicationBuilder CreateBuilder(string environmentName, string[]? args = null) =>
-        WebApplication.CreateBuilder(new WebApplicationOptions
+    private static WebApplicationBuilder CreateBuilder(string environmentName, string[]? args = null)
+    {
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             EnvironmentName = environmentName,
             Args = args ?? []
         });
+
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [AppConfigurationEndpointKey] = string.Empty
+        });
+
+        return builder;
+    }
 
     private static string CreateLocalConnectionString() =>
         "Server=localhost,1433;" +

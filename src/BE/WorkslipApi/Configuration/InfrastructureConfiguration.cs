@@ -59,6 +59,12 @@ public static class InfrastructureConfiguration
 
     private static void AddAzureAppConfiguration(ConfigurationManager configuration, TokenCredential credential)
     {
+        if (DatabaseStartup.IsOpenApiGeneration(configuration))
+        {
+            Log.Information("[STARTUP 02.2] Load Azure App Configuration and Key Vault references - SKIPPED (OpenAPI generation)");
+            return;
+        }
+
         var endpoint = configuration["Azure:AppConfiguration:Endpoint"];
 
         if (string.IsNullOrWhiteSpace(endpoint))
