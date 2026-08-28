@@ -18,6 +18,11 @@ colors:
   white: "#ffffff"
 contact: {}
 links:
+  website: "https://mrsoftware.dk"
+  store: "https://store.mrsoftware.dk"
+  product_demo: "https://store.mrsoftware.dk/pages/demo"
+  demo: "https://demo.mrsoftware.dk"
+  demo_live: false
   app: "https://app.mrsoftware.dk/app"
   support: ""
 sections:

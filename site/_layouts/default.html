@@ -27,6 +27,18 @@
         --accent-dark: {{ theme.colors.primary | default: '#0f536b' }};
         --white: {{ theme.colors.white | default: '#ffffff' }};
       }
+      .ecosystem-bar{border-bottom:1px solid rgba(151,174,213,.14);background:#050d1b;color:#c9d6f3}
+      .ecosystem-inner{width:min(1200px,calc(100% - 3rem));min-height:2.35rem;margin-inline:auto;display:flex;align-items:center;justify-content:space-between;gap:1rem}
+      .ecosystem-label{color:#fff;font-size:.72rem;font-weight:850;letter-spacing:.02em;text-decoration:none;white-space:nowrap}
+      .ecosystem-nav{display:flex;align-items:center;gap:.18rem;overflow-x:auto;scrollbar-width:none}
+      .ecosystem-nav::-webkit-scrollbar{display:none}
+      .ecosystem-nav a,.ecosystem-nav span{display:inline-flex;align-items:center;gap:.3rem;padding:.35rem .58rem;border-radius:.42rem;color:#9eafd1;font-size:.72rem;font-weight:720;text-decoration:none;white-space:nowrap}
+      .ecosystem-nav a:hover{background:rgba(177,196,255,.1);color:#fff}
+      .ecosystem-nav .is-active{background:rgba(131,167,255,.15);color:#fff}
+      .ecosystem-nav .is-disabled{cursor:default;color:#667896}
+      .ecosystem-nav em{padding:.08rem .3rem;border:1px solid rgba(158,175,209,.24);border-radius:999px;font-size:.56rem;font-style:normal;letter-spacing:.03em;text-transform:uppercase}
+      .ecosystem-nav .ecosystem-login{color:#fff}
+      @media(max-width:760px){.ecosystem-inner{width:100%;padding:.35rem .8rem;align-items:flex-start;flex-direction:column;gap:.15rem}.ecosystem-nav{width:100%;padding-bottom:.1rem}.ecosystem-label{padding-left:.55rem}}
     </style>
     {% feed_meta %}
     {% if page.demo %}
@@ -39,6 +51,22 @@
   <body>
     <a class="skip-link" href="#main-content">Spring til indhold</a>
     <header class="site-header">
+      <div class="ecosystem-bar" aria-label="MR Software tjenester">
+        <div class="ecosystem-inner">
+          <a class="ecosystem-label" href="{{ theme.links.website | default: 'https://mrsoftware.dk' }}">MR Software</a>
+          <nav class="ecosystem-nav" aria-label="Skift mellem MR Software tjenester">
+            <span class="is-active" aria-current="page">Website</span>
+            <a href="{{ theme.links.store | default: 'https://store.mrsoftware.dk' }}">Store</a>
+            <a href="{{ theme.links.product_demo | default: 'https://store.mrsoftware.dk/pages/demo' }}">Produktdemo</a>
+            {% if theme.links.demo_live == true %}
+            <a href="{{ theme.links.demo | default: 'https://demo.mrsoftware.dk' }}">Ægte demo</a>
+            {% else %}
+            <span class="is-disabled" title="Aktiveres når demo-domæne og HTTPS er verificeret">Ægte demo <em>snart</em></span>
+            {% endif %}
+            <a class="ecosystem-login" href="{{ theme.links.app | default: 'https://app.mrsoftware.dk/app' }}">Log ind <span aria-hidden="true">↗</span></a>
+          </nav>
+        </div>
+      </div>
       <div class="container navigation">
         <a class="brand" href="{{ '/' | relative_url }}" aria-label="{{ theme.display_name | default: site.title }} forside">
           {% if theme.logo.primary and theme.logo.primary != '' %}
@@ -55,7 +83,7 @@
           {% endif %}
           <a href="{{ '/pricing/' | relative_url }}"{% if page.url == '/pricing/' %} aria-current="page"{% endif %}>Priser</a>
           {% if theme.sections.show_demo != false %}
-          <a href="{{ '/demo/' | relative_url }}"{% if page.url == '/demo/' %} aria-current="page"{% endif %}>Demo</a>
+          <a href="{{ '/demo/' | relative_url }}"{% if page.url == '/demo/' %} aria-current="page"{% endif %}>Guidet demo</a>
           {% endif %}
           {% if theme.sections.show_status != false %}
           <a class="nav-utility" href="{{ '/status/' | relative_url }}"{% if page.url == '/status/' %} aria-current="page"{% endif %}>Driftstatus</a>
@@ -90,7 +118,10 @@
           <nav aria-label="Produktnavigation">
             {% if theme.sections.show_features != false %}<a href="{{ '/features/' | relative_url }}">Funktioner</a>{% endif %}
             <a href="{{ '/pricing/' | relative_url }}">Priser</a>
-            {% if theme.sections.show_demo != false %}<a href="{{ '/demo/' | relative_url }}">Demo</a>{% endif %}
+            {% if theme.sections.show_demo != false %}<a href="{{ '/demo/' | relative_url }}">Guidet demo</a>{% endif %}
+            <a href="{{ theme.links.product_demo | default: 'https://store.mrsoftware.dk/pages/demo' }}">Produktdemo</a>
+            {% if theme.links.demo_live == true %}<a href="{{ theme.links.demo | default: 'https://demo.mrsoftware.dk' }}">Ægte demo</a>{% endif %}
+            <a href="{{ theme.links.store | default: 'https://store.mrsoftware.dk' }}">Store</a>
             <a href="{{ theme.links.app | default: 'https://app.mrsoftware.dk/app' }}">Åbn Workslip</a>
           </nav>
         </div>
