@@ -291,7 +291,15 @@ public sealed class OrganizationServiceTests
             new CreateOrganizationRequestValidator(),
             new UpsertOrganizationAdminRequestValidator(),
             entra,
+            new FakeAccountingTokenStore(),
             NullLogger<OrganizationService>.Instance);
+
+    private sealed class FakeAccountingTokenStore : Workslip.Application.Integrations.IAccountingTokenStore
+    {
+        public Task<Workslip.Application.Integrations.AccountingTokens> GetAsync(Guid organizationId, CancellationToken cancellationToken) =>
+            Task.FromResult(new Workslip.Application.Integrations.AccountingTokens(null, null));
+        public Task SetAsync(Guid organizationId, string? agreementGrantToken, string? appSecretToken, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
 
     private static OrganizationRow CreateOrganization() => new()
     {

@@ -57,9 +57,13 @@ export async function inviteOrganizationAdmin(input: InviteOrganizationAdminInpu
 export async function updateOrganizationAccountingProvider(input: {
   organizationId: string;
   providerId: string | null;
+  agreementGrantToken?: string | null;
+  appSecretToken?: string | null;
 }): Promise<void> {
   await apiClient.put(`/api/organizations/${input.organizationId}/accounting-provider`, {
     providerId: input.providerId?.trim() || null,
+    agreementGrantToken: input.agreementGrantToken?.trim() || null,
+    appSecretToken: input.appSecretToken?.trim() || null,
   }, {
     skipGlobalErrorToast: true,
   });

@@ -8,6 +8,8 @@ import type { Organization } from '../types';
 const accountingProviderSchema = z.object({
   organizationId: z.string().min(1, 'Vælg en organisation.'),
   providerId: z.string().optional(),
+  agreementGrantToken: z.string().optional(),
+  appSecretToken: z.string().optional(),
 });
 
 type AccountingProviderFormValues = z.infer<typeof accountingProviderSchema>;
@@ -17,7 +19,7 @@ interface OrganizationAccountingProviderFormProps {
   selectedOrganizationId: string;
   isSubmitting: boolean;
   onOrganizationChange: (organizationId: string) => void;
-  onSubmit: (input: { organizationId: string; providerId: string | null }) => Promise<void>;
+  onSubmit: (input: { organizationId: string; providerId: string | null; agreementGrantToken?: string | null; appSecretToken?: string | null }) => Promise<void>;
 }
 
 export function OrganizationAccountingProviderForm({
@@ -33,14 +35,19 @@ export function OrganizationAccountingProviderForm({
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<AccountingProviderFormValues>({
     resolver: zodResolver(accountingProviderSchema),
     defaultValues: {
       organizationId: selectedOrganizationId,
       providerId: selectedOrg?.accountingProviderId ?? '',
+      agreementGrantToken: '',
+      appSecretToken: '',
     },
   });
+
+  const watchedProviderId = watch('providerId');
 
   useEffect(() => {
     setValue('organizationId', selectedOrganizationId, { shouldValidate: false });
@@ -52,6 +59,8 @@ export function OrganizationAccountingProviderForm({
       await onSubmit({
         organizationId: values.organizationId,
         providerId: values.providerId?.trim() ? values.providerId.trim() : null,
+        agreementGrantToken: values.agreementGrantToken?.trim() ? values.agreementGrantToken.trim() : null,
+        appSecretToken: values.appSecretToken?.trim() ? values.appSecretToken.trim() : null,
       });
     } catch {
       // The parent handles error display
@@ -116,6 +125,40 @@ export function OrganizationAccountingProviderForm({
             Bilag og fakturaer fra den valgte udbyder bliver automatisk synkroniseret og vist i medarbejder- og sagsdokumenter.
           </p>
         </div>
+
+        {watchedProviderId === 'economics' && (
+          <>
+            <div className="form-group">
+              <label className="form-label" htmlFor="superadmin-economics-agreement-token">
+                e-conomic AgreementGrantToken
+              </label>
+              <input
+                id="superadmin-economics-agreement-token"
+                className="form-input"
+                type="password"
+                autoComplete="off"
+                placeholder="Indsæt Niels’ AgreementGrantToken"
+                {...register('agreementGrantToken')}
+              />
+              <p className="form-help-text" style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                Fås i e-conomic → Apps → API → Grant. Gemmes krypteret i Key Vault / DB (aldrig i frontend).
+              </p>
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="superadmin-economics-app-secret">
+                e-conomic AppSecretToken (valgfri — ellers demo)
+              </label>
+              <input
+                id="superadmin-economics-app-secret"
+                className="form-input"
+                type="password"
+                autoComplete="off"
+                placeholder="Workslip’s AppSecret — efterlad tom for demo"
+                {...register('appSecretToken')}
+              />
+            </div>
+          </>
+        )}
 
         <button
           id="superadmin-accounting-provider-submit"

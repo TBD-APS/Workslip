@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Workslip.Api.Helpers;
 using Workslip.Application.LeaderAnalysis;
 
@@ -10,9 +11,9 @@ public static class LeaderAnalysisEndpoints
         var group = app.MapGroup("/api/leader-analysis").RequireAuthorization("RequireAdmin").WithTags("leader-analysis");
 
         group.MapGet("/economics", async (
-            string? startDate,
-            string? endDate,
-            ILeaderEconomicsService service,
+            [FromQuery] string? startDate,
+            [FromQuery] string? endDate,
+            [FromServices] ILeaderEconomicsService service,
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
@@ -22,9 +23,9 @@ public static class LeaderAnalysisEndpoints
         }).Produces<LeaderEconomicsResponse>();
 
         group.MapGet("/economics/summary", async (
-            string? startDate,
-            string? endDate,
-            ILeaderEconomicsService service,
+            [FromQuery] string? startDate,
+            [FromQuery] string? endDate,
+            [FromServices] ILeaderEconomicsService service,
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {

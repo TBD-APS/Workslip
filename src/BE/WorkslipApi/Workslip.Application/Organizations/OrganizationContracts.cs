@@ -10,7 +10,9 @@ public sealed record CreateOrganizationRequest(
     string? AdminPhone);
 
 public sealed record UpdateAccountingProviderRequest(
-    string? ProviderId);
+    string? ProviderId,
+    string? AgreementGrantToken = null,
+    string? AppSecretToken = null);
 
 public sealed record UpsertOrganizationAdminRequest(
     string Email,
