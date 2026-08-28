@@ -87,6 +87,7 @@
           {% if theme.sections.show_features != false %}
           <a href="{{ '/features/' | relative_url }}"{% if page.url == '/features/' %} aria-current="page"{% endif %}>Funktioner</a>
           {% endif %}
+          <a href="{{ '/roadmap/' | relative_url }}"{% if page.url == '/roadmap/' %} aria-current="page"{% endif %}>Roadmap</a>
           <a href="{{ '/pricing/' | relative_url }}"{% if page.url == '/pricing/' %} aria-current="page"{% endif %}>Priser</a>
           {% if theme.sections.show_demo != false %}
           <a href="{{ '/demo/' | relative_url }}"{% if page.url == '/demo/' %} aria-current="page"{% endif %}>Guidet demo</a>
@@ -123,6 +124,7 @@
           <p class="footer-label">Produkt</p>
           <nav aria-label="Produktnavigation">
             {% if theme.sections.show_features != false %}<a href="{{ '/features/' | relative_url }}">Funktioner</a>{% endif %}
+            <a href="{{ '/roadmap/' | relative_url }}">Roadmap</a>
             <a href="{{ '/pricing/' | relative_url }}">Priser</a>
             {% if theme.sections.show_demo != false %}<a href="{{ '/demo/' | relative_url }}">Guidet demo</a>{% endif %}
             <a href="{{ theme.links.product_demo | default: 'https://store.mrsoftware.dk/pages/demo' }}">Produktdemo</a>
