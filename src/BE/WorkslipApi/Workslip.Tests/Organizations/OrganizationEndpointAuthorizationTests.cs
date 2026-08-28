@@ -28,7 +28,7 @@ public sealed class OrganizationEndpointAuthorizationTests
             .Where(endpoint => endpoint.RoutePattern.RawText?.StartsWith("/api/organizations", StringComparison.Ordinal) == true)
             .ToList();
 
-        Assert.Equal(4, organizationEndpoints.Count);
+        Assert.Equal(5, organizationEndpoints.Count);
         Assert.Contains(
             organizationEndpoints,
             endpoint => endpoint.RoutePattern.RawText == "/api/organizations/{organizationId:guid}/session");

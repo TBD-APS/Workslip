@@ -36,7 +36,7 @@ public sealed class SchemaModelContractTests
     private static readonly IReadOnlyDictionary<string, string[]> ExpectedColumnsByTable =
         new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
-            ["Organizations"] = new[] { "Id", "Name", "Cvr", "CreatedAt", "UpdatedAt" },
+            ["Organizations"] = new[] { "Id", "Name", "Cvr", "CreatedAt", "UpdatedAt", "AccountingProviderId" },
             ["OrganizationFilials"] = new[] { "Id", "OrganizationId", "Name", "IsDefault", "CreatedAt", "UpdatedAt" },
             ["Users"] = new[]
             {
