@@ -54,7 +54,7 @@
     <script src="{{ '/assets/js/module-builder.js' | relative_url }}" defer></script>
     {% endif %}
   </head>
-  <body>
+  <body{% if page.url == '/' %} class="homepage-shell"{% endif %}>
     <a class="skip-link" href="#main-content">Spring til indhold</a>
     <header class="site-header">
       <div class="ecosystem-bar" aria-label="MR Software tjenester">
