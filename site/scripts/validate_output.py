@@ -14,6 +14,7 @@ REQUIRED_OUTPUTS = (
     "robots.txt",
     "sitemap.xml",
     "features/index.html",
+    "roadmap/index.html",
     "demo/index.html",
     "security/index.html",
     "privacy/index.html",
