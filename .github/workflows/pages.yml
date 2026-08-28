@@ -24,8 +24,9 @@ concurrency:
 
 jobs:
   build:
+    name: Static site build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 8
     env:
       BUNDLE_FROZEN: "true"
     steps:
@@ -66,42 +67,6 @@ jobs:
       - name: Validate Pages output
         if: github.event_name != 'pull_request'
         run: python site/scripts/validate_output.py site/_site "${{ steps.pages.outputs.base_path }}"
-
-      - name: Upload built pull-request site
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: website-preview-pr-${{ github.event.pull_request.number }}
-          path: site/_site
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Install browser preview runtime
-        if: github.event_name == 'pull_request'
-        run: |
-          mkdir -p /tmp/workslip-site-playwright
-          cd /tmp/workslip-site-playwright
-          npm init -y
-          npm install playwright@1.55.0
-          npx playwright install --with-deps chromium
-          echo "NODE_PATH=/tmp/workslip-site-playwright/node_modules" >> "$GITHUB_ENV"
-
-      - name: Run module-builder browser preview
-        if: github.event_name == 'pull_request'
-        run: |
-          python -m http.server 4000 --bind 127.0.0.1 --directory site/_site >/tmp/workslip-site-preview.log 2>&1 &
-          echo $! > /tmp/workslip-site-preview.pid
-          curl --fail --retry 20 --retry-connrefused --retry-delay 1 http://127.0.0.1:4000/ >/dev/null
-          node site/scripts/capture_module_builder_preview.cjs
-
-      - name: Upload browser preview evidence
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: module-builder-browser-preview-pr-${{ github.event.pull_request.number }}
-          path: site-preview-artifacts
-          if-no-files-found: warn
-          retention-days: 7
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
