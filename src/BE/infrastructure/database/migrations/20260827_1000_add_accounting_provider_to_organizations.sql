@@ -1,3 +1,6 @@
 -- Add AccountingProviderId to Organizations table
-ALTER TABLE dbo.Organizations
-ADD AccountingProviderId nvarchar(100) NULL;
+IF COL_LENGTH('dbo.Organizations', 'AccountingProviderId') IS NULL
+BEGIN
+    ALTER TABLE dbo.Organizations
+    ADD AccountingProviderId nvarchar(100) NULL;
+END
