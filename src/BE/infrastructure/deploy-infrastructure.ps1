@@ -940,7 +940,13 @@ Run without -WhatIf to create it, or create the group first:
     }
     $existingWebApiPlanSku = Get-AppServicePlanSkuName -Name $webApiServerName
     $webApiPlanExists = -not [string]::IsNullOrWhiteSpace($existingWebApiPlanSku)
-    $webApiPlanSupportsAlwaysOn = -not $webApiPlanExists -or $existingWebApiPlanSku -notin @('F1', 'D1', 'Y1')
+    $requiredWebApiPlanSku = if ($NormalizedEnvironment -eq 'live') { 'S1' } else { '' }
+    $webApiPlanRequiresCapacityReconcile = $webApiPlanExists -and
+        $NormalizedEnvironment -eq 'live' -and
+        $existingWebApiPlanSku -ne $requiredWebApiPlanSku
+    $manageWebApiServer = -not $webApiPlanExists -or $webApiPlanRequiresCapacityReconcile
+    $webApiPlanSupportsAlwaysOn = $NormalizedEnvironment -eq 'live' -and
+        (-not $webApiPlanExists -or $webApiPlanRequiresCapacityReconcile -or $existingWebApiPlanSku -eq 'S1')
 
     if (-not [string]::IsNullOrWhiteSpace($existingAppConfigurationDataOwnerRoleAssignmentName)) {
         Write-Host 'Adopting existing App Configuration Data Owner assignment.' -ForegroundColor DarkGray
@@ -949,9 +955,14 @@ Run without -WhatIf to create it, or create the group first:
         Write-Host 'Adopting existing Key Vault Administrator assignment.' -ForegroundColor DarkGray
     }
     if ($webApiPlanExists) {
-        Write-Host 'Reusing existing App Service plan without requesting a capacity change.' -ForegroundColor DarkGray
-        if (-not $webApiPlanSupportsAlwaysOn) {
-            Write-Host 'Always On remains disabled because the existing plan SKU does not support it.' -ForegroundColor DarkGray
+        if ($webApiPlanRequiresCapacityReconcile) {
+            Write-Host "Reconciling App Service plan SKU from '$existingWebApiPlanSku' to '$requiredWebApiPlanSku' for the live staging-slot deployment policy." -ForegroundColor Yellow
+        }
+        else {
+            Write-Host 'Reusing existing App Service plan without requesting a capacity change.' -ForegroundColor DarkGray
+            if (-not $webApiPlanSupportsAlwaysOn) {
+                Write-Host 'Always On remains disabled because the existing plan SKU does not support it.' -ForegroundColor DarkGray
+            }
         }
     }
 
@@ -1010,7 +1021,7 @@ Run without -WhatIf to create it, or create the group first:
             globalAdminPrincipalType = @{ value = $resolvedGlobalAdminPrincipalType }
             appConfigurationDataOwnerRoleAssignmentName = @{ value = $existingAppConfigurationDataOwnerRoleAssignmentName }
             keyVaultAdministratorRoleAssignmentName = @{ value = $existingKeyVaultAdministratorRoleAssignmentName }
-            manageWebApiServer = @{ value = (-not $webApiPlanExists) }
+            manageWebApiServer = @{ value = $manageWebApiServer }
             webApiPlanSupportsAlwaysOn = @{ value = $webApiPlanSupportsAlwaysOn }
             customEmailDomainEnabled = @{ value = [bool]$EnableCustomEmailDomain }
             entraDefaultDomain = @{ value = $resolvedEntraDefaultDomain }
