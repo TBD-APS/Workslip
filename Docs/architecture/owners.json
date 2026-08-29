@@ -60,6 +60,16 @@
       ],
       "summary": "Workslip backend/API implementation and server-side authorization boundary."
     },
+    "delivery.ci-checkpoint": {
+      "path": "tools/delivery",
+      "instructions": "AGENTS.md",
+      "intents": [
+        "ci-checkpoint",
+        "delivery-telemetry",
+        "github-actions-delivery"
+      ],
+      "summary": "Sanitized CI/CD lifecycle checkpoints emitted from trusted GitHub Actions delivery entrypoints."
+    },
     "agent.runtime": {
       "path": "platform/mr-saasy-control-plane",
       "instructions": "platform/mr-saasy-control-plane/AGENTS.md",

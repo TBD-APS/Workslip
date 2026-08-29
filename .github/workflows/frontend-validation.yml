@@ -226,6 +226,10 @@ jobs:
           node --check tools/release/resolve-release-environment.mjs
           node --test tools/release/resolve-release-environment.test.mjs
           node tools/release/resolve-release-environment.mjs --environment production --require-runnable
+      - name: Validate CI checkpoint sender
+        run: |
+          node --check tools/delivery/publish-control-center-checkpoint.mjs
+          node --test tools/delivery/publish-control-center-checkpoint.test.mjs
       - name: Validate database migration sources
         shell: pwsh
         run: ./src/BE/infrastructure/run-database-migrations.ps1 -Environment prod -ValidateOnly
