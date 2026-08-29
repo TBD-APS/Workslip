@@ -1,0 +1,312 @@
+name: Deploy Workslip Live App (Container Apps)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: workslip-live-app
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Live App · Serverless Container Apps
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    environment: live-app
+    env:
+      AZURE_RESOURCE_GROUP: rg-mrsoftwarev2-live-app
+      AZURE_LOCATION: swedencentral
+      DATA_RESOURCE_GROUP: rg-mrsoftwarev2-live
+      LIVE_SQL_SERVER: db-mrsoftwarev2-live-server
+      LIVE_SQL_DATABASE: db-mrsoftwarev2-live
+      LIVE_RUNTIME_IDENTITY: id-workslip-live-app
+      LIVE_MIGRATION_IDENTITY: id-mrsoftwarev2-live-migration
+      APP_CONFIG_ENDPOINT: https://appcs-mrsoftwarev2-live.azconfig.io
+      INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+    steps:
+      - name: Require main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "$GITHUB_REF" != 'refs/heads/main' ]]; then
+            echo "::error::The production Workslip live-app may only be deployed from main. Selected ref: $GITHUB_REF"
+            exit 1
+          fi
+
+      - name: Checkout exact selected revision
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify Azure bootstrap configuration
+        shell: bash
+        env:
+          TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          set -Eeuo pipefail
+          missing=()
+          [[ -n "$INFRA_CLIENT_ID" ]] || missing+=(AZURE_INFRA_CLIENT_ID-or-AZURE_CLIENT_ID)
+          [[ -n "$TENANT_ID" ]] || missing+=(AZURE_TENANT_ID)
+          [[ -n "$SUBSCRIPTION_ID" ]] || missing+=(AZURE_SUBSCRIPTION_ID)
+          if (( ${#missing[@]} > 0 )); then
+            printf '::error::Missing Azure OIDC configuration on the live-app GitHub environment: %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+      - name: Azure login as infrastructure bootstrap identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ env.INFRA_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate live-app Bicep
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for file in foundation.bicep runtimeDataAccess.bicep app.bicep; do
+            az bicep build --file "src/BE/infrastructure/aca/$file" --stdout >/dev/null
+          done
+
+      - name: Ensure isolated live-app resource group
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az group create \
+            --name "$AZURE_RESOURCE_GROUP" \
+            --location "$AZURE_LOCATION" \
+            --tags environment=live-app workload=workslip managedBy=github-actions \
+            --only-show-errors \
+            --output none
+
+      - name: Resolve existing live shared resources
+        id: shared
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          loganal_id="$(az monitor log-analytics workspace show \
+            --resource-group "$DATA_RESOURCE_GROUP" --name logAnal-mrsoftwarev2-live \
+            --query id --output tsv)"
+          loganal_customer="$(az monitor log-analytics workspace show \
+            --resource-group "$DATA_RESOURCE_GROUP" --name logAnal-mrsoftwarev2-live \
+            --query customerId --output tsv)"
+          keyvault_id="$(az keyvault show \
+            --resource-group "$DATA_RESOURCE_GROUP" --name kv-mrsoftwarev2-live \
+            --query id --output tsv)"
+          appinsights_conn="$(az monitor app-insights component show \
+            --resource-group "$DATA_RESOURCE_GROUP" --resource ai-mrsoftwarev2-live \
+            --query properties.ConnectionString --output tsv)"
+          sql_fqdn="$(az sql server show \
+            --resource-group "$DATA_RESOURCE_GROUP" --name "$LIVE_SQL_SERVER" \
+            --query fullyQualifiedDomainName --output tsv)"
+          {
+            echo "loganal_id=$loganal_id"
+            echo "loganal_customer_id=$loganal_customer"
+            echo "keyvault_id=$keyvault_id"
+            echo "app_insights_connection_string=$appinsights_conn"
+            echo "sql_server_fqdn=$sql_fqdn"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Reconcile live-app foundation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az deployment group create \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name workslip-live-app-foundation \
+            --template-file src/BE/infrastructure/aca/foundation.bicep \
+            --parameters \
+              location="$AZURE_LOCATION" \
+              logAnalyticsWorkspaceId='${{ steps.shared.outputs.loganal_id }}' \
+              logAnalyticsWorkspaceCustomerId='${{ steps.shared.outputs.loganal_customer_id }}' \
+              keyVaultId='${{ steps.shared.outputs.keyvault_id }}' \
+              keyVaultName='kv-mrsoftwarev2-live' \
+              appConfigurationName='appcs-mrsoftwarev2-live' \
+              storageAccountName='stmrsoftwarev2live' \
+              githubEnvironment="${{ github.environment }}" \
+            --only-show-errors \
+            --output none
+
+      - name: Resolve foundation outputs
+        id: foundation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          output() {
+            az deployment group show \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name workslip-live-app-foundation \
+              --query "properties.outputs.$1.value" \
+              --output tsv
+          }
+          {
+            echo "environment_name=$(output managedEnvironmentName)"
+            echo "acr_name=$(output registryName)"
+            echo "acr_login_server=$(output registryLoginServer)"
+            echo "runtime_identity_name=$(output runtimeIdentityName)"
+            echo "runtime_client_id=$(output runtimeIdentityClientId)"
+            echo "ci_client_id=$(output ciIdentityClientId)"
+            echo "migration_client_id=$(az identity show \
+              --resource-group "$DATA_RESOURCE_GROUP" \
+              --name "$LIVE_MIGRATION_IDENTITY" \
+              --query clientId --output tsv)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Allow new federated identities to propagate
+        shell: bash
+        run: sleep 20
+
+      - name: Logout infrastructure bootstrap identity
+        shell: bash
+        run: az logout
+
+      - name: Azure login as dedicated live-app deployment identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.foundation.outputs.ci_client_id }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build immutable live-app API image in ACR
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az acr build \
+            --registry '${{ steps.foundation.outputs.acr_name }}' \
+            --image "workslip-live-app-api:$GITHUB_SHA" \
+            --file src/BE/WorkslipApi/Dockerfile.demo \
+            .
+
+      - name: Build immutable live-app frontend image in ACR
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az acr build \
+            --registry '${{ steps.foundation.outputs.acr_name }}' \
+            --image "workslip-live-app-frontend:$GITHUB_SHA" \
+            --file src/FE/Dockerfile \
+            .
+
+      - name: Logout deployment identity before database mutation
+        shell: bash
+        run: az logout
+
+      - name: Azure login as dedicated live migration identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.foundation.outputs.migration_client_id }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install SQL migration tooling
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+            Install-Module SqlServer -Scope CurrentUser -Repository PSGallery -Force -AllowClobber
+          }
+          Import-Module SqlServer -ErrorAction Stop
+          Get-Command Invoke-Sqlcmd -ErrorAction Stop | Out-Null
+
+      - name: Grant runtime identity least-privilege database roles
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./src/BE/infrastructure/aca/configure-live-app-database-access.ps1 `
+            -CompanyName mrsoftware `
+            -Environment live-app `
+            -RuntimeIdentityName '${{ steps.foundation.outputs.runtime_identity_name }}'
+
+      - name: Logout live migration identity
+        shell: bash
+        run: az logout
+
+      - name: Azure login as dedicated live-app deployment identity for release
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.foundation.outputs.ci_client_id }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy live-app Container App revision
+        id: app
+        shell: bash
+        env:
+          ACR_LOGIN_SERVER: ${{ steps.foundation.outputs.acr_login_server }}
+          APP_INSIGHTS_CONNECTION_STRING: ${{ steps.shared.outputs.app_insights_connection_string }}
+        run: |
+          set -Eeuo pipefail
+          frontend_image="$ACR_LOGIN_SERVER/workslip-live-app-frontend:$GITHUB_SHA"
+          api_image="$ACR_LOGIN_SERVER/workslip-live-app-api:$GITHUB_SHA"
+
+          az deployment group create \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name workslip-live-app \
+            --template-file src/BE/infrastructure/aca/app.bicep \
+            --parameters \
+              location="$AZURE_LOCATION" \
+              containerAppsEnvironmentName='${{ steps.foundation.outputs.environment_name }}' \
+              containerRegistryName='${{ steps.foundation.outputs.acr_name }}' \
+              runtimeIdentityName='${{ steps.foundation.outputs.runtime_identity_name }}' \
+              frontendImage="$frontend_image" \
+              apiImage="$api_image" \
+              appConfigEndpoint="$APP_CONFIG_ENDPOINT" \
+              applicationInsightsConnectionString="$APP_INSIGHTS_CONNECTION_STRING" \
+              sqlServerName="$LIVE_SQL_SERVER" \
+              sqlServerFqdn='${{ steps.shared.outputs.sql_server_fqdn }}' \
+              sqlDatabaseName="$LIVE_SQL_DATABASE" \
+              storageAccountName='stmrsoftwarev2live' \
+              apiEnvironment='Production' \
+            --only-show-errors \
+            --output none
+
+          fqdn="$(az deployment group show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name workslip-live-app \
+            --query properties.outputs.containerAppFqdn.value \
+            --output tsv)"
+          echo "fqdn=$fqdn" >> "$GITHUB_OUTPUT"
+          echo "url=https://$fqdn" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke-test public live-app
+        shell: bash
+        env:
+          LIVE_URL: ${{ steps.app.outputs.url }}
+        run: |
+          set -Eeuo pipefail
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error --max-time 15 "$LIVE_URL/login" >/dev/null; then
+              break
+            fi
+            if [[ "$attempt" == 30 ]]; then
+              echo '::error::Live-app frontend did not become healthy in time.'
+              exit 1
+            fi
+            sleep 10
+          done
+
+      - name: Publish live-app handoff
+        shell: bash
+        env:
+          LIVE_URL: ${{ steps.app.outputs.url }}
+          LIVE_FQDN: ${{ steps.app.outputs.fqdn }}
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Workslip live-app (serverless) deployed
+
+          - Revision: \`$GITHUB_SHA\`
+          - Azure URL: $LIVE_URL
+          - Hostname: \`$LIVE_FQDN\`
+          - Boundary: \`rg-mrsoftwarev2-live-app\` (parallel runway — App Service untouched)
+          - Runtime identity: \`rg-mrsoftwarev2-live-app / $LIVE_RUNTIME_IDENTITY\`
+          - Smoke: frontend \`/login\` returned 200
+          - Scale: 0→4 replicas, HTTP autoscale, scale-to-zero when idle
+
+          Production database migrations stay with \`database-production-migrations.yml\`; this workflow never mutates schema.
+          EOF
