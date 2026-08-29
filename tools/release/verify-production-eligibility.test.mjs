@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { chooseRun, validateEvidence } from './verify-production-eligibility.mjs';
+import { chooseRun, validateEvidence, workflowRunsPath } from './verify-production-eligibility.mjs';
 
 const SHA = 'a'.repeat(40);
 const OTHER_SHA = 'b'.repeat(40);
@@ -40,6 +40,16 @@ test('accepts only an exact successful main CI Gate', () => {
   assert.equal(evidence.runId, 101);
 });
 
+test('accepts a successful manually dispatched CI run on the exact current main SHA', () => {
+  const evidence = validateEvidence({
+    expectedSha: SHA,
+    mainSha: SHA,
+    run: greenRun({ event: 'workflow_dispatch' }),
+    jobs: [greenGate()],
+  });
+  assert.equal(evidence.runId, 101);
+});
+
 test('rejects stale successful CI when main has advanced', () => {
   assert.throws(
     () => validateEvidence({ expectedSha: SHA, mainSha: OTHER_SHA, run: greenRun(), jobs: [greenGate()] }),
@@ -56,14 +66,14 @@ test('rejects every non-success workflow conclusion', () => {
   }
 });
 
-test('rejects wrong branch and event', () => {
+test('rejects a wrong branch and unapproved CI trigger', () => {
   assert.throws(
     () => validateEvidence({ expectedSha: SHA, mainSha: SHA, run: greenRun({ head_branch: 'feature' }), jobs: [greenGate()] }),
     /not main/,
   );
   assert.throws(
-    () => validateEvidence({ expectedSha: SHA, mainSha: SHA, run: greenRun({ event: 'pull_request' }), jobs: [greenGate()] }),
-    /not a main push/,
+    () => validateEvidence({ expectedSha: SHA, mainSha: SHA, run: greenRun({ event: 'schedule' }), jobs: [greenGate()] }),
+    /not an accepted main CI trigger/,
   );
 });
 
@@ -83,9 +93,18 @@ test('rejects missing, duplicate, skipped or red CI Gate', () => {
 
 test('run discovery prefers success, waits for active CI and fails closed otherwise', () => {
   assert.equal(chooseRun([greenRun()], SHA).state, 'success');
+  assert.equal(chooseRun([greenRun({ event: 'workflow_dispatch' })], SHA).state, 'success');
+  assert.equal(chooseRun([greenRun({ event: 'schedule' })], SHA).state, 'missing');
   assert.equal(chooseRun([greenRun({ status: 'in_progress', conclusion: null })], SHA).state, 'pending');
   assert.equal(chooseRun([greenRun({ conclusion: 'failure' })], SHA).state, 'failed');
   assert.equal(chooseRun([], SHA).state, 'missing');
+});
+
+test('run discovery does not exclude manually dispatched CI evidence at the API boundary', () => {
+  assert.equal(
+    workflowRunsPath(SHA),
+    `/actions/workflows/frontend-validation.yml/runs?branch=main&head_sha=${SHA}&per_page=20`,
+  );
 });
 
 test('CLI entrypoint executes and fails closed on invalid SHA', () => {
