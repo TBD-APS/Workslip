@@ -29,6 +29,7 @@ Owns deterministic delivery only:
 Current first-class workflows in this domain include:
 
 - `frontend-validation.yml`
+- `delivery-ci-checkpoint.yml`
 - `backend-production-deploy.yml`
 - `database-production-migrations.yml`
 - `infrastructure-production-reconcile.yml`
@@ -36,6 +37,8 @@ Current first-class workflows in this domain include:
 - `linear-release.yml`
 
 Delivery implementation helpers should converge behind `tools/delivery/**` or equivalent delivery-owned modules. Workflow YAML remains responsible for triggers, permissions, environments and invoking a stable entrypoint.
+
+`delivery-ci-checkpoint.yml` is the trusted delivery observer for the canonical `CI` workflow and backend deployment workflow. It checks out only the default-branch sender and forwards sanitized lifecycle checkpoints through the delivery helper; it never executes pull-request source with Control Center credentials.
 
 ### AI / Agent Runtime
 
