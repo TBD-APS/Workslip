@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const DEFAULT_API_BASE = 'https://api.github.com';
 const CI_WORKFLOW = 'frontend-validation.yml';
 const REQUIRED_GATE = 'CI Gate';
+const ACCEPTED_CI_EVENTS = new Set(['push', 'workflow_dispatch']);
 
 function parseArgs(argv) {
   const values = new Map();
@@ -82,8 +83,8 @@ export function validateEvidence({ expectedSha, mainSha, run, jobs }) {
   if (run.head_branch !== 'main') {
     throw new Error(`CI run ${run.id ?? 'unknown'} is for branch ${run.head_branch || 'unknown'}, not main.`);
   }
-  if (run.event !== 'push') {
-    throw new Error(`CI run ${run.id ?? 'unknown'} was triggered by ${run.event || 'unknown'}, not a main push.`);
+  if (!ACCEPTED_CI_EVENTS.has(run.event)) {
+    throw new Error(`CI run ${run.id ?? 'unknown'} was triggered by ${run.event || 'unknown'}, not an accepted main CI trigger.`);
   }
   if (run.status !== 'completed' || run.conclusion !== 'success') {
     throw new Error(`CI run ${run.id ?? 'unknown'} is not green: status=${run.status || 'unknown'}, conclusion=${run.conclusion || 'unknown'}.`);
@@ -112,7 +113,7 @@ export function chooseRun(runs, expectedSha) {
   const matching = (runs || []).filter((run) =>
     String(run.head_sha || '').toLowerCase() === sha
     && run.head_branch === 'main'
-    && run.event === 'push');
+    && ACCEPTED_CI_EVENTS.has(run.event));
   const successful = matching.find((run) => run.status === 'completed' && run.conclusion === 'success');
   if (successful) return { state: 'success', run: successful };
   if (matching.some((run) => run.status === 'queued' || run.status === 'in_progress' || run.status === 'waiting' || run.status === 'requested' || run.status === 'pending')) {
@@ -173,8 +174,20 @@ async function loadRunById(client, repository, runId) {
   return run;
 }
 
+export function workflowRunsPath(sha) {
+  const query = new URLSearchParams({
+    branch: 'main',
+    head_sha: requireSha(sha),
+    per_page: '20',
+  });
+  return `/actions/workflows/${CI_WORKFLOW}/runs?${query}`;
+}
+
 async function discoverRun(client, repository, sha) {
-  const response = await client(`/repos/${repository}/actions/workflows/${CI_WORKFLOW}/runs?branch=main&event=push&head_sha=${sha}&per_page=20`);
+  // GitHub only accepts one event filter. Keep discovery broad enough to find a
+  // manually dispatched CI run, then fail closed in chooseRun for every event
+  // except the explicitly accepted ones above.
+  const response = await client(`/repos/${repository}${workflowRunsPath(sha)}`);
   return chooseRun(response.workflow_runs || [], sha);
 }
 

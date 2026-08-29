@@ -838,14 +838,34 @@ function Add-GraphGroupMember {
             '@odata.id' = "$GraphRoot/directoryObjects/$MemberId"
         })
 
-        Invoke-AzureCli -Arguments @(
+        # The v1.0 group-members listing endpoint has a documented blind spot for
+        # service principals. Use the write result as the authoritative final
+        # check: Graph's duplicate-reference response means the desired direct
+        # membership is already in place.
+        $addResult = Invoke-AzureCli -Arguments @(
             'rest',
             '--method', 'POST',
             '--uri', "$GraphRoot/groups/$GroupId/members/`$ref",
             '--headers', 'Content-Type=application/json',
             '--body', "@$($bodyFile.FullName)",
             '-o', 'none'
-        ) | Out-Null
+        ) -AllowFailure
+
+        if ($addResult.ExitCode -eq 0) {
+            return
+        }
+
+        if ($addResult.Output -match '(?i)added object references already exist') {
+            Write-Host "SQL admin group member already exists: $Description" -ForegroundColor DarkGray
+            return
+        }
+
+        $diagnostic = if ([string]::IsNullOrWhiteSpace($addResult.Output)) {
+            'Azure CLI returned no diagnostic output.'
+        } else {
+            $addResult.Output
+        }
+        throw "Azure CLI failed with exit code $($addResult.ExitCode).`n$diagnostic"
     }
     finally {
         Remove-Item $bodyFile -Force -ErrorAction SilentlyContinue
@@ -920,7 +940,13 @@ Run without -WhatIf to create it, or create the group first:
     }
     $existingWebApiPlanSku = Get-AppServicePlanSkuName -Name $webApiServerName
     $webApiPlanExists = -not [string]::IsNullOrWhiteSpace($existingWebApiPlanSku)
-    $webApiPlanSupportsAlwaysOn = -not $webApiPlanExists -or $existingWebApiPlanSku -notin @('F1', 'D1', 'Y1')
+    $requiredWebApiPlanSku = if ($NormalizedEnvironment -eq 'live') { 'S1' } else { '' }
+    $webApiPlanRequiresCapacityReconcile = $webApiPlanExists -and
+        $NormalizedEnvironment -eq 'live' -and
+        $existingWebApiPlanSku -ne $requiredWebApiPlanSku
+    $manageWebApiServer = -not $webApiPlanExists -or $webApiPlanRequiresCapacityReconcile
+    $webApiPlanSupportsAlwaysOn = $NormalizedEnvironment -eq 'live' -and
+        (-not $webApiPlanExists -or $webApiPlanRequiresCapacityReconcile -or $existingWebApiPlanSku -eq 'S1')
 
     if (-not [string]::IsNullOrWhiteSpace($existingAppConfigurationDataOwnerRoleAssignmentName)) {
         Write-Host 'Adopting existing App Configuration Data Owner assignment.' -ForegroundColor DarkGray
@@ -929,9 +955,14 @@ Run without -WhatIf to create it, or create the group first:
         Write-Host 'Adopting existing Key Vault Administrator assignment.' -ForegroundColor DarkGray
     }
     if ($webApiPlanExists) {
-        Write-Host 'Reusing existing App Service plan without requesting a capacity change.' -ForegroundColor DarkGray
-        if (-not $webApiPlanSupportsAlwaysOn) {
-            Write-Host 'Always On remains disabled because the existing plan SKU does not support it.' -ForegroundColor DarkGray
+        if ($webApiPlanRequiresCapacityReconcile) {
+            Write-Host "Reconciling App Service plan SKU from '$existingWebApiPlanSku' to '$requiredWebApiPlanSku' for the live staging-slot deployment policy." -ForegroundColor Yellow
+        }
+        else {
+            Write-Host 'Reusing existing App Service plan without requesting a capacity change.' -ForegroundColor DarkGray
+            if (-not $webApiPlanSupportsAlwaysOn) {
+                Write-Host 'Always On remains disabled because the existing plan SKU does not support it.' -ForegroundColor DarkGray
+            }
         }
     }
 
@@ -990,7 +1021,7 @@ Run without -WhatIf to create it, or create the group first:
             globalAdminPrincipalType = @{ value = $resolvedGlobalAdminPrincipalType }
             appConfigurationDataOwnerRoleAssignmentName = @{ value = $existingAppConfigurationDataOwnerRoleAssignmentName }
             keyVaultAdministratorRoleAssignmentName = @{ value = $existingKeyVaultAdministratorRoleAssignmentName }
-            manageWebApiServer = @{ value = (-not $webApiPlanExists) }
+            manageWebApiServer = @{ value = $manageWebApiServer }
             webApiPlanSupportsAlwaysOn = @{ value = $webApiPlanSupportsAlwaysOn }
             customEmailDomainEnabled = @{ value = [bool]$EnableCustomEmailDomain }
             entraDefaultDomain = @{ value = $resolvedEntraDefaultDomain }
