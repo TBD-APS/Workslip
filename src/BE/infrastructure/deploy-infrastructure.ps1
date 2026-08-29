@@ -281,6 +281,44 @@ function Get-KeyVaultSecretValue {
     return $result.Output
 }
 
+function Get-ExistingRoleAssignmentName {
+    <#
+        ARM rejects a second role assignment with identical scope, principal and
+        role even when its resource name differs. Previous bootstrap paths used
+        generated names, so reconcile must adopt a matching assignment when one
+        already exists instead of attempting a duplicate write.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$Scope,
+        [Parameter(Mandatory = $true)][string]$PrincipalId,
+        [Parameter(Mandatory = $true)][string]$RoleDefinitionId
+    )
+
+    $result = Invoke-AzureCli `
+        -Arguments @(
+            'role', 'assignment', 'list',
+            '--scope', $Scope,
+            '--assignee-object-id', $PrincipalId,
+            '--role', $RoleDefinitionId,
+            '--query', '[0].name',
+            '--only-show-errors',
+            '-o', 'tsv'
+        ) `
+        -AllowFailure
+
+    if ($result.ExitCode -ne 0) {
+        # On a new environment the scoped resource may not exist yet. The Bicep
+        # template will create its normal deterministic assignment in that case.
+        if ($result.Output -match '(?i)(ResourceNotFound|ScopeNotFound|not found|does not exist|404)') {
+            return ''
+        }
+
+        throw "Could not inspect existing role assignments for scope '$Scope'.`n$($result.Output)"
+    }
+
+    return $result.Output.Trim()
+}
+
 function Set-KeyVaultSecretFromMemory {
     param(
         [Parameter(Mandatory = $true)][string]$SecretName,
@@ -835,6 +873,29 @@ Run without -WhatIf to create it, or create the group first:
         Invoke-AzureCli -Arguments @('group', 'create', '--name', $ResourceGroup, '--location', $Location, '-o', 'none') | Out-Null
     }
 
+    $subscriptionId = [string]$account.subscriptionId
+    if ([string]::IsNullOrWhiteSpace($subscriptionId)) {
+        throw 'Azure CLI did not return a subscription ID.'
+    }
+
+    $appConfigurationScope = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.AppConfiguration/configurationStores/$AppConfigurationName"
+    $keyVaultScope = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.KeyVault/vaults/$KeyVaultName"
+    $existingAppConfigurationDataOwnerRoleAssignmentName = Get-ExistingRoleAssignmentName `
+        -Scope $appConfigurationScope `
+        -PrincipalId $resolvedGlobalAdminId `
+        -RoleDefinitionId '5ae67dd6-50cb-40e7-96ff-dc2bfa4b606b'
+    $existingKeyVaultAdministratorRoleAssignmentName = Get-ExistingRoleAssignmentName `
+        -Scope $keyVaultScope `
+        -PrincipalId $resolvedGlobalAdminId `
+        -RoleDefinitionId '00482a5a-887f-4fb3-b363-3b7fe8e74483'
+
+    if (-not [string]::IsNullOrWhiteSpace($existingAppConfigurationDataOwnerRoleAssignmentName)) {
+        Write-Host 'Adopting existing App Configuration Data Owner assignment.' -ForegroundColor DarkGray
+    }
+    if (-not [string]::IsNullOrWhiteSpace($existingKeyVaultAdministratorRoleAssignmentName)) {
+        Write-Host 'Adopting existing Key Vault Administrator assignment.' -ForegroundColor DarkGray
+    }
+
     if (Test-Path $EntraStatePath) {
         $entraState = Read-EntraState -Path $EntraStatePath
     }
@@ -888,6 +949,8 @@ Run without -WhatIf to create it, or create the group first:
             environment = @{ value = $Environment }
             globalAdminId = @{ value = $resolvedGlobalAdminId }
             globalAdminPrincipalType = @{ value = $resolvedGlobalAdminPrincipalType }
+            appConfigurationDataOwnerRoleAssignmentName = @{ value = $existingAppConfigurationDataOwnerRoleAssignmentName }
+            keyVaultAdministratorRoleAssignmentName = @{ value = $existingKeyVaultAdministratorRoleAssignmentName }
             customEmailDomainEnabled = @{ value = [bool]$EnableCustomEmailDomain }
             entraDefaultDomain = @{ value = $resolvedEntraDefaultDomain }
             powerBiReaderPrincipalId = @{ value = $PowerBiReaderPrincipalId }
