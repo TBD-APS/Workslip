@@ -57,6 +57,12 @@ pwsh ./src/BE/infrastructure/run-database-migrations.ps1 -Environment prod -Vali
 
 After green CI on `main`, the backend deployment authenticates first with the ordinary GitHub deployment identity only to discover the dedicated migration identity, then switches to that identity for migration execution. The migration identity has database DDL/data permissions and SQL-firewall management only for the target SQL server. The ordinary API runtime identity keeps normal data read/write access and must not retain `db_ddladmin`.
 
+### Empty tenant databases
+
+`20260808_2359_workslip_explicit_schema_baseline.sql` is the first production migration. It contains the SQL Server schema at the explicit-migration cutover, generated from commit `1b962d23cb23bbdf20e7c8ea1be78bff9ca59764`, immediately before WOR-385. On a database containing only the migration-history table, it creates that historical baseline before normal forward migrations run.
+
+The baseline is a no-op only when every cutover Workslip table already exists. It fails closed if it finds a partial schema or unrelated user tables, rather than treating the database as empty. It is a reviewed, immutable migration artifact: do not regenerate or edit it after application.
+
 ## Schema contract guard
 
 Local development and tests build the schema from the EF model (`EnsureCreated`), while production changes only through these migration files. Nothing at runtime compares the two, so a column added to the EF model without a migration is invisible until production fails.
