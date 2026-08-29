@@ -21,7 +21,7 @@ param githubOwner string = 'rasm105k'
 param githubOwnerId string = '31623093'
 param githubRepository string = 'Workslip-v2.0'
 param githubRepositoryId string = '1245555609'
-param githubEnvironment string = 'live-app'
+param githubEnvironment string = 'live'
 
 var suffix = uniqueString(subscription().id)
 var compactPrefix = replace(namePrefix, '-', '')
@@ -34,7 +34,7 @@ var dataSubscriptionId = split(keyVaultId, '/')[2]
 var dataResourceGroupName = split(keyVaultId, '/')[4]
 
 var tags = {
-  environment: 'live-app'
+  environment: githubEnvironment
   workload: 'workslip'
   managedBy: 'bicep'
 }
