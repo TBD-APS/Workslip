@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { inspectPlaywrightSource } from './playwright-stability-policy.mjs';
+import {
+  findMissingRunnerScenarios,
+  inspectPlaywrightSource,
+  inspectRunnerScenarioSync,
+} from './playwright-stability-policy.mjs';
 
 test('accepts event waits that are armed before the triggering action', () => {
   const source = `
@@ -64,4 +68,34 @@ test('blocks directly awaited API response helpers', () => {
     `await waitForApiResponse(page, 'POST', '/api/jobs', [200]);`,
   );
   assert.ok(findings.some((finding) => finding.rule === 'passive-api-response-wait'));
+});
+
+test('flags runner scenarios that have no script file on disk', () => {
+  const runner = `
+run_scenario 'authenticated smoke' scripts/playwright-ephemeral-smoke.mjs
+run_scenario 'help wizard' scripts/playwright-help-wizard.mjs
+`;
+  const missing = findMissingRunnerScenarios(runner, ['playwright-ephemeral-smoke.mjs']);
+  assert.deepEqual(missing, ['playwright-help-wizard.mjs']);
+});
+
+test('detects a missing scenario whose script path is on a continued line', () => {
+  const runner = `
+run_scenario 'authenticated smoke' \\
+  scripts/playwright-help-wizard.mjs
+`;
+  const missing = findMissingRunnerScenarios(runner, ['playwright-ephemeral-smoke.mjs']);
+  assert.deepEqual(missing, ['playwright-help-wizard.mjs']);
+});
+
+test('accepts a runner whose scenarios all resolve to files', () => {
+  const runner = `run_scenario 'authenticated smoke' scripts/playwright-ephemeral-smoke.mjs`;
+  assert.deepEqual(
+    findMissingRunnerScenarios(runner, ['playwright-ephemeral-smoke.mjs', 'playwright-help-wizard.mjs']),
+    [],
+  );
+});
+
+test('the real ephemeral runner references only scenario scripts that exist', async () => {
+  assert.deepEqual(await inspectRunnerScenarioSync(), []);
 });

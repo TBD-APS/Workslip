@@ -17,6 +17,6 @@ public record AccountingDocument(
 public interface IAccountingProvider : IIntegrationProvider
 {
     Task<IEnumerable<AccountingDocument>> GetDocumentsForUserAsync(string tenantId, string userId, string startDate, string endDate);
-    Task<Stream> GetDocumentStreamAsync(string tenantId, string documentId);
+    Task<Stream?> GetDocumentStreamAsync(string tenantId, string documentId);
     Task<bool> SyncHoursAsync(string tenantId, object hoursData);
 }

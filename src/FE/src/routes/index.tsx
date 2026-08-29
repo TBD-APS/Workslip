@@ -8,6 +8,7 @@ import { NotFoundPage } from '../components/common/NotFoundPage';
 import { Login } from '../features/auth/routes/Login';
 import { ErrorFallback } from '../providers/ErrorFallback';
 import { RoleGuard } from '../providers/permissions';
+import { FeatureGate } from '../providers/moduleAccess';
 import { useAuth } from '../providers/useAuth';
 
 const AUTH_STARTUP_GRACE_MS = 6_000;
@@ -83,6 +84,9 @@ const SuperAdmin = lazy(() =>
 );
 const CacheDiagnostics = lazy(() =>
   import('../features/superadmin/routes/CacheDiagnostics').then((module) => ({ default: module.CacheDiagnostics })),
+); // eslint-disable-next-line react-refresh/only-export-components
+const Lederanalyse = lazy(() =>
+  import('../features/leader-analysis/routes/Lederanalyse').then((module) => ({ default: module.Lederanalyse })),
 );
 
 const loadJobEntryRoute = () =>
@@ -261,7 +265,7 @@ export const router = createBrowserRouter([
           { path: 'lager', element: <InventoryPage /> },
           { path: 'lager/opsaetning', element: <RoleGuard permission="user:manage"><InventoryOnboarding /></RoleGuard> },
           { path: 'create', element: <Create /> },
-          { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
+          { path: 'job/new', element: <FeatureGate module="compliance-evidence" fallback={<Navigate to="/app/job/simple/new" replace />}><RoleGuard permission="job:create"><JobCreate /></RoleGuard></FeatureGate> },
           { path: 'job/simple/new', element: <RoleGuard permission="job:create"><SimpleJobCreate /></RoleGuard> },
           { path: 'job/:id', lazy: loadJobEntryRoute },
           { path: 'completed/:id', lazy: loadJobEntryRoute },
@@ -275,6 +279,7 @@ export const router = createBrowserRouter([
           { path: 'docs/new', element: <RoleGuard permission="docs:edit">{docsPageElement}</RoleGuard> },
           { path: 'docs/:id', element: <RoleGuard permission="docs:view">{docsPageElement}</RoleGuard> },
           { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
+          { path: 'lederanalyse', element: <RoleGuard permission="leader-analysis:view"><Lederanalyse /></RoleGuard> },
           { path: 'profil', element: <Profile /> },
           { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
           { path: 'settings/billing-guide', element: <RoleGuard permission="user:manage">{billingGuidePageElement}</RoleGuard> },

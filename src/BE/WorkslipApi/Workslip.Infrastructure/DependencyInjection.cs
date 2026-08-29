@@ -26,6 +26,8 @@ using Workslip.Infrastructure.Notifications;
 using Workslip.Infrastructure.Operations;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Application.Integrations;
+using Workslip.Application.LeaderAnalysis;
+using Microsoft.Extensions.Options;
 using Workslip.Infrastructure.Reporting;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
@@ -158,6 +160,7 @@ public static class DependencyInjection
         services.AddScoped<IIntegrationProvider, EconomicsProvider>();
         services.AddScoped<IAccountingProvider, EconomicsProvider>();
         services.AddScoped<IDocumentSyncService, DocumentSyncService>();
+        services.AddScoped<ILeaderEconomicsService, LeaderEconomicsService>();
 
         if (includeHostedServices)
         {

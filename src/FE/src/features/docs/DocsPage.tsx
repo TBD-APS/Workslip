@@ -80,6 +80,13 @@ const isConflict = (error: unknown): boolean =>
   && 'response' in error
   && (error as { response?: { status?: number } }).response?.status === 409;
 
+const SUGGESTED_CATEGORIES = [
+  'Onboarding',
+  'Teknik & Drift',
+  'Procedurer',
+  'Produktvejledninger',
+];
+
 export const DocsPage = () => {
   const { id } = useParams<{ id?: string }>();
   const location = useLocation();
@@ -119,10 +126,15 @@ export const DocsPage = () => {
     staleTime: 10_000,
   });
 
-  const sourceDraft = useMemo(
-    () => detailQuery.data ? toDraft(detailQuery.data) : emptyDraft(),
-    [detailQuery.data],
-  );
+  const sourceDraft = useMemo(() => {
+    if (detailQuery.data) return toDraft(detailQuery.data);
+    if (isCreating) {
+      const searchParams = new URLSearchParams(location.search);
+      const title = searchParams.get('title');
+      if (title) return { ...emptyDraft(), title };
+    }
+    return emptyDraft();
+  }, [detailQuery.data, isCreating, location.search]);
   const draft = draftState?.key === draftKey ? draftState.value : sourceDraft;
   const isEditing = isCreating || editingDocumentId === selectedId;
   const isDirty = isCreating
@@ -152,11 +164,12 @@ export const DocsPage = () => {
   };
 
   const createMutation = useMutation({
-    mutationFn: () => createDocument({
-      title: draft.title.trim(),
-      content: draft.content,
-      tags: parseTags(draft.tagsText),
-    }),
+    mutationFn: ({ title, content, tags }: { title: string; content: string; tags: string[] }) =>
+      createDocument({
+        title: title.trim(),
+        content,
+        tags,
+      }),
     onSuccess: async (document) => {
       queryClient.setQueryData(docsQueryKeys.detail(document.id), document);
       setDraftState(null);
@@ -249,7 +262,13 @@ export const DocsPage = () => {
 
   const submit = () => {
     if (!canSave) return;
-    if (isCreating) createMutation.mutate();
+    if (isCreating) {
+      createMutation.mutate({
+        title: draft.title,
+        content: draft.content,
+        tags: parsedTags,
+      });
+    }
     else updateMutation.mutate();
   };
 
@@ -265,7 +284,7 @@ export const DocsPage = () => {
           <div className="docs-sidebar-header">
             <div>
               <span className="docs-eyebrow">Intern viden</span>
-              <h1>Docs</h1>
+               <h1>Dokumenter</h1>
             </div>
             {canEdit && (
               <button type="button" className="docs-new-button" onClick={startNew} aria-label="Opret dokument">
@@ -312,8 +331,29 @@ export const DocsPage = () => {
               <div className="docs-sidebar-state">
                 <BookOpen size={28} aria-hidden="true" />
                 <p>{debouncedSearch ? 'Ingen dokumenter matcher søgningen.' : 'Der er ingen dokumenter endnu.'}</p>
-                {canEdit && !debouncedSearch && (
-                  <button type="button" className="btn btn-primary" onClick={startNew}>Opret det første</button>
+                {!debouncedSearch && canEdit && (
+                  <div className="docs-suggestions">
+                    <span className="docs-suggestions-label">Forslag til mapper:</span>
+                    <div className="docs-suggestions-grid">
+                       {SUGGESTED_CATEGORIES.map((category) => (
+                        <button
+                          key={category}
+                          type="button"
+                          className="docs-suggestion-item"
+                          onClick={() => {
+                            navigate(`/app/docs/new?title=${encodeURIComponent(category)}`);
+                            // Note: we'd need to handle the query param in DocsPage to pre-fill the title
+                          }}
+                        >
+                          <span className="docs-suggestion-icon">📁</span>
+                          <span className="docs-suggestion-text">{category}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {!debouncedSearch && canEdit && (
+                  <button type="button" className="btn btn-primary" onClick={startNew} style={{ marginTop: '1rem' }}>Opret eget dokument</button>
                 )}
               </div>
             )}
@@ -354,7 +394,7 @@ export const DocsPage = () => {
           {!showWorkspace && (
             <div className="docs-welcome">
               <div className="docs-welcome-icon"><BookOpen size={34} aria-hidden="true" /></div>
-              <span className="docs-eyebrow">Workslip Docs</span>
+               <span className="docs-eyebrow">Workslip Dokumenter</span>
               <h2>Viden, der ikke skal genopfindes.</h2>
               <p>Vælg et dokument til venstre, eller opret et nyt. Tekniske sandheder hører fortsat hjemme i repository-dokumentationen.</p>
               {canEdit && <button type="button" className="btn btn-primary" onClick={startNew}><FilePlus2 size={17} aria-hidden="true" /> Nyt dokument</button>}

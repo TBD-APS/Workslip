@@ -188,16 +188,27 @@ async function verifyUserPermissionBoundaries() {
     await expectRoute(page, '/app/customers');
 
     await page.locator('#bottom-nav-customers').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal(
+      await page.locator('#bottom-nav-docs').count(),
+      1,
+      'The Docs navigation link must remain mounted so its field-worker presentation policy can be asserted.',
+    );
+    assert.equal(
+      await page.locator('#bottom-nav-docs').isVisible(),
+      false,
+      'Docs is intentionally absent from the field-worker primary navigation; it remains an authorized direct route.',
+    );
     assert.equal(await page.locator('#bottom-nav-people').count(), 0, 'User navigation must not expose user management.');
 
     await page.locator('#account-menu-button').click();
     const menu = page.locator('#account-menu');
     await menu.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     assert.equal(await page.locator('#account-menu-settings').count(), 0, 'User account menu must not expose admin settings.');
-    await page.locator('#account-menu-docs').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal(await page.locator('#account-menu-docs').count(), 0, 'Docs belongs in the primary navigation, not the account menu.');
     await page.keyboard.press('Escape');
 
     await navigateAndExpect(page, '/app/timer', '/app/timer');
+    await navigateAndExpect(page, '/app/docs', '/app/docs');
     await navigateAndExpect(page, '/app/settings', '/app');
     await navigateAndExpect(page, '/app/users', '/app');
     await navigateAndExpect(page, '/app/auditor', '/app');
@@ -226,7 +237,7 @@ async function verifyAuditorPermissionBoundaries() {
     const menu = page.locator('#account-menu');
     await menu.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     assert.equal(await page.locator('#account-menu-settings').count(), 0, 'Auditor account menu must not expose admin settings.');
-    await page.locator('#account-menu-docs').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal(await page.locator('#account-menu-docs').count(), 0, 'Docs belongs to neither the auditor account menu nor the field-worker primary navigation.');
     await page.keyboard.press('Escape');
 
     await navigateAndExpect(page, '/app/timer', '/app/auditor');

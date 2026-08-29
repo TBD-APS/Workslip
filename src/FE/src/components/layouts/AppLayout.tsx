@@ -1,5 +1,5 @@
 import { useNavigate, useLocation, NavLink, Navigate, Outlet } from 'react-router-dom';
-import { BookOpen, ClipboardList, Building2, CalendarDays, LogOut, Menu, PackageSearch, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell, Search, X } from 'lucide-react';
+import { BookOpen, ClipboardList, Building2, CalendarDays, LogOut, Menu, PackageSearch, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell, Search, X, BarChart3 } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can, useCan, useIsSuperAdmin } from '../../providers/permissions';
 import { useEffect, useRef, useState } from 'react';
@@ -54,6 +54,7 @@ export const AppLayout = () => {
   const canCreateJobs = useCan('job:create');
   const canViewAllJobs = useCan('job:viewAll');
   const canManageOrganization = useCan('organization:manage');
+  const canViewLeaderAnalysis = useCan('leader-analysis:view');
   const organizationSession = getOrganizationSession();
   const appHomePath = getAuthenticatedHomePath(user?.role);
   const isAuditorSession = appHomePath === AUDITOR_AUTHENTICATED_PATH;
@@ -252,23 +253,8 @@ export const AppLayout = () => {
                     <ShieldCheck size={16} aria-hidden="true" />
                     <span>Superadmin</span>
                   </button>
-                )}
-                {canViewDocs && canUseAppCommands && (
-                  <button
-                    id="account-menu-docs"
-                    type="button"
-                    className="app-header-settings-item"
-                    role="menuitem"
-                    onClick={() => {
-                      setSettingsMenuOpen(false);
-                      navigate('/app/docs');
-                    }}
-                  >
-                    <BookOpen size={16} aria-hidden="true" />
-                    <span>Docs</span>
-                  </button>
-                )}
-                <button
+                 )}
+                 <button
                   id="account-menu-theme"
                   type="button"
                   className="app-header-settings-item"
@@ -332,6 +318,7 @@ export const AppLayout = () => {
         canEditCustomers={canUseAppCommands && canEditCustomers}
         canCreateJobs={canUseAppCommands && canCreateJobs}
         canManageOrganization={canManageOrganization}
+        canViewLeaderAnalysis={canUseAppCommands && canViewLeaderAnalysis}
         showProfile={canUseAppCommands && !isSuperadmin}
       />
 
@@ -388,6 +375,18 @@ export const AppLayout = () => {
           <NavLink id="bottom-nav-customers" to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/customers')}>
             <Building2 size={24} />
             <span>Kunder</span>
+          </NavLink>
+        </Can>
+        <Can permission="leader-analysis:view">
+          <NavLink id="bottom-nav-leader-analysis" to="/app/lederanalyse" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/lederanalyse')}>
+            <BarChart3 size={24} />
+            <span>Lederanalyse</span>
+          </NavLink>
+        </Can>
+        <Can permission="docs:view">
+          <NavLink id="bottom-nav-docs" to="/app/docs" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/docs')}>
+            <BookOpen size={24} />
+            <span>Dokumenter</span>
           </NavLink>
         </Can>
         <button

@@ -1481,5 +1481,4 @@ entity.Property(e => e.Status)
         entity.HasIndex(x => x.ExpiresAt).HasDatabaseName("IX_IdempotencyRecords_ExpiresAt");
     }
 
-
 }

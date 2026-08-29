@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   Building2,
   CalendarDays,
   ClipboardList,
@@ -32,6 +33,7 @@ interface QuickNavigatorCommandOptions {
   canEditCustomers: boolean;
   canCreateJobs: boolean;
   canManageOrganization: boolean;
+  canViewLeaderAnalysis?: boolean;
   showProfile: boolean;
 }
 
@@ -45,6 +47,7 @@ export function buildQuickNavigatorCommands({
   canEditCustomers,
   canCreateJobs,
   canManageOrganization,
+  canViewLeaderAnalysis,
   showProfile,
 }: QuickNavigatorCommandOptions): QuickNavigatorCommand[] {
   const commands: QuickNavigatorCommand[] = [];
@@ -110,6 +113,10 @@ export function buildQuickNavigatorCommands({
   if (showProfile) commands.push({
     id: 'profile', label: 'Profil', description: 'Åbn din profil', path: '/app/profil',
     keywords: ['profil', 'mig', 'konto'], icon: UserCircle,
+  });
+  if (canViewLeaderAnalysis) commands.push({
+    id: 'leader-analysis', label: 'Lederanalyse', description: 'Åbn lederanalyse og driftsnøgletal', path: '/app/lederanalyse',
+    keywords: ['leder', 'lederanalyse', 'analyse', 'ledelse', 'kpi', 'drift', 'bemanning'], icon: BarChart3,
   });
   if (canManageOrganization) commands.push({
     id: 'superadmin', label: 'Superadmin', description: 'Åbn organisationsadministration', path: '/superadmin',
