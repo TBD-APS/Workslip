@@ -2,9 +2,14 @@
 
 **Status:** Active  
 **Owner:** Workslip repository owner  
-**Source of truth:** this directory, `main.bicep`, the deployment scripts and accepted infrastructure ADRs  
+**Topology source of truth:** `TBD-APS/mr-saassy/infrastructure/workloads/workslip/azure`<br>
 **Review cadence:** whenever Azure, Entra, SQL, GitHub OIDC, monitoring or secret handling changes  
 **Linear:** WOR-190, WOR-212, WOR-223
+
+The Bicep and deployment scripts in this directory are compatibility material
+while production topology ownership is centralized in MR SAAS’y. Keep them
+aligned with that canonical baseline while product workflows still reference
+them.
 
 Workslip has exactly three supported deployment entry points, plus one read-only entry point that previews them:
 
@@ -107,11 +112,13 @@ The infrastructure phase:
 3. reconciles Azure-owned deployment secrets without exposing them on command lines;
 4. provisions the API user-assigned managed identity in Azure SQL.
 
-The new `live` production environment uses a B1 App Service worker with
-`alwaysOn` enabled. The legacy `prod` boundary and other environments remain on
-F1 with `alwaysOn` disabled. This keeps the authoritative template aligned with
-the B1 landing zone and prevents a reconcile from silently downgrading the new
-tenant.
+The `live` production environment uses an S1 Standard App Service worker with
+`alwaysOn` enabled and a `staging` deployment slot. This is the minimum live
+capacity because Kudu needs space for release artifacts and the deployment
+workflow validates a candidate before traffic is swapped. The legacy `prod`
+boundary and other environments remain on F1 with `alwaysOn` disabled. The
+compatibility script reconciles an existing live plan to S1 rather than leaving
+it on an unsupported tier.
 
 The template takes no compile-time file input. Everything instance-specific arrives as a deployment parameter, so `main.bicep` describes *a* Workslip environment rather than this one, and a deployment no longer writes to the working tree as a side effect. `monitoring.config.json` remains operator configuration; the deployment script reads it and passes the addresses through.
 

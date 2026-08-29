@@ -195,7 +195,7 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Resolve migration identity and deployment target
+      - name: Resolve migration identity and require live deployment capacity
         id: azure
         shell: bash
         run: |
@@ -204,8 +204,22 @@ jobs:
           [[ "${client_id}" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo "::error::Migration identity unavailable."; exit 1; }
           host="$(az webapp show --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --query defaultHostName -o tsv)"
           [[ -n "${host}" && "${host}" != null ]] || { echo "::error::Production hostname unavailable."; exit 1; }
+          plan_id="$(az webapp show --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --query serverFarmId -o tsv)"
+          [[ -n "${plan_id}" && "${plan_id}" != null ]] || { echo "::error::App Service plan binding unavailable."; exit 1; }
+          plan_sku="$(az appservice plan show --ids "${plan_id}" --query sku.name -o tsv)"
+          plan_tier="$(az appservice plan show --ids "${plan_id}" --query sku.tier -o tsv)"
+          [[ "${plan_sku}" == S1 && "${plan_tier}" == Standard ]] || {
+            echo "::error::Live release requires an S1 Standard App Service plan; found tier=${plan_tier}, sku=${plan_sku}. Run Infrastructure · App Service slot upgrade before retrying."
+            exit 1
+          }
+          slot_host="$(az webapp deployment slot list --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --query "[?name=='${AZURE_WEBAPP_NAME}/${DEPLOYMENT_SLOT}'].defaultHostName | [0]" -o tsv)"
+          [[ -n "${slot_host}" && "${slot_host}" != null ]] || {
+            echo "::error::Live release requires the ${DEPLOYMENT_SLOT} deployment slot. Run Infrastructure · App Service slot upgrade before retrying."
+            exit 1
+          }
           echo "migration_client_id=${client_id}" >> "${GITHUB_OUTPUT}"
           echo "production_url=https://${host}" >> "${GITHUB_OUTPUT}"
+          echo "staging_slot_host=${slot_host}" >> "${GITHUB_OUTPUT}"
 
       - name: Logout application deployment identity
         run: az logout
@@ -244,24 +258,15 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Verify deployment prerequisites and slot capability
+      - name: Verify deployment prerequisites
         id: mode
         shell: bash
-        env:
-          SLOT_ENABLED: ${{ vars.AZURE_DEPLOYMENT_SLOT_ENABLED || 'false' }}
         run: |
           set -Eeuo pipefail
           workspace_id="$(az webapp config appsettings list --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --query "[?name=='Azure__ApplicationInsights__WorkspaceId'].value | [0]" -o tsv)"
           [[ "${workspace_id}" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo "::error::Diagnostics workspace is not configured."; exit 1; }
-          if [[ "${SLOT_ENABLED}" == true ]]; then
-            slot_host="$(az webapp deployment slot list --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --query "[?name=='${AZURE_WEBAPP_NAME}/${DEPLOYMENT_SLOT}'].defaultHostName | [0]" -o tsv)"
-            [[ -n "${slot_host}" && "${slot_host}" != null ]] || { echo "::error::Slot mode is enabled but staging slot is missing. Reconcile infrastructure first."; exit 1; }
-            echo "slot_enabled=true" >> "${GITHUB_OUTPUT}"
-            echo "candidate_url=https://${slot_host}" >> "${GITHUB_OUTPUT}"
-          else
-            echo "slot_enabled=false" >> "${GITHUB_OUTPUT}"
-            echo "candidate_url=${{ steps.azure.outputs.production_url }}" >> "${GITHUB_OUTPUT}"
-          fi
+          echo "slot_enabled=true" >> "${GITHUB_OUTPUT}"
+          echo "candidate_url=https://${{ steps.azure.outputs.staging_slot_host }}" >> "${GITHUB_OUTPUT}"
 
       - name: Apply release-testing safety mode
         shell: bash
@@ -276,8 +281,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          args=(webapp deploy --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --src-path "${DEPLOY_PACKAGE}" --type zip --clean true --restart true --enable-kudu-warmup true --enriched-errors true --track-status false --timeout 600000)
-          [[ "${{ steps.mode.outputs.slot_enabled }}" == true ]] && args+=(--slot "${DEPLOYMENT_SLOT}")
+          args=(webapp deploy --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --slot "${DEPLOYMENT_SLOT}" --src-path "${DEPLOY_PACKAGE}" --type zip --clean true --restart true --enable-kudu-warmup true --enriched-errors true --track-status false --timeout 600000)
           for attempt in 1 2 3; do
             az "${args[@]}" && exit 0
             [[ "${attempt}" == 3 ]] && exit 1

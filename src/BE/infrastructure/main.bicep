@@ -30,7 +30,7 @@ param logAnalyticsName string          = 'logAnal-${companyName}-${toLower(envir
 param webApiServerName string          = take('plan-${companyName}-${toLower(environment)}', 40)
 @description('Set false only when reconciling an already-provisioned App Service plan that Azure cannot currently scale. New environments keep the default and create the plan.')
 param manageWebApiServer bool = true
-@description('Whether the selected App Service plan supports Always On. The deployment wrapper resolves this from an existing plan before reconcile.')
+@description('Whether the selected App Service plan supports Always On. The deployment wrapper derives this from the live capacity policy and reconcile state.')
 param webApiPlanSupportsAlwaysOn bool = false
 param webApiName string                = take('api-${companyName}-${toLower(environment)}', 60)
 param appConfigurationName string     = take('appcs-${companyName}-${toLower(environment)}', 50)
@@ -226,11 +226,10 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Web API hosting
-// The new `live` production boundary uses a dedicated Basic worker. The legacy
-// `prod` boundary and lower environments remain on Free. The live tenant was
-// initially provisioned on B1 by migration.bicep, so keeping the tier explicit
-// here also prevents the authoritative reconcile from silently downgrading that
-// worker to F1 during cutover.
+// The `live` production boundary uses a dedicated Standard S1 worker. It has
+// enough Kudu storage for release artifacts and supports the staging slot used
+// by the production deployment workflow. Legacy `prod` and lower environments
+// remain on Free.
 // The API reads App Configuration + Key Vault references through that identity.
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -244,8 +243,8 @@ resource webApiServer 'Microsoft.Web/serverfarms@2025-03-01' = if (manageWebApiS
   tags: tags
   sku: isProduction
     ? {
-        name: 'B1'
-        tier: 'Basic'
+        name: 'S1'
+        tier: 'Standard'
         capacity: 1
       }
     : {
@@ -253,8 +252,7 @@ resource webApiServer 'Microsoft.Web/serverfarms@2025-03-01' = if (manageWebApiS
         tier: 'Free'
         capacity: 1
       }
-  // asyncScalingEnabled is not supported by the B1 SKU used for the protected
-  // live boundary. Omitting it keeps an existing Basic plan reconcilable.
+  // Keep scaling policy Azure-managed; the authoritative tier is explicit above.
 }
 
 resource webApi 'Microsoft.Web/sites@2023-12-01' = {
