@@ -73,6 +73,13 @@ on:
         required: false
         default: false
         type: boolean
+    secrets:
+      AZURE_TENANT_ID:
+        description: Azure tenant for the selected protected deployment environment.
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        description: Azure subscription for the selected protected deployment environment.
+        required: true
 
 permissions:
   contents: read

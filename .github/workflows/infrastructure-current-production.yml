@@ -46,6 +46,9 @@ jobs:
     name: Infrastructure · ${{ inputs.operation }} · current production
     needs: acknowledge-operation
     uses: ./.github/workflows/infrastructure-production-reconcile.yml
+    secrets:
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     with:
       operation: ${{ inputs.operation }}
       target: current-production
