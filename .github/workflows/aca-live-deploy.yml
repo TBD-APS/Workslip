@@ -18,9 +18,8 @@ jobs:
     timeout-minutes: 75
     environment: live
     env:
-      AZURE_RESOURCE_GROUP: rg-mrsoftwarev2-live-app
+      AZURE_RESOURCE_GROUP: rg-mrsoftwarev2-live
       AZURE_LOCATION: swedencentral
-      DATA_RESOURCE_GROUP: rg-mrsoftwarev2-live
       LIVE_SQL_SERVER: db-mrsoftwarev2-live-server
       LIVE_SQL_DATABASE: db-mrsoftwarev2-live
       LIVE_RUNTIME_IDENTITY: id-workslip-live-app
@@ -74,16 +73,18 @@ jobs:
             az bicep build --file "src/BE/infrastructure/aca/$file" --stdout >/dev/null
           done
 
-      - name: Ensure isolated live-app resource group
+      - name: Verify existing live resource group boundary
         shell: bash
         run: |
           set -Eeuo pipefail
-          az group create \
+          resource_group_id="$(az group show \
             --name "$AZURE_RESOURCE_GROUP" \
-            --location "$AZURE_LOCATION" \
-            --tags environment=live workload=workslip managedBy=github-actions \
-            --only-show-errors \
-            --output none
+            --query id \
+            --output tsv)"
+          [[ -n "$resource_group_id" && "$resource_group_id" != null ]] || {
+            echo "::error::Expected live resource group '$AZURE_RESOURCE_GROUP' was not found. Initial resource-group bootstrap remains a privileged administrator operation."
+            exit 1
+          }
 
       - name: Resolve existing live shared resources
         id: shared
@@ -91,19 +92,19 @@ jobs:
         run: |
           set -Eeuo pipefail
           loganal_id="$(az monitor log-analytics workspace show \
-            --resource-group "$DATA_RESOURCE_GROUP" --name logAnal-mrsoftwarev2-live \
+            --resource-group "$AZURE_RESOURCE_GROUP" --name logAnal-mrsoftwarev2-live \
             --query id --output tsv)"
           loganal_customer="$(az monitor log-analytics workspace show \
-            --resource-group "$DATA_RESOURCE_GROUP" --name logAnal-mrsoftwarev2-live \
+            --resource-group "$AZURE_RESOURCE_GROUP" --name logAnal-mrsoftwarev2-live \
             --query customerId --output tsv)"
           keyvault_id="$(az keyvault show \
-            --resource-group "$DATA_RESOURCE_GROUP" --name kv-mrsoftwarev2-live \
+            --resource-group "$AZURE_RESOURCE_GROUP" --name kv-mrsoftwarev2-live \
             --query id --output tsv)"
           appinsights_conn="$(az monitor app-insights component show \
-            --resource-group "$DATA_RESOURCE_GROUP" --resource ai-mrsoftwarev2-live \
+            --resource-group "$AZURE_RESOURCE_GROUP" --resource ai-mrsoftwarev2-live \
             --query properties.ConnectionString --output tsv)"
           sql_fqdn="$(az sql server show \
-            --resource-group "$DATA_RESOURCE_GROUP" --name "$LIVE_SQL_SERVER" \
+            --resource-group "$AZURE_RESOURCE_GROUP" --name "$LIVE_SQL_SERVER" \
             --query fullyQualifiedDomainName --output tsv)"
           {
             echo "loganal_id=$loganal_id"
@@ -153,7 +154,7 @@ jobs:
             echo "runtime_client_id=$(output runtimeIdentityClientId)"
             echo "ci_client_id=$(output ciIdentityClientId)"
             echo "migration_client_id=$(az identity show \
-              --resource-group "$DATA_RESOURCE_GROUP" \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
               --name "$LIVE_MIGRATION_IDENTITY" \
               --query clientId --output tsv)"
           } >> "$GITHUB_OUTPUT"
@@ -303,8 +304,8 @@ jobs:
           - Revision: \`$GITHUB_SHA\`
           - Azure URL: $LIVE_URL
           - Hostname: \`$LIVE_FQDN\`
-          - Boundary: \`rg-mrsoftwarev2-live-app\` (parallel runway — App Service untouched)
-          - Runtime identity: \`rg-mrsoftwarev2-live-app / $LIVE_RUNTIME_IDENTITY\`
+          - Boundary: \`rg-mrsoftwarev2-live\` (uniquely named parallel ACA resources — App Service untouched)
+          - Runtime identity: \`rg-mrsoftwarev2-live / $LIVE_RUNTIME_IDENTITY\`
           - Smoke: frontend \`/login\` returned 200
           - Scale: 0→4 replicas, HTTP autoscale, scale-to-zero when idle
 

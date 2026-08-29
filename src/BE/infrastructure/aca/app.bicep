@@ -32,7 +32,7 @@ param apiEnvironment string = 'Production'
 
 var appName = 'ca-${namePrefix}'
 var tags = {
-  environment: 'live-app'
+  environment: 'live'
   workload: 'workslip'
   managedBy: 'bicep'
 }
