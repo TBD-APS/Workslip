@@ -2,7 +2,7 @@
 
 **Status:** Active  
 **Owner:** Workslip maintainers  
-**Source of truth:** `DiagnosticsEndpoints`, `ApplicationInsightsErrorDiagnosticsService`, `MrSaasyBugRadarPublisherWorker`, `MrSaasyBugRadarCheckpointPublisher`, `delivery-ci-checkpoint.yml`, `publish-control-center-checkpoint.mjs`, frontend telemetry bootstrap, Azure monitoring configuration, the Superadmin diagnostics UI and `supportSnapshot.ts`<br>
+**Source of truth:** `DiagnosticsEndpoints`, `ApplicationInsightsErrorDiagnosticsService`, `MrSaasyBugRadarPublisherWorker`, `MrSaasyBugRadarCheckpointPublisher`, frontend telemetry bootstrap, Azure monitoring configuration, the Superadmin diagnostics UI and `supportSnapshot.ts`<br>
 **Review cadence:** On telemetry, Azure RBAC, diagnostics contract, support-export or incident-process changes
 
 ## Purpose
@@ -61,18 +61,6 @@ Configure these values only in the approved deployment secret/configuration stor
 - when Cloudflare Access service identities are enabled, a binding for the exact `workslip-bug-radar` agent with only the `ActivityCheckpoint` scope, plus Workslip's `CloudflareAccessClientId` and `CloudflareAccessClientSecret`. Keep the activity token while the receiving service is configured to require legacy headers as well.
 
 The receiving `/api/activity/checkpoints` endpoint remains responsible for authentication and idempotent persistence. A `401`, `403` or failed delivery is logged only as a transport outcome and retried on the next interval; the response body is never logged. Activate only after both sides' credentials and Cloudflare binding have been reviewed by their owners.
-
-## CI/CD checkpoint bridge
-
-The optional `Delivery · pipeline checkpoint` workflow observes the canonical Workslip `CI` and backend deployment lifecycles from a trusted default-branch checkout. It emits a provider-neutral `Active` checkpoint when a run starts, a `Failed` checkpoint for actionable failed conclusions, and a `Completed` checkpoint with the GitHub Actions run URL when a pipeline succeeds. A retry uses the same pipeline correlation for the relevant PR, protected branch or GitHub run, so Bug Radar moves a prior failure to **Active recovery** while the retry runs and to **Verified** only after the successful run provides its explicit URL evidence. CI and backend-deployment correlations are intentionally separate.
-
-Cancelled, skipped and neutral workflow conclusions deliberately publish no outcome. They neither create an incident nor resolve a previously detected failure. The bridge sends only allowlisted operational metadata: repository, CI run/attempt identity, PR number when present, commit SHA, static status/reason text and the Actions-run URL. It excludes logs, error output, commit messages, PR text, source diffs and arbitrary branch names.
-
-### CI/CD activation boundary
-
-Set `MR_SAASY_ACTIVITY_URL` as a GitHub repository variable to the HTTPS `/api/activity/checkpoints` endpoint. Configure `MR_SAASY_ACTIVITY_TOKEN` as a GitHub Actions secret while MR SAAS'y requires legacy activity headers. If Cloudflare Access service identities are enabled, configure both `MR_SAASY_CF_ACCESS_CLIENT_ID` and `MR_SAASY_CF_ACCESS_CLIENT_SECRET` as Actions secrets and bind the exact `workslip-delivery` agent to the `ActivityCheckpoint` scope. Do not place these values in workflow YAML, repository variables intended for non-secrets, runner output or PR text.
-
-When the URL or complete credentials are absent, the workflow exits without sending an unauthenticated request. When configured delivery fails, the separate checkpoint workflow fails visibly without changing the source CI result; operators can therefore distinguish a healthy build from a broken Bug Radar feed.
 
 ## Support snapshot
 
