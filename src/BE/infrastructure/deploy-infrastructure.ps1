@@ -838,14 +838,34 @@ function Add-GraphGroupMember {
             '@odata.id' = "$GraphRoot/directoryObjects/$MemberId"
         })
 
-        Invoke-AzureCli -Arguments @(
+        # The v1.0 group-members listing endpoint has a documented blind spot for
+        # service principals. Use the write result as the authoritative final
+        # check: Graph's duplicate-reference response means the desired direct
+        # membership is already in place.
+        $addResult = Invoke-AzureCli -Arguments @(
             'rest',
             '--method', 'POST',
             '--uri', "$GraphRoot/groups/$GroupId/members/`$ref",
             '--headers', 'Content-Type=application/json',
             '--body', "@$($bodyFile.FullName)",
             '-o', 'none'
-        ) | Out-Null
+        ) -AllowFailure
+
+        if ($addResult.ExitCode -eq 0) {
+            return
+        }
+
+        if ($addResult.Output -match '(?i)added object references already exist') {
+            Write-Host "SQL admin group member already exists: $Description" -ForegroundColor DarkGray
+            return
+        }
+
+        $diagnostic = if ([string]::IsNullOrWhiteSpace($addResult.Output)) {
+            'Azure CLI returned no diagnostic output.'
+        } else {
+            $addResult.Output
+        }
+        throw "Azure CLI failed with exit code $($addResult.ExitCode).`n$diagnostic"
     }
     finally {
         Remove-Item $bodyFile -Force -ErrorAction SilentlyContinue
