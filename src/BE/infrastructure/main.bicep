@@ -35,9 +35,13 @@ param appConfigurationName string     = take('appcs-${companyName}-${toLower(env
   'Recover'
 ])
 param appConfigurationCreateMode string = 'Default'
+@description('Optional existing App Configuration Data Owner role-assignment resource name. Use this only to adopt an equivalent assignment provisioned before this baseline, avoiding a duplicate RBAC assignment during reconcile.')
+param appConfigurationDataOwnerRoleAssignmentName string = ''
 param identityName string             = 'id-${companyName}-${toLower(environment)}'
 param githubDeploymentIdentityName string = take('id-${companyName}-${toLower(environment)}-github', 128)
 param keyVaultName string             = take('kv-${companyName}-${toLower(environment)}', 24)
+@description('Optional existing Key Vault Administrator role-assignment resource name. Use this only to adopt an equivalent assignment provisioned before this baseline, avoiding a duplicate RBAC assignment during reconcile.')
+param keyVaultAdministratorRoleAssignmentName string = ''
 param communicationServiceName string = take('acs-${companyName}-${toLower(environment)}', 64)
 param emailServiceName string         = take('email-${companyName}-${toLower(environment)}', 64)
 @description('Verified customer-managed ACS email domain used by production deployments.')
@@ -241,12 +245,8 @@ resource webApiServer 'Microsoft.Web/serverfarms@2025-03-01' = {
         tier: 'Free'
         capacity: 1
       }
-  properties: {
-    // Azure can temporarily lack synchronous B1 capacity in a region. Allow the
-    // platform to fulfil the requested worker asynchronously instead of failing
-    // the entire idempotent reconcile with ExtendedCode 03029.
-    asyncScalingEnabled: isProduction
-  }
+  // asyncScalingEnabled is not supported by the B1 SKU used for the protected
+  // live boundary. Omitting it keeps an existing Basic plan reconcilable.
 }
 
 resource webApi 'Microsoft.Web/sites@2023-12-01' = {
@@ -460,7 +460,9 @@ resource keyVaultSecretsUserForApp 'Microsoft.Authorization/roleAssignments@2022
 
 //I as admin have full control over app config
 resource appConfigurationDataOwnerForAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(appConfiguration.id, globalAdminId, roles.appConfigurationDataOwnerRole)
+  name: empty(appConfigurationDataOwnerRoleAssignmentName)
+    ? guid(appConfiguration.id, globalAdminId, roles.appConfigurationDataOwnerRole)
+    : appConfigurationDataOwnerRoleAssignmentName
   scope: appConfiguration
   properties: {
     principalId: globalAdminId
@@ -501,7 +503,9 @@ module keyVaultConfigs './keyvaultConfig.bicep' = {
 
 //I as admin have full control over keyvault
 resource keyVaultSecretsOfficerForAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.id, globalAdminId, roles.keyVaultAdministrator)
+  name: empty(keyVaultAdministratorRoleAssignmentName)
+    ? guid(keyVault.id, globalAdminId, roles.keyVaultAdministrator)
+    : keyVaultAdministratorRoleAssignmentName
   scope: keyVault
   properties: {
     principalId: globalAdminId
