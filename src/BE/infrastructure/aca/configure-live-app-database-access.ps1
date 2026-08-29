@@ -1,13 +1,13 @@
 param(
-    [string]$CompanyName = 'mrsoftware',
-    [string]$Environment = 'live-app',
+    [string]$CompanyName = 'mrsoftwarev2',
+    [string]$Environment = 'live',
     [string]$RuntimeIdentityName = 'id-workslip-live-app'
 )
 
 $ErrorActionPreference = 'Stop'
 
-if ($CompanyName -ne 'mrsoftware' -or $Environment.ToLowerInvariant() -ne 'live-app') {
-    throw 'This script is hard-gated to the mrsoftware/live-app boundary.'
+if ($CompanyName -ne 'mrsoftwarev2' -or $Environment.ToLowerInvariant() -ne 'live') {
+    throw 'This script is hard-gated to the mrsoftwarev2/live boundary.'
 }
 
 $resourceGroup = 'rg-mrsoftwarev2-live-app'

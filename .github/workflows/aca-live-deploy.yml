@@ -16,7 +16,7 @@ jobs:
     name: Live App · Serverless Container Apps
     runs-on: ubuntu-latest
     timeout-minutes: 75
-    environment: live-app
+    environment: live
     env:
       AZURE_RESOURCE_GROUP: rg-mrsoftwarev2-live-app
       AZURE_LOCATION: swedencentral
@@ -55,7 +55,7 @@ jobs:
           [[ -n "$TENANT_ID" ]] || missing+=(AZURE_TENANT_ID)
           [[ -n "$SUBSCRIPTION_ID" ]] || missing+=(AZURE_SUBSCRIPTION_ID)
           if (( ${#missing[@]} > 0 )); then
-            printf '::error::Missing Azure OIDC configuration on the live-app GitHub environment: %s\n' "${missing[*]}"
+            printf '::error::Missing Azure OIDC configuration on the live GitHub environment: %s\n' "${missing[*]}"
             exit 1
           fi
 
@@ -81,7 +81,7 @@ jobs:
           az group create \
             --name "$AZURE_RESOURCE_GROUP" \
             --location "$AZURE_LOCATION" \
-            --tags environment=live-app workload=workslip managedBy=github-actions \
+            --tags environment=live workload=workslip managedBy=github-actions \
             --only-show-errors \
             --output none
 
@@ -219,8 +219,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & ./src/BE/infrastructure/aca/configure-live-app-database-access.ps1 `
-            -CompanyName mrsoftware `
-            -Environment live-app `
+            -CompanyName mrsoftwarev2 `
+            -Environment live `
             -RuntimeIdentityName '${{ steps.foundation.outputs.runtime_identity_name }}'
 
       - name: Logout live migration identity
