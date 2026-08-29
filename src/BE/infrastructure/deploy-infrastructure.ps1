@@ -319,6 +319,31 @@ function Get-ExistingRoleAssignmentName {
     return $result.Output.Trim()
 }
 
+function Get-AppServicePlanSkuName {
+    param([Parameter(Mandatory = $true)][string]$Name)
+
+    $result = Invoke-AzureCli `
+        -Arguments @(
+            'appservice', 'plan', 'show',
+            '--resource-group', $ResourceGroup,
+            '--name', $Name,
+            '--query', 'sku.name',
+            '--only-show-errors',
+            '-o', 'tsv'
+        ) `
+        -AllowFailure
+
+    if ($result.ExitCode -eq 0) {
+        return $result.Output.Trim()
+    }
+
+    if ($result.Output -match '(?i)(ResourceNotFound|not found|does not exist|404)') {
+        return ''
+    }
+
+    throw "Could not inspect App Service plan '$Name'.`n$($result.Output)"
+}
+
 function Set-KeyVaultSecretFromMemory {
     param(
         [Parameter(Mandatory = $true)][string]$SecretName,
@@ -889,11 +914,25 @@ Run without -WhatIf to create it, or create the group first:
         -PrincipalId $resolvedGlobalAdminId `
         -RoleDefinitionId '00482a5a-887f-4fb3-b363-3b7fe8e74483'
 
+    $webApiServerName = "plan-$COMPANY_NAME-$NormalizedEnvironment"
+    if ($webApiServerName.Length -gt 40) {
+        $webApiServerName = $webApiServerName.Substring(0, 40)
+    }
+    $existingWebApiPlanSku = Get-AppServicePlanSkuName -Name $webApiServerName
+    $webApiPlanExists = -not [string]::IsNullOrWhiteSpace($existingWebApiPlanSku)
+    $webApiPlanSupportsAlwaysOn = -not $webApiPlanExists -or $existingWebApiPlanSku -notin @('F1', 'D1', 'Y1')
+
     if (-not [string]::IsNullOrWhiteSpace($existingAppConfigurationDataOwnerRoleAssignmentName)) {
         Write-Host 'Adopting existing App Configuration Data Owner assignment.' -ForegroundColor DarkGray
     }
     if (-not [string]::IsNullOrWhiteSpace($existingKeyVaultAdministratorRoleAssignmentName)) {
         Write-Host 'Adopting existing Key Vault Administrator assignment.' -ForegroundColor DarkGray
+    }
+    if ($webApiPlanExists) {
+        Write-Host 'Reusing existing App Service plan without requesting a capacity change.' -ForegroundColor DarkGray
+        if (-not $webApiPlanSupportsAlwaysOn) {
+            Write-Host 'Always On remains disabled because the existing plan SKU does not support it.' -ForegroundColor DarkGray
+        }
     }
 
     if (Test-Path $EntraStatePath) {
@@ -951,6 +990,8 @@ Run without -WhatIf to create it, or create the group first:
             globalAdminPrincipalType = @{ value = $resolvedGlobalAdminPrincipalType }
             appConfigurationDataOwnerRoleAssignmentName = @{ value = $existingAppConfigurationDataOwnerRoleAssignmentName }
             keyVaultAdministratorRoleAssignmentName = @{ value = $existingKeyVaultAdministratorRoleAssignmentName }
+            manageWebApiServer = @{ value = (-not $webApiPlanExists) }
+            webApiPlanSupportsAlwaysOn = @{ value = $webApiPlanSupportsAlwaysOn }
             customEmailDomainEnabled = @{ value = [bool]$EnableCustomEmailDomain }
             entraDefaultDomain = @{ value = $resolvedEntraDefaultDomain }
             powerBiReaderPrincipalId = @{ value = $PowerBiReaderPrincipalId }

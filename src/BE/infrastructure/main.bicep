@@ -28,6 +28,10 @@ param storageAccountName string       = take('st${companyName}${toLower(environm
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
 param logAnalyticsName string          = 'logAnal-${companyName}-${toLower(environment)}'
 param webApiServerName string          = take('plan-${companyName}-${toLower(environment)}', 40)
+@description('Set false only when reconciling an already-provisioned App Service plan that Azure cannot currently scale. New environments keep the default and create the plan.')
+param manageWebApiServer bool = true
+@description('Whether the selected App Service plan supports Always On. The deployment wrapper resolves this from an existing plan before reconcile.')
+param webApiPlanSupportsAlwaysOn bool = false
 param webApiName string                = take('api-${companyName}-${toLower(environment)}', 60)
 param appConfigurationName string     = take('appcs-${companyName}-${toLower(environment)}', 50)
 @allowed([
@@ -230,7 +234,11 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 // The API reads App Configuration + Key Vault references through that identity.
 // ──────────────────────────────────────────────────────────────────────────────
 
-resource webApiServer 'Microsoft.Web/serverfarms@2025-03-01' = {
+resource existingWebApiServer 'Microsoft.Web/serverfarms@2025-03-01' existing = {
+  name: webApiServerName
+}
+
+resource webApiServer 'Microsoft.Web/serverfarms@2025-03-01' = if (manageWebApiServer) {
   name: webApiServerName
   location: location
   tags: tags
@@ -260,14 +268,17 @@ resource webApi 'Microsoft.Web/sites@2023-12-01' = {
     type: 'UserAssigned'
     userAssignedIdentities: { '${identity.id}': {} }
   }
+  dependsOn: [
+    webApiServer
+  ]
   properties: {
-    serverFarmId: webApiServer.id
+    serverFarmId: existingWebApiServer.id
     httpsOnly: true
     clientAffinityEnabled: false
     publicNetworkAccess: 'Enabled'
     keyVaultReferenceIdentity: identity.id
     siteConfig: {
-      alwaysOn: isProduction
+      alwaysOn: isProduction && webApiPlanSupportsAlwaysOn
       ftpsState: 'Disabled'
       http20Enabled: true
       minTlsVersion: '1.2'
