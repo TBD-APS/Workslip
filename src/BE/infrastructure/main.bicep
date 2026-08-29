@@ -9,6 +9,8 @@ param globalAdminId string = ''
   'ServicePrincipal'
 ])
 param globalAdminPrincipalType string = 'User'
+@description('Existing App Configuration Data Owner assignment name to adopt during reconciliation. Leave empty for the deterministic assignment used by new environments.')
+param appConfigurationDataOwnerRoleAssignmentName string = ''
 @description('Default verified Entra domain of the tenant this environment is deployed into, for example contoso.onmicrosoft.com. Tenant-bound: it must be supplied per tenant and cannot be derived from the resource group. deploy-infrastructure.ps1 resolves it from Microsoft Graph when not passed explicitly.')
 @minLength(3)
 param entraDefaultDomain string
@@ -114,6 +116,9 @@ var acsSenderAddress = useCustomEmailDomain
 var powerBiContainerName = empty(powerBiReaderPrincipalId)
   ? 'powerbi-disabled'
   : 'powerbi-${take(replace(toLower(powerBiReaderPrincipalId), '-', ''), 12)}'
+var resolvedAppConfigurationDataOwnerRoleAssignmentName = empty(appConfigurationDataOwnerRoleAssignmentName)
+  ? guid(appConfiguration.id, globalAdminId, roles.appConfigurationDataOwnerRole)
+  : appConfigurationDataOwnerRoleAssignmentName
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Runtime identity
@@ -241,12 +246,6 @@ resource webApiServer 'Microsoft.Web/serverfarms@2025-03-01' = {
         tier: 'Free'
         capacity: 1
       }
-  properties: {
-    // Azure can temporarily lack synchronous B1 capacity in a region. Allow the
-    // platform to fulfil the requested worker asynchronously instead of failing
-    // the entire idempotent reconcile with ExtendedCode 03029.
-    asyncScalingEnabled: isProduction
-  }
 }
 
 resource webApi 'Microsoft.Web/sites@2023-12-01' = {
@@ -460,7 +459,7 @@ resource keyVaultSecretsUserForApp 'Microsoft.Authorization/roleAssignments@2022
 
 //I as admin have full control over app config
 resource appConfigurationDataOwnerForAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(appConfiguration.id, globalAdminId, roles.appConfigurationDataOwnerRole)
+  name: resolvedAppConfigurationDataOwnerRoleAssignmentName
   scope: appConfiguration
   properties: {
     principalId: globalAdminId

@@ -49,6 +49,7 @@ $SqlAdminPasswordSecretName = 'Azure--Sql--AdminPassword'
 $JwtSigningKeySecretName = 'Jwt--SigningKey'
 $SqlConnectionSecretName = 'Azure--Sql--ConnectionString'
 $LegacyOAuthClientSecretName = 'Azure--AdOAuth--ClientSecret'
+$AppConfigurationDataOwnerRoleId = '5ae67dd6-50cb-40e7-96ff-dc2bfa4b606b'
 
 if ([string]::IsNullOrWhiteSpace($EntraStatePath)) {
     $EntraStatePath = Join-Path $InfrastructureRoot "entra.$NormalizedEnvironment.local.json"
@@ -232,6 +233,70 @@ function Get-AppConfigurationValue {
     }
 
     return $result.Output.Trim()
+}
+
+function Resolve-ExistingAppConfigurationDataOwnerRoleAssignmentName {
+    param([Parameter(Mandatory = $true)][string]$PrincipalId)
+
+    $appConfigurationResource = Invoke-AzureCli `
+        -Arguments @(
+            'appconfig', 'show',
+            '--name', $AppConfigurationName,
+            '--resource-group', $ResourceGroup,
+            '--query', 'id',
+            '--only-show-errors',
+            '-o', 'tsv'
+        ) `
+        -AllowFailure
+
+    if ($appConfigurationResource.ExitCode -ne 0) {
+        if ($appConfigurationResource.Output -match '(?i)(ResourceNotFound|not found|does not exist|404)') {
+            return ''
+        }
+
+        throw "Could not inspect App Configuration '$AppConfigurationName' before reconciliation.`n$($appConfigurationResource.Output)"
+    }
+
+    $appConfigurationResourceId = $appConfigurationResource.Output.Trim()
+    if ([string]::IsNullOrWhiteSpace($appConfigurationResourceId)) {
+        return ''
+    }
+
+    $assignments = Invoke-AzureCli `
+        -Arguments @(
+            'rest',
+            '--method', 'GET',
+            '--url', "https://management.azure.com$appConfigurationResourceId/providers/Microsoft.Authorization/roleAssignments?api-version=2022-04-01",
+            '--only-show-errors',
+            '-o', 'json'
+        ) `
+        -AllowFailure
+
+    if ($assignments.ExitCode -ne 0) {
+        throw "Could not inspect App Configuration role assignments before reconciliation.`n$($assignments.Output)"
+    }
+
+    $matchingAssignments = @(
+        ($assignments.Output | ConvertFrom-Json).value | Where-Object {
+            $_.properties.principalId -eq $PrincipalId -and
+            $_.properties.roleDefinitionId -like "*/$AppConfigurationDataOwnerRoleId"
+        }
+    )
+
+    if ($matchingAssignments.Count -gt 1) {
+        throw "Multiple App Configuration Data Owner assignments exist for principal '$PrincipalId'. Reconciliation is blocked to preserve least privilege."
+    }
+
+    if ($matchingAssignments.Count -eq 0) {
+        return ''
+    }
+
+    $assignmentName = [string]$matchingAssignments[0].name
+    if ($assignmentName -notmatch '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') {
+        throw "Existing App Configuration Data Owner assignment has an invalid name: '$assignmentName'."
+    }
+
+    return $assignmentName
 }
 
 function Get-KeyVaultSecretValue {
@@ -855,6 +920,11 @@ Run without -WhatIf to create it, or create the group first:
         throw "Entra state belongs to tenant '$($entraState.tenantId)', but Azure CLI is signed into '$($account.tenantId)'."
     }
 
+    $existingAppConfigurationDataOwnerRoleAssignmentName =
+        Resolve-ExistingAppConfigurationDataOwnerRoleAssignmentName -PrincipalId $resolvedGlobalAdminId
+    if (-not [string]::IsNullOrWhiteSpace($existingAppConfigurationDataOwnerRoleAssignmentName)) {
+        Write-Host "Adopting existing App Configuration Data Owner assignment '$existingAppConfigurationDataOwnerRoleAssignmentName'." -ForegroundColor Cyan
+    }
 
     $existingSqlAdminPassword = Get-KeyVaultSecretValue -SecretName $SqlAdminPasswordSecretName
     $sqlAdminPassword = if (-not [string]::IsNullOrWhiteSpace($env:WORKSLIP_SQL_ADMIN_PASSWORD)) {
@@ -888,6 +958,7 @@ Run without -WhatIf to create it, or create the group first:
             environment = @{ value = $Environment }
             globalAdminId = @{ value = $resolvedGlobalAdminId }
             globalAdminPrincipalType = @{ value = $resolvedGlobalAdminPrincipalType }
+            appConfigurationDataOwnerRoleAssignmentName = @{ value = $existingAppConfigurationDataOwnerRoleAssignmentName }
             customEmailDomainEnabled = @{ value = [bool]$EnableCustomEmailDomain }
             entraDefaultDomain = @{ value = $resolvedEntraDefaultDomain }
             powerBiReaderPrincipalId = @{ value = $PowerBiReaderPrincipalId }
