@@ -137,6 +137,7 @@ public sealed class LocalDevelopmentDatabaseMigrationTests
     }
 
     [Theory]
+    [InlineData("20260808_2359_workslip_explicit_schema_baseline", true)]
     [InlineData("20260809_1145_wor385_filial_tenant_integrity", true)]
     [InlineData("20260810_2115_wor412_internal_test_user_audience", true)]
     [InlineData("20260814_0050_wor428_billing_basis", false)]
