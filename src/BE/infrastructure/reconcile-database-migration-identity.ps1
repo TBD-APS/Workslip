@@ -246,6 +246,11 @@ DECLARE @sql nvarchar(max);
 
 IF @currentSid IS NOT NULL AND @currentSid <> @expectedSid
 BEGIN
+    IF IS_ROLEMEMBER(N'db_owner', @userName) = 1
+    BEGIN
+        SET @sql = N'ALTER ROLE db_owner DROP MEMBER ' + QUOTENAME(@userName) + N';';
+        EXEC sp_executesql @sql;
+    END;
     IF IS_ROLEMEMBER(N'db_ddladmin', @userName) = 1
     BEGIN
         SET @sql = N'ALTER ROLE db_ddladmin DROP MEMBER ' + QUOTENAME(@userName) + N';';
@@ -281,6 +286,11 @@ BEGIN
     EXEC sp_executesql @sql;
 END;
 
+IF IS_ROLEMEMBER(N'db_owner', @userName) <> 1
+BEGIN
+    SET @sql = N'ALTER ROLE db_owner ADD MEMBER ' + QUOTENAME(@userName) + N';';
+    EXEC sp_executesql @sql;
+END;
 IF IS_ROLEMEMBER(N'db_ddladmin', @userName) <> 1
 BEGIN
     SET @sql = N'ALTER ROLE db_ddladmin ADD MEMBER ' + QUOTENAME(@userName) + N';';
