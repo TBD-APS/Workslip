@@ -10,7 +10,7 @@ if ($CompanyName -ne 'mrsoftwarev2' -or $Environment.ToLowerInvariant() -ne 'liv
     throw 'This script is hard-gated to the mrsoftwarev2/live boundary.'
 }
 
-$resourceGroup = 'rg-mrsoftwarev2-live-app'
+$resourceGroup = 'rg-mrsoftwarev2-live'
 $sqlServerName = 'db-mrsoftwarev2-live-server'
 $sqlServerFqdn = "$sqlServerName.database.windows.net"
 $sqlDatabaseName = 'db-mrsoftwarev2-live'
