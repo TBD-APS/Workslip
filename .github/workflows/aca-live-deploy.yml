@@ -154,6 +154,7 @@ jobs:
             echo "acr_name=$(output registryName)"
             echo "acr_login_server=$(output registryLoginServer)"
             echo "runtime_identity_name=$(output runtimeIdentityName)"
+            echo "runtime_principal_id=$(output runtimeIdentityPrincipalId)"
             echo "runtime_client_id=$(output runtimeIdentityClientId)"
             echo "ci_client_id=$(output ciIdentityClientId)"
             echo "migration_client_id=$(az identity show \
@@ -225,7 +226,8 @@ jobs:
           & ./src/BE/infrastructure/aca/configure-live-app-database-access.ps1 `
             -CompanyName mrsoftwarev2 `
             -Environment live `
-            -RuntimeIdentityName '${{ steps.foundation.outputs.runtime_identity_name }}'
+            -RuntimeIdentityName '${{ steps.foundation.outputs.runtime_identity_name }}' `
+            -RuntimePrincipalId '${{ steps.foundation.outputs.runtime_principal_id }}'
 
       - name: Logout live migration identity
         shell: bash

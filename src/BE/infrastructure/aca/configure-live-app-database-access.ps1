@@ -1,7 +1,8 @@
 param(
     [string]$CompanyName = 'mrsoftwarev2',
     [string]$Environment = 'live',
-    [string]$RuntimeIdentityName = 'id-workslip-live-app'
+    [string]$RuntimeIdentityName = 'id-workslip-live-app',
+    [string]$RuntimePrincipalId = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,13 +37,16 @@ if (-not (Get-Command Invoke-Sqlcmd -ErrorAction SilentlyContinue)) {
     throw 'Invoke-Sqlcmd is required. Install the Microsoft SqlServer PowerShell module first.'
 }
 
-$runtimePrincipalId = (Invoke-AzureCli -Arguments @(
-    'identity', 'show',
-    '--resource-group', $resourceGroup,
-    '--name', $RuntimeIdentityName,
-    '--query', 'principalId',
-    '--output', 'tsv'
-)).Output.Trim()
+$runtimePrincipalId = $RuntimePrincipalId.Trim()
+if ([string]::IsNullOrWhiteSpace($runtimePrincipalId)) {
+    $runtimePrincipalId = (Invoke-AzureCli -Arguments @(
+        'identity', 'show',
+        '--resource-group', $resourceGroup,
+        '--name', $RuntimeIdentityName,
+        '--query', 'principalId',
+        '--output', 'tsv'
+    )).Output.Trim()
+}
 
 $runtimeGuid = [Guid]::Empty
 if (-not [Guid]::TryParse($runtimePrincipalId, [ref]$runtimeGuid)) {
