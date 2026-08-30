@@ -194,8 +194,8 @@ jobs:
           az acr build \
             --registry '${{ steps.foundation.outputs.acr_name }}' \
             --image "workslip-live-app-frontend:$GITHUB_SHA" \
-            --file src/FE/Dockerfile \
-            .
+            --file Dockerfile \
+            src/FE
 
       - name: Logout deployment identity before database mutation
         shell: bash
