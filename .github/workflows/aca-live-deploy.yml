@@ -133,7 +133,7 @@ jobs:
               keyVaultName='kv-mrsoftwarev2-live' \
               appConfigurationName='appcs-mrsoftwarev2-live' \
               storageAccountName='stmrsoftwarev2live' \
-              githubEnvironment="${{ github.environment }}" \
+              githubEnvironment='live' \
             --only-show-errors \
             --output none
 
