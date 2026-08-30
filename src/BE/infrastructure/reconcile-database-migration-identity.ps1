@@ -251,6 +251,11 @@ BEGIN
         SET @sql = N'ALTER ROLE db_ddladmin DROP MEMBER ' + QUOTENAME(@userName) + N';';
         EXEC sp_executesql @sql;
     END;
+    IF IS_ROLEMEMBER(N'db_accessadmin', @userName) = 1
+    BEGIN
+        SET @sql = N'ALTER ROLE db_accessadmin DROP MEMBER ' + QUOTENAME(@userName) + N';';
+        EXEC sp_executesql @sql;
+    END;
     IF IS_ROLEMEMBER(N'db_datareader', @userName) = 1
     BEGIN
         SET @sql = N'ALTER ROLE db_datareader DROP MEMBER ' + QUOTENAME(@userName) + N';';
@@ -274,6 +279,11 @@ END;
 IF IS_ROLEMEMBER(N'db_ddladmin', @userName) <> 1
 BEGIN
     SET @sql = N'ALTER ROLE db_ddladmin ADD MEMBER ' + QUOTENAME(@userName) + N';';
+    EXEC sp_executesql @sql;
+END;
+IF IS_ROLEMEMBER(N'db_accessadmin', @userName) <> 1
+BEGIN
+    SET @sql = N'ALTER ROLE db_accessadmin ADD MEMBER ' + QUOTENAME(@userName) + N';';
     EXEC sp_executesql @sql;
 END;
 IF IS_ROLEMEMBER(N'db_datareader', @userName) <> 1
