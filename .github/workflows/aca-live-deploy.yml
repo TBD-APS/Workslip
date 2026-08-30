@@ -100,8 +100,11 @@ jobs:
           keyvault_id="$(az keyvault show \
             --resource-group "$AZURE_RESOURCE_GROUP" --name kv-mrsoftwarev2-live \
             --query id --output tsv)"
-          appinsights_conn="$(az monitor app-insights component show \
-            --resource-group "$AZURE_RESOURCE_GROUP" --resource ai-mrsoftwarev2-live \
+          appinsights_conn="$(az resource show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name ai-mrsoftwarev2-live \
+            --resource-type Microsoft.Insights/components \
+            --api-version 2020-02-02 \
             --query properties.ConnectionString --output tsv)"
           sql_fqdn="$(az sql server show \
             --resource-group "$AZURE_RESOURCE_GROUP" --name "$LIVE_SQL_SERVER" \
