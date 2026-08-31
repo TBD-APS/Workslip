@@ -188,7 +188,7 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 14px rgba(44, 84, 172, 0.4);
-  z-index: 90;
+  z-index: 125;
   transition: transform 0.15s, box-shadow 0.15s;
   cursor: pointer;
 }
