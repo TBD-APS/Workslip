@@ -430,6 +430,7 @@
 
   .fab-create {
     bottom: 2rem;
+    left: calc(var(--desktop-nav-rail-current-width) + 1.5rem);
   }
 }
 
