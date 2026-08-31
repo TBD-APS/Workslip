@@ -177,7 +177,7 @@
 .fab-create {
   position: fixed;
   bottom: calc(var(--bottom-nav-height) + 1.5rem);
-  right: 1.5rem;
+  left: 1.5rem;
   width: 48px;
   height: 48px;
   border-radius: 50%;
@@ -188,7 +188,7 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 14px rgba(44, 84, 172, 0.4);
-  z-index: 90;
+  z-index: 125;
   transition: transform 0.15s, box-shadow 0.15s;
   cursor: pointer;
 }
@@ -203,7 +203,7 @@
 
 @media (max-width: 480px) {
   .fab-create {
-    right: 1rem;
+    left: 1rem;
   }
 }
 

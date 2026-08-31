@@ -161,7 +161,7 @@
 
   .fab-create {
     bottom: max(1rem, env(safe-area-inset-bottom, 0px));
-    right: 1rem;
+    left: 1rem;
   }
 
   .logo-header {
