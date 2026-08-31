@@ -177,7 +177,7 @@
 .fab-create {
   position: fixed;
   bottom: calc(var(--bottom-nav-height) + 1.5rem);
-  right: 1.5rem;
+  left: 1.5rem;
   width: 48px;
   height: 48px;
   border-radius: 50%;
@@ -203,7 +203,7 @@
 
 @media (max-width: 480px) {
   .fab-create {
-    right: 1rem;
+    left: 1rem;
   }
 }
 
