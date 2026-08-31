@@ -14,7 +14,7 @@ public static class EndpointConfiguration
             service = "Workslip.Api",
             status = "ok",
             health = "/health"
-        }));
+        })).ExcludeFromDescription();
 
         app.MapGet("/health", (HttpContext httpContext) =>
         {
