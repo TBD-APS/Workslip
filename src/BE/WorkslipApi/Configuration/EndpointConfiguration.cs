@@ -9,6 +9,13 @@ public static class EndpointConfiguration
 {
     public static WebApplication ConfigureEndpoints(this WebApplication app)
     {
+        app.MapGet("/", () => Results.Ok(new
+        {
+            service = "Workslip.Api",
+            status = "ok",
+            health = "/health"
+        })).ExcludeFromDescription();
+
         app.MapGet("/health", (HttpContext httpContext) =>
         {
             HttpCacheHeaders.SetPublicHealthCache(httpContext);

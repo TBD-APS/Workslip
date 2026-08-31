@@ -24,6 +24,7 @@ wait_for_status() {
   return 1
 }
 
+wait_for_status "${base_url}/" 200 15
 wait_for_status "${base_url}/health" 200 15
 wait_for_status "${base_url}/api/auth/me" 401 3
 

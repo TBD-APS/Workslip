@@ -379,7 +379,7 @@ jobs:
           echo "::error::Post-deploy smoke failed. Slot rollback was attempted when available."
           exit 1
 
-      - name: Record release marker and summary
+      - name: Record release marker
         if: ${{ success() }}
         shell: bash
         env:
@@ -391,6 +391,26 @@ jobs:
             --name "${AZURE_WEBAPP_NAME}" \
             --settings "Workslip__ReleaseSha=${RELEASE_SHA}" "Workslip__ReleaseArtifactSha256=${ARTIFACT_SHA256}" \
             --output none
+
+      - name: Verify final production runtime
+        if: ${{ success() }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if bash tools/release/post-deploy-smoke.sh "${{ steps.azure.outputs.production_url }}"; then
+            exit 0
+          fi
+
+          echo "::warning::API did not recover after the release metadata restart. Restarting App Service once."
+          az webapp restart --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}"
+          bash tools/release/post-deploy-smoke.sh "${{ steps.azure.outputs.production_url }}"
+
+      - name: Record release summary
+        if: ${{ success() }}
+        shell: bash
+        env:
+          ARTIFACT_SHA256: ${{ needs.build.outputs.artifact_sha256 }}
+        run: |
           {
             echo "### Backend live release"
             echo
@@ -402,6 +422,7 @@ jobs:
             echo "- Delivery path: staging slot + swap when available; direct production otherwise"
             echo "- Candidate smoke: passed when slot mode enabled"
             echo "- Production smoke: passed"
+            echo "- Final production smoke after release metadata restart: passed"
             echo "- Automatic rollback: available only in slot mode"
           } >> "${GITHUB_STEP_SUMMARY}"
 
@@ -412,4 +433,7 @@ jobs:
         run: |
           set +e
           az webapp show --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --query '{state:state,host:defaultHostName,lastModified:lastModifiedTimeUtc}' -o jsonc
+          az webapp config show --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --query '{alwaysOn:alwaysOn,http20Enabled:http20Enabled,netFrameworkVersion:netFrameworkVersion,use32BitWorkerProcess:use32BitWorkerProcess}' -o jsonc
           az webapp log deployment list --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --query '[0:5]' -o jsonc
+          curl --silent --show-error --connect-timeout 10 --max-time 10 --include "${{ steps.azure.outputs.production_url }}/" || true
+          curl --silent --show-error --connect-timeout 10 --max-time 10 --include "${{ steps.azure.outputs.production_url }}/health" || true
