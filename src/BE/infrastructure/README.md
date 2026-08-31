@@ -121,6 +121,11 @@ the App Service app and runs the production smoke test. Direct F1 delivery has
 no automatic App Service rollback. Moving this legacy path to Standard S1 is an
 explicit capacity choice, not an infrastructure or release requirement.
 
+HTTP/2 is intentionally disabled on the Windows F1 compatibility path. The
+public App Service frontend accepted HTTP/2 connections without returning
+response bytes, while HTTP/1.1 completed normally. Re-enable HTTP/2 only after
+a verified production check confirms that platform behaviour is resolved.
+
 The compatibility reconciler explicitly removes the obsolete plan-scoped
 `Reader` assignment from the GitHub deployment identity after applying the
 baseline. This is necessary because Azure incremental deployments do not delete
