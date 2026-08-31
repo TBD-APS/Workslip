@@ -98,6 +98,7 @@ var roles = {
   keyVaultSecretsUserRole: '4633458b-17de-408a-b874-0445c86b69e6'
   appConfigurationDataOwnerRole: '5ae67dd6-50cb-40e7-96ff-dc2bfa4b606b'
   websiteContributor: 'de139f84-1756-47ae-9be6-808fbbe84772'
+  reader: 'acdd72a7-3385-48ef-bd42-f606fba81ae7'
   sqlSecurityManager: '056cd41c-7e88-42e1-933e-88ba6a50c9c3'
   
   UserReadWriteAll: '741f803b-c850-494e-b5df-cde7c675a1ca'
@@ -341,6 +342,29 @@ resource webApiDeploymentRoleForGithubIdentity 'Microsoft.Authorization/roleAssi
     principalId: githubDeploymentIdentity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.websiteContributor)
+  }
+}
+
+// The deployment identity must inspect the bound App Service plan before it
+// deploys. Website Contributor is deliberately scoped to the app and does not
+// inherit Microsoft.Web/serverfarms/read from the sibling plan resource.
+resource githubDeploymentPlanReaderForExistingWebApi 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!manageWebApiServer) {
+  name: guid(existingWebApiServer.id, githubDeploymentIdentity.id, roles.reader)
+  scope: existingWebApiServer
+  properties: {
+    principalId: githubDeploymentIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.reader)
+  }
+}
+
+resource githubDeploymentPlanReaderForManagedWebApi 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (manageWebApiServer) {
+  name: guid(webApiServer.id, githubDeploymentIdentity.id, roles.reader)
+  scope: webApiServer
+  properties: {
+    principalId: githubDeploymentIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.reader)
   }
 }
 
