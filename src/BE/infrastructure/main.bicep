@@ -28,10 +28,8 @@ param storageAccountName string       = take('st${companyName}${toLower(environm
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
 param logAnalyticsName string          = 'logAnal-${companyName}-${toLower(environment)}'
 param webApiServerName string          = take('plan-${companyName}-${toLower(environment)}', 40)
-@description('Set false only when reconciling an already-provisioned App Service plan that Azure cannot currently scale. New environments keep the default and create the plan.')
-param manageWebApiServer bool = true
-@description('Whether the selected App Service plan supports Always On. The deployment wrapper derives this from the live capacity policy and reconcile state.')
-param webApiPlanSupportsAlwaysOn bool = false
+@description('Set true only to create a new App Service plan. Existing plans must use false so this baseline never changes their SKU or deployment slots.')
+param manageWebApiServer bool = false
 param webApiName string                = take('api-${companyName}-${toLower(environment)}', 60)
 param appConfigurationName string     = take('appcs-${companyName}-${toLower(environment)}', 50)
 @allowed([
@@ -226,10 +224,10 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Web API hosting
-// The `live` production boundary uses a dedicated Standard S1 worker. It has
-// enough Kudu storage for release artifacts and supports the staging slot used
-// by the production deployment workflow. Legacy `prod` and lower environments
-// remain on Free.
+// New App Service compatibility plans use Free F1. The product deployment
+// wrapper adopts existing plans with manageWebApiServer=false, so it cannot
+// downscale an existing S1 plan or remove its deployment slots. Container Apps
+// is the preferred live path.
 // The API reads App Configuration + Key Vault references through that identity.
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -241,17 +239,11 @@ resource webApiServer 'Microsoft.Web/serverfarms@2025-03-01' = if (manageWebApiS
   name: webApiServerName
   location: location
   tags: tags
-  sku: isProduction
-    ? {
-        name: 'S1'
-        tier: 'Standard'
-        capacity: 1
-      }
-    : {
-        name: 'F1'
-        tier: 'Free'
-        capacity: 1
-      }
+  sku: {
+    name: 'F1'
+    tier: 'Free'
+    capacity: 1
+  }
   // Keep scaling policy Azure-managed; the authoritative tier is explicit above.
 }
 
@@ -276,9 +268,12 @@ resource webApi 'Microsoft.Web/sites@2023-12-01' = {
     publicNetworkAccess: 'Enabled'
     keyVaultReferenceIdentity: identity.id
     siteConfig: {
-      alwaysOn: isProduction && webApiPlanSupportsAlwaysOn
+      alwaysOn: false
       ftpsState: 'Disabled'
-      http20Enabled: true
+      // The Windows F1 front end can accept an HTTP/2 connection without returning
+      // response bytes. Keep the public compatibility path on HTTP/1.1 until that
+      // platform behaviour is verified as resolved in production.
+      http20Enabled: false
       minTlsVersion: '1.2'
       netFrameworkVersion: 'v10.0'
       use32BitWorkerProcess: true
@@ -909,6 +904,7 @@ output WEB_API_SERVER_NAME string              = webApiServer.name
 output MANAGED_IDENTITY_CLIENT_ID string       = identity.properties.clientId
 output MANAGED_IDENTITY_PRINCIPAL_ID string    = identity.properties.principalId
 output GITHUB_DEPLOYMENT_CLIENT_ID string      = githubDeploymentIdentity.properties.clientId
+output GITHUB_DEPLOYMENT_PRINCIPAL_ID string   = githubDeploymentIdentity.properties.principalId
 output SQL_ADMIN_GROUP_ID string               = sqlAdminGroup.id
 output GITHUB_FEDERATED_CREDENTIAL_SUBJECT string = githubFederatedCredential.properties.subject
 output APP_INSIGHTS_CONNECTION_STRING string   = appInsights.properties.ConnectionString

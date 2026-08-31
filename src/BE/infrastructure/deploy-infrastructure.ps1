@@ -319,6 +319,40 @@ function Get-ExistingRoleAssignmentName {
     return $result.Output.Trim()
 }
 
+function Remove-ObsoleteGitHubPlanReaderAssignment {
+    <#
+        The prior release workflow inspected the App Service plan and required
+        a scoped Reader assignment. Direct F1 deployment no longer reads the
+        sibling plan resource. ARM incremental mode does not remove a deleted
+        Bicep role assignment, so reconcile the one obsolete assignment by its
+        exact scope, principal and role definition.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$Scope,
+        [Parameter(Mandatory = $true)][string]$PrincipalId
+    )
+
+    $readerRoleDefinitionId = 'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+    $assignmentName = Get-ExistingRoleAssignmentName `
+        -Scope $Scope `
+        -PrincipalId $PrincipalId `
+        -RoleDefinitionId $readerRoleDefinitionId
+
+    if ([string]::IsNullOrWhiteSpace($assignmentName)) {
+        Write-Host 'No obsolete App Service plan Reader assignment found.' -ForegroundColor DarkGray
+        return
+    }
+
+    $assignmentId = "$Scope/providers/Microsoft.Authorization/roleAssignments/$assignmentName"
+    Invoke-AzureCli -Arguments @(
+        'role', 'assignment', 'delete',
+        '--ids', $assignmentId,
+        '--only-show-errors',
+        '-o', 'none'
+    ) | Out-Null
+    Write-Host 'Removed obsolete App Service plan Reader assignment.' -ForegroundColor Green
+}
+
 function Get-AppServicePlanSkuName {
     param([Parameter(Mandatory = $true)][string]$Name)
 
@@ -940,13 +974,7 @@ Run without -WhatIf to create it, or create the group first:
     }
     $existingWebApiPlanSku = Get-AppServicePlanSkuName -Name $webApiServerName
     $webApiPlanExists = -not [string]::IsNullOrWhiteSpace($existingWebApiPlanSku)
-    $requiredWebApiPlanSku = if ($NormalizedEnvironment -eq 'live') { 'S1' } else { '' }
-    $webApiPlanRequiresCapacityReconcile = $webApiPlanExists -and
-        $NormalizedEnvironment -eq 'live' -and
-        $existingWebApiPlanSku -ne $requiredWebApiPlanSku
-    $manageWebApiServer = -not $webApiPlanExists -or $webApiPlanRequiresCapacityReconcile
-    $webApiPlanSupportsAlwaysOn = $NormalizedEnvironment -eq 'live' -and
-        (-not $webApiPlanExists -or $webApiPlanRequiresCapacityReconcile -or $existingWebApiPlanSku -eq 'S1')
+    $manageWebApiServer = -not $webApiPlanExists
 
     if (-not [string]::IsNullOrWhiteSpace($existingAppConfigurationDataOwnerRoleAssignmentName)) {
         Write-Host 'Adopting existing App Configuration Data Owner assignment.' -ForegroundColor DarkGray
@@ -955,15 +983,7 @@ Run without -WhatIf to create it, or create the group first:
         Write-Host 'Adopting existing Key Vault Administrator assignment.' -ForegroundColor DarkGray
     }
     if ($webApiPlanExists) {
-        if ($webApiPlanRequiresCapacityReconcile) {
-            Write-Host "Reconciling App Service plan SKU from '$existingWebApiPlanSku' to '$requiredWebApiPlanSku' for the live staging-slot deployment policy." -ForegroundColor Yellow
-        }
-        else {
-            Write-Host 'Reusing existing App Service plan without requesting a capacity change.' -ForegroundColor DarkGray
-            if (-not $webApiPlanSupportsAlwaysOn) {
-                Write-Host 'Always On remains disabled because the existing plan SKU does not support it.' -ForegroundColor DarkGray
-            }
-        }
+        Write-Host "Reusing existing App Service plan SKU '$existingWebApiPlanSku' without changing capacity or deployment slots." -ForegroundColor DarkGray
     }
 
     if (Test-Path $EntraStatePath) {
@@ -1022,7 +1042,6 @@ Run without -WhatIf to create it, or create the group first:
             appConfigurationDataOwnerRoleAssignmentName = @{ value = $existingAppConfigurationDataOwnerRoleAssignmentName }
             keyVaultAdministratorRoleAssignmentName = @{ value = $existingKeyVaultAdministratorRoleAssignmentName }
             manageWebApiServer = @{ value = $manageWebApiServer }
-            webApiPlanSupportsAlwaysOn = @{ value = $webApiPlanSupportsAlwaysOn }
             customEmailDomainEnabled = @{ value = [bool]$EnableCustomEmailDomain }
             entraDefaultDomain = @{ value = $resolvedEntraDefaultDomain }
             powerBiReaderPrincipalId = @{ value = $PowerBiReaderPrincipalId }
@@ -1078,6 +1097,15 @@ Run without -WhatIf to create it, or create the group first:
     )
     $deployment = $deploymentResult.Output | ConvertFrom-Json
     $outputs = $deployment.properties.outputs
+
+    $githubDeploymentPrincipalId = [string]$outputs.GITHUB_DEPLOYMENT_PRINCIPAL_ID.value
+    if ([string]::IsNullOrWhiteSpace($githubDeploymentPrincipalId)) {
+        throw 'Deployment output GITHUB_DEPLOYMENT_PRINCIPAL_ID was empty.'
+    }
+    $webApiPlanScope = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/serverfarms/$webApiServerName"
+    Remove-ObsoleteGitHubPlanReaderAssignment `
+        -Scope $webApiPlanScope `
+        -PrincipalId $githubDeploymentPrincipalId
 
     if ($mustStoreSqlAdminPassword) {
         Set-KeyVaultSecretFromMemory -SecretName $SqlAdminPasswordSecretName -SecretValue $sqlAdminPassword
