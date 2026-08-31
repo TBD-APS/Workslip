@@ -270,7 +270,10 @@ resource webApi 'Microsoft.Web/sites@2023-12-01' = {
     siteConfig: {
       alwaysOn: false
       ftpsState: 'Disabled'
-      http20Enabled: true
+      // The Windows F1 front end can accept an HTTP/2 connection without returning
+      // response bytes. Keep the public compatibility path on HTTP/1.1 until that
+      // platform behaviour is verified as resolved in production.
+      http20Enabled: false
       minTlsVersion: '1.2'
       netFrameworkVersion: 'v10.0'
       use32BitWorkerProcess: true
