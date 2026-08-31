@@ -112,13 +112,19 @@ The infrastructure phase:
 3. reconciles Azure-owned deployment secrets without exposing them on command lines;
 4. provisions the API user-assigned managed identity in Azure SQL.
 
-The `live` production environment uses an S1 Standard App Service worker with
-`alwaysOn` enabled and a `staging` deployment slot. This is the minimum live
-capacity because Kudu needs space for release artifacts and the deployment
-workflow validates a candidate before traffic is swapped. The legacy `prod`
-boundary and other environments remain on F1 with `alwaysOn` disabled. The
-compatibility script reconciles an existing live plan to S1 rather than leaving
-it on an unsupported tier.
+New retained App Service plans use Free F1 with `alwaysOn` disabled. The
+compatibility script adopts existing plans without changing their SKU or
+deployment slots, so an existing S1 plan remains unchanged until a separately
+approved capacity migration removes its slots first. The deployment workflow
+uses a staging slot and swap when one exists; otherwise it deploys directly to
+the App Service app and runs the production smoke test. Direct F1 delivery has
+no automatic App Service rollback. Moving this legacy path to Standard S1 is an
+explicit capacity choice, not an infrastructure or release requirement.
+
+The compatibility reconciler explicitly removes the obsolete plan-scoped
+`Reader` assignment from the GitHub deployment identity after applying the
+baseline. This is necessary because Azure incremental deployments do not delete
+a role assignment solely because its Bicep declaration was removed.
 
 The template takes no compile-time file input. Everything instance-specific arrives as a deployment parameter, so `main.bicep` describes *a* Workslip environment rather than this one, and a deployment no longer writes to the working tree as a side effect. `monitoring.config.json` remains operator configuration; the deployment script reads it and passes the addresses through.
 

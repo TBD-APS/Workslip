@@ -81,7 +81,8 @@ Review the complete output. In particular, block reconcile if it proposes:
 
 - deletion or replacement of data-bearing resources;
 - movement outside Sweden Central;
-- a production App Service downgrade below S1, or removal of its staging slot;
+- an unexpected App Service plan SKU change; the retained F1 compatibility path
+  intentionally has no staging slot and deploys directly;
 - a new processor, region, or unexpected public-access change;
 - removal of Key Vault purge protection, storage soft delete, diagnostics, or
   production identities.

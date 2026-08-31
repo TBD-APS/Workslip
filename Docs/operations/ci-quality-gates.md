@@ -105,6 +105,12 @@ The workflow:
 8. deploys the exact-SHA artifact with bounded retries and captures Azure deployment diagnostics on failure; and
 9. requires the API `/health` endpoint to recover and unauthenticated `/api/auth/me` to return 401 before reporting the release successful.
 
+When the target has a `staging` slot, the workflow validates that candidate and
+swaps it into production with automatic swap rollback on a failed production
+smoke. The retained F1 compatibility path has no slot, so it deploys directly
+to production and reports a failed smoke without an automatic App Service
+rollback.
+
 The manual new-tenant path additionally requires `main`, the protected `live`
 environment, the exact confirmation `DEPLOY NEW TENANT AFTER DATA VERIFIED`,
 and the SHA-256 plus allowlisted evidence URL of the reviewed non-personal
