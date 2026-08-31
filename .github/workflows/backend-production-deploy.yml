@@ -274,6 +274,52 @@ jobs:
           [[ "${RELEASE_TESTING_ENABLED}" == true || "${RELEASE_TESTING_ENABLED}" == false ]] || exit 1
           az webapp config appsettings set --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --settings "ReleaseTesting__Enabled=${RELEASE_TESTING_ENABLED}" --output none
 
+      - name: Enable package-based deployment
+        shell: bash
+        env:
+          SLOT_ENABLED: ${{ steps.mode.outputs.slot_enabled }}
+        run: |
+          set -Eeuo pipefail
+          args=(webapp config appsettings set --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --settings WEBSITE_RUN_FROM_PACKAGE=1 --output none)
+          if [[ "${SLOT_ENABLED}" == true ]]; then
+            args+=(--slot "${DEPLOYMENT_SLOT}")
+          fi
+          az "${args[@]}"
+
+      - name: Reclaim stale Kudu ZIP temp space
+        shell: bash
+        env:
+          SLOT_ENABLED: ${{ steps.mode.outputs.slot_enabled }}
+        run: |
+          set -Eeuo pipefail
+          scm_host="${AZURE_WEBAPP_NAME}.scm.azurewebsites.net"
+          if [[ "${SLOT_ENABLED}" == true ]]; then
+            scm_host="${AZURE_WEBAPP_NAME}-${DEPLOYMENT_SLOT}.scm.azurewebsites.net"
+          fi
+
+          token="$(az account get-access-token --query accessToken -o tsv)"
+          payload='{"command":"cmd /d /s /c if exist D:\\local\\Temp\\zipdeploy rmdir /s /q D:\\local\\Temp\\zipdeploy","dir":"D:\\home"}'
+          response_file="${RUNNER_TEMP}/kudu-cleanup-response.json"
+
+          for attempt in 1 2 3; do
+            status="$(curl --silent --show-error --output "${response_file}" --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer ${token}" \
+              --header 'Content-Type: application/json' \
+              --data "${payload}" \
+              "https://${scm_host}/api/command")"
+            if [[ "${status}" =~ ^2 ]]; then
+              echo "Kudu ZIP temp cleanup completed."
+              break
+            fi
+            if [[ "${attempt}" == 3 ]]; then
+              echo "::error::Kudu ZIP temp cleanup failed with HTTP ${status}."
+              cat "${response_file}" || true
+              exit 1
+            fi
+            sleep $((attempt * 10))
+          done
+
       - name: Deploy package
         shell: bash
         env:
