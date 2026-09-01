@@ -26,14 +26,14 @@ $source = [ordered]@{
     KeyVault       = 'kv-mrsoftware-prod'
 }
 $target = [ordered]@{
-    TenantId       = $TargetTenantId.ToString('D')
-    SubscriptionId = $TargetSubscriptionId.ToString('D')
-    ClientId       = $TargetClientId.ToString('D')
-    ResourceGroup  = 'rg-mrsoftwarev2-live'
-    SqlServer      = 'db-mrsoftwarev2-live-server'
-    Database       = 'db-mrsoftwarev2-live'
-    KeyVault       = 'kv-mrsoftwarev2-live'
-    WebApp         = 'api-mrsoftwarev2-live'
+    TenantId        = $TargetTenantId.ToString('D')
+    SubscriptionId  = $TargetSubscriptionId.ToString('D')
+    ClientId        = $TargetClientId.ToString('D')
+    ResourceGroup   = 'rg-mrsoftwarev2-live'
+    SqlServer       = 'db-mrsoftwarev2-live-server'
+    Database        = 'db-mrsoftwarev2-live'
+    KeyVault        = 'kv-mrsoftwarev2-live'
+    WebApp          = 'api-mrsoftwarev2-live'
     RuntimeIdentity = 'id-workslip-live-app'
 }
 
@@ -174,15 +174,17 @@ function Invoke-AdminSql {
         [Parameter(Mandatory = $true)][string]$Query,
         [int]$QueryTimeout = 180
     )
-    return @(Invoke-Sqlcmd \
-        -ServerInstance "$($Boundary.SqlServer).database.windows.net" \
-        -Database $Database \
-        -Username $sqlAdminLogin \
-        -Password $Password \
-        -Query $Query \
-        -QueryTimeout $QueryTimeout \
-        -AbortOnError \
-        -ErrorAction Stop)
+    $parameters = @{
+        ServerInstance = "$($Boundary.SqlServer).database.windows.net"
+        Database = $Database
+        Username = $sqlAdminLogin
+        Password = $Password
+        Query = $Query
+        QueryTimeout = $QueryTimeout
+        AbortOnError = $true
+        ErrorAction = 'Stop'
+    }
+    return @(Invoke-Sqlcmd @parameters)
 }
 
 function Invoke-SeedSql {
@@ -192,15 +194,17 @@ function Invoke-SeedSql {
         [Parameter(Mandatory = $true)][string]$Query,
         [int]$QueryTimeout = 1800
     )
-    return @(Invoke-Sqlcmd \
-        -ServerInstance "$($Boundary.SqlServer).database.windows.net" \
-        -Database $Database \
-        -Username $tempLogin \
-        -Password $tempPassword \
-        -Query $Query \
-        -QueryTimeout $QueryTimeout \
-        -AbortOnError \
-        -ErrorAction Stop)
+    $parameters = @{
+        ServerInstance = "$($Boundary.SqlServer).database.windows.net"
+        Database = $Database
+        Username = $tempLogin
+        Password = $tempPassword
+        Query = $Query
+        QueryTimeout = $QueryTimeout
+        AbortOnError = $true
+        ErrorAction = 'Stop'
+    }
+    return @(Invoke-Sqlcmd @parameters)
 }
 
 function Test-DatabaseExists {
@@ -345,7 +349,11 @@ ALTER ROLE [dbmanager] ADD MEMBER $tempIdentifier;
     if ($targetExists) {
         $targetIdentifier = ConvertTo-SqlIdentifier $target.Database
         $quarantineIdentifier = ConvertTo-SqlIdentifier $quarantineDatabase
-        Invoke-AdminSql -Boundary $target -Password $targetAdminPassword -Database 'master' -Query "ALTER DATABASE $targetIdentifier MODIFY NAME = $quarantineIdentifier;" | Out-Null
+        Invoke-AdminSql -Boundary $target -Password $targetAdminPassword -Database 'master' -Query @"
+ALTER DATABASE $targetIdentifier SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+ALTER DATABASE $targetIdentifier MODIFY NAME = $quarantineIdentifier;
+ALTER DATABASE $quarantineIdentifier SET MULTI_USER;
+"@ | Out-Null
         $targetQuarantined = $true
     }
 
@@ -404,7 +412,12 @@ finally {
                 $canonicalIdentifier = ConvertTo-SqlIdentifier $target.Database
                 $failedIdentifier = ConvertTo-SqlIdentifier $failedDatabase
                 $quarantineIdentifier = ConvertTo-SqlIdentifier $quarantineDatabase
-                Invoke-AdminSql -Boundary $target -Password $targetAdminPassword -Database 'master' -Query "ALTER DATABASE $canonicalIdentifier MODIFY NAME = $failedIdentifier; ALTER DATABASE $quarantineIdentifier MODIFY NAME = $canonicalIdentifier;" | Out-Null
+                Invoke-AdminSql -Boundary $target -Password $targetAdminPassword -Database 'master' -Query @"
+ALTER DATABASE $canonicalIdentifier SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+ALTER DATABASE $canonicalIdentifier MODIFY NAME = $failedIdentifier;
+ALTER DATABASE $failedIdentifier SET MULTI_USER;
+ALTER DATABASE $quarantineIdentifier MODIFY NAME = $canonicalIdentifier;
+"@ | Out-Null
                 $swapSucceeded = $false
                 $targetQuarantined = $false
                 try { Invoke-AdminSql -Boundary $target -Password $targetAdminPassword -Database 'master' -Query "DROP DATABASE $failedIdentifier;" | Out-Null } catch { Write-Warning "Failed-copy cleanup warning: $($_.Exception.Message)" }
