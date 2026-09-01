@@ -1,0 +1,140 @@
+name: Entra · Reconcile Workslip live B2B guests
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Report differences or reconcile guests, app roles, and Entra object IDs
+        required: true
+        default: report
+        type: choice
+        options:
+          - report
+          - apply
+      confirmation:
+        description: Type RECONCILE_GUESTS when mode is apply
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: workslip-live-entra-guests
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Live B2B guests · ${{ inputs.mode }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: live
+    env:
+      AZURE_RESOURCE_GROUP: rg-mrsoftwarev2-live
+      RUNTIME_IDENTITY: id-workslip-live-app
+      INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+    steps:
+      - name: Require main and explicit apply intent
+        shell: bash
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == 'refs/heads/main' ]] || {
+            echo "::error::Live B2B reconciliation may only run from main."
+            exit 1
+          }
+          if [[ "$MODE" == apply && "$CONFIRMATION" != RECONCILE_GUESTS ]]; then
+            echo '::error::Apply mode requires confirmation RECONCILE_GUESTS.'
+            exit 1
+          fi
+
+      - name: Checkout exact selected main revision
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Azure login as infrastructure identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ env.INFRA_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve ACA runtime identity
+        id: runtime
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          client_id="$(az identity show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$RUNTIME_IDENTITY" \
+            --query clientId --output tsv)"
+          principal_id="$(az identity show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$RUNTIME_IDENTITY" \
+            --query principalId --output tsv)"
+          [[ "$client_id" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo '::error::Runtime client id is unavailable.'; exit 1; }
+          [[ "$principal_id" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo '::error::Runtime principal id is unavailable.'; exit 1; }
+          echo "client_id=$client_id" >> "$GITHUB_OUTPUT"
+          echo "principal_id=$principal_id" >> "$GITHUB_OUTPUT"
+
+      - name: Logout infrastructure identity
+        run: az logout
+
+      - name: Azure login as Workslip runtime identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.runtime.outputs.client_id }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install App Configuration CLI support
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt
+          az appconfig --help >/dev/null
+
+      - name: Install SQL tooling
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+            Install-Module SqlServer -Scope CurrentUser -Repository PSGallery -Force -AllowClobber
+          }
+          Import-Module SqlServer -ErrorAction Stop
+          Get-Command Invoke-Sqlcmd -ErrorAction Stop | Out-Null
+
+      - name: Reconcile external Workslip users
+        shell: pwsh
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:MODE -eq 'apply') {
+            & ./src/BE/infrastructure/aca/reconcile-live-entra-guests.ps1 -Apply
+          }
+          else {
+            & ./src/BE/infrastructure/aca/reconcile-live-entra-guests.ps1
+          }
+
+      - name: Publish reconciliation evidence
+        shell: bash
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Workslip live B2B guest reconciliation
+
+          - Mode: \`$MODE\`
+          - Tenant: MR Software live tenant
+          - Runtime identity: \`$RUNTIME_IDENTITY\`
+          - User model: single-tenant Workslip + external Entra B2B guests
+          - Invitation mail during reconciliation: disabled
+          - App roles: Superadmin / Admin / User / Auditor reconciled from Workslip DB
+          - Database mapping: \`Users.EntraId\` reconciled only in apply mode
+          EOF

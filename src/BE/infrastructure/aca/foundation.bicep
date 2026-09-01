@@ -1,3 +1,5 @@
+extension microsoftGraphV1
+
 @description('Azure region for the Workslip live-app serverless runway. Mirrors the live region.')
 param location string = resourceGroup().location
 
@@ -45,6 +47,15 @@ var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/ro
 var acrPushRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8311e382-0749-4cb8-b61a-304f252e45ec')
 var contributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')
 
+// Match the legacy API runtime identity exactly. Workslip intentionally stays
+// single-tenant and provisions customer accounts as Entra B2B guests.
+var graphRoleIds = {
+  userReadWriteAll: '741f803b-c850-494e-b5df-cde7c675a1ca'
+  userInviteAll: '09850681-111b-4a89-9bed-3f2cae46d706'
+  applicationReadAll: '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30'
+  appRoleAssignmentReadWriteAll: '06b708a9-e830-4db3-a914-8e69da51d44f'
+}
+
 resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: registryName
   location: location
@@ -79,6 +90,34 @@ resource runtimeIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
   name: runtimeIdentityName
   location: location
   tags: tags
+}
+
+resource microsoftGraphServicePrincipal 'Microsoft.Graph/servicePrincipals@v1.0' existing = {
+  appId: '00000003-0000-0000-c000-000000000000'
+}
+
+resource graphUserReadWriteAllForRuntimeIdentity 'Microsoft.Graph/appRoleAssignedTo@v1.0' = {
+  appRoleId: graphRoleIds.userReadWriteAll
+  principalId: runtimeIdentity.properties.principalId
+  resourceId: microsoftGraphServicePrincipal.id
+}
+
+resource graphUserInviteAllForRuntimeIdentity 'Microsoft.Graph/appRoleAssignedTo@v1.0' = {
+  appRoleId: graphRoleIds.userInviteAll
+  principalId: runtimeIdentity.properties.principalId
+  resourceId: microsoftGraphServicePrincipal.id
+}
+
+resource graphApplicationReadAllForRuntimeIdentity 'Microsoft.Graph/appRoleAssignedTo@v1.0' = {
+  appRoleId: graphRoleIds.applicationReadAll
+  principalId: runtimeIdentity.properties.principalId
+  resourceId: microsoftGraphServicePrincipal.id
+}
+
+resource graphAppRoleAssignmentReadWriteAllForRuntimeIdentity 'Microsoft.Graph/appRoleAssignedTo@v1.0' = {
+  appRoleId: graphRoleIds.appRoleAssignmentReadWriteAll
+  principalId: runtimeIdentity.properties.principalId
+  resourceId: microsoftGraphServicePrincipal.id
 }
 
 resource runtimeFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30' = {
