@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   id-token: write
 
 concurrency:
@@ -41,6 +42,19 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+
+      - name: Setup Node.js for production gate
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Require exact green main CI Gate
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          node tools/release/verify-production-eligibility.mjs --sha "$GITHUB_SHA"
 
       - name: Verify Azure bootstrap configuration
         shell: bash
@@ -197,7 +211,7 @@ jobs:
           VITE_AZURE_AD_LOGIN_REDIRECT_URI: ${{ secrets.VITE_AZURE_AD_LOGIN_REDIRECT_URI }}
         run: |
           set -Eeuo pipefail
-          for v in VITE_AZURE_AD_TENANT_ID VITE_AZURE_AD_CLIENT_ID VITE_AZURE_AD_SCOPE; do
+          for v in VITE_AZURE_AD_TENANT_ID VITE_AZURE_AD_CLIENT_ID VITE_AZURE_AD_SCOPE VITE_AZURE_AD_LOGIN_REDIRECT_URI; do
             eval "val=\${$v:-}"
             if [ -z "$val" ]; then
               echo "::error::Frontend build requires GitHub secret $v (Microsoft login configuration)."
@@ -296,22 +310,11 @@ jobs:
           echo "fqdn=$fqdn" >> "$GITHUB_OUTPUT"
           echo "url=https://$fqdn" >> "$GITHUB_OUTPUT"
 
-      - name: Smoke-test public live-app
+      - name: Smoke-test public live-app frontend and API
         shell: bash
         env:
           LIVE_URL: ${{ steps.app.outputs.url }}
-        run: |
-          set -Eeuo pipefail
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent --show-error --max-time 15 "$LIVE_URL/login" >/dev/null; then
-              break
-            fi
-            if [[ "$attempt" == 30 ]]; then
-              echo '::error::Live-app frontend did not become healthy in time.'
-              exit 1
-            fi
-            sleep 10
-          done
+        run: bash tools/release/post-deploy-smoke.sh "$LIVE_URL"
 
       - name: Publish live-app handoff
         shell: bash
@@ -327,8 +330,8 @@ jobs:
           - Hostname: \`$LIVE_FQDN\`
           - Boundary: \`rg-mrsoftwarev2-live\` (uniquely named parallel ACA resources — App Service untouched)
           - Runtime identity: \`rg-mrsoftwarev2-live / $LIVE_RUNTIME_IDENTITY\`
-          - Smoke: frontend \`/login\` returned 200
+          - Smoke: frontend \`/\` = 200, backend \`/health\` = 200, unauthenticated \`/api/auth/me\` = 401
           - Scale: 0→4 replicas, HTTP autoscale, scale-to-zero when idle
 
-          Production database migrations stay with \`database-production-migrations.yml\`; this workflow never mutates schema.
+          Production database schema migrations remain a separate release concern; this workflow only reconciles runtime SQL access.
           EOF
