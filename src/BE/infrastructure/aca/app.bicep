@@ -158,6 +158,18 @@ resource liveApp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json('0.5')
             memory: '1Gi'
           }
+          probes: [
+            {
+              type: 'Liveness'
+              httpGet: {
+                path: '/health'
+                port: 5262
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 10
+              periodSeconds: 30
+            }
+          ]
         }
       ]
       scale: {
