@@ -46,6 +46,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Setup Node.js for production gate
@@ -61,6 +62,17 @@ jobs:
           $ErrorActionPreference = 'Stop'
           node tools/release/verify-production-eligibility.mjs --sha $env:GITHUB_SHA
           if ($LASTEXITCODE -ne 0) { throw 'Production eligibility verification failed.' }
+
+      - name: Enforce expand-contract migration policy
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $base = (& git rev-parse 'HEAD^').Trim()
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($base)) {
+            throw 'Could not resolve the previous main revision for migration compatibility validation.'
+          }
+          node tools/release/verify-migration-compatibility.mjs $base $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw 'Migration compatibility verification failed.' }
 
       - name: Azure login as application deployment identity
         uses: azure/login@v3
