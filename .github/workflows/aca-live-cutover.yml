@@ -1,0 +1,269 @@
+name: Cut over Workslip Live App domain
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Prepare DNS values, bind app.mrsoftware.dk, or retire the legacy App Service
+        required: true
+        default: prepare
+        type: choice
+        options:
+          - prepare
+          - bind
+          - retire
+      confirmation:
+        description: Use CUTOVER for bind or RETIRE_LEGACY for retire
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: workslip-live-domain-cutover
+  cancel-in-progress: false
+
+jobs:
+  cutover:
+    name: Live domain · ${{ inputs.mode }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: live
+    env:
+      AZURE_RESOURCE_GROUP: rg-mrsoftwarev2-live
+      CONTAINER_APP: ca-workslip-live-app
+      CONTAINER_APP_ENVIRONMENT: cae-workslip-live-app
+      LIVE_DOMAIN: app.mrsoftware.dk
+      LEGACY_WEBAPP: api-mrsoftwarev2-live
+      INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+      LOGIN_REDIRECT_URI: ${{ secrets.VITE_AZURE_AD_LOGIN_REDIRECT_URI }}
+    steps:
+      - name: Require main and explicit mutation intent
+        shell: bash
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == 'refs/heads/main' ]] || {
+            echo "::error::Live domain operations may only run from main. Selected ref: $GITHUB_REF"
+            exit 1
+          }
+          case "$MODE" in
+            prepare) ;;
+            bind)
+              [[ "$CONFIRMATION" == 'CUTOVER' ]] || {
+                echo '::error::Binding the production domain requires confirmation CUTOVER.'
+                exit 1
+              }
+              ;;
+            retire)
+              [[ "$CONFIRMATION" == 'RETIRE_LEGACY' ]] || {
+                echo '::error::Stopping the legacy App Service requires confirmation RETIRE_LEGACY.'
+                exit 1
+              }
+              ;;
+            *)
+              echo "::error::Unsupported cutover mode: $MODE"
+              exit 1
+              ;;
+          esac
+
+      - name: Checkout exact selected main revision
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify Azure OIDC configuration
+        shell: bash
+        env:
+          TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          set -Eeuo pipefail
+          for pair in "INFRA_CLIENT_ID=$INFRA_CLIENT_ID" "AZURE_TENANT_ID=$TENANT_ID" "AZURE_SUBSCRIPTION_ID=$SUBSCRIPTION_ID"; do
+            key="${pair%%=*}"
+            value="${pair#*=}"
+            [[ -n "$value" ]] || { echo "::error::Missing $key on the live GitHub environment."; exit 1; }
+          done
+
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ env.INFRA_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve Container App domain evidence
+        id: aca
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          fqdn="$(az containerapp show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$CONTAINER_APP" \
+            --query properties.configuration.ingress.fqdn \
+            --output tsv)"
+          verification_id="$(az containerapp show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$CONTAINER_APP" \
+            --query properties.customDomainVerificationId \
+            --output tsv)"
+          provisioning_state="$(az containerapp show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$CONTAINER_APP" \
+            --query properties.provisioningState \
+            --output tsv)"
+
+          [[ -n "$fqdn" && "$fqdn" != null ]] || { echo '::error::Container App FQDN is unavailable.'; exit 1; }
+          [[ -n "$verification_id" && "$verification_id" != null ]] || { echo '::error::Custom-domain verification ID is unavailable.'; exit 1; }
+          [[ "$provisioning_state" == 'Succeeded' ]] || { echo "::error::Container App provisioning state is $provisioning_state."; exit 1; }
+
+          {
+            echo "fqdn=$fqdn"
+            echo "verification_id=$verification_id"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Verify deployed ACA before any domain mutation
+        if: ${{ inputs.mode != 'prepare' }}
+        shell: bash
+        run: bash tools/release/post-deploy-smoke.sh "https://${{ steps.aca.outputs.fqdn }}"
+
+      - name: Publish required DNS records
+        if: ${{ inputs.mode == 'prepare' }}
+        shell: bash
+        env:
+          ACA_FQDN: ${{ steps.aca.outputs.fqdn }}
+          VERIFICATION_ID: ${{ steps.aca.outputs.verification_id }}
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Workslip ACA production-domain preparation
+
+          The deployed Container App is healthy enough to expose its domain-verification evidence.
+
+          Configure these records at the DNS provider before running this workflow in **bind** mode:
+
+          | Type | Host | Value |
+          | --- | --- | --- |
+          | CNAME | \`app\` | \`$ACA_FQDN\` |
+          | TXT | \`asuid.app\` | \`$VERIFICATION_ID\` |
+
+          Then dispatch this workflow from \`main\` with mode \`bind\` and confirmation \`CUTOVER\`.
+          EOF
+
+      - name: Require canonical Entra redirect before binding
+        if: ${{ inputs.mode == 'bind' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          expected="https://${LIVE_DOMAIN}/login"
+          [[ "$LOGIN_REDIRECT_URI" == "$expected" ]] || {
+            echo "::error::VITE_AZURE_AD_LOGIN_REDIRECT_URI must be '$expected' before cutover."
+            exit 1
+          }
+
+      - name: Add production hostname to Container App
+        if: ${{ inputs.mode == 'bind' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          existing="$(az containerapp hostname list \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$CONTAINER_APP" \
+            --query "[?name=='$LIVE_DOMAIN'].name | [0]" \
+            --output tsv)"
+          if [[ "$existing" != "$LIVE_DOMAIN" ]]; then
+            az containerapp hostname add \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name "$CONTAINER_APP" \
+              --hostname "$LIVE_DOMAIN" \
+              --only-show-errors
+          fi
+
+      - name: Bind managed TLS certificate
+        if: ${{ inputs.mode == 'bind' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az containerapp hostname bind \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$CONTAINER_APP" \
+            --environment "$CONTAINER_APP_ENVIRONMENT" \
+            --hostname "$LIVE_DOMAIN" \
+            --validation-method CNAME \
+            --only-show-errors
+
+      - name: Verify canonical production domain
+        if: ${{ inputs.mode == 'bind' || inputs.mode == 'retire' }}
+        shell: bash
+        run: bash tools/release/post-deploy-smoke.sh "https://${LIVE_DOMAIN}"
+
+      - name: Record successful domain cutover
+        if: ${{ inputs.mode == 'bind' }}
+        shell: bash
+        run: |
+          binding="$(az containerapp hostname list \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$CONTAINER_APP" \
+            --query "[?name=='$LIVE_DOMAIN'] | [0]" \
+            --output json)"
+          {
+            echo '## Workslip production domain cut over to ACA'
+            echo
+            echo "- Domain: https://$LIVE_DOMAIN"
+            echo "- Container App: \`$CONTAINER_APP\`"
+            echo "- ACA hostname: \`${{ steps.aca.outputs.fqdn }}\`"
+            echo '- Full-stack smoke: passed'
+            echo '- Legacy App Service: still running; retire it only after production observation.'
+            echo
+            echo '<details><summary>Azure hostname binding evidence</summary>'
+            echo
+            echo '```json'
+            echo "$binding"
+            echo '```'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Require ACA hostname binding before legacy retirement
+        if: ${{ inputs.mode == 'retire' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bound="$(az containerapp hostname list \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$CONTAINER_APP" \
+            --query "[?name=='$LIVE_DOMAIN'].name | [0]" \
+            --output tsv)"
+          [[ "$bound" == "$LIVE_DOMAIN" ]] || {
+            echo "::error::$LIVE_DOMAIN is not bound to $CONTAINER_APP; refusing to stop the legacy App Service."
+            exit 1
+          }
+
+      - name: Stop legacy App Service
+        if: ${{ inputs.mode == 'retire' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az webapp stop \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$LEGACY_WEBAPP" \
+            --only-show-errors
+          state="$(az webapp show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$LEGACY_WEBAPP" \
+            --query state \
+            --output tsv)"
+          [[ "$state" == 'Stopped' ]] || {
+            echo "::error::Legacy App Service reported state '$state' after stop."
+            exit 1
+          }
+          {
+            echo '## Legacy Workslip App Service retired'
+            echo
+            echo "- Canonical ACA domain: https://$LIVE_DOMAIN"
+            echo '- Full-stack production smoke: passed immediately before retirement'
+            echo "- Legacy App Service: \`$LEGACY_WEBAPP\` = Stopped"
+          } >> "$GITHUB_STEP_SUMMARY"
