@@ -33,6 +33,8 @@ env:
   NODE_VERSION: '24'
   TARGET_RESOURCE_GROUP: rg-mrsoftwarev2-live
   TARGET_KEY_VAULT: kv-mrsoftwarev2-live
+  TARGET_INFRA_IDENTITY: id-mrsoftwarev2-live-infra-github
+  TARGET_INFRA_CLIENT_ID: 1269f00f-e4af-4ea2-8c01-8cf28e66ef09
   SOURCE_KEY_VAULT: kv-mrsoftware-prod
   SQL_PASSWORD_SECRET: Azure--Sql--AdminPassword
   TEMP_TARGET_FIC: github-sql-seed-from-prod
@@ -149,9 +151,6 @@ jobs:
       INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
       TARGET_TENANT_ID: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
       TARGET_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
-    outputs:
-      target_boundary_b64: ${{ steps.prepare.outputs.target_boundary_b64 }}
-      target_identity_name: ${{ steps.prepare.outputs.target_identity_name }}
     steps:
       - name: Verify live configuration exists
         shell: bash
@@ -165,6 +164,7 @@ jobs:
             value="${pair#*=}"
             [[ -n "${value}" ]] || { echo "::error::live is missing ${key}."; exit 1; }
           done
+          [[ "${INFRA_CLIENT_ID}" == "${TARGET_INFRA_CLIENT_ID}" ]] || { echo '::error::live infrastructure client ID does not match the reviewed target identity.'; exit 1; }
 
       - name: Azure login to live infrastructure identity
         uses: azure/login@v3
@@ -179,17 +179,14 @@ jobs:
         run: |
           set -Eeuo pipefail
           account="$(az account show --query '{tenant:tenantId,subscription:id}' -o json)"
-          tenant="$(jq -r '.tenant' <<<"${account}")"
-          subscription="$(jq -r '.subscription' <<<"${account}")"
-          [[ "${tenant}" == "${TARGET_TENANT_ID}" ]] || { echo '::error::live tenant mismatch.'; exit 1; }
-          [[ "${subscription}" == "${TARGET_SUBSCRIPTION_ID}" ]] || { echo '::error::live subscription mismatch.'; exit 1; }
+          [[ "$(jq -r '.tenant' <<<"${account}")" == "${TARGET_TENANT_ID}" ]] || { echo '::error::live tenant mismatch.'; exit 1; }
+          [[ "$(jq -r '.subscription' <<<"${account}")" == "${TARGET_SUBSCRIPTION_ID}" ]] || { echo '::error::live subscription mismatch.'; exit 1; }
 
-          identity="$(az identity list \
+          actual_client="$(az identity show \
             --resource-group "${TARGET_RESOURCE_GROUP}" \
-            --query "[?clientId=='${INFRA_CLIENT_ID}'] | [0].{name:name,principalId:principalId}" \
-            -o json)"
-          identity_name="$(jq -r '.name // empty' <<<"${identity}")"
-          [[ -n "${identity_name}" ]] || { echo '::error::AZURE_INFRA_CLIENT_ID is not a managed identity in the live resource group.'; exit 1; }
+            --name "${TARGET_INFRA_IDENTITY}" \
+            --query clientId -o tsv --only-show-errors)"
+          [[ "${actual_client}" == "${TARGET_INFRA_CLIENT_ID}" ]] || { echo '::error::Reviewed live infrastructure identity client ID drifted.'; exit 1; }
 
           az keyvault secret show \
             --vault-name "${TARGET_KEY_VAULT}" \
@@ -198,34 +195,28 @@ jobs:
 
           az identity federated-credential delete \
             --resource-group "${TARGET_RESOURCE_GROUP}" \
-            --identity-name "${identity_name}" \
+            --identity-name "${TARGET_INFRA_IDENTITY}" \
             --name "${TEMP_TARGET_FIC}" \
             --yes >/dev/null 2>&1 || true
           az identity federated-credential create \
             --resource-group "${TARGET_RESOURCE_GROUP}" \
-            --identity-name "${identity_name}" \
+            --identity-name "${TARGET_INFRA_IDENTITY}" \
             --name "${TEMP_TARGET_FIC}" \
             --issuer 'https://token.actions.githubusercontent.com' \
             --subject "${PROD_OIDC_SUBJECT}" \
             --audiences 'api://AzureADTokenExchange' \
             --only-show-errors --output none
 
-          boundary="${tenant}|${subscription}|${INFRA_CLIENT_ID}"
-          echo "target_boundary_b64=$(printf '%s' "${boundary}" | base64 -w0)" >> "${GITHUB_OUTPUT}"
-          echo "target_identity_name=${identity_name}" >> "${GITHUB_OUTPUT}"
-
       - name: Allow federated credential propagation
         run: sleep 20
 
       - name: Remove temporary federation if target preparation fails
-        if: ${{ failure() && steps.prepare.outputs.target_identity_name != '' }}
+        if: ${{ failure() }}
         shell: bash
-        env:
-          TARGET_IDENTITY_NAME: ${{ steps.prepare.outputs.target_identity_name }}
         run: |
           az identity federated-credential delete \
             --resource-group "${TARGET_RESOURCE_GROUP}" \
-            --identity-name "${TARGET_IDENTITY_NAME}" \
+            --identity-name "${TARGET_INFRA_IDENTITY}" \
             --name "${TEMP_TARGET_FIC}" \
             --yes >/dev/null 2>&1 || true
 
@@ -244,8 +235,6 @@ jobs:
       SOURCE_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
       SOURCE_TENANT_ID: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
       SOURCE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
-      TARGET_BOUNDARY_B64: ${{ needs.prepare-target.outputs.target_boundary_b64 }}
-      TARGET_IDENTITY_NAME: ${{ needs.prepare-target.outputs.target_identity_name }}
     steps:
       - name: Checkout exact validated revision
         uses: actions/checkout@v7
@@ -289,6 +278,50 @@ jobs:
           printf '%s' "${token}" > "${token_path}"
           echo "token_path=${token_path}" >> "${GITHUB_OUTPUT}"
 
+      - name: Discover live tenant and subscription without cross-environment outputs
+        shell: bash
+        env:
+          TOKEN_PATH: ${{ steps.oidc.outputs.token_path }}
+        run: |
+          set -Eeuo pipefail
+          headers="$(mktemp)"
+          trap 'rm -f "${headers}"' EXIT
+          curl -sS -D "${headers}" -o /dev/null \
+            "https://${TARGET_KEY_VAULT}.vault.azure.net/secrets?api-version=7.4" || true
+          auth_url="$(tr -d '\r' < "${headers}" | grep -ioE 'https://login\.windows\.net/[0-9a-fA-F-]+' | head -n1 || true)"
+          target_tenant="${auth_url##*/}"
+          [[ "${target_tenant}" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo '::error::Could not discover live tenant from Key Vault challenge.'; exit 1; }
+
+          token="$(cat "${TOKEN_PATH}")"
+          az account clear >/dev/null 2>&1
+          az login --service-principal \
+            --username "${TARGET_INFRA_CLIENT_ID}" \
+            --tenant "${target_tenant}" \
+            --federated-token "${token}" \
+            --allow-no-subscriptions --output none --only-show-errors
+
+          matches=()
+          while IFS= read -r subscription; do
+            [[ -n "${subscription}" ]] || continue
+            az account set --subscription "${subscription}" >/dev/null 2>&1 || continue
+            if az group show --name "${TARGET_RESOURCE_GROUP}" --query id -o tsv --only-show-errors >/dev/null 2>&1; then
+              matches+=("${subscription}")
+            fi
+          done < <(az account list --all --query '[].id' -o tsv --only-show-errors)
+          [[ ${#matches[@]} -eq 1 ]] || { echo "::error::Expected exactly one subscription containing ${TARGET_RESOURCE_GROUP}; found ${#matches[@]}."; exit 1; }
+          target_subscription="${matches[0]}"
+
+          echo "RESOLVED_TARGET_TENANT_ID=${target_tenant}" >> "${GITHUB_ENV}"
+          echo "RESOLVED_TARGET_SUBSCRIPTION_ID=${target_subscription}" >> "${GITHUB_ENV}"
+
+          az account clear >/dev/null 2>&1
+          az login --service-principal \
+            --username "${SOURCE_CLIENT_ID}" \
+            --tenant "${SOURCE_TENANT_ID}" \
+            --federated-token "${token}" \
+            --allow-no-subscriptions --output none --only-show-errors
+          az account set --subscription "${SOURCE_SUBSCRIPTION_ID}"
+
       - name: Install SQL PowerShell module
         shell: pwsh
         run: |
@@ -306,17 +339,18 @@ jobs:
           OIDC_TOKEN_PATH: ${{ steps.oidc.outputs.token_path }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $targetParts = [System.Text.Encoding]::UTF8.GetString(
-            [Convert]::FromBase64String($env:TARGET_BOUNDARY_B64)).Split('|')
-          if ($targetParts.Count -ne 3) { throw 'Target boundary handoff is invalid.' }
+          if ([string]::IsNullOrWhiteSpace($env:RESOLVED_TARGET_TENANT_ID) -or
+              [string]::IsNullOrWhiteSpace($env:RESOLVED_TARGET_SUBSCRIPTION_ID)) {
+            throw 'Resolved target boundary is missing.'
+          }
           $manifest = Join-Path $env:RUNNER_TEMP 'workslip-sql-seed-manifest.json'
           & ./src/BE/infrastructure/aca/seed-live-sql-from-prod-ci.ps1 `
             -SourceTenantId $env:SOURCE_TENANT_ID `
             -SourceSubscriptionId $env:SOURCE_SUBSCRIPTION_ID `
             -SourceClientId $env:SOURCE_CLIENT_ID `
-            -TargetTenantId $targetParts[0] `
-            -TargetSubscriptionId $targetParts[1] `
-            -TargetClientId $targetParts[2] `
+            -TargetTenantId $env:RESOLVED_TARGET_TENANT_ID `
+            -TargetSubscriptionId $env:RESOLVED_TARGET_SUBSCRIPTION_ID `
+            -TargetClientId $env:TARGET_INFRA_CLIENT_ID `
             -FederatedTokenPath $env:OIDC_TOKEN_PATH `
             -Confirmation 'SEED NEW TENANT DATABASE' `
             -ManifestPath $manifest
@@ -330,16 +364,14 @@ jobs:
           TOKEN_PATH: ${{ steps.oidc.outputs.token_path }}
         run: |
           set -Eeuo pipefail
-          target="$(printf '%s' "${TARGET_BOUNDARY_B64}" | base64 -d)"
-          IFS='|' read -r target_tenant target_subscription target_client <<<"${target}"
           token="$(cat "${TOKEN_PATH}")"
           az account clear >/dev/null 2>&1
           az login --service-principal \
-            --username "${target_client}" \
-            --tenant "${target_tenant}" \
+            --username "${TARGET_INFRA_CLIENT_ID}" \
+            --tenant "${RESOLVED_TARGET_TENANT_ID}" \
             --federated-token "${token}" \
             --allow-no-subscriptions --output none --only-show-errors
-          az account set --subscription "${target_subscription}"
+          az account set --subscription "${RESOLVED_TARGET_SUBSCRIPTION_ID}"
 
       - name: Restore live database migration identity on copied database
         if: ${{ steps.copy.outcome == 'success' }}
@@ -365,10 +397,10 @@ jobs:
             echo '- Source: `db-mrsoftware-prod`'
             echo '- Canonical target: `db-mrsoftwarev2-live`'
             echo "- Users rows copied: \`${users}\`"
-            echo "- Row-count differences after the writable seed window: \`${mismatches}\`"
+            echo "- Row-count differences after writable seed window: \`${mismatches}\`"
             echo "- Previous target quarantine: \`${quarantine}\`"
             echo "- Evidence SHA-256: \`${hash}\`"
-            echo '- Current production remained writable; this seed is not the final frozen cutover copy.'
+            echo '- Current production remained writable; this is not the final frozen cutover copy.'
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload non-personal table-count evidence
@@ -387,20 +419,18 @@ jobs:
           TOKEN_PATH: ${{ steps.oidc.outputs.token_path }}
         run: |
           set +e
-          target="$(printf '%s' "${TARGET_BOUNDARY_B64}" | base64 -d 2>/dev/null)"
-          IFS='|' read -r target_tenant target_subscription target_client <<<"${target}"
-          if [[ -n "${target_tenant}" && -n "${target_subscription}" && -n "${target_client}" && -s "${TOKEN_PATH}" ]]; then
+          if [[ -n "${RESOLVED_TARGET_TENANT_ID:-}" && -n "${RESOLVED_TARGET_SUBSCRIPTION_ID:-}" && -s "${TOKEN_PATH}" ]]; then
             token="$(cat "${TOKEN_PATH}")"
             az account clear >/dev/null 2>&1
             az login --service-principal \
-              --username "${target_client}" \
-              --tenant "${target_tenant}" \
+              --username "${TARGET_INFRA_CLIENT_ID}" \
+              --tenant "${RESOLVED_TARGET_TENANT_ID}" \
               --federated-token "${token}" \
               --allow-no-subscriptions --output none --only-show-errors >/dev/null 2>&1
-            az account set --subscription "${target_subscription}" >/dev/null 2>&1
+            az account set --subscription "${RESOLVED_TARGET_SUBSCRIPTION_ID}" >/dev/null 2>&1
             az identity federated-credential delete \
               --resource-group "${TARGET_RESOURCE_GROUP}" \
-              --identity-name "${TARGET_IDENTITY_NAME}" \
+              --identity-name "${TARGET_INFRA_IDENTITY}" \
               --name "${TEMP_TARGET_FIC}" \
               --yes >/dev/null 2>&1
           fi
@@ -421,7 +451,6 @@ jobs:
       INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
       TARGET_TENANT_ID: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
       TARGET_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
-      TARGET_IDENTITY_NAME: ${{ needs.prepare-target.outputs.target_identity_name }}
     steps:
       - name: Azure login to live infrastructure identity
         uses: azure/login@v3
@@ -434,9 +463,8 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          [[ -n "${TARGET_IDENTITY_NAME}" ]] || exit 0
           az identity federated-credential delete \
             --resource-group "${TARGET_RESOURCE_GROUP}" \
-            --identity-name "${TARGET_IDENTITY_NAME}" \
+            --identity-name "${TARGET_INFRA_IDENTITY}" \
             --name "${TEMP_TARGET_FIC}" \
             --yes >/dev/null 2>&1 || true
