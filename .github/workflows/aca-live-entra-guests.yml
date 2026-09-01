@@ -38,6 +38,7 @@ jobs:
       AZURE_RESOURCE_GROUP: rg-mrsoftwarev2-live
       AZURE_LOCATION: swedencentral
       RUNTIME_IDENTITY: id-workslip-live-app
+      MIGRATION_IDENTITY: id-mrsoftwarev2-live-migration
       INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
@@ -116,23 +117,29 @@ jobs:
             --only-show-errors \
             --output none
 
-      - name: Resolve ACA runtime identity
-        id: runtime
+      - name: Resolve ACA runtime and migration identities
+        id: identities
         shell: bash
         run: |
           set -Eeuo pipefail
-          client_id="$(az identity show \
+          runtime_client_id="$(az identity show \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "$RUNTIME_IDENTITY" \
             --query clientId --output tsv)"
-          principal_id="$(az identity show \
+          runtime_principal_id="$(az identity show \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "$RUNTIME_IDENTITY" \
             --query principalId --output tsv)"
-          [[ "$client_id" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo '::error::Runtime client id is unavailable.'; exit 1; }
-          [[ "$principal_id" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo '::error::Runtime principal id is unavailable.'; exit 1; }
-          echo "client_id=$client_id" >> "$GITHUB_OUTPUT"
-          echo "principal_id=$principal_id" >> "$GITHUB_OUTPUT"
+          migration_client_id="$(az identity show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$MIGRATION_IDENTITY" \
+            --query clientId --output tsv)"
+          [[ "$runtime_client_id" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo '::error::Runtime client id is unavailable.'; exit 1; }
+          [[ "$runtime_principal_id" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo '::error::Runtime principal id is unavailable.'; exit 1; }
+          [[ "$migration_client_id" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo '::error::Migration client id is unavailable.'; exit 1; }
+          echo "runtime_client_id=$runtime_client_id" >> "$GITHUB_OUTPUT"
+          echo "runtime_principal_id=$runtime_principal_id" >> "$GITHUB_OUTPUT"
+          echo "migration_client_id=$migration_client_id" >> "$GITHUB_OUTPUT"
 
       - name: Allow Graph assignment propagation
         run: sleep 20
@@ -140,10 +147,40 @@ jobs:
       - name: Logout infrastructure identity
         run: az logout
 
+      - name: Azure login as live migration identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.identities.outputs.migration_client_id }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install SQL bootstrap tooling
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+            Install-Module SqlServer -Scope CurrentUser -Repository PSGallery -Force -AllowClobber
+          }
+          Import-Module SqlServer -ErrorAction Stop
+          Get-Command Invoke-Sqlcmd -ErrorAction Stop | Out-Null
+
+      - name: Ensure Workslip runtime SQL access
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./src/BE/infrastructure/aca/configure-live-app-database-access.ps1 `
+            -CompanyName mrsoftwarev2 `
+            -Environment live `
+            -RuntimeIdentityName $env:RUNTIME_IDENTITY `
+            -RuntimePrincipalId '${{ steps.identities.outputs.runtime_principal_id }}'
+
+      - name: Logout live migration identity
+        run: az logout
+
       - name: Azure login as Workslip runtime identity
         uses: azure/login@v3
         with:
-          client-id: ${{ steps.runtime.outputs.client_id }}
+          client-id: ${{ steps.identities.outputs.runtime_client_id }}
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
@@ -188,5 +225,6 @@ jobs:
           - Invitation mail during reconciliation: disabled
           - App roles: Superadmin / Admin / User / Auditor reconciled from Workslip DB
           - Database mapping: \`Users.EntraId\` reconciled only in apply mode
+          - Runtime SQL access is reconciled with the dedicated live migration identity before the runtime identity reads or writes user mappings
           - Azure tenant/subscription/client IDs are configuration values, not credentials; GitHub variables are preferred with existing secret names retained only as a compatibility fallback
           EOF
