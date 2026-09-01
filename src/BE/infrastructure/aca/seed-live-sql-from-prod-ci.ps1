@@ -248,7 +248,7 @@ function Remove-SeedPrincipal {
     if (Test-DatabaseExists -Boundary $Boundary -Password $Password -DatabaseName $Database) {
         try {
             Invoke-AdminSql -Boundary $Boundary -Password $Password -Database $Database -Query "IF USER_ID(N'$tempLogin') IS NOT NULL DROP USER $identifier;" | Out-Null
-        } catch { Write-Warning "Could not remove temporary user from $Database: $($_.Exception.Message)" }
+        } catch { Write-Warning "Could not remove temporary user from ${Database}: $($_.Exception.Message)" }
     }
     try {
         Invoke-AdminSql -Boundary $Boundary -Password $Password -Database 'master' -Query @"
