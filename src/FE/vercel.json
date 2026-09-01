@@ -11,7 +11,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://api-mrsoftware-prod.azurewebsites.net/api/:path*"
+      "destination": "https://api-mrsoftwarev2-live.azurewebsites.net/api/:path*"
     },
     {
       "source": "/((?!api/|.*\\.[^/]+$).*)",
