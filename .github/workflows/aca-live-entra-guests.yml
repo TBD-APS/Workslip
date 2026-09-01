@@ -15,6 +15,10 @@ on:
         description: Type RECONCILE_GUESTS when mode is apply
         required: false
         type: string
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/aca-live-entra-guests.yml
 
 permissions:
   contents: read
@@ -26,28 +30,42 @@ concurrency:
 
 jobs:
   reconcile:
-    name: Live B2B guests · ${{ inputs.mode }}
+    name: Live B2B guests · ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'report' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: live
     env:
       AZURE_RESOURCE_GROUP: rg-mrsoftwarev2-live
+      AZURE_LOCATION: swedencentral
       RUNTIME_IDENTITY: id-workslip-live-app
       INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
+      MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'report' }}
+      CONFIRMATION: ${{ github.event_name == 'workflow_dispatch' && inputs.confirmation || '' }}
     steps:
       - name: Require main and explicit apply intent
         shell: bash
-        env:
-          MODE: ${{ inputs.mode }}
-          CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           set -Eeuo pipefail
           [[ "$GITHUB_REF" == 'refs/heads/main' ]] || {
             echo "::error::Live B2B reconciliation may only run from main."
             exit 1
           }
+          for pair in \
+            "INFRA_CLIENT_ID=$INFRA_CLIENT_ID" \
+            "AZURE_TENANT_ID=$AZURE_TENANT_ID" \
+            "AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID"; do
+            key="${pair%%=*}"
+            value="${pair#*=}"
+            [[ -n "$value" ]] || { echo "::error::Missing $key on live."; exit 1; }
+          done
           if [[ "$MODE" == apply && "$CONFIRMATION" != RECONCILE_GUESTS ]]; then
             echo '::error::Apply mode requires confirmation RECONCILE_GUESTS.'
+            exit 1
+          fi
+          if [[ "$GITHUB_EVENT_NAME" == push && "$MODE" != report ]]; then
+            echo '::error::Push-triggered runs are permanently report-only.'
             exit 1
           fi
 
@@ -61,8 +79,42 @@ jobs:
         uses: azure/login@v3
         with:
           client-id: ${{ env.INFRA_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Reconcile runtime Graph permissions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          loganal_id="$(az monitor log-analytics workspace show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name logAnal-mrsoftwarev2-live \
+            --query id --output tsv)"
+          loganal_customer="$(az monitor log-analytics workspace show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name logAnal-mrsoftwarev2-live \
+            --query customerId --output tsv)"
+          keyvault_id="$(az keyvault show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name kv-mrsoftwarev2-live \
+            --query id --output tsv)"
+
+          az bicep build --file src/BE/infrastructure/aca/foundation.bicep --stdout >/dev/null
+          az deployment group create \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name workslip-live-app-foundation \
+            --template-file src/BE/infrastructure/aca/foundation.bicep \
+            --parameters \
+              location="$AZURE_LOCATION" \
+              logAnalyticsWorkspaceId="$loganal_id" \
+              logAnalyticsWorkspaceCustomerId="$loganal_customer" \
+              keyVaultId="$keyvault_id" \
+              keyVaultName='kv-mrsoftwarev2-live' \
+              appConfigurationName='appcs-mrsoftwarev2-live' \
+              storageAccountName='stmrsoftwarev2live' \
+              githubEnvironment='live' \
+            --only-show-errors \
+            --output none
 
       - name: Resolve ACA runtime identity
         id: runtime
@@ -82,6 +134,9 @@ jobs:
           echo "client_id=$client_id" >> "$GITHUB_OUTPUT"
           echo "principal_id=$principal_id" >> "$GITHUB_OUTPUT"
 
+      - name: Allow Graph assignment propagation
+        run: sleep 20
+
       - name: Logout infrastructure identity
         run: az logout
 
@@ -89,8 +144,8 @@ jobs:
         uses: azure/login@v3
         with:
           client-id: ${{ steps.runtime.outputs.client_id }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Install App Configuration CLI support
         shell: bash
@@ -111,8 +166,6 @@ jobs:
 
       - name: Reconcile external Workslip users
         shell: pwsh
-        env:
-          MODE: ${{ inputs.mode }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ($env:MODE -eq 'apply') {
@@ -124,8 +177,6 @@ jobs:
 
       - name: Publish reconciliation evidence
         shell: bash
-        env:
-          MODE: ${{ inputs.mode }}
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
           ## Workslip live B2B guest reconciliation
@@ -137,4 +188,5 @@ jobs:
           - Invitation mail during reconciliation: disabled
           - App roles: Superadmin / Admin / User / Auditor reconciled from Workslip DB
           - Database mapping: \`Users.EntraId\` reconciled only in apply mode
+          - Azure tenant/subscription/client IDs are configuration values, not credentials; GitHub variables are preferred with existing secret names retained only as a compatibility fallback
           EOF
