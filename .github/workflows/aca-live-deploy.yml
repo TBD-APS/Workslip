@@ -41,6 +41,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Setup Node.js for production gate
@@ -55,6 +56,13 @@ jobs:
         run: |
           set -Eeuo pipefail
           node tools/release/verify-production-eligibility.mjs --sha "$GITHUB_SHA"
+
+      - name: Enforce expand-contract migration policy
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          base="$(git rev-parse HEAD^)"
+          node tools/release/verify-migration-compatibility.mjs "$base" "$GITHUB_SHA"
 
       - name: Verify Azure bootstrap configuration
         shell: bash
@@ -249,6 +257,14 @@ jobs:
           Import-Module SqlServer -ErrorAction Stop
           Get-Command Invoke-Sqlcmd -ErrorAction Stop | Out-Null
 
+      - name: Apply pending reviewed live database migrations
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./src/BE/infrastructure/run-database-migrations.ps1 `
+            -Environment live `
+            -CompanyName mrsoftwarev2
+
       - name: Grant runtime identity least-privilege database roles
         shell: pwsh
         run: |
@@ -330,8 +346,7 @@ jobs:
           - Hostname: \`$LIVE_FQDN\`
           - Boundary: \`rg-mrsoftwarev2-live\` (uniquely named parallel ACA resources — App Service untouched)
           - Runtime identity: \`rg-mrsoftwarev2-live / $LIVE_RUNTIME_IDENTITY\`
+          - Database: pending reviewed migrations applied before release
           - Smoke: frontend \`/\` = 200, backend \`/health\` = 200, unauthenticated \`/api/auth/me\` = 401
           - Scale: 0→4 replicas, HTTP autoscale, scale-to-zero when idle
-
-          Production database schema migrations remain a separate release concern; this workflow only reconciles runtime SQL access.
           EOF
