@@ -1,10 +1,6 @@
 name: Deploy backend · Azure API
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
 
 env:
@@ -18,15 +14,15 @@ env:
   AZURE_MIGRATION_IDENTITY_NAME: id-mrsoftwarev2-live-migration
   TARGET_ENVIRONMENT: live
   TARGET_COMPANY_NAME: mrsoftwarev2
-  RELEASE_SHA: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
-  CI_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || '' }}
+  RELEASE_SHA: ${{ github.sha }}
+  CI_RUN_ID: ''
   DEPLOYMENT_SLOT: staging
 
 permissions:
   contents: read
 
-# v1 has a stale deployment waiting for the old manual-review policy. Isolate
-# current releases from that historical queue while keeping deployments serialized.
+# Legacy App Service is retained as a rollback path during ACA cutover, but it must
+# never redeploy automatically from green main CI. Manual dispatch is rollback-only.
 concurrency:
   group: workslip-live-backend-v2
   cancel-in-progress: false
@@ -41,7 +37,6 @@ jobs:
       actions: read
     steps:
       - name: Verify manual deployment branch
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -60,9 +55,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          args=(--sha "${RELEASE_SHA}")
-          [[ -n "${CI_RUN_ID}" ]] && args+=(--ci-run-id "${CI_RUN_ID}")
-          node tools/release/verify-production-eligibility.mjs "${args[@]}"
+          node tools/release/verify-production-eligibility.mjs --sha "${RELEASE_SHA}"
 
   build:
     name: Backend · Build release artifact
@@ -82,6 +75,7 @@ jobs:
           persist-credentials: false
 
       - name: Confirm checked out SHA
+        shell: bash
         run: test "$(git rev-parse HEAD)" = "${RELEASE_SHA}"
 
       - name: Setup Node.js
@@ -91,11 +85,7 @@ jobs:
 
       - name: Resolve production release policy
         id: release-target
-        run: >-
-          node tools/release/resolve-release-environment.mjs
-          --environment production
-          --require-runnable
-          --github-output
+        run: node tools/release/resolve-release-environment.mjs --environment production --require-runnable --github-output
 
       - name: Enforce expand-contract migration policy
         shell: bash
@@ -122,6 +112,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          mkdir -p "$(dirname "${DEPLOY_PACKAGE}")"
           rm -f "${DEPLOY_PACKAGE}"
           (cd "${PUBLISH_DIR}" && zip -q -r "${DEPLOY_PACKAGE}" .)
           unzip -Z1 "${DEPLOY_PACKAGE}" | grep -qx 'Workslip.Api.dll'
@@ -140,7 +131,6 @@ jobs:
           path: |
             ${{ env.DEPLOY_PACKAGE }}
             ${{ env.DEPLOY_PACKAGE }}.provenance
-          if-no-files-found: error
           retention-days: 14
 
   deploy:
@@ -148,14 +138,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: build
-    # Keep the environment boundary because the Azure OIDC values are scoped here.
-    # Review policy is configured in GitHub, not re-enforced by repository code.
-    environment:
-      name: live
+    environment: live
     permissions:
-      id-token: write
       contents: read
       actions: read
+      id-token: write
     steps:
       - name: Checkout exact validated revision
         uses: actions/checkout@v7
@@ -167,11 +154,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         shell: bash
-        run: |
-          set -Eeuo pipefail
-          args=(--sha "${RELEASE_SHA}")
-          [[ -n "${CI_RUN_ID}" ]] && args+=(--ci-run-id "${CI_RUN_ID}")
-          node tools/release/verify-production-eligibility.mjs "${args[@]}"
+        run: node tools/release/verify-production-eligibility.mjs --sha "${RELEASE_SHA}"
 
       - name: Download exact-SHA artifact
         uses: actions/download-artifact@v8
@@ -180,9 +163,9 @@ jobs:
           path: ${{ github.workspace }}/publish
 
       - name: Verify artifact hash
-        shell: bash
         env:
           EXPECTED: ${{ needs.build.outputs.artifact_sha256 }}
+        shell: bash
         run: |
           set -Eeuo pipefail
           actual="$(sha256sum "${DEPLOY_PACKAGE}" | awk '{print $1}')"
@@ -191,12 +174,12 @@ jobs:
       - name: Azure login as application deployment identity
         uses: azure/login@v3
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Resolve migration identity and deployment target
-        id: azure
+        id: target
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -220,9 +203,9 @@ jobs:
       - name: Azure login as database migration identity
         uses: azure/login@v3
         with:
-          client-id: ${{ steps.azure.outputs.migration_client_id }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ steps.target.outputs.migration_client_id }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Ensure SQL migration runtime
         shell: pwsh
@@ -247,169 +230,99 @@ jobs:
       - name: Azure login for application deployment
         uses: azure/login@v3
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Verify deployment prerequisites
-        id: mode
+        id: deployment
         shell: bash
         run: |
           set -Eeuo pipefail
           workspace_id="$(az webapp config appsettings list --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --query "[?name=='Azure__ApplicationInsights__WorkspaceId'].value | [0]" -o tsv)"
           [[ "${workspace_id}" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo "::error::Diagnostics workspace is not configured."; exit 1; }
-          slot_enabled="${{ steps.azure.outputs.slot_enabled }}"
+          slot_enabled="${{ steps.target.outputs.slot_enabled }}"
           [[ "${slot_enabled}" == true || "${slot_enabled}" == false ]] || { echo '::error::Deployment mode was not resolved.'; exit 1; }
           echo "slot_enabled=${slot_enabled}" >> "${GITHUB_OUTPUT}"
           if [[ "${slot_enabled}" == true ]]; then
-            echo "candidate_url=https://${{ steps.azure.outputs.staging_slot_host }}" >> "${GITHUB_OUTPUT}"
+            echo "candidate_url=https://${{ steps.target.outputs.staging_slot_host }}" >> "${GITHUB_OUTPUT}"
           fi
 
       - name: Apply release-testing safety mode
-        shell: bash
         env:
           RELEASE_TESTING_ENABLED: ${{ needs.build.outputs.release_testing_enabled }}
+        shell: bash
         run: |
           set -Eeuo pipefail
           [[ "${RELEASE_TESTING_ENABLED}" == true || "${RELEASE_TESTING_ENABLED}" == false ]] || exit 1
           az webapp config appsettings set --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --settings "ReleaseTesting__Enabled=${RELEASE_TESTING_ENABLED}" --output none
 
       - name: Enable package-based deployment
-        shell: bash
         env:
-          SLOT_ENABLED: ${{ steps.mode.outputs.slot_enabled }}
+          SLOT_ENABLED: ${{ steps.deployment.outputs.slot_enabled }}
+        shell: bash
         run: |
           set -Eeuo pipefail
           args=(webapp config appsettings set --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --settings WEBSITE_RUN_FROM_PACKAGE=1 --output none)
-          if [[ "${SLOT_ENABLED}" == true ]]; then
-            args+=(--slot "${DEPLOYMENT_SLOT}")
-          fi
+          if [[ "${SLOT_ENABLED}" == true ]]; then args+=(--slot "${DEPLOYMENT_SLOT}"); fi
           az "${args[@]}"
 
       - name: Reclaim stale Kudu ZIP temp space
-        shell: bash
         env:
-          SLOT_ENABLED: ${{ steps.mode.outputs.slot_enabled }}
+          SLOT_ENABLED: ${{ steps.deployment.outputs.slot_enabled }}
+        shell: bash
         run: |
           set -Eeuo pipefail
           scm_host="${AZURE_WEBAPP_NAME}.scm.azurewebsites.net"
-          if [[ "${SLOT_ENABLED}" == true ]]; then
-            scm_host="${AZURE_WEBAPP_NAME}-${DEPLOYMENT_SLOT}.scm.azurewebsites.net"
-          fi
-
+          if [[ "${SLOT_ENABLED}" == true ]]; then scm_host="${AZURE_WEBAPP_NAME}-${DEPLOYMENT_SLOT}.scm.azurewebsites.net"; fi
           token="$(az account get-access-token --query accessToken -o tsv)"
           payload='{"command":"cmd /d /s /c if exist D:\\local\\Temp\\zipdeploy rmdir /s /q D:\\local\\Temp\\zipdeploy","dir":"D:\\home"}'
           response_file="${RUNNER_TEMP}/kudu-cleanup-response.json"
-
           for attempt in 1 2 3; do
-            status="$(curl --silent --show-error --output "${response_file}" --write-out '%{http_code}' \
-              --request POST \
-              --header "Authorization: Bearer ${token}" \
-              --header 'Content-Type: application/json' \
-              --data "${payload}" \
-              "https://${scm_host}/api/command")"
-            if [[ "${status}" =~ ^2 ]]; then
-              echo "Kudu ZIP temp cleanup completed."
-              break
-            fi
-            if [[ "${attempt}" == 3 ]]; then
-              echo "::error::Kudu ZIP temp cleanup failed with HTTP ${status}."
-              cat "${response_file}" || true
-              exit 1
-            fi
+            status="$(curl --silent --show-error --output "${response_file}" --write-out '%{http_code}' --request POST --header "Authorization: Bearer ${token}" --header 'Content-Type: application/json' --data "${payload}" "https://${scm_host}/api/command")"
+            if [[ "${status}" =~ ^2 ]]; then echo "Kudu ZIP temp cleanup completed."; break; fi
+            if [[ "${attempt}" == 3 ]]; then cat "${response_file}" || true; exit 1; fi
             sleep $((attempt * 10))
           done
 
       - name: Deploy package
-        shell: bash
         env:
-          SLOT_ENABLED: ${{ steps.mode.outputs.slot_enabled }}
+          SLOT_ENABLED: ${{ steps.deployment.outputs.slot_enabled }}
+        shell: bash
         run: |
           set -Eeuo pipefail
           args=(webapp deploy --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --src-path "${DEPLOY_PACKAGE}" --type zip --clean true --restart true --enable-kudu-warmup true --enriched-errors true --track-status false --timeout 600000)
-          if [[ "${SLOT_ENABLED}" == true ]]; then
-            args+=(--slot "${DEPLOYMENT_SLOT}")
-          fi
-          for attempt in 1 2 3; do
-            az "${args[@]}" && exit 0
-            [[ "${attempt}" == 3 ]] && exit 1
-            sleep $((attempt * 30))
-          done
+          if [[ "${SLOT_ENABLED}" == true ]]; then args+=(--slot "${DEPLOYMENT_SLOT}"); fi
+          for attempt in 1 2 3; do az "${args[@]}" && exit 0; [[ "${attempt}" == 3 ]] && exit 1; sleep $((attempt * 30)); done
 
       - name: Verify candidate before traffic
-        if: ${{ steps.mode.outputs.slot_enabled == 'true' }}
-        run: bash tools/release/post-deploy-smoke.sh "${{ steps.mode.outputs.candidate_url }}"
+        if: ${{ steps.deployment.outputs.slot_enabled == 'true' }}
+        run: bash tools/release/post-deploy-smoke.sh "${{ steps.deployment.outputs.candidate_url }}"
 
       - name: Swap verified candidate into production
-        if: ${{ steps.mode.outputs.slot_enabled == 'true' }}
-        id: swap
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          az webapp deployment slot swap \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --slot "${DEPLOYMENT_SLOT}" \
-            --target-slot production
-          echo "completed=true" >> "${GITHUB_OUTPUT}"
+        if: ${{ steps.deployment.outputs.slot_enabled == 'true' }}
+        run: az webapp deployment slot swap --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --slot "${DEPLOYMENT_SLOT}" --target-slot production
 
       - name: Verify production after deploy
-        id: production-smoke
-        continue-on-error: true
-        run: bash tools/release/post-deploy-smoke.sh "${{ steps.azure.outputs.production_url }}"
-
-      - name: Roll back failed slot swap
-        if: ${{ steps.mode.outputs.slot_enabled == 'true' && steps.swap.outputs.completed == 'true' && steps.production-smoke.outcome == 'failure' }}
-        id: rollback
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          az webapp deployment slot swap \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --slot "${DEPLOYMENT_SLOT}" \
-            --target-slot production
-          bash tools/release/post-deploy-smoke.sh "${{ steps.azure.outputs.production_url }}"
-          echo "completed=true" >> "${GITHUB_OUTPUT}"
-
-      - name: Fail release when post-deploy smoke failed
-        if: ${{ steps.production-smoke.outcome == 'failure' }}
-        shell: bash
-        run: |
-          echo "::error::Post-deploy smoke failed. Slot rollback was attempted when available."
-          exit 1
+        run: bash tools/release/post-deploy-smoke.sh "${{ steps.target.outputs.production_url }}"
 
       - name: Record release marker
-        if: ${{ success() }}
-        shell: bash
         env:
           ARTIFACT_SHA256: ${{ needs.build.outputs.artifact_sha256 }}
-        run: |
-          set -Eeuo pipefail
-          az webapp config appsettings set \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --settings "Workslip__ReleaseSha=${RELEASE_SHA}" "Workslip__ReleaseArtifactSha256=${ARTIFACT_SHA256}" \
-            --output none
+        run: az webapp config appsettings set --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --settings "Workslip__ReleaseSha=${RELEASE_SHA}" "Workslip__ReleaseArtifactSha256=${ARTIFACT_SHA256}" --output none
 
       - name: Verify final production runtime
-        if: ${{ success() }}
         shell: bash
         run: |
           set -Eeuo pipefail
-          if bash tools/release/post-deploy-smoke.sh "${{ steps.azure.outputs.production_url }}"; then
-            exit 0
-          fi
-
-          echo "::warning::API did not recover after the release metadata restart. Restarting App Service once."
+          if bash tools/release/post-deploy-smoke.sh "${{ steps.target.outputs.production_url }}"; then exit 0; fi
           az webapp restart --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}"
-          bash tools/release/post-deploy-smoke.sh "${{ steps.azure.outputs.production_url }}"
+          bash tools/release/post-deploy-smoke.sh "${{ steps.target.outputs.production_url }}"
 
       - name: Record release summary
-        if: ${{ success() }}
-        shell: bash
         env:
           ARTIFACT_SHA256: ${{ needs.build.outputs.artifact_sha256 }}
+        shell: bash
         run: |
           {
             echo "### Backend live release"
@@ -418,22 +331,6 @@ jobs:
             echo "- Artifact SHA-256: \`${ARTIFACT_SHA256}\`"
             echo "- Azure app: \`${AZURE_WEBAPP_NAME}\`"
             echo "- Resource group: \`${AZURE_RESOURCE_GROUP}\`"
-            echo "- Slot mode: \`${{ steps.mode.outputs.slot_enabled }}\`"
-            echo "- Delivery path: staging slot + swap when available; direct production otherwise"
-            echo "- Candidate smoke: passed when slot mode enabled"
+            echo "- Delivery mode: manual rollback-only while ACA is primary"
             echo "- Production smoke: passed"
-            echo "- Final production smoke after release metadata restart: passed"
-            echo "- Automatic rollback: available only in slot mode"
           } >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Capture Azure deployment diagnostics on failure
-        if: ${{ failure() }}
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          az webapp show --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --query '{state:state,host:defaultHostName,lastModified:lastModifiedTimeUtc}' -o jsonc
-          az webapp config show --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --query '{alwaysOn:alwaysOn,http20Enabled:http20Enabled,netFrameworkVersion:netFrameworkVersion,use32BitWorkerProcess:use32BitWorkerProcess}' -o jsonc
-          az webapp log deployment list --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}" --query '[0:5]' -o jsonc
-          curl --silent --show-error --connect-timeout 10 --max-time 10 --include "${{ steps.azure.outputs.production_url }}/" || true
-          curl --silent --show-error --connect-timeout 10 --max-time 10 --include "${{ steps.azure.outputs.production_url }}/health" || true
