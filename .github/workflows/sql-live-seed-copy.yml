@@ -1,0 +1,440 @@
+name: Data · Seed live SQL from current production
+
+run-name: >-
+  SQL seed · current production → live · ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type SEED NEW TENANT DATABASE
+        required: true
+        type: string
+  pull_request:
+    paths:
+      - '.github/workflows/sql-live-seed-copy.yml'
+      - 'src/BE/infrastructure/aca/seed-live-sql-from-prod-ci.ps1'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sql-live-seed-copy.yml'
+      - 'src/BE/infrastructure/aca/seed-live-sql-from-prod-ci.ps1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workslip-cross-tenant-sql-seed
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '24'
+  TARGET_RESOURCE_GROUP: rg-mrsoftwarev2-live
+  TARGET_KEY_VAULT: kv-mrsoftwarev2-live
+  SOURCE_RESOURCE_GROUP: rg-mrsoftware-prod
+  SOURCE_KEY_VAULT: kv-mrsoftware-prod
+  SQL_PASSWORD_SECRET: Azure--Sql--AdminPassword
+  TEMP_TARGET_FIC: github-sql-seed-from-prod
+  PROD_OIDC_SUBJECT: repo:rasm105k@31623093/Workslip-v2.0@1245555609:environment:prod
+
+jobs:
+  verify:
+    name: SQL seed · Validate intent and syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      execute: ${{ steps.intent.outputs.execute }}
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Parse PowerShell without executing it
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $path = './src/BE/infrastructure/aca/seed-live-sql-from-prod-ci.ps1'
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path $path),
+            [ref]$tokens,
+            [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw 'SQL seed PowerShell syntax validation failed.'
+          }
+
+      - name: Resolve execution intent
+        id: intent
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CONFIRMATION: ${{ inputs.confirmation || '' }}
+          PUSH_MESSAGE: ${{ github.event.head_commit.message || '' }}
+        run: |
+          set -Eeuo pipefail
+          execute=false
+
+          case "${EVENT_NAME}" in
+            pull_request)
+              echo 'PR validation is syntax/policy only; no Azure credentials are reachable.'
+              ;;
+            workflow_dispatch)
+              [[ "${GITHUB_REF}" == 'refs/heads/main' ]] || { echo '::error::SQL seed may only run from main.'; exit 1; }
+              [[ "${CONFIRMATION}" == 'SEED NEW TENANT DATABASE' ]] || { echo '::error::Confirmation must be exactly SEED NEW TENANT DATABASE.'; exit 1; }
+              execute=true
+              ;;
+            push)
+              [[ "${GITHUB_REF}" == 'refs/heads/main' ]] || { echo '::error::Push seed may only run on main.'; exit 1; }
+              if [[ "${PUSH_MESSAGE}" == *'[run-sql-seed]'* ]]; then
+                execute=true
+              else
+                echo 'Push did not contain the one-shot [run-sql-seed] marker; Azure jobs are disabled.'
+              fi
+              ;;
+            *)
+              echo "::error::Unsupported event ${EVENT_NAME}."
+              exit 1
+              ;;
+          esac
+
+          echo "execute=${execute}" >> "${GITHUB_OUTPUT}"
+
+      - name: Setup Node.js for production eligibility gate
+        if: ${{ steps.intent.outputs.execute == 'true' }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Wait for exact green current main before Azure access
+        if: ${{ steps.intent.outputs.execute == 'true' }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          for attempt in $(seq 1 40); do
+            if node tools/release/verify-production-eligibility.mjs --sha "${GITHUB_SHA}"; then
+              exit 0
+            fi
+            if [[ ${attempt} -eq 40 ]]; then
+              echo '::error::Exact main CI did not become production-eligible within 20 minutes.'
+              exit 1
+            fi
+            echo "CI Gate not ready yet (${attempt}/40); retrying in 30 seconds."
+            sleep 30
+          done
+
+  prepare-target:
+    name: SQL seed · Prepare temporary live trust
+    needs: verify
+    if: ${{ needs.verify.outputs.execute == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: live
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+      TARGET_TENANT_ID: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
+      TARGET_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
+    outputs:
+      target_boundary_b64: ${{ steps.prepare.outputs.target_boundary_b64 }}
+      target_identity_name: ${{ steps.prepare.outputs.target_identity_name }}
+      target_temp_role_id_b64: ${{ steps.prepare.outputs.target_temp_role_id_b64 }}
+    steps:
+      - name: Verify live configuration exists
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for pair in \
+            "INFRA_CLIENT_ID=${INFRA_CLIENT_ID}" \
+            "TARGET_TENANT_ID=${TARGET_TENANT_ID}" \
+            "TARGET_SUBSCRIPTION_ID=${TARGET_SUBSCRIPTION_ID}"; do
+            key="${pair%%=*}"
+            value="${pair#*=}"
+            [[ -n "${value}" ]] || { echo "::error::live is missing ${key}."; exit 1; }
+          done
+
+      - name: Azure login to live infrastructure identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ env.INFRA_CLIENT_ID }}
+          tenant-id: ${{ env.TARGET_TENANT_ID }}
+          subscription-id: ${{ env.TARGET_SUBSCRIPTION_ID }}
+
+      - name: Create temporary prod-subject federation on live identity
+        id: prepare
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          account="$(az account show --query '{tenant:tenantId,subscription:id}' -o json)"
+          tenant="$(jq -r '.tenant' <<<"${account}")"
+          subscription="$(jq -r '.subscription' <<<"${account}")"
+          [[ "${tenant}" == "${TARGET_TENANT_ID}" ]] || { echo '::error::live tenant mismatch.'; exit 1; }
+          [[ "${subscription}" == "${TARGET_SUBSCRIPTION_ID}" ]] || { echo '::error::live subscription mismatch.'; exit 1; }
+
+          identity="$(az identity list \
+            --resource-group "${TARGET_RESOURCE_GROUP}" \
+            --query "[?clientId=='${INFRA_CLIENT_ID}'] | [0].{name:name,principalId:principalId}" \
+            -o json)"
+          identity_name="$(jq -r '.name // empty' <<<"${identity}")"
+          principal_id="$(jq -r '.principalId // empty' <<<"${identity}")"
+          [[ -n "${identity_name}" && -n "${principal_id}" ]] || { echo '::error::AZURE_INFRA_CLIENT_ID is not a managed identity in the live resource group.'; exit 1; }
+
+          az identity federated-credential delete \
+            --resource-group "${TARGET_RESOURCE_GROUP}" \
+            --identity-name "${identity_name}" \
+            --name "${TEMP_TARGET_FIC}" \
+            --yes >/dev/null 2>&1 || true
+
+          az identity federated-credential create \
+            --resource-group "${TARGET_RESOURCE_GROUP}" \
+            --identity-name "${identity_name}" \
+            --name "${TEMP_TARGET_FIC}" \
+            --issuer 'https://token.actions.githubusercontent.com' \
+            --subject "${PROD_OIDC_SUBJECT}" \
+            --audiences 'api://AzureADTokenExchange' \
+            --only-show-errors \
+            --output none
+
+          temp_role_id=''
+          if ! az keyvault secret show \
+              --vault-name "${TARGET_KEY_VAULT}" \
+              --name "${SQL_PASSWORD_SECRET}" \
+              --query id -o tsv --only-show-errors >/dev/null 2>&1; then
+            kv_id="$(az keyvault show --name "${TARGET_KEY_VAULT}" --query id -o tsv)"
+            temp_role_id="$(az role assignment create \
+              --assignee-object-id "${principal_id}" \
+              --assignee-principal-type ServicePrincipal \
+              --role 'Key Vault Secrets User' \
+              --scope "${kv_id}" \
+              --query id -o tsv --only-show-errors)"
+            sleep 20
+            az keyvault secret show \
+              --vault-name "${TARGET_KEY_VAULT}" \
+              --name "${SQL_PASSWORD_SECRET}" \
+              --query id -o tsv --only-show-errors >/dev/null
+          fi
+
+          boundary="${tenant}|${subscription}|${INFRA_CLIENT_ID}"
+          echo "target_boundary_b64=$(printf '%s' "${boundary}" | base64 -w0)" >> "${GITHUB_OUTPUT}"
+          echo "target_identity_name=${identity_name}" >> "${GITHUB_OUTPUT}"
+          echo "target_temp_role_id_b64=$(printf '%s' "${temp_role_id}" | base64 -w0)" >> "${GITHUB_OUTPUT}"
+
+          echo 'Temporary live trust is scoped to the protected prod GitHub environment and will be removed by the seed job.'
+
+      - name: Allow federated credential propagation
+        run: sleep 20
+
+  seed:
+    name: SQL seed · Copy prod into live
+    needs: [verify, prepare-target]
+    if: ${{ needs.verify.outputs.execute == 'true' && needs.prepare-target.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment:
+      name: prod
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      SOURCE_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+      SOURCE_TENANT_ID: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
+      SOURCE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
+      TARGET_BOUNDARY_B64: ${{ needs.prepare-target.outputs.target_boundary_b64 }}
+      TARGET_IDENTITY_NAME: ${{ needs.prepare-target.outputs.target_identity_name }}
+      TARGET_TEMP_ROLE_ID_B64: ${{ needs.prepare-target.outputs.target_temp_role_id_b64 }}
+    steps:
+      - name: Checkout exact validated revision
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Azure login to current-production infrastructure identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ env.SOURCE_CLIENT_ID }}
+          tenant-id: ${{ env.SOURCE_TENANT_ID }}
+          subscription-id: ${{ env.SOURCE_SUBSCRIPTION_ID }}
+
+      - name: Ensure source SQL administrator secret is readable
+        id: source-access
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ -n "${SOURCE_CLIENT_ID}" && -n "${SOURCE_TENANT_ID}" && -n "${SOURCE_SUBSCRIPTION_ID}" ]] || { echo '::error::prod Azure configuration is incomplete.'; exit 1; }
+
+          account="$(az account show --query '{tenant:tenantId,subscription:id}' -o json)"
+          [[ "$(jq -r '.tenant' <<<"${account}")" == "${SOURCE_TENANT_ID}" ]] || { echo '::error::prod tenant mismatch.'; exit 1; }
+          [[ "$(jq -r '.subscription' <<<"${account}")" == "${SOURCE_SUBSCRIPTION_ID}" ]] || { echo '::error::prod subscription mismatch.'; exit 1; }
+
+          identity="$(az identity list \
+            --resource-group "${SOURCE_RESOURCE_GROUP}" \
+            --query "[?clientId=='${SOURCE_CLIENT_ID}'] | [0].{name:name,principalId:principalId}" \
+            -o json)"
+          principal_id="$(jq -r '.principalId // empty' <<<"${identity}")"
+          [[ -n "${principal_id}" ]] || { echo '::error::prod AZURE_INFRA_CLIENT_ID is not a managed identity in the current-production resource group.'; exit 1; }
+
+          temp_role_id=''
+          if ! az keyvault secret show \
+              --vault-name "${SOURCE_KEY_VAULT}" \
+              --name "${SQL_PASSWORD_SECRET}" \
+              --query id -o tsv --only-show-errors >/dev/null 2>&1; then
+            kv_id="$(az keyvault show --name "${SOURCE_KEY_VAULT}" --query id -o tsv)"
+            temp_role_id="$(az role assignment create \
+              --assignee-object-id "${principal_id}" \
+              --assignee-principal-type ServicePrincipal \
+              --role 'Key Vault Secrets User' \
+              --scope "${kv_id}" \
+              --query id -o tsv --only-show-errors)"
+            sleep 20
+            az keyvault secret show \
+              --vault-name "${SOURCE_KEY_VAULT}" \
+              --name "${SQL_PASSWORD_SECRET}" \
+              --query id -o tsv --only-show-errors >/dev/null
+          fi
+          echo "source_temp_role_id_b64=$(printf '%s' "${temp_role_id}" | base64 -w0)" >> "${GITHUB_OUTPUT}"
+
+      - name: Acquire one protected prod-environment GitHub OIDC assertion
+        id: oidc
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" && -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]] || { echo '::error::GitHub OIDC request context is unavailable.'; exit 1; }
+          response="$(curl -fsSL \
+            -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api%3A%2F%2FAzureADTokenExchange")"
+          token="$(jq -er '.value' <<<"${response}")"
+          echo "::add-mask::${token}"
+          token_path="${RUNNER_TEMP}/workslip-sql-seed-oidc.jwt"
+          umask 077
+          printf '%s' "${token}" > "${token_path}"
+          echo "token_path=${token_path}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install SQL PowerShell module
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+            Install-Module SqlServer -Scope CurrentUser -Repository PSGallery -Force -AllowClobber
+          }
+          Import-Module SqlServer -ErrorAction Stop
+          Get-Command Invoke-Sqlcmd -ErrorAction Stop | Out-Null
+
+      - name: Run guarded cross-tenant seed and canonical swap
+        id: copy
+        shell: pwsh
+        env:
+          OIDC_TOKEN_PATH: ${{ steps.oidc.outputs.token_path }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $targetParts = [System.Text.Encoding]::UTF8.GetString(
+            [Convert]::FromBase64String($env:TARGET_BOUNDARY_B64)).Split('|')
+          if ($targetParts.Count -ne 3) { throw 'Target boundary handoff is invalid.' }
+          $manifest = Join-Path $env:RUNNER_TEMP 'workslip-sql-seed-manifest.json'
+          & ./src/BE/infrastructure/aca/seed-live-sql-from-prod-ci.ps1 `
+            -SourceTenantId $env:SOURCE_TENANT_ID `
+            -SourceSubscriptionId $env:SOURCE_SUBSCRIPTION_ID `
+            -SourceClientId $env:SOURCE_CLIENT_ID `
+            -TargetTenantId $targetParts[0] `
+            -TargetSubscriptionId $targetParts[1] `
+            -TargetClientId $targetParts[2] `
+            -FederatedTokenPath $env:OIDC_TOKEN_PATH `
+            -Confirmation 'SEED NEW TENANT DATABASE' `
+            -ManifestPath $manifest
+          if (-not (Test-Path -LiteralPath $manifest)) { throw 'Seed completed without an evidence manifest.' }
+          "manifest=$manifest" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Publish non-personal seed evidence
+        if: ${{ steps.copy.outcome == 'success' }}
+        shell: bash
+        env:
+          MANIFEST: ${{ steps.copy.outputs.manifest }}
+        run: |
+          set -Eeuo pipefail
+          users="$(jq -r '.validation.usersRowCount' "${MANIFEST}")"
+          mismatches="$(jq -r '.validation.mismatchCount' "${MANIFEST}")"
+          quarantine="$(jq -r '.target.previousDatabaseQuarantine // "none"' "${MANIFEST}")"
+          hash="$(sha256sum "${MANIFEST}" | awk '{print $1}')"
+          {
+            echo '## Cross-tenant SQL seed'
+            echo
+            echo '- Source: `db-mrsoftware-prod`'
+            echo '- Canonical target: `db-mrsoftwarev2-live`'
+            echo "- Users rows copied: \`${users}\`"
+            echo "- Row-count differences after the writable seed window: \`${mismatches}\`"
+            echo "- Previous target quarantine: \`${quarantine}\`"
+            echo "- Evidence SHA-256: \`${hash}\`"
+            echo '- Current production remained writable; this seed is not the final frozen cutover copy.'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload non-personal table-count evidence
+        if: ${{ steps.copy.outcome == 'success' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: workslip-sql-seed-evidence-${{ github.run_id }}
+          path: ${{ steps.copy.outputs.manifest }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove temporary source Key Vault grant
+        if: ${{ always() && steps.oidc.outputs.token_path != '' }}
+        shell: bash
+        env:
+          TOKEN_PATH: ${{ steps.oidc.outputs.token_path }}
+          SOURCE_TEMP_ROLE_ID_B64: ${{ steps.source-access.outputs.source_temp_role_id_b64 }}
+        run: |
+          set +e
+          role_id="$(printf '%s' "${SOURCE_TEMP_ROLE_ID_B64:-}" | base64 -d 2>/dev/null)"
+          if [[ -n "${role_id}" && -s "${TOKEN_PATH}" ]]; then
+            token="$(cat "${TOKEN_PATH}")"
+            az account clear >/dev/null 2>&1
+            az login --service-principal \
+              --username "${SOURCE_CLIENT_ID}" \
+              --tenant "${SOURCE_TENANT_ID}" \
+              --federated-token "${token}" \
+              --allow-no-subscriptions --output none --only-show-errors >/dev/null 2>&1
+            az account set --subscription "${SOURCE_SUBSCRIPTION_ID}" >/dev/null 2>&1
+            az role assignment delete --ids "${role_id}" >/dev/null 2>&1
+          fi
+
+      - name: Remove temporary live federation and Key Vault grant
+        if: ${{ always() && steps.oidc.outputs.token_path != '' }}
+        shell: bash
+        env:
+          TOKEN_PATH: ${{ steps.oidc.outputs.token_path }}
+        run: |
+          set +e
+          target="$(printf '%s' "${TARGET_BOUNDARY_B64}" | base64 -d 2>/dev/null)"
+          IFS='|' read -r target_tenant target_subscription target_client <<<"${target}"
+          role_id="$(printf '%s' "${TARGET_TEMP_ROLE_ID_B64:-}" | base64 -d 2>/dev/null)"
+          if [[ -n "${target_tenant}" && -n "${target_subscription}" && -n "${target_client}" && -s "${TOKEN_PATH}" ]]; then
+            token="$(cat "${TOKEN_PATH}")"
+            az account clear >/dev/null 2>&1
+            az login --service-principal \
+              --username "${target_client}" \
+              --tenant "${target_tenant}" \
+              --federated-token "${token}" \
+              --allow-no-subscriptions --output none --only-show-errors >/dev/null 2>&1
+            az account set --subscription "${target_subscription}" >/dev/null 2>&1
+            if [[ -n "${role_id}" ]]; then
+              az role assignment delete --ids "${role_id}" >/dev/null 2>&1
+            fi
+            az identity federated-credential delete \
+              --resource-group "${TARGET_RESOURCE_GROUP}" \
+              --identity-name "${TARGET_IDENTITY_NAME}" \
+              --name "${TEMP_TARGET_FIC}" \
+              --yes >/dev/null 2>&1
+          fi
+          rm -f "${TOKEN_PATH}" >/dev/null 2>&1
