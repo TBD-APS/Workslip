@@ -19,6 +19,8 @@ on:
     branches: [main]
     paths:
       - .github/workflows/aca-live-entra-guests.yml
+      - src/BE/infrastructure/aca/configure-live-app-database-access.ps1
+      - src/BE/infrastructure/aca/reconcile-live-entra-guests.ps1
 
 permissions:
   contents: read
@@ -172,6 +174,7 @@ jobs:
             -CompanyName mrsoftwarev2 `
             -Environment live `
             -RuntimeIdentityName $env:RUNTIME_IDENTITY `
+            -RuntimeClientId '${{ steps.identities.outputs.runtime_client_id }}' `
             -RuntimePrincipalId '${{ steps.identities.outputs.runtime_principal_id }}'
 
       - name: Logout live migration identity
@@ -225,6 +228,6 @@ jobs:
           - Invitation mail during reconciliation: disabled
           - App roles: Superadmin / Admin / User / Auditor reconciled from Workslip DB
           - Database mapping: \`Users.EntraId\` reconciled only in apply mode
-          - Runtime SQL access is reconciled with the dedicated live migration identity before the runtime identity reads or writes user mappings
+          - Runtime SQL access is reconciled from the managed identity client ID with the dedicated live migration identity before the runtime identity reads or writes user mappings
           - Azure tenant/subscription/client IDs are configuration values, not credentials; GitHub variables are preferred with existing secret names retained only as a compatibility fallback
           EOF

@@ -2,6 +2,7 @@ param(
     [string]$CompanyName = 'mrsoftwarev2',
     [string]$Environment = 'live',
     [string]$RuntimeIdentityName = 'id-workslip-live-app',
+    [string]$RuntimeClientId = '',
     [string]$RuntimePrincipalId = ''
 )
 
@@ -37,27 +38,42 @@ if (-not (Get-Command Invoke-Sqlcmd -ErrorAction SilentlyContinue)) {
     throw 'Invoke-Sqlcmd is required. Install the Microsoft SqlServer PowerShell module first.'
 }
 
+$runtimeClientId = $RuntimeClientId.Trim()
 $runtimePrincipalId = $RuntimePrincipalId.Trim()
-if ([string]::IsNullOrWhiteSpace($runtimePrincipalId)) {
-    $runtimePrincipalId = (Invoke-AzureCli -Arguments @(
+if ([string]::IsNullOrWhiteSpace($runtimeClientId) -or [string]::IsNullOrWhiteSpace($runtimePrincipalId)) {
+    $identity = (Invoke-AzureCli -Arguments @(
         'identity', 'show',
         '--resource-group', $resourceGroup,
         '--name', $RuntimeIdentityName,
-        '--query', 'principalId',
-        '--output', 'tsv'
-    )).Output.Trim()
+        '--query', '{clientId:clientId,principalId:principalId}',
+        '--output', 'json'
+    )).Output | ConvertFrom-Json
+
+    if ([string]::IsNullOrWhiteSpace($runtimeClientId)) {
+        $runtimeClientId = [string]$identity.clientId
+    }
+    if ([string]::IsNullOrWhiteSpace($runtimePrincipalId)) {
+        $runtimePrincipalId = [string]$identity.principalId
+    }
 }
 
-$runtimeGuid = [Guid]::Empty
-if (-not [Guid]::TryParse($runtimePrincipalId, [ref]$runtimeGuid)) {
+$runtimeClientGuid = [Guid]::Empty
+if (-not [Guid]::TryParse($runtimeClientId, [ref]$runtimeClientGuid)) {
+    throw "Runtime identity '$RuntimeIdentityName' returned an invalid clientId."
+}
+
+$runtimePrincipalGuid = [Guid]::Empty
+if (-not [Guid]::TryParse($runtimePrincipalId, [ref]$runtimePrincipalGuid)) {
     throw "Runtime identity '$RuntimeIdentityName' returned an invalid principalId."
 }
 
-# Azure SQL service-principal users can be created by explicit object-ID SID. This
-# avoids granting Directory Readers/Graph permissions merely so SQL can resolve a
-# managed-identity display name during deployment.
-$runtimeSidHex = [Convert]::ToHexString($runtimeGuid.ToByteArray())
+# For Microsoft Entra service principals created with CREATE USER ... WITH SID,
+# Azure SQL expects the service principal client/application ID encoded as the SID.
+# The object/principal ID identifies the directory object but does not match the
+# token identity Azure SQL uses for this explicit service-principal login mapping.
 $escapedRuntimeIdentityName = $RuntimeIdentityName.Replace(']', ']]')
+$literalRuntimeIdentityName = $RuntimeIdentityName.Replace("'", "''")
+$literalRuntimeClientId = $runtimeClientGuid.ToString('D')
 
 $runnerIp = ([string](Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 30)).Trim()
 $parsedIp = $null
@@ -94,25 +110,42 @@ try {
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
+DECLARE @runtimeClientId uniqueidentifier = '$literalRuntimeClientId';
+DECLARE @expectedSid varbinary(16) = CONVERT(varbinary(16), @runtimeClientId);
+DECLARE @sidLiteral varchar(34) = CONVERT(varchar(34), @expectedSid, 1);
+
 IF EXISTS (
     SELECT 1
     FROM sys.database_principals
-    WHERE name = N'$escapedRuntimeIdentityName'
-      AND (sid <> 0x$runtimeSidHex OR type <> 'E')
+    WHERE name = N'$literalRuntimeIdentityName'
+      AND (sid <> @expectedSid OR type <> 'E')
 )
 BEGIN
     DROP USER [$escapedRuntimeIdentityName];
 END
 
-IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'$escapedRuntimeIdentityName')
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'$literalRuntimeIdentityName')
 BEGIN
-    CREATE USER [$escapedRuntimeIdentityName] WITH SID = 0x$runtimeSidHex, TYPE = E;
+    DECLARE @createUser nvarchar(max) =
+        N'CREATE USER [$escapedRuntimeIdentityName] WITH SID = ' + @sidLiteral + N', TYPE = E;';
+    EXEC sys.sp_executesql @createUser;
 END;
 
-IF IS_ROLEMEMBER(N'db_datareader', N'$escapedRuntimeIdentityName') <> 1
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.database_principals
+    WHERE name = N'$literalRuntimeIdentityName'
+      AND sid = @expectedSid
+      AND type = 'E'
+)
+BEGIN
+    THROW 51000, 'Runtime Azure SQL service-principal SID does not match the expected client ID.', 1;
+END;
+
+IF IS_ROLEMEMBER(N'db_datareader', N'$literalRuntimeIdentityName') <> 1
     ALTER ROLE [db_datareader] ADD MEMBER [$escapedRuntimeIdentityName];
 
-IF IS_ROLEMEMBER(N'db_datawriter', N'$escapedRuntimeIdentityName') <> 1
+IF IS_ROLEMEMBER(N'db_datawriter', N'$literalRuntimeIdentityName') <> 1
     ALTER ROLE [db_datawriter] ADD MEMBER [$escapedRuntimeIdentityName];
 "@
 
@@ -125,7 +158,7 @@ IF IS_ROLEMEMBER(N'db_datawriter', N'$escapedRuntimeIdentityName') <> 1
         -AbortOnError `
         -ErrorAction Stop | Out-Null
 
-    Write-Host "Configured least-privilege SQL access for '$RuntimeIdentityName'." -ForegroundColor Green
+    Write-Host "Configured least-privilege SQL access for '$RuntimeIdentityName' using service-principal client ID '$literalRuntimeClientId'." -ForegroundColor Green
 }
 finally {
     if ($firewallRuleCreated) {
