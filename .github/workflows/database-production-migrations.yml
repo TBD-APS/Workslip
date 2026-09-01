@@ -1,10 +1,10 @@
-name: Database · Production migrations
+name: Database · Live production migrations
 
 on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: Type MIGRATE to apply pending production migrations
+        description: Type MIGRATE to apply pending live production migrations
         required: true
         type: string
 
@@ -19,13 +19,15 @@ concurrency:
 
 jobs:
   migrate:
-    name: Database · Apply production migrations
+    name: Database · Apply live production migrations
     runs-on: windows-2022
     timeout-minutes: 45
-    environment: prod
+    environment: live
     env:
-      AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
-      AZURE_MIGRATION_IDENTITY_NAME: id-mrsoftware-prod-migration
+      AZURE_RESOURCE_GROUP: rg-mrsoftwarev2-live
+      AZURE_MIGRATION_IDENTITY_NAME: id-mrsoftwarev2-live-migration
+      TARGET_ENVIRONMENT: live
+      TARGET_COMPANY_NAME: mrsoftwarev2
     steps:
       - name: Verify operator intent
         shell: pwsh
@@ -44,6 +46,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Setup Node.js for production gate
@@ -59,6 +62,17 @@ jobs:
           $ErrorActionPreference = 'Stop'
           node tools/release/verify-production-eligibility.mjs --sha $env:GITHUB_SHA
           if ($LASTEXITCODE -ne 0) { throw 'Production eligibility verification failed.' }
+
+      - name: Enforce expand-contract migration policy
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $base = (& git rev-parse 'HEAD^').Trim()
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($base)) {
+            throw 'Could not resolve the previous main revision for migration compatibility validation.'
+          }
+          node tools/release/verify-migration-compatibility.mjs $base $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw 'Migration compatibility verification failed.' }
 
       - name: Azure login as application deployment identity
         uses: azure/login@v3
@@ -97,7 +111,7 @@ jobs:
         shell: pwsh
         run: |
           if ([string]::IsNullOrWhiteSpace('${{ vars.AZURE_INFRA_CLIENT_ID }}')) {
-            throw 'GitHub environment prod is missing AZURE_INFRA_CLIENT_ID; migration identity bootstrap is blocked.'
+            throw 'GitHub environment live is missing AZURE_INFRA_CLIENT_ID; migration identity bootstrap is blocked.'
           }
 
       - name: Azure login as infrastructure identity
@@ -125,8 +139,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & .\src\BE\infrastructure\reconcile-database-migration-identity.ps1 `
-            -Environment prod `
-            -CompanyName mrsoftware
+            -Environment $env:TARGET_ENVIRONMENT `
+            -CompanyName $env:TARGET_COMPANY_NAME
 
       - name: Logout infrastructure identity
         if: ${{ steps.identity-check.outputs.missing == 'true' }}
@@ -179,13 +193,13 @@ jobs:
           Import-Module SqlServer -ErrorAction Stop
           Get-Command Invoke-Sqlcmd -ErrorAction Stop | Out-Null
 
-      - name: Apply pending reviewed production migrations
+      - name: Apply pending reviewed live production migrations
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           & .\src\BE\infrastructure\run-database-migrations.ps1 `
-            -Environment prod `
-            -CompanyName mrsoftware
+            -Environment $env:TARGET_ENVIRONMENT `
+            -CompanyName $env:TARGET_COMPANY_NAME
 
       - name: Logout database migration identity
         if: ${{ always() }}
@@ -197,9 +211,9 @@ jobs:
         shell: pwsh
         run: |
           @"
-          ## Database production migration
+          ## Database live production migration
 
           - SHA: ``$env:GITHUB_SHA``
-          - Target: ``prod`` / ``rg-mrsoftware-prod``
+          - Target: ``$env:TARGET_ENVIRONMENT`` / ``$env:AZURE_RESOURCE_GROUP``
           - Result: reviewed migrations applied successfully
           "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
