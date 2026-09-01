@@ -94,7 +94,16 @@ try {
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
-IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'$escapedRuntimeIdentityName')
+IF EXISTS (
+    SELECT 1
+    FROM sys.database_principals
+    WHERE name = N'$escapedRuntimeIdentityName'
+      AND (sid <> 0x$runtimeSidHex OR type <> 'E')
+)
+BEGIN
+    ALTER USER [$escapedRuntimeIdentityName] WITH SID = 0x$runtimeSidHex, TYPE = E;
+END
+ELSE IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'$escapedRuntimeIdentityName')
 BEGIN
     CREATE USER [$escapedRuntimeIdentityName] WITH SID = 0x$runtimeSidHex, TYPE = E;
 END;
