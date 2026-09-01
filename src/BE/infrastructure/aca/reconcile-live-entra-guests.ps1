@@ -2,337 +2,236 @@ param(
     [switch]$Apply,
     [string]$SqlServerFqdn = 'db-mrsoftwarev2-live-server.database.windows.net',
     [string]$SqlDatabase = 'db-mrsoftwarev2-live',
-    [string]$AppConfigurationName = 'appcs-mrsoftwarev2-live',
+    [string]$AppConfigurationEndpoint = 'https://appcs-mrsoftwarev2-live.azconfig.io',
     [string]$BaseUrl = 'https://app.mrsoftware.dk'
 )
 
 $ErrorActionPreference = 'Stop'
 $graphRoot = 'https://graph.microsoft.com/v1.0'
-$managedRoleValues = @('Superadmin', 'Admin', 'User', 'Auditor')
+$managedRoles = @('Superadmin', 'Admin', 'User', 'Auditor')
 
-function Invoke-AzureCli {
-    param(
-        [Parameter(Mandatory = $true)][string[]]$Arguments,
-        [switch]$AllowFailure
-    )
-
+function Invoke-Az {
+    param([Parameter(Mandatory = $true)][string[]]$Arguments)
     $output = @(& az @Arguments 2>&1 | ForEach-Object { $_.ToString() })
-    $exitCode = $LASTEXITCODE
-    $text = ($output -join [Environment]::NewLine).Trim()
-    if ($exitCode -ne 0 -and -not $AllowFailure) {
-        if ([string]::IsNullOrWhiteSpace($text)) { $text = 'Azure CLI returned no diagnostic output.' }
-        throw "Azure CLI failed with exit code $exitCode.`n$text"
+    if ($LASTEXITCODE -ne 0) {
+        $text = ($output -join [Environment]::NewLine).Trim()
+        throw "Azure CLI failed.`n$text"
     }
-
-    return [pscustomobject]@{ ExitCode = $exitCode; Output = $text }
+    return ($output -join [Environment]::NewLine).Trim()
 }
 
-function Invoke-GraphGet {
+function Get-Graph {
     param([Parameter(Mandatory = $true)][string]$Uri)
-    $result = Invoke-AzureCli -Arguments @(
-        'rest', '--method', 'GET', '--uri', $Uri,
-        '--only-show-errors', '-o', 'json'
-    )
-    return $result.Output | ConvertFrom-Json
+    return (Invoke-Az @('rest', '--method', 'GET', '--uri', $Uri, '--only-show-errors', '-o', 'json')) | ConvertFrom-Json
 }
 
-function Invoke-GraphPost {
-    param(
-        [Parameter(Mandatory = $true)][string]$Uri,
-        [Parameter(Mandatory = $true)][object]$Body
-    )
-
+function Post-Graph {
+    param([Parameter(Mandatory = $true)][string]$Uri, [Parameter(Mandatory = $true)][object]$Body)
     $temp = New-TemporaryFile
     try {
-        $json = $Body | ConvertTo-Json -Depth 20
-        [System.IO.File]::WriteAllText($temp.FullName, $json, [System.Text.UTF8Encoding]::new($false))
-        $result = Invoke-AzureCli -Arguments @(
+        [System.IO.File]::WriteAllText(
+            $temp.FullName,
+            ($Body | ConvertTo-Json -Depth 20),
+            [System.Text.UTF8Encoding]::new($false))
+        $response = Invoke-Az @(
             'rest', '--method', 'POST', '--uri', $Uri,
             '--headers', 'Content-Type=application/json',
-            '--body', "@$($temp.FullName)",
-            '--only-show-errors', '-o', 'json'
-        )
-        if ([string]::IsNullOrWhiteSpace($result.Output)) { return $null }
-        return $result.Output | ConvertFrom-Json
+            '--body', "@$($temp.FullName)", '--only-show-errors', '-o', 'json')
+        if ([string]::IsNullOrWhiteSpace($response)) { return $null }
+        return $response | ConvertFrom-Json
     }
     finally {
         Remove-Item $temp.FullName -Force -ErrorAction SilentlyContinue
     }
 }
 
-function Escape-ODataString {
-    param([Parameter(Mandatory = $true)][string]$Value)
-    return $Value.Replace("'", "''")
-}
-
-function Get-GuestUpnPrefix {
-    param([Parameter(Mandatory = $true)][string]$Email)
-    return $Email.Replace('@', '_') + '#EXT#'
-}
-
-function Get-CanonicalRole {
-    param([Parameter(Mandatory = $true)][string]$Role)
-    foreach ($candidate in $managedRoleValues) {
-        if ([string]::Equals($candidate, $Role.Trim(), [StringComparison]::OrdinalIgnoreCase)) {
-            return $candidate
-        }
+function Normalize-Role {
+    param([string]$Role)
+    foreach ($candidate in $managedRoles) {
+        if ([string]::Equals($candidate, $Role.Trim(), [StringComparison]::OrdinalIgnoreCase)) { return $candidate }
     }
     return $null
 }
 
-function Find-EntraUser {
+function Find-DirectoryUser {
     param([Parameter(Mandatory = $true)][string]$Email)
-
-    $escapedEmail = Escape-ODataString $Email
-    $escapedGuestPrefix = Escape-ODataString (Get-GuestUpnPrefix $Email)
-    $filter = "mail eq '$escapedEmail' or otherMails/any(m:m eq '$escapedEmail') or startswith(userPrincipalName,'$escapedGuestPrefix')"
+    $escapedEmail = $Email.Replace("'", "''")
+    $guestPrefix = $Email.Replace('@', '_').Replace("'", "''") + '#EXT#'
+    $filter = "mail eq '$escapedEmail' or otherMails/any(m:m eq '$escapedEmail') or startswith(userPrincipalName,'$guestPrefix')"
     $uri = "$graphRoot/users?`$filter=$([uri]::EscapeDataString($filter))&`$select=id,userPrincipalName,mail,otherMails,displayName,userType&`$top=2"
-    $response = Invoke-GraphGet $uri
-    return @($response.value)
+    return @((Get-Graph $uri).value)
 }
 
-function New-GuestInvitation {
-    param(
-        [Parameter(Mandatory = $true)][string]$Email,
-        [Parameter(Mandatory = $true)][string]$DisplayName
-    )
-
-    $invitation = Invoke-GraphPost -Uri "$graphRoot/invitations" -Body ([ordered]@{
+function New-DirectoryGuest {
+    param([Parameter(Mandatory = $true)][string]$Email, [Parameter(Mandatory = $true)][string]$DisplayName)
+    $invitation = Post-Graph "$graphRoot/invitations" ([ordered]@{
         invitedUserEmailAddress = $Email
         invitedUserDisplayName = $DisplayName
         inviteRedirectUrl = "$($BaseUrl.TrimEnd('/'))/login"
         sendInvitationMessage = $false
     })
-
     $id = [string]$invitation.invitedUser.id
-    if ([string]::IsNullOrWhiteSpace($id)) {
-        throw "Microsoft Graph created no invitedUser id for '$Email'."
-    }
-    return $id
+    $parsed = [Guid]::Empty
+    if (-not [Guid]::TryParse($id, [ref]$parsed)) { throw "Graph returned no valid invited user id for '$Email'." }
+    return $parsed.ToString()
 }
 
-function Ensure-AppRoleAssignment {
-    param(
-        [Parameter(Mandatory = $true)][string]$UserId,
-        [Parameter(Mandatory = $true)][string]$RoleValue,
-        [Parameter(Mandatory = $true)][string]$ServicePrincipalId,
-        [Parameter(Mandatory = $true)][string]$AppRoleId
-    )
-
-    $assignments = Invoke-GraphGet "$graphRoot/users/$UserId/appRoleAssignments?`$select=id,appRoleId,resourceId"
-    $alreadyAssigned = @($assignments.value) | Where-Object {
+function Test-AppRoleAssignment {
+    param([string]$UserId, [string]$ServicePrincipalId, [string]$AppRoleId)
+    $response = Get-Graph "$graphRoot/users/$UserId/appRoleAssignments?`$select=id,appRoleId,resourceId"
+    return $null -ne (@($response.value) | Where-Object {
         [string]$_.resourceId -eq $ServicePrincipalId -and [string]$_.appRoleId -eq $AppRoleId
-    } | Select-Object -First 1
+    } | Select-Object -First 1)
+}
 
-    if ($null -ne $alreadyAssigned) {
-        return $false
-    }
-
-    if (-not $Apply) {
-        return $true
-    }
-
-    Invoke-GraphPost -Uri "$graphRoot/users/$UserId/appRoleAssignments" -Body ([ordered]@{
+function Add-AppRoleAssignment {
+    param([string]$UserId, [string]$ServicePrincipalId, [string]$AppRoleId)
+    Post-Graph "$graphRoot/users/$UserId/appRoleAssignments" ([ordered]@{
         principalId = $UserId
         resourceId = $ServicePrincipalId
         appRoleId = $AppRoleId
     }) | Out-Null
-
-    Write-Host "Assigned Workslip role '$RoleValue' to Entra guest $UserId." -ForegroundColor DarkGray
-    return $true
 }
 
-if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
-    throw 'Azure CLI is required.'
-}
-if (-not (Get-Command Invoke-Sqlcmd -ErrorAction SilentlyContinue)) {
-    throw 'Invoke-Sqlcmd is required. Install the SqlServer PowerShell module first.'
-}
+if (-not (Get-Command az -ErrorAction SilentlyContinue)) { throw 'Azure CLI is required.' }
+if (-not (Get-Command Invoke-Sqlcmd -ErrorAction SilentlyContinue)) { throw 'SqlServer PowerShell module is required.' }
 
-$tenantId = (Invoke-AzureCli -Arguments @('account', 'show', '--query', 'tenantId', '-o', 'tsv')).Output.Trim()
-if ([string]::IsNullOrWhiteSpace($tenantId)) { throw 'The signed-in Entra tenant could not be resolved.' }
-
-$oauthClientId = (Invoke-AzureCli -Arguments @(
-    'appconfig', 'kv', 'show',
-    '--name', $AppConfigurationName,
-    '--key', 'Azure:AdOAuth:ClientId',
-    '--auth-mode', 'login',
-    '--query', 'value',
-    '--only-show-errors', '-o', 'tsv'
-)).Output.Trim()
-if (-not [Guid]::TryParse($oauthClientId, [ref]([Guid]::Empty))) {
-    throw "App Configuration returned an invalid Azure:AdOAuth:ClientId: '$oauthClientId'."
+$tenantId = (Invoke-Az @('account', 'show', '--query', 'tenantId', '-o', 'tsv')).Trim()
+$oauthClientId = (Invoke-Az @(
+    'appconfig', 'kv', 'show', '--endpoint', $AppConfigurationEndpoint,
+    '--key', 'Azure:AdOAuth:ClientId', '--auth-mode', 'login',
+    '--query', 'value', '--only-show-errors', '-o', 'tsv')).Trim()
+$parsedClientId = [Guid]::Empty
+if (-not [Guid]::TryParse($oauthClientId, [ref]$parsedClientId)) {
+    throw "Azure:AdOAuth:ClientId is invalid: '$oauthClientId'."
 }
 
 $spFilter = [uri]::EscapeDataString("appId eq '$oauthClientId'")
-$spResponse = Invoke-GraphGet "$graphRoot/servicePrincipals?`$filter=$spFilter&`$select=id,appId,displayName,appRoles&`$top=2"
-$servicePrincipals = @($spResponse.value)
-if ($servicePrincipals.Count -ne 1) {
-    throw "Expected exactly one Workslip API service principal for appId '$oauthClientId'; found $($servicePrincipals.Count)."
-}
+$servicePrincipals = @((Get-Graph "$graphRoot/servicePrincipals?`$filter=$spFilter&`$select=id,appId,displayName,appRoles&`$top=2").value)
+if ($servicePrincipals.Count -ne 1) { throw "Expected one Workslip API service principal; found $($servicePrincipals.Count)." }
 $servicePrincipal = $servicePrincipals[0]
 $servicePrincipalId = [string]$servicePrincipal.id
 
 $roleIds = @{}
-foreach ($roleValue in $managedRoleValues) {
+foreach ($roleValue in $managedRoles) {
     $role = @($servicePrincipal.appRoles) | Where-Object {
         [string]$_.value -eq $roleValue -and $_.isEnabled -eq $true -and @($_.allowedMemberTypes) -contains 'User'
     } | Select-Object -First 1
-    if ($null -eq $role -or [string]::IsNullOrWhiteSpace([string]$role.id)) {
-        throw "Workslip app role '$roleValue' is missing from service principal '$servicePrincipalId'."
-    }
+    if ($null -eq $role) { throw "Workslip app role '$roleValue' is missing in the current tenant." }
     $roleIds[$roleValue] = [string]$role.id
 }
 
-$sqlAccessToken = (Invoke-AzureCli -Arguments @(
-    'account', 'get-access-token',
-    '--resource', 'https://database.windows.net/',
-    '--query', 'accessToken', '-o', 'tsv'
-)).Output.Trim()
-if ([string]::IsNullOrWhiteSpace($sqlAccessToken)) { throw 'Could not acquire an Azure SQL access token.' }
+$sqlToken = (Invoke-Az @(
+    'account', 'get-access-token', '--resource', 'https://database.windows.net/',
+    '--query', 'accessToken', '-o', 'tsv')).Trim()
 
-$users = @(Invoke-Sqlcmd `
-    -ServerInstance $SqlServerFqdn `
-    -Database $SqlDatabase `
-    -AccessToken $sqlAccessToken `
-    -Query @'
+$rows = @(Invoke-Sqlcmd -ServerInstance $SqlServerFqdn -Database $SqlDatabase -AccessToken $sqlToken -Query @'
 SET NOCOUNT ON;
-SELECT
-    CAST(Id AS nvarchar(36)) AS Id,
-    ISNULL(Email, N'') AS Email,
-    ISNULL(EntraEmail, N'') AS EntraEmail,
-    ISNULL(EntraId, N'') AS EntraId,
-    ISNULL(DisplayName, N'') AS DisplayName,
-    ISNULL(Role, N'') AS Role
+SELECT CAST(Id AS nvarchar(36)) AS Id,
+       ISNULL(Email, N'') AS Email,
+       ISNULL(EntraEmail, N'') AS EntraEmail,
+       ISNULL(EntraId, N'') AS EntraId,
+       ISNULL(DisplayName, N'') AS DisplayName,
+       ISNULL(Role, N'') AS Role
 FROM Users
 ORDER BY Email;
-'@ `
-    -QueryTimeout 120 `
-    -AbortOnError `
-    -ErrorAction Stop)
+'@ -QueryTimeout 120 -AbortOnError -ErrorAction Stop)
 
-Write-Host "Tenant:   $tenantId" -ForegroundColor Cyan
-Write-Host "Users:    $($users.Count)" -ForegroundColor Cyan
-Write-Host "Mode:     $(if ($Apply) { 'APPLY' } else { 'DRY RUN' })" -ForegroundColor $(if ($Apply) { 'Yellow' } else { 'Green' })
-Write-Host ''
-
-$resolved = @{}
 $plan = New-Object System.Collections.Generic.List[object]
-$blocked = New-Object System.Collections.Generic.List[object]
+$blocked = New-Object System.Collections.Generic.List[string]
+$emailOwners = @{}
 
-foreach ($user in $users) {
-    $email = if (-not [string]::IsNullOrWhiteSpace([string]$user.EntraEmail)) {
-        ([string]$user.EntraEmail).Trim().ToLowerInvariant()
+foreach ($row in $rows) {
+    $email = if (-not [string]::IsNullOrWhiteSpace([string]$row.EntraEmail)) {
+        ([string]$row.EntraEmail).Trim().ToLowerInvariant()
     } else {
-        ([string]$user.Email).Trim().ToLowerInvariant()
+        ([string]$row.Email).Trim().ToLowerInvariant()
     }
-    $canonicalRole = Get-CanonicalRole ([string]$user.Role)
+    $role = Normalize-Role ([string]$row.Role)
 
-    if ([string]::IsNullOrWhiteSpace($email)) {
-        $entry = [pscustomobject]@{ User = $user; Email = $email; Status = 'NoEmail'; ResolvedId = $null; Role = $canonicalRole; RoleChange = $false }
-        $blocked.Add($entry); $plan.Add($entry); continue
-    }
-    if ($null -eq $canonicalRole) {
-        $entry = [pscustomobject]@{ User = $user; Email = $email; Status = 'InvalidRole'; ResolvedId = $null; Role = [string]$user.Role; RoleChange = $false }
-        $blocked.Add($entry); $plan.Add($entry); continue
-    }
+    if ([string]::IsNullOrWhiteSpace($email)) { $blocked.Add("NoEmail: $($row.Id)"); continue }
+    if ($null -eq $role) { $blocked.Add("InvalidRole '$($row.Role)': $email"); continue }
+    if ($emailOwners.ContainsKey($email)) { $blocked.Add("DuplicateEmail: $email"); continue }
+    $emailOwners[$email] = [string]$row.Id
 
-    $matches = @(Find-EntraUser $email)
-    if ($matches.Count -gt 1) {
-        $entry = [pscustomobject]@{ User = $user; Email = $email; Status = 'Ambiguous'; ResolvedId = $null; Role = $canonicalRole; RoleChange = $false }
-        $blocked.Add($entry); $plan.Add($entry); continue
-    }
+    $matches = @(Find-DirectoryUser $email)
+    if ($matches.Count -gt 1) { $blocked.Add("Ambiguous: $email"); continue }
 
-    $created = $false
-    if ($matches.Count -eq 0) {
-        if (-not $Apply) {
-            $entry = [pscustomobject]@{ User = $user; Email = $email; Status = 'Invite'; ResolvedId = $null; Role = $canonicalRole; RoleChange = $true }
-            $plan.Add($entry); continue
-        }
-
-        $displayName = if (-not [string]::IsNullOrWhiteSpace([string]$user.DisplayName)) { [string]$user.DisplayName } else { $email }
-        $resolvedId = New-GuestInvitation -Email $email -DisplayName $displayName
-        $created = $true
-    } else {
-        $resolvedId = [string]$matches[0].id
+    $resolvedId = if ($matches.Count -eq 1) { [string]$matches[0].id } else { $null }
+    if ($null -ne $resolvedId) {
+        $parsedResolved = [Guid]::Empty
+        if (-not [Guid]::TryParse($resolvedId, [ref]$parsedResolved)) { $blocked.Add("InvalidGraphId: $email"); continue }
+        $resolvedId = $parsedResolved.ToString()
     }
 
-    $parsedResolved = [Guid]::Empty
-    if (-not [Guid]::TryParse($resolvedId, [ref]$parsedResolved)) {
-        throw "Graph returned invalid object id '$resolvedId' for '$email'."
-    }
-
-    if ($resolved.ContainsKey($resolvedId)) {
-        $entry = [pscustomobject]@{ User = $user; Email = $email; Status = 'Conflict'; ResolvedId = $resolvedId; Role = $canonicalRole; RoleChange = $false }
-        $blocked.Add($entry); $plan.Add($entry); continue
-    }
-    $resolved[$resolvedId] = [string]$user.Id
-
-    $roleChange = Ensure-AppRoleAssignment `
-        -UserId $resolvedId `
-        -RoleValue $canonicalRole `
-        -ServicePrincipalId $servicePrincipalId `
-        -AppRoleId $roleIds[$canonicalRole]
-
-    $currentId = ([string]$user.EntraId).Trim()
-    $status = if ($created) { 'Invited' } elseif ($currentId -eq $resolvedId) { 'Current' } else { 'Backfill' }
     $plan.Add([pscustomobject]@{
-        User = $user
+        Row = $row
         Email = $email
-        Status = $status
+        Role = $role
         ResolvedId = $resolvedId
-        Role = $canonicalRole
-        RoleChange = $roleChange
+        NeedsInvite = [string]::IsNullOrWhiteSpace($resolvedId)
+        NeedsRole = $false
     })
 }
 
-foreach ($entry in $plan) {
-    $roleNote = if ($entry.RoleChange) { ' + role' } else { '' }
-    Write-Host ("{0,-12} {1,-42} {2}{3}" -f $entry.Status, $entry.Email, $entry.Role, $roleNote) -ForegroundColor $(
-        if ($entry.Status -in @('Ambiguous', 'Conflict', 'NoEmail', 'InvalidRole')) { 'Red' }
-        elseif ($entry.Status -in @('Invite', 'Invited', 'Backfill')) { 'Yellow' }
-        else { 'DarkGray' }
-    )
+$resolvedOwners = @{}
+foreach ($entry in $plan | Where-Object { -not $_.NeedsInvite }) {
+    if ($resolvedOwners.ContainsKey($entry.ResolvedId)) { $blocked.Add("Conflict: $($entry.Email) shares $($entry.ResolvedId)") }
+    else { $resolvedOwners[$entry.ResolvedId] = $entry.Email }
 }
 
-Write-Host ''
-Write-Host "Blocked:  $($blocked.Count)" -ForegroundColor $(if ($blocked.Count) { 'Red' } else { 'DarkGray' })
-Write-Host "Invites:  $(@($plan | Where-Object { $_.Status -in @('Invite', 'Invited') }).Count)" -ForegroundColor Yellow
-Write-Host "Backfill: $(@($plan | Where-Object { $_.Status -eq 'Backfill' }).Count)" -ForegroundColor Yellow
-
 if ($blocked.Count -gt 0) {
-    throw 'B2B guest reconciliation is blocked. Resolve Ambiguous/Conflict/NoEmail/InvalidRole rows before applying database changes.'
+    $blocked | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+    throw 'B2B reconciliation is blocked; no changes were made.'
+}
+
+foreach ($entry in $plan | Where-Object { -not $_.NeedsInvite }) {
+    $entry.NeedsRole = -not (Test-AppRoleAssignment $entry.ResolvedId $servicePrincipalId $roleIds[$entry.Role])
+}
+
+Write-Host "Tenant: $tenantId" -ForegroundColor Cyan
+Write-Host "Mode:   $(if ($Apply) { 'APPLY' } else { 'DRY RUN' })" -ForegroundColor $(if ($Apply) { 'Yellow' } else { 'Green' })
+foreach ($entry in $plan) {
+    $state = if ($entry.NeedsInvite) { 'Invite' } elseif (([string]$entry.Row.EntraId).Trim() -ne $entry.ResolvedId) { 'Backfill' } else { 'Current' }
+    $roleState = if ($entry.NeedsInvite -or $entry.NeedsRole) { ' + role' } else { '' }
+    Write-Host ("{0,-10} {1,-42} {2}{3}" -f $state, $entry.Email, $entry.Role, $roleState)
 }
 
 if (-not $Apply) {
-    Write-Host 'Dry run complete. No Entra or database changes were made.' -ForegroundColor Green
+    Write-Host 'Dry run complete. No guest, role or database changes were made.' -ForegroundColor Green
     return
 }
 
-$updates = @($plan | Where-Object {
-    -not [string]::IsNullOrWhiteSpace([string]$_.ResolvedId) -and ([string]$_.User.EntraId).Trim() -ne [string]$_.ResolvedId
-})
+foreach ($entry in $plan) {
+    if ($entry.NeedsInvite) {
+        $displayName = if (-not [string]::IsNullOrWhiteSpace([string]$entry.Row.DisplayName)) { [string]$entry.Row.DisplayName } else { $entry.Email }
+        $entry.ResolvedId = New-DirectoryGuest $entry.Email $displayName
+        $entry.NeedsRole = $true
+    }
+    if ($entry.NeedsRole) {
+        Add-AppRoleAssignment $entry.ResolvedId $servicePrincipalId $roleIds[$entry.Role]
+    }
+}
 
+$finalOwners = @{}
+foreach ($entry in $plan) {
+    if ($finalOwners.ContainsKey($entry.ResolvedId)) { throw "Resolved Entra conflict after invitation: $($entry.ResolvedId). Database was not changed." }
+    $finalOwners[$entry.ResolvedId] = $entry.Email
+}
+
+$updates = @($plan | Where-Object { ([string]$_.Row.EntraId).Trim() -ne $_.ResolvedId })
 if ($updates.Count -gt 0) {
-    $statements = New-Object System.Collections.Generic.List[string]
-    $statements.Add('SET NOCOUNT ON; SET XACT_ABORT ON; BEGIN TRANSACTION;')
+    $sql = New-Object System.Collections.Generic.List[string]
+    $sql.Add('SET NOCOUNT ON; SET XACT_ABORT ON; BEGIN TRANSACTION;')
     foreach ($entry in $updates) {
         $workslipId = [Guid]::Empty
         $entraId = [Guid]::Empty
-        if (-not [Guid]::TryParse([string]$entry.User.Id, [ref]$workslipId)) { throw 'Invalid Workslip user GUID in reconciliation plan.' }
-        if (-not [Guid]::TryParse([string]$entry.ResolvedId, [ref]$entraId)) { throw 'Invalid Entra GUID in reconciliation plan.' }
-        $statements.Add("UPDATE Users SET EntraId = N'$($entraId.ToString())' WHERE Id = '$($workslipId.ToString())';")
+        if (-not [Guid]::TryParse([string]$entry.Row.Id, [ref]$workslipId)) { throw 'Invalid Workslip user id.' }
+        if (-not [Guid]::TryParse([string]$entry.ResolvedId, [ref]$entraId)) { throw 'Invalid Entra user id.' }
+        $sql.Add("UPDATE Users SET EntraId = N'$($entraId.ToString())' WHERE Id = '$($workslipId.ToString())';")
     }
-    $statements.Add('COMMIT TRANSACTION;')
-
-    Invoke-Sqlcmd `
-        -ServerInstance $SqlServerFqdn `
-        -Database $SqlDatabase `
-        -AccessToken $sqlAccessToken `
-        -Query ($statements -join [Environment]::NewLine) `
-        -QueryTimeout 120 `
-        -AbortOnError `
-        -ErrorAction Stop | Out-Null
+    $sql.Add('COMMIT TRANSACTION;')
+    Invoke-Sqlcmd -ServerInstance $SqlServerFqdn -Database $SqlDatabase -AccessToken $sqlToken -Query ($sql -join [Environment]::NewLine) -QueryTimeout 120 -AbortOnError -ErrorAction Stop | Out-Null
 }
 
-Write-Host "B2B reconciliation complete. Updated $($updates.Count) Workslip Entra object IDs." -ForegroundColor Green
+Write-Host "B2B guest reconciliation complete. Users=$($plan.Count), EntraId updates=$($updates.Count)." -ForegroundColor Green
