@@ -182,6 +182,7 @@ jobs:
             echo "acr_name=$(output registryName)"
             echo "acr_login_server=$(output registryLoginServer)"
             echo "runtime_identity_name=$(output runtimeIdentityName)"
+            echo "runtime_identity_id=$(output runtimeIdentityId)"
             echo "runtime_principal_id=$(output runtimeIdentityPrincipalId)"
             echo "runtime_client_id=$(output runtimeIdentityClientId)"
             echo "ci_client_id=$(output ciIdentityClientId)"
