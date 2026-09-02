@@ -16,6 +16,23 @@ public sealed class PushNotificationProcessor
     private readonly IVapidPublicKeyProvider _vapidProvider;
     private readonly ILogger<PushNotificationProcessor> _logger;
 
+    // Preserve the existing direct-construction contract used by focused tests and
+    // non-DI callers. Runtime DI resolves the five-argument constructor below and
+    // therefore still applies the real VAPID configuration gate.
+    public PushNotificationProcessor(
+        INotificationRepository notificationRepository,
+        IPushSender pushSender,
+        INotificationService notificationService,
+        ILogger<PushNotificationProcessor> logger)
+        : this(
+            notificationRepository,
+            pushSender,
+            notificationService,
+            AssumedConfiguredVapidPublicKeyProvider.Instance,
+            logger)
+    {
+    }
+
     public PushNotificationProcessor(
         INotificationRepository notificationRepository,
         IPushSender pushSender,
@@ -347,4 +364,16 @@ public sealed class PushNotificationProcessor
         3 => TimeSpan.FromMinutes(15),
         _ => TimeSpan.FromHours(1)
     };
+
+    private sealed class AssumedConfiguredVapidPublicKeyProvider : IVapidPublicKeyProvider
+    {
+        public static readonly AssumedConfiguredVapidPublicKeyProvider Instance = new();
+
+        private AssumedConfiguredVapidPublicKeyProvider()
+        {
+        }
+
+        public string PublicKey => string.Empty;
+        public bool IsConfigured => true;
+    }
 }
