@@ -10,19 +10,41 @@ public sealed class PushNotificationWorker : BackgroundService
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
 
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IVapidPublicKeyProvider _vapidProvider;
     private readonly ILogger<PushNotificationWorker> _logger;
 
     public PushNotificationWorker(
         IServiceScopeFactory scopeFactory,
+        IVapidPublicKeyProvider vapidProvider,
         ILogger<PushNotificationWorker> logger)
     {
         _scopeFactory = scopeFactory;
+        _vapidProvider = vapidProvider;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("Push notification worker started.");
+
+        if (!_vapidProvider.IsConfigured)
+        {
+            _logger.LogWarning("Push notification worker started but VAPID is not configured. Push notifications are disabled until the key is provisioned.");
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(PollInterval, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+            }
+
+            _logger.LogInformation("PushNotificationWorker stopped.");
+            return;
+        }
 
         while (!stoppingToken.IsCancellationRequested)
         {
