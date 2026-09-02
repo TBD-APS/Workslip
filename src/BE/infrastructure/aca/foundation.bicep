@@ -19,9 +19,9 @@ param keyVaultName string
 param appConfigurationName string
 param storageAccountName string
 
-param githubOwner string = 'rasm105k'
-param githubOwnerId string = '31623093'
-param githubRepository string = 'Workslip-v2.0'
+param githubOwner string = 'TBD-APS'
+param githubOwnerId string = '286907234'
+param githubRepository string = 'Workslip'
 param githubRepositoryId string = '1245555609'
 param githubEnvironment string = 'live'
 
@@ -56,7 +56,7 @@ var graphRoleIds = {
   appRoleAssignmentReadWriteAll: '06b708a9-e830-4db3-a914-8e69da51d44f'
 }
 
-resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
+resource registry 'Microsoft.ContainerRegistry/registries@2025-11-01' = {
   name: registryName
   location: location
   tags: tags
@@ -64,7 +64,21 @@ resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
     name: 'Basic'
   }
   properties: {
+    // Deliberately keep static registry credentials disabled. Container Apps
+    // pulls through the dedicated runtime managed identity and CI pushes through
+    // its own identity instead of sharing the ACR admin account.
     adminUserEnabled: false
+    // This deployment still uses the legacy registry-wide AcrPull/AcrPush roles.
+    // Pin the registry to RBAC-only mode so a future ACR default change to ABAC
+    // cannot make those assignments ineffective without an explicit migration.
+    roleAssignmentMode: 'LegacyRegistryPermissions'
+    // Managed-identity image pulls use ARM-audience tokens. Keep this explicit so
+    // registry drift cannot silently break Container Apps image authentication.
+    policies: {
+      azureADAuthenticationAsArmPolicy: {
+        status: 'enabled'
+      }
+    }
     // Basic ACR does not support IP or virtual-network rules. Image access is
     // still protected by Entra RBAC; move to Premium before adding network rules.
     publicNetworkAccess: 'Enabled'
@@ -191,6 +205,7 @@ module runtimeDataAccess 'runtimeDataAccess.bicep' = {
 }
 
 output managedEnvironmentName string = managedEnvironment.name
+output registryId string = registry.id
 output registryName string = registry.name
 output registryLoginServer string = registry.properties.loginServer
 output runtimeIdentityName string = runtimeIdentity.name
