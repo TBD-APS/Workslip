@@ -261,11 +261,13 @@ public sealed class PushNotificationProcessorTests
     private static PushNotificationProcessor CreateProcessor(
         FakeNotificationRepository repository,
         FakePushSender sender,
-        RecordingLogger<PushNotificationProcessor>? logger = null) =>
+        RecordingLogger<PushNotificationProcessor>? logger = null,
+        IVapidPublicKeyProvider? vapidProvider = null) =>
         new(
             repository,
             sender,
             new FakeNotificationService(),
+            vapidProvider ?? new NullVapidPublicKeyProvider(),
             logger ?? new RecordingLogger<PushNotificationProcessor>());
 
     private static NotificationQueueRow CreateNotification(
