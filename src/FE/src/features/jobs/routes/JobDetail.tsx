@@ -19,7 +19,7 @@ export const JobDetail = () => {
   const jobStatus = details.job?.status;
   const loadedJobId = details.job?.id;
   const { setCurrentStep } = details;
-  const normalizedRejectedJobIdRef = useRef<string | null>(null);
+  const normalizedCorrectionJobIdRef = useRef<string | null>(null);
 
   useScrollRestore(`job:${id}`);
 
@@ -32,17 +32,24 @@ export const JobDetail = () => {
 
   useEffect(() => {
     if (!id || !loadedJobId || loadedJobId !== id) {
-      normalizedRejectedJobIdRef.current = null;
+      normalizedCorrectionJobIdRef.current = null;
       return;
     }
 
-    if (jobStatus !== JobStatus.Rejected || isAdmin) {
-      normalizedRejectedJobIdRef.current = null;
+    // Rejected jobs are corrected by the assignee; Reopened jobs are correction
+    // states for both roles. Keep both at Sagsdetaljer instead of letting the
+    // worksheet auto-navigation move the user away before they can edit the case.
+    const shouldNormalizeCorrectionStep =
+      jobStatus === JobStatus.Reopened ||
+      (jobStatus === JobStatus.Rejected && !isAdmin);
+
+    if (!shouldNormalizeCorrectionStep) {
+      normalizedCorrectionJobIdRef.current = null;
       return;
     }
 
-    if (normalizedRejectedJobIdRef.current === loadedJobId) return;
-    normalizedRejectedJobIdRef.current = loadedJobId;
+    if (normalizedCorrectionJobIdRef.current === loadedJobId) return;
+    normalizedCorrectionJobIdRef.current = loadedJobId;
 
     setCurrentStep((step) => (step === 0 ? step : 0));
     document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
