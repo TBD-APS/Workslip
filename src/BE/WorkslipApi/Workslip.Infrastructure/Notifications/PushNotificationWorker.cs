@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Workslip.Application.Notifications;
 
 namespace Workslip.Infrastructure.Notifications;
 

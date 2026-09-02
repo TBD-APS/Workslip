@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Workslip.Application.Notifications;
 using Workslip.Infrastructure.Configuration;
 using Workslip.Infrastructure.Notifications;
 using Xunit;
@@ -25,12 +26,13 @@ public sealed class VapidKeyMaterialTests
     }
 
     [Fact]
-    public void Constructor_RejectsInvalidPrivateKeyLength()
+    public void Constructor_SetsIsConfiguredFalse_WhenPrivateKeyLengthIsInvalid()
     {
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            CreateMaterial(new VapidOptions { PrivateKey = "AQ" }));
+        var material = CreateMaterial(new VapidOptions { PrivateKey = "AQ" });
 
-        Assert.Contains("32-byte P-256", exception.Message, StringComparison.Ordinal);
+        Assert.False(material.IsConfigured);
+        Assert.Equal(string.Empty, material.PublicKey);
+        Assert.Equal(string.Empty, material.PrivateKey);
     }
 
     private static VapidKeyMaterial CreateMaterial(VapidOptions options) =>
