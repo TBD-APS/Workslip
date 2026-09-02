@@ -350,7 +350,7 @@ export const CompletedJobReport = () => {
           )}
           <JobConversationLauncher
             jobId={job.id}
-            allowSubmitForReview={job.status === JobStatus.Draft || job.status === JobStatus.Rejected}
+            allowSubmitForReview={job.status === JobStatus.Draft || job.status === JobStatus.Rejected || job.status === JobStatus.Reopened}
             compact
           />
           <button

@@ -184,7 +184,7 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
   };
 
   const canSubmitForReview =
-    details.job.status === JobStatus.Draft || details.job.status === JobStatus.Rejected;
+    details.job.status === JobStatus.Draft || details.job.status === JobStatus.Rejected || details.job.status === JobStatus.Reopened;
 
   return (
     <div className="page-container job-detail-page">

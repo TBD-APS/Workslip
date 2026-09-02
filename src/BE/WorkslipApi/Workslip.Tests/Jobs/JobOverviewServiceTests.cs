@@ -16,6 +16,7 @@ public sealed class JobOverviewServiceTests
             [JobStatus.InReview] = 3,
             [JobStatus.Approved] = 11,
             [JobStatus.Rejected] = 2,
+            [JobStatus.Reopened] = 1,
         });
         var service = new JobOverviewService(jobService);
 
@@ -26,8 +27,9 @@ public sealed class JobOverviewServiceTests
         Assert.Equal(3, result.Value.InReviewCount);
         Assert.Equal(11, result.Value.ApprovedCount);
         Assert.Equal(2, result.Value.RejectedCount);
+        Assert.Equal(1, result.Value.ReopenedCount);
         Assert.Empty(result.Value.RecentJobs);
-        Assert.Equal(5, jobService.ListCalls.Count);
+        Assert.Equal(6, jobService.ListCalls.Count);
 
         var recentCall = jobService.ListCalls[^1];
         Assert.Equal(6, recentCall.Limit);
@@ -35,7 +37,7 @@ public sealed class JobOverviewServiceTests
         Assert.Equal("updatedAt", recentCall.SortBy);
         Assert.Equal("desc", recentCall.SortDirection);
         Assert.Equal(
-            new[] { JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected },
+            new[] { JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected, JobStatus.Reopened },
             recentCall.Statuses);
     }
 

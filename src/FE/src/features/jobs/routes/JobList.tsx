@@ -191,6 +191,7 @@ export const JobList = () => {
           { value: JobStatus.InReview, label: 'Til gennemsyn' },
           { value: JobStatus.Approved, label: 'Godkendt' },
           { value: JobStatus.Rejected, label: 'Afvist' },
+          { value: JobStatus.Reopened, label: 'Genåbnet' },
         ]}
         selected={selectedStatuses}
         onChange={handleStatusChange}

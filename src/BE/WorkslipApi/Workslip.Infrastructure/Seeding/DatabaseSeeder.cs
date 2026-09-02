@@ -111,7 +111,7 @@ public static class DatabaseSeeder
 
         var users = CreateDevelopmentUsers(organization.Id, now);
 
-        var statuses = new[] { JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected };
+        var statuses = new[] { JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected, JobStatus.Reopened };
 
         var danishAddress = new Faker("nb_NO").Address;
 

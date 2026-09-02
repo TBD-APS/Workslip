@@ -8,6 +8,7 @@ describe('formatJobStatus', () => {
     [JobStatus.InReview, 'Til gennemsyn'],
     [JobStatus.Approved, 'Godkendt'],
     [JobStatus.Rejected, 'Afvist'],
+    [JobStatus.Reopened, 'Genåbnet'],
   ])('formats %s as %s', (status, expected) => {
     expect(formatJobStatus(status)).toBe(expected);
   });

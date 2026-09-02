@@ -384,7 +384,7 @@ public sealed class SqlDbContext : DbContext
 
             t.HasCheckConstraint("CK_JobReports_Status",
 
-                "Status in ('Draft', 'InReview', 'Approved', 'Rejected')");
+                "Status in ('Draft', 'InReview', 'Approved', 'Rejected', 'Reopened')");
 
         });
 

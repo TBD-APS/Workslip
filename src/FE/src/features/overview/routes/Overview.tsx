@@ -23,6 +23,7 @@ type JobOverviewResponse = {
   inReviewCount: number;
   approvedCount: number;
   rejectedCount: number;
+  reopenedCount?: number;
   recentJobs: JobListItemViewModel[];
 };
 
@@ -187,7 +188,7 @@ export const Overview = () => {
               </span>
               <span>
                 <strong>Se driftsnøgletal</strong>
-                <small>{overview ? `${overview.activeCount + overview.inReviewCount + overview.approvedCount + overview.rejectedCount} sager i alt · ${overview.inReviewCount} til gennemsyn` : 'Henter nøgletal…'}</small>
+                <small>{overview ? `${overview.activeCount + overview.inReviewCount + overview.approvedCount + overview.rejectedCount + (overview.reopenedCount ?? 0)} sager i alt · ${overview.inReviewCount} til gennemsyn` : 'Henter nøgletal…'}</small>
               </span>
               <ArrowRight size={16} aria-hidden="true" />
             </button>
