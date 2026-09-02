@@ -32,23 +32,21 @@ export const JobDetail = () => {
   }, [id, jobStatus, isAdmin, queryClient]);
 
   useEffect(() => {
-    if (!id || !loadedJobId || loadedJobId !== id || !referenceData) {
-      if (!loadedJobId || loadedJobId !== id) {
-        normalizedCorrectionJobIdRef.current = null;
-      }
+    if (!id || !loadedJobId || loadedJobId !== id) {
+      normalizedCorrectionJobIdRef.current = null;
       return;
     }
 
-    // Rejected jobs are corrected by the assignee; Reopened jobs are correction
-    // states for both roles. Normalize once after reference data has resolved so
-    // this runs after the generic worksheet auto-navigation decision, but do not
-    // pin the user to step 0 once they deliberately continue through the wizard.
-    const shouldNormalizeCorrectionStep =
-      jobStatus === JobStatus.Reopened ||
-      (jobStatus === JobStatus.Rejected && !isAdmin);
+    const shouldNormalizeRejected = jobStatus === JobStatus.Rejected && !isAdmin;
+    // Reopened jobs have already completed the normal worksheet path. Wait for
+    // reference data so this normalization is registered in the same render as
+    // (and after) the generic worksheet auto-navigation decision.
+    const shouldNormalizeReopened = jobStatus === JobStatus.Reopened && Boolean(referenceData);
 
-    if (!shouldNormalizeCorrectionStep) {
-      normalizedCorrectionJobIdRef.current = null;
+    if (!shouldNormalizeRejected && !shouldNormalizeReopened) {
+      if (jobStatus !== JobStatus.Reopened) {
+        normalizedCorrectionJobIdRef.current = null;
+      }
       return;
     }
 
