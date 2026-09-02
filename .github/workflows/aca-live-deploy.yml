@@ -143,6 +143,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          repository_name="${GITHUB_REPOSITORY#*/}"
           az deployment group create \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name workslip-live-app-foundation \
@@ -155,6 +156,10 @@ jobs:
               keyVaultName='kv-mrsoftwarev2-live' \
               appConfigurationName='appcs-mrsoftwarev2-live' \
               storageAccountName='stmrsoftwarev2live' \
+              githubOwner="$GITHUB_REPOSITORY_OWNER" \
+              githubOwnerId="$GITHUB_REPOSITORY_OWNER_ID" \
+              githubRepository="$repository_name" \
+              githubRepositoryId="$GITHUB_REPOSITORY_ID" \
               githubEnvironment='live' \
             --only-show-errors \
             --output none
@@ -173,6 +178,7 @@ jobs:
           }
           {
             echo "environment_name=$(output managedEnvironmentName)"
+            echo "acr_id=$(output registryId)"
             echo "acr_name=$(output registryName)"
             echo "acr_login_server=$(output registryLoginServer)"
             echo "runtime_identity_name=$(output runtimeIdentityName)"
@@ -184,6 +190,46 @@ jobs:
               --name "$LIVE_MIGRATION_IDENTITY" \
               --query clientId --output tsv)"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Verify ACR managed-identity authentication
+        shell: bash
+        env:
+          ACR_ID: ${{ steps.foundation.outputs.acr_id }}
+          ACR_NAME: ${{ steps.foundation.outputs.acr_name }}
+          RUNTIME_PRINCIPAL_ID: ${{ steps.foundation.outputs.runtime_principal_id }}
+        run: |
+          set -Eeuo pipefail
+
+          admin_enabled="$(az acr show --name "$ACR_NAME" --query adminUserEnabled --output tsv)"
+          if [[ "$admin_enabled" != 'false' ]]; then
+            echo "::error::ACR admin credentials must remain disabled. Current adminUserEnabled=$admin_enabled"
+            exit 1
+          fi
+
+          arm_auth="$(az acr config authentication-as-arm show --registry "$ACR_NAME" --query status --output tsv)"
+          if [[ "$arm_auth" != 'enabled' ]]; then
+            echo "::error::ACR ARM-audience authentication is '$arm_auth'; managed-identity image pulls require it to be enabled."
+            exit 1
+          fi
+
+          assignment_count=0
+          for attempt in {1..10}; do
+            assignment_count="$(az role assignment list \
+              --assignee "$RUNTIME_PRINCIPAL_ID" \
+              --scope "$ACR_ID" \
+              --role AcrPull \
+              --query 'length(@)' \
+              --output tsv)"
+            if [[ "$assignment_count" =~ ^[0-9]+$ ]] && (( assignment_count > 0 )); then
+              break
+            fi
+            sleep 3
+          done
+
+          if ! [[ "$assignment_count" =~ ^[0-9]+$ ]] || (( assignment_count < 1 )); then
+            echo "::error::Runtime managed identity does not have AcrPull on $ACR_NAME."
+            exit 1
+          fi
 
       - name: Allow new federated identities to propagate
         shell: bash
@@ -326,6 +372,24 @@ jobs:
           echo "fqdn=$fqdn" >> "$GITHUB_OUTPUT"
           echo "url=https://$fqdn" >> "$GITHUB_OUTPUT"
 
+      - name: Verify Container App registry identity
+        shell: bash
+        env:
+          ACR_LOGIN_SERVER: ${{ steps.foundation.outputs.acr_login_server }}
+          EXPECTED_RUNTIME_ID: ${{ steps.foundation.outputs.runtime_identity_id }}
+        run: |
+          set -Eeuo pipefail
+          registry_identity="$(az containerapp show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name ca-workslip-live-app \
+            --query "properties.configuration.registries[?server=='$ACR_LOGIN_SERVER'].identity | [0]" \
+            --output tsv)"
+
+          if [[ "$registry_identity" != "$EXPECTED_RUNTIME_ID" ]]; then
+            echo "::error::Container App registry auth is not bound to the expected runtime managed identity. Expected '$EXPECTED_RUNTIME_ID', got '$registry_identity'."
+            exit 1
+          fi
+
       - name: Smoke-test public live-app frontend and API
         shell: bash
         env:
@@ -346,6 +410,7 @@ jobs:
           - Hostname: \`$LIVE_FQDN\`
           - Boundary: \`rg-mrsoftwarev2-live\` (uniquely named parallel ACA resources — App Service untouched)
           - Runtime identity: \`rg-mrsoftwarev2-live / $LIVE_RUNTIME_IDENTITY\`
+          - Registry auth: managed identity + \`AcrPull\`; ACR admin credentials disabled
           - Database: pending reviewed migrations applied before release
           - Smoke: frontend \`/\` = 200, backend \`/health\` = 200, unauthenticated \`/api/auth/me\` = 401
           - Scale: 0→4 replicas, HTTP autoscale, scale-to-zero when idle
