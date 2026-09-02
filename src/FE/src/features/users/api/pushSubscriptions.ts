@@ -13,12 +13,21 @@ type VapidPublicKeyResponse = {
   publicKey: string;
 };
 
-export async function getVapidPublicKey(): Promise<string> {
-  const response = await apiClient.get<never, VapidPublicKeyResponse>(
-    '/api/push-subscriptions/public-key',
-    { skipGlobalErrorToast: true },
-  );
-  return response.publicKey;
+export async function getVapidPublicKey(): Promise<string | null> {
+  try {
+    const response = await apiClient.get<never, VapidPublicKeyResponse | null>(
+      '/api/push-subscriptions/public-key',
+      {
+        skipGlobalErrorToast: true,
+        validateStatus: (status) => (status >= 200 && status < 300) || status === 204,
+      },
+    );
+    const publicKey = (response as VapidPublicKeyResponse | null)?.publicKey?.trim();
+    return publicKey ? publicKey : null;
+  } catch {
+    // 204 No Content (push disabled) or network error – treat as not configured
+    return null;
+  }
 }
 
 export function registerPushSubscription(

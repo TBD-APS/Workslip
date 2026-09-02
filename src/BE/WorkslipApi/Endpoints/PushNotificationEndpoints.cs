@@ -64,6 +64,14 @@ public static class PushNotificationEndpoints
         group.MapGet("/public-key", (IVapidPublicKeyProvider keyProvider, HttpContext httpContext) =>
         {
             httpContext.Response.Headers.CacheControl = "no-store";
+            if (!keyProvider.IsConfigured || string.IsNullOrWhiteSpace(keyProvider.PublicKey))
+            {
+                // Push is disabled until VAPID is provisioned (Key Vault/App Config).
+                // Return 204 so the frontend can gracefully disable push without
+                // surfacing a 5xx in App Insights / browser error tracking.
+                return Results.NoContent();
+            }
+
             return Results.Ok(new VapidPublicKeyViewModel(keyProvider.PublicKey));
         }).AllowAnonymous();
 

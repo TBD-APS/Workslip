@@ -13,22 +13,31 @@ public sealed class PushNotificationProcessor
     private readonly INotificationRepository _notificationRepository;
     private readonly IPushSender _pushSender;
     private readonly INotificationService _notificationService;
+    private readonly IVapidPublicKeyProvider _vapidProvider;
     private readonly ILogger<PushNotificationProcessor> _logger;
 
     public PushNotificationProcessor(
         INotificationRepository notificationRepository,
         IPushSender pushSender,
         INotificationService notificationService,
+        IVapidPublicKeyProvider vapidProvider,
         ILogger<PushNotificationProcessor> logger)
     {
         _notificationRepository = notificationRepository;
         _pushSender = pushSender;
         _notificationService = notificationService;
+        _vapidProvider = vapidProvider;
         _logger = logger;
     }
 
     public async Task<int> ProcessBatchAsync(int batchSize, CancellationToken cancellationToken)
     {
+        if (!_vapidProvider.IsConfigured)
+        {
+            _logger.LogDebug("Skipping push batch – VAPID not configured (Vapid:PrivateKey missing). Push notifications are disabled.");
+            return 0;
+        }
+
         var notifications = await _notificationRepository
             .ClaimPendingNotificationsAsync(batchSize, cancellationToken);
 

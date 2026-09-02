@@ -18,34 +18,49 @@ public sealed class VapidKeyMaterial : IVapidPublicKeyProvider
         ILogger<VapidKeyMaterial>? logger = null)
     {
         var configured = options.Value;
-        byte[] privateKeyBytes;
+        byte[]? privateKeyBytes = null;
+        var subject = string.IsNullOrWhiteSpace(configured.Subject)
+            ? "mailto:push@workslip.app"
+            : configured.Subject.Trim();
 
-        if (string.IsNullOrWhiteSpace(configured.PrivateKey) && environment?.IsDevelopment() == true)
+        if (string.IsNullOrWhiteSpace(configured.PrivateKey))
         {
-            privateKeyBytes = CreateDevelopmentPrivateKey();
-            logger?.LogInformation(
-                "VAPID private key is not configured. Using an ephemeral Development key; browser push subscriptions will be reconciled after API restart.");
+            if (environment?.IsDevelopment() == true)
+            {
+                privateKeyBytes = CreateDevelopmentPrivateKey();
+                logger?.LogInformation(
+                    "VAPID private key is not configured. Using an ephemeral Development key; browser push subscriptions will be reconciled after API restart.");
+            }
+            else
+            {
+                logger?.LogWarning(
+                    "VAPID private key is not configured (Vapid:PrivateKey missing). Push notifications are disabled until the key is configured via Key Vault/App Configuration. Returning 503 for public-key requests and skipping push delivery.");
+                IsConfigured = false;
+                PublicKey = string.Empty;
+                PrivateKey = string.Empty;
+                Subject = subject;
+                return;
+            }
         }
         else
         {
             privateKeyBytes = DecodeBase64Url(configured.PrivateKey, "Vapid:PrivateKey");
+            if (privateKeyBytes.Length != 32)
+            {
+                throw new InvalidOperationException("Vapid:PrivateKey must be a 32-byte P-256 private key.");
+            }
         }
 
-        if (privateKeyBytes.Length != 32)
-        {
-            throw new InvalidOperationException("Vapid:PrivateKey must be a 32-byte P-256 private key.");
-        }
-
-        PublicKey = EncodeBase64Url(DerivePublicKey(privateKeyBytes));
-        PrivateKey = EncodeBase64Url(privateKeyBytes);
-        Subject = string.IsNullOrWhiteSpace(configured.Subject)
-            ? "mailto:push@workslip.app"
-            : configured.Subject.Trim();
+        PublicKey = EncodeBase64Url(DerivePublicKey(privateKeyBytes!));
+        PrivateKey = EncodeBase64Url(privateKeyBytes!);
+        Subject = subject;
+        IsConfigured = true;
     }
 
     public string PublicKey { get; }
     public string PrivateKey { get; }
     public string Subject { get; }
+    public bool IsConfigured { get; }
 
     private static byte[] CreateDevelopmentPrivateKey()
     {

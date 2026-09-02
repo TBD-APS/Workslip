@@ -40,6 +40,10 @@ async function ensurePushSubscription(): Promise<RegisterPushSubscriptionPayload
   }
 
   const publicKey = await getVapidPublicKey();
+  if (!publicKey) {
+    console.debug('Push notifications are disabled – VAPID public key not available.');
+    return null;
+  }
   const applicationServerKey = urlBase64ToUint8Array(publicKey);
   const registration = await navigator.serviceWorker.ready;
   let subscription = await registration.pushManager.getSubscription();
