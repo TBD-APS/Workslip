@@ -201,6 +201,40 @@ public sealed class SchemaModelContractTests
     }
 
     [Fact]
+    public void JobReports_status_check_constraint_allows_reopened()
+    {
+        // EF's runtime model strips check-constraint metadata (read-optimized model),
+        // so we verify the source of truth directly: the C# model definition and the
+        // production migration that enforces it. This catches the exact regression
+        // where JobStatus.Reopened existed in code but CK_JobReports_Status did not.
+        var sqlDbContextPath = FindFileByWalkingUp("src/BE/WorkslipApi/Workslip.Infrastructure/Schema/SqlDbContext.cs");
+        var sqlDbContextContent = File.ReadAllText(sqlDbContextPath);
+        Assert.Contains("'Reopened'", sqlDbContextContent);
+        Assert.Contains("CK_JobReports_Status", sqlDbContextContent);
+
+        var migrationsDir = FindMigrationsDirectory();
+        var latestReopenedMigration = Directory.GetFiles(migrationsDir, "*reopened*.sql")
+            .FirstOrDefault();
+        Assert.False(string.IsNullOrEmpty(latestReopenedMigration), "Expected a migration that adds Reopened to CK_JobReports_Status (e.g. *reopened*.sql)");
+        var migrationContent = File.ReadAllText(latestReopenedMigration!);
+        Assert.Contains("Reopened", migrationContent);
+        Assert.Contains("CK_JobReports_Status", migrationContent);
+    }
+
+    private static string FindFileByWalkingUp(string relativePath)
+    {
+        DirectoryInfo? directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var candidate = Path.Combine(directory.FullName, relativePath);
+            if (File.Exists(candidate))
+                return candidate;
+            directory = directory.Parent;
+        }
+        throw new FileNotFoundException($"Could not locate {relativePath} by walking up from {AppContext.BaseDirectory}");
+    }
+
+    [Fact]
     public void Migration_backed_schema_is_present_in_migration_files()
     {
         var migrationsDirectory = FindMigrationsDirectory();

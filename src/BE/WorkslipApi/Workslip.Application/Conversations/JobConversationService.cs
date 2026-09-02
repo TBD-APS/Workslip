@@ -276,7 +276,7 @@ public sealed class JobConversationService(
 
         if (message.Action.Type == ConversationActionType.SubmitForReview)
         {
-            if (access.Value.Job.Status is JobStatus.Draft or JobStatus.Rejected)
+            if (access.Value.Job.Status is JobStatus.Draft or JobStatus.Rejected or JobStatus.Reopened)
             {
                 var transition = await jobs.ChangeStatusAsync(
                     jobId,
@@ -431,7 +431,7 @@ public sealed class JobConversationService(
             return InvalidAction(nameof(CreateConversationMessageRequest.Body), "Skriv hvad opgaven går ud på.");
 
         if (actionType == ConversationActionType.SubmitForReview
-            && access.Job.Status is not (JobStatus.Draft or JobStatus.Rejected))
+            && access.Job.Status is not (JobStatus.Draft or JobStatus.Rejected or JobStatus.Reopened))
         {
             return Result.Conflict("Sagen kan kun sendes til gennemgang fra kladde eller afvist status.");
         }

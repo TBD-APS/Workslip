@@ -22,6 +22,7 @@ type JobOverviewResponse = {
   inReviewCount: number;
   approvedCount: number;
   rejectedCount: number;
+  reopenedCount?: number;
   recentJobs: {
     id: string;
     reportNumber: string | null;
@@ -66,7 +67,8 @@ export async function fetchLeaderAnalysisSummary(): Promise<LeaderAnalysisSummar
   const inReviewCount = overview.inReviewCount ?? 0;
   const approvedCount = overview.approvedCount ?? 0;
   const rejectedCount = overview.rejectedCount ?? 0;
-  const totalCount = activeCount + inReviewCount + approvedCount + rejectedCount;
+  const reopenedCount = (overview as { reopenedCount?: number }).reopenedCount ?? 0;
+  const totalCount = activeCount + inReviewCount + approvedCount + rejectedCount + reopenedCount;
   const decidedCount = approvedCount + rejectedCount;
   const approvalRate = decidedCount > 0 ? approvedCount / decidedCount : null;
   const rejectionRate = decidedCount > 0 ? rejectedCount / decidedCount : null;

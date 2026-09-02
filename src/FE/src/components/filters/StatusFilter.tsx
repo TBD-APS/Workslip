@@ -1,7 +1,7 @@
 ﻿import { useCallback, useEffect, useRef, useState } from 'react';
 
 const LAST_ACTIVE_KEY = 'statusFilter:lastActive';
-const JOB_STATUS_QUERY_VALUES = new Set(['Draft', 'InReview', 'Approved', 'Rejected']);
+const JOB_STATUS_QUERY_VALUES = new Set(['Draft', 'InReview', 'Approved', 'Rejected', 'Reopened']);
 
 export function getSavedStatusFilter<T extends string>(sectionKey: string, defaults: T[]): T[] {
   try {
@@ -32,7 +32,9 @@ export function getSavedStatusFilter<T extends string>(sectionKey: string, defau
         return [parsed[0] as T];
       }
     }
-  } catch {}
+  } catch {
+    // Session storage can be unavailable or malformed; fall back to defaults.
+  }
   return defaults;
 }
 

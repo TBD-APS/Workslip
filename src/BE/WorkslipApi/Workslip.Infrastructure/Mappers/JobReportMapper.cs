@@ -392,6 +392,7 @@ public static class JobReportMapper
             "InReview" => "Til gennemsyn",
             "Approved" => "Godkendt",
             "Rejected" => "Afvist",
+            "Reopened" => "Genåbnet",
             _ => string.Empty
         };
 

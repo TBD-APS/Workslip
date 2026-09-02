@@ -11,6 +11,14 @@ public sealed class WebPushSender(VapidKeyMaterial keyMaterial) : IPushSender
         string payloadJson,
         CancellationToken cancellationToken)
     {
+        if (!keyMaterial.IsConfigured || string.IsNullOrWhiteSpace(keyMaterial.PublicKey) || string.IsNullOrWhiteSpace(keyMaterial.PrivateKey))
+        {
+            return new PushSenderResult(
+                false,
+                "VAPID not configured – push delivery skipped.",
+                false);
+        }
+
         try
         {
             var pushSubscription = new WebPush.PushSubscription(

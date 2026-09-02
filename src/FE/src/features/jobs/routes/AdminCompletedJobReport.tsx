@@ -317,7 +317,7 @@ export function AdminCompletedJobReport() {
             )}
             <JobConversationLauncher
               jobId={job.id}
-              allowSubmitForReview={job.status === JobStatus.Draft || job.status === JobStatus.Rejected}
+              allowSubmitForReview={job.status === JobStatus.Draft || job.status === JobStatus.Rejected || job.status === JobStatus.Reopened}
               className="admin-case-reference-action"
             />
             <button type="button" className="admin-case-reference-action" onClick={handleHistoryFocus}>

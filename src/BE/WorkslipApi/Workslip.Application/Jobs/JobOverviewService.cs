@@ -8,6 +8,7 @@ public sealed record JobOverviewResponse(
     int InReviewCount,
     int ApprovedCount,
     int RejectedCount,
+    int ReopenedCount,
     IReadOnlyList<JobListItemResponse> RecentJobs);
 
 public interface IJobOverviewService
@@ -23,7 +24,8 @@ public sealed class JobOverviewService(IJobService jobService) : IJobOverviewSer
         JobStatus.Draft,
         JobStatus.InReview,
         JobStatus.Approved,
-        JobStatus.Rejected
+        JobStatus.Rejected,
+        JobStatus.Reopened
     ];
 
     public async Task<Result<JobOverviewResponse>> GetAsync(CancellationToken cancellationToken)
@@ -39,6 +41,9 @@ public sealed class JobOverviewService(IJobService jobService) : IJobOverviewSer
 
         var rejected = await CountAsync(JobStatus.Rejected, cancellationToken);
         if (!rejected.IsSuccess) return Result<JobOverviewResponse>.Unauthorized();
+
+        var reopened = await CountAsync(JobStatus.Reopened, cancellationToken);
+        if (!reopened.IsSuccess) return Result<JobOverviewResponse>.Unauthorized();
 
         var recent = await jobService.ListAsync(
             AllStatuses,
@@ -59,6 +64,7 @@ public sealed class JobOverviewService(IJobService jobService) : IJobOverviewSer
             inReview.Value,
             approved.Value,
             rejected.Value,
+            reopened.Value,
             recent.Value.Items));
     }
 

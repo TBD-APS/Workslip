@@ -53,6 +53,9 @@ try {
   console.log('[playwright] lifecycle: fixture create -> user submit -> reject -> correct -> resubmit -> approve.');
   await verifyRejectionCorrectionLifecycle();
 
+  console.log('[playwright] lifecycle: fixture create -> user submit -> approve -> reopen -> correct -> resubmit -> approve.');
+  await verifyReopenedLifecycle();
+
   console.log('[playwright] critical job lifecycle flows passed.');
 } finally {
   await browser.close();
@@ -327,6 +330,67 @@ async function verifyRejectionCorrectionLifecycle() {
     const historyText = JSON.stringify(history).toLowerCase();
     for (const expected of ['afvist', 'til gennemsyn', 'godkendt']) {
       assert.ok(historyText.includes(expected), `Job history must include status "${expected}".`);
+    }
+
+    adminHarness.assertCleanBrowser();
+    userHarness.assertCleanBrowser();
+  } finally {
+    await adminHarness.close();
+    await userHarness.close();
+  }
+}
+
+async function verifyReopenedLifecycle() {
+  const adminHarness = await createLifecycleSession({ email: ADMIN_EMAIL, role: 'Admin', suffix: 'reopen-admin' });
+  const userHarness = await createLifecycleSession({ email: USER_EMAIL, role: 'User', suffix: 'reopen-user' });
+  const reopenReason = 'Playwright: genåbnet for rettelse efter godkendelse.';
+
+  try {
+    const assignedUser = await resolveAssignedUser(adminHarness.session, USER_EMAIL);
+    const job = await createAssignedKlsJob(adminHarness.session, assignedUser);
+    await domain.completeAndSubmitKlsViaUi(userHarness.session, job);
+
+    await domain.approveJobViaUi(adminHarness.session, job.id);
+    const approved = await adminHarness.session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
+    contractHelpers.assertStatus(approved, ['Approved', 'Godkendt']);
+
+    await domain.reopenJobViaUi(adminHarness.session, job.id, reopenReason);
+    const reopened = await adminHarness.session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
+    contractHelpers.assertStatus(reopened, ['Reopened', 'Genåbnet']);
+    assert.equal(reopened.rejectionNote, reopenReason, 'Reopen reason must persist with the reopened job.');
+
+    // After reopen the job is editable again – user corrects and resubmits
+    await userHarness.session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+    await contractHelpers.waitForWizardStep(userHarness.session.page, 'Sagsdetaljer');
+    const commentTrigger = userHarness.session.page.locator('#job-technical-observations-trigger');
+    await commentTrigger.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    if ((await commentTrigger.getAttribute('aria-expanded')) !== 'true') {
+      await commentTrigger.click();
+    }
+    const technical = userHarness.session.page.locator('#job-technical-observations');
+    await technical.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await technical.fill(userHarness.session.data.correctedObservation);
+    const correctionSave = contractHelpers.waitForApiResponse(userHarness.session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
+    await domain.navigateToAttestation(userHarness.session, userHarness.session.referenceData);
+    await correctionSave;
+
+    await userHarness.session.page.locator('#job-attestation-confirmation').check();
+    const resubmittedResponse = contractHelpers.waitForApiResponse(userHarness.session.page, 'POST', `/api/jobs/${job.id}/status`, [200]);
+    await userHarness.session.page.locator('#job-attestation-submit').click();
+    await resubmittedResponse;
+
+    const resubmitted = await userHarness.session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
+    contractHelpers.assertStatus(resubmitted, ['InReview']);
+    assert.equal(resubmitted.rejectionNote, null, 'Reopen reason must be cleared after resubmission.');
+
+    await domain.approveJobViaUi(adminHarness.session, job.id);
+    const finalApproved = await adminHarness.session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
+    contractHelpers.assertStatus(finalApproved, ['Approved', 'Godkendt']);
+
+    const history = await adminHarness.session.apiExpect('GET', `/api/jobs/${job.id}/history`, undefined, [200]);
+    const historyText = JSON.stringify(history).toLowerCase();
+    for (const expected of ['godkendt', 'genåbnet', 'til gennemsyn']) {
+      assert.ok(historyText.includes(expected), `Job history must include status "${expected}" after reopen lifecycle.`);
     }
 
     adminHarness.assertCleanBrowser();

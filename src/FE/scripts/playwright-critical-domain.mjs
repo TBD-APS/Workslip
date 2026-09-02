@@ -202,6 +202,18 @@ async function rejectJobViaUi(session, jobId, rejectionNote = 'Mangler dokumenta
   await dialog.waitFor({ state: 'hidden', timeout: UI_TIMEOUT }).catch(() => {});
 }
 
+async function reopenJobViaUi(session, jobId, reopenReason = 'Playwright: genåbnet for rettelse efter godkendelse.') {
+  await session.page.goto(`${APP_URL}/app/completed/${jobId}`, { waitUntil: 'domcontentloaded' });
+  await session.page.locator('#admin-case-information-title').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await session.page.locator('button:visible').filter({ hasText: /^Genåbn sag$/ }).last().click();
+  const dialog = session.page.getByRole('dialog', { name: 'Genåbn godkendt sag' });
+  await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await dialog.locator('#status-reason').fill(reopenReason);
+  await dialog.getByRole('button', { name: 'Genåbn sag', exact: true }).click();
+  await waitForPersistedJobStatus(session, jobId, ['Reopened', 'Genåbnet']);
+  await dialog.waitFor({ state: 'hidden', timeout: UI_TIMEOUT }).catch(() => {});
+}
+
 async function createCustomerViaUi(session) {
   return session.step('create customer through UI', async () => {
     await session.page.goto(`${APP_URL}/app/customers/new`, { waitUntil: 'domcontentloaded' });
@@ -380,6 +392,7 @@ async function addWorksheetViaUi(session, user, hours) {
     navigateToAttestation,
     approveJobViaUi,
     rejectJobViaUi,
+    reopenJobViaUi,
     createCustomerViaUi,
     createCustomerFixtureViaApi,
     createMinimalJobFixtureViaApi,

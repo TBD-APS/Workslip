@@ -13,22 +13,48 @@ public sealed class PushNotificationProcessor
     private readonly INotificationRepository _notificationRepository;
     private readonly IPushSender _pushSender;
     private readonly INotificationService _notificationService;
+    private readonly IVapidPublicKeyProvider _vapidProvider;
     private readonly ILogger<PushNotificationProcessor> _logger;
 
+    // Preserve the existing direct-construction contract used by focused tests and
+    // non-DI callers. Runtime DI resolves the five-argument constructor below and
+    // therefore still applies the real VAPID configuration gate.
     public PushNotificationProcessor(
         INotificationRepository notificationRepository,
         IPushSender pushSender,
         INotificationService notificationService,
         ILogger<PushNotificationProcessor> logger)
+        : this(
+            notificationRepository,
+            pushSender,
+            notificationService,
+            AssumedConfiguredVapidPublicKeyProvider.Instance,
+            logger)
+    {
+    }
+
+    public PushNotificationProcessor(
+        INotificationRepository notificationRepository,
+        IPushSender pushSender,
+        INotificationService notificationService,
+        IVapidPublicKeyProvider vapidProvider,
+        ILogger<PushNotificationProcessor> logger)
     {
         _notificationRepository = notificationRepository;
         _pushSender = pushSender;
         _notificationService = notificationService;
+        _vapidProvider = vapidProvider;
         _logger = logger;
     }
 
     public async Task<int> ProcessBatchAsync(int batchSize, CancellationToken cancellationToken)
     {
+        if (!_vapidProvider.IsConfigured)
+        {
+            _logger.LogDebug("Skipping push batch – VAPID not configured (Vapid:PrivateKey missing). Push notifications are disabled.");
+            return 0;
+        }
+
         var notifications = await _notificationRepository
             .ClaimPendingNotificationsAsync(batchSize, cancellationToken);
 
@@ -338,4 +364,16 @@ public sealed class PushNotificationProcessor
         3 => TimeSpan.FromMinutes(15),
         _ => TimeSpan.FromHours(1)
     };
+
+    private sealed class AssumedConfiguredVapidPublicKeyProvider : IVapidPublicKeyProvider
+    {
+        public static readonly AssumedConfiguredVapidPublicKeyProvider Instance = new();
+
+        private AssumedConfiguredVapidPublicKeyProvider()
+        {
+        }
+
+        public string PublicKey => string.Empty;
+        public bool IsConfigured => true;
+    }
 }

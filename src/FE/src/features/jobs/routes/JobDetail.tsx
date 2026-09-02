@@ -18,8 +18,9 @@ export const JobDetail = () => {
   const details = useJobDetails(id);
   const jobStatus = details.job?.status;
   const loadedJobId = details.job?.id;
+  const referenceData = details.referenceData;
   const { setCurrentStep } = details;
-  const normalizedRejectedJobIdRef = useRef<string | null>(null);
+  const normalizedCorrectionJobIdRef = useRef<string | null>(null);
 
   useScrollRestore(`job:${id}`);
 
@@ -32,21 +33,29 @@ export const JobDetail = () => {
 
   useEffect(() => {
     if (!id || !loadedJobId || loadedJobId !== id) {
-      normalizedRejectedJobIdRef.current = null;
+      normalizedCorrectionJobIdRef.current = null;
       return;
     }
 
-    if (jobStatus !== JobStatus.Rejected || isAdmin) {
-      normalizedRejectedJobIdRef.current = null;
+    const shouldNormalizeRejected = jobStatus === JobStatus.Rejected && !isAdmin;
+    // Reopened jobs have already completed the normal worksheet path. Wait for
+    // reference data so this normalization is registered in the same render as
+    // (and after) the generic worksheet auto-navigation decision.
+    const shouldNormalizeReopened = jobStatus === JobStatus.Reopened && Boolean(referenceData);
+
+    if (!shouldNormalizeRejected && !shouldNormalizeReopened) {
+      if (jobStatus !== JobStatus.Reopened) {
+        normalizedCorrectionJobIdRef.current = null;
+      }
       return;
     }
 
-    if (normalizedRejectedJobIdRef.current === loadedJobId) return;
-    normalizedRejectedJobIdRef.current = loadedJobId;
+    if (normalizedCorrectionJobIdRef.current === loadedJobId) return;
+    normalizedCorrectionJobIdRef.current = loadedJobId;
 
     setCurrentStep((step) => (step === 0 ? step : 0));
     document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
-  }, [id, loadedJobId, jobStatus, setCurrentStep, isAdmin]);
+  }, [id, loadedJobId, jobStatus, referenceData, setCurrentStep, isAdmin]);
 
   if (id && details.job?.jobType === 'Diverse') {
     return <Navigate to={`/app/completed/${id}${location.search}`} replace state={{ from }} />;

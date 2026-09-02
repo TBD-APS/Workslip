@@ -648,6 +648,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
         JobStatus.InReview => "Til gennemsyn",
         JobStatus.Approved => "Godkendt",
         JobStatus.Rejected => "Returneret",
+        JobStatus.Reopened => "Genåbnet",
         _ => status.ToString()
     };
 
@@ -657,6 +658,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
         "InReview" => "Til gennemsyn",
         "Approved" => "Godkendt",
         "Rejected" => "Returneret",
+        "Reopened" => "Genåbnet",
         _ => status
     };
 
@@ -666,6 +668,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
         JobStatus.InReview => Color.FromHex("#93C5FD"),
         JobStatus.Approved => Color.FromHex("#86EFAC"),
         JobStatus.Rejected => Color.FromHex("#FCA5A5"),
+        JobStatus.Reopened => Color.FromHex("#FED7AA"),
         _ => Colors.White
     };
 
