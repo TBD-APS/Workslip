@@ -56,7 +56,7 @@ var graphRoleIds = {
   appRoleAssignmentReadWriteAll: '06b708a9-e830-4db3-a914-8e69da51d44f'
 }
 
-resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
+resource registry 'Microsoft.ContainerRegistry/registries@2025-11-01' = {
   name: registryName
   location: location
   tags: tags
@@ -68,6 +68,10 @@ resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
     // pulls through the dedicated runtime managed identity and CI pushes through
     // its own identity instead of sharing the ACR admin account.
     adminUserEnabled: false
+    // This deployment still uses the legacy registry-wide AcrPull/AcrPush roles.
+    // Pin the registry to RBAC-only mode so a future ACR default change to ABAC
+    // cannot make those assignments ineffective without an explicit migration.
+    roleAssignmentMode: 'LegacyRegistryPermissions'
     // Managed-identity image pulls use ARM-audience tokens. Keep this explicit so
     // registry drift cannot silently break Container Apps image authentication.
     policies: {
