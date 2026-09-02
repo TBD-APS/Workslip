@@ -2,6 +2,25 @@
 
 How Workslip moves to a new Entra tenant, and what has to be recreated rather than copied.
 
+## Status and tooling
+
+The `mrsoftware` → `mrsoftwarev2` move is **done**; the `live` tenant is the one
+serving customers. This page stays as the explanation of *why* the object-ID
+problem exists and how to reason about it, which applies to any future move.
+
+For the live tenant, prefer the workflows over running scripts by hand — they
+carry the protected-environment approval and the typed confirmation:
+
+| Task | Entry point |
+|---|---|
+| Reconcile guests, app roles and Entra object IDs in `live` | `Entra · Reconcile Workslip live B2B guests` (`aca-live-entra-guests.yml`), `mode: report` then `apply` with `RECONCILE_GUESTS` |
+| Move B2B guests across tenants | `src/BE/infrastructure/aca/migrate-live-b2b-guests-between-tenants.ps1` |
+| Object-ID backfill for a non-live environment or a fresh tenant | `src/BE/infrastructure/backfill-entra-object-ids.ps1` |
+
+`reconcile-live-entra-guests.ps1` is the implementation the workflow calls; it is
+not a separate operator entry point. The `report` mode writes nothing, so it is
+the safe first move in every case.
+
 ## What survives and what does not
 
 Azure resources are redeployed from `main.bicep`. Application data is cloned. Neither of
