@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { Navigate, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { JobDetailsPage } from '../components/JobDetails';
@@ -18,8 +18,7 @@ export const JobDetail = () => {
   const details = useJobDetails(id);
   const jobStatus = details.job?.status;
   const loadedJobId = details.job?.id;
-  const { setCurrentStep } = details;
-  const normalizedCorrectionJobIdRef = useRef<string | null>(null);
+  const { currentStep, setCurrentStep } = details;
 
   useScrollRestore(`job:${id}`);
 
@@ -31,29 +30,20 @@ export const JobDetail = () => {
   }, [id, jobStatus, isAdmin, queryClient]);
 
   useEffect(() => {
-    if (!id || !loadedJobId || loadedJobId !== id) {
-      normalizedCorrectionJobIdRef.current = null;
-      return;
-    }
+    if (!id || !loadedJobId || loadedJobId !== id) return;
 
     // Rejected jobs are corrected by the assignee; Reopened jobs are correction
-    // states for both roles. Keep both at Sagsdetaljer instead of letting the
-    // worksheet auto-navigation move the user away before they can edit the case.
-    const shouldNormalizeCorrectionStep =
+    // states for both roles. Keep both at Sagsdetaljer even if the generic
+    // worksheet auto-navigation resolves later and tries to move the wizard.
+    const shouldStayOnCorrectionOverview =
       jobStatus === JobStatus.Reopened ||
       (jobStatus === JobStatus.Rejected && !isAdmin);
 
-    if (!shouldNormalizeCorrectionStep) {
-      normalizedCorrectionJobIdRef.current = null;
-      return;
-    }
+    if (!shouldStayOnCorrectionOverview || currentStep === 0) return;
 
-    if (normalizedCorrectionJobIdRef.current === loadedJobId) return;
-    normalizedCorrectionJobIdRef.current = loadedJobId;
-
-    setCurrentStep((step) => (step === 0 ? step : 0));
+    setCurrentStep(0);
     document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
-  }, [id, loadedJobId, jobStatus, setCurrentStep, isAdmin]);
+  }, [id, loadedJobId, jobStatus, currentStep, setCurrentStep, isAdmin]);
 
   if (id && details.job?.jobType === 'Diverse') {
     return <Navigate to={`/app/completed/${id}${location.search}`} replace state={{ from }} />;
