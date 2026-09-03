@@ -1,0 +1,25 @@
+# MCP server dev environment
+version: '3.9'
+
+services:
+  workslip-visuals-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workslip-visuals-mcp
+    environment:
+      - NODE_ENV=development
+      - WORKSLIP_API_URL=http://host.docker.internal:5262
+      - WORKSLIP_API_TOKEN=${WORKSLIP_API_TOKEN}
+      - WORKSLIP_APP_URL=http://host.docker.internal:5270
+    ports:
+      - "3001:3001"
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./src:/app/src
+      - node-modules:/app/node_modules
+    command: npm run dev
+
+volumes:
+  node-modules:
