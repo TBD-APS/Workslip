@@ -1,0 +1,35 @@
+name: Knowledge validation
+
+on:
+  pull_request:
+    paths:
+      - 'Docs/**'
+      - 'docs/**'
+      - 'tools/knowledge/**'
+      - 'tools/docs/**'
+      - '.github/workflows/knowledge-validation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Docs/**'
+      - 'docs/**'
+      - 'tools/knowledge/**'
+      - 'tools/docs/**'
+
+permissions:
+  contents: read
+
+jobs:
+  knowledge:
+    name: Knowledge corpus contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Validate maintained documentation
+        run: python tools/docs/check_docs.py
+      - name: Validate RAG knowledge contract
+        run: python tools/knowledge/validate_knowledge.py
