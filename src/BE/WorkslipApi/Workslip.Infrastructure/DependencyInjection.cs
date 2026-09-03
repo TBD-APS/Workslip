@@ -102,6 +102,8 @@ public static class DependencyInjection
         services.AddScoped<SqlUserBillingRepository>();
         services.AddScoped<IUserBillingRepository, HistorySafeUserBillingRepository>();
         services.AddScoped<IAccountingSyncRepository, SqlAccountingSyncRepository>();
+        services.AddScoped<IEconomicConnectionStore, SqlEconomicConnectionStore>();
+        services.AddScoped<IEconomicConnectionService, EconomicConnectionService>();
         services.AddScoped<IAccountingOperationsService, AccountingOperationsService>();
         services.AddScoped<IWorksheetRepository, EfWorksheetRepository>();
         services.AddSingleton<IMonthlyHoursPdfGenerator, MonthlyCostingPdfGenerator>();
@@ -167,8 +169,10 @@ public static class DependencyInjection
         services.AddScoped<IIntegrationEngine, IntegrationEngine>();
         services.AddScoped<IIntegrationProvider, MockAccountingProvider>();
         services.AddScoped<IAccountingProvider, MockAccountingProvider>();
-        services.AddScoped<IIntegrationProvider, EconomicsProvider>();
-        services.AddScoped<IAccountingProvider, EconomicsProvider>();
+        services.AddScoped<EconomicsProvider>();
+        services.AddScoped<IIntegrationProvider>(serviceProvider => serviceProvider.GetRequiredService<EconomicsProvider>());
+        services.AddScoped<IAccountingProvider>(serviceProvider => serviceProvider.GetRequiredService<EconomicsProvider>());
+        services.AddScoped<IEconomicConnectionVerifier>(serviceProvider => serviceProvider.GetRequiredService<EconomicsProvider>());
         services.AddScoped<IDocumentSyncService, DocumentSyncService>();
         services.AddScoped<ILeaderEconomicsService, LeaderEconomicsService>();
 
