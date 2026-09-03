@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Workslip.Api.Helpers;
 using Workslip.Application.Integrations;
@@ -45,7 +46,7 @@ public static class AccountingIntegrationEndpoints
                     new CookieOptions
                     {
                         HttpOnly = true,
-                        Secure = httpContext.Request.IsHttps,
+                        Secure = true,
                         SameSite = SameSiteMode.Lax,
                         MaxAge = TimeSpan.FromMinutes(10),
                         Path = "/api/accounting/economic/callback",
@@ -226,7 +227,7 @@ public static class AccountingIntegrationEndpoints
                 httpContext.Response.Cookies.Delete(EconomicCorrelationCookie, new CookieOptions
                 {
                     Path = "/api/accounting/economic/callback",
-                    Secure = httpContext.Request.IsHttps,
+                    Secure = true,
                     SameSite = SameSiteMode.Lax
                 });
                 return Results.Redirect("/app/settings?economic=connected");
@@ -236,12 +237,14 @@ public static class AccountingIntegrationEndpoints
                 httpContext.Response.Cookies.Delete(EconomicCorrelationCookie, new CookieOptions
                 {
                     Path = "/api/accounting/economic/callback",
-                    Secure = httpContext.Request.IsHttps,
+                    Secure = true,
                     SameSite = SameSiteMode.Lax
                 });
                 return Results.Redirect("/app/settings?economic=error");
             }
-        }).ExcludeFromDescription();
+        })
+        .AllowAnonymous()
+        .ExcludeFromDescription();
 
         return app;
     }
