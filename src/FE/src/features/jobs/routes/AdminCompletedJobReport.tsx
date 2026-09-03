@@ -31,6 +31,7 @@ import {
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import type { JobHistoryResponse } from '../../../api/generated/models';
 import { ErrorState } from '../../../components/ErrorState';
+import { useModalAccessibility } from '../../../components/common/useModalAccessibility';
 import { formatDateLong, formatDateTime } from '../../../lib/formatDate';
 import { notify } from '../../../lib/toast';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
@@ -518,6 +519,17 @@ function ActionSuccessDialog({
   onGoToJobList: () => void;
   onGoToJob: () => void;
 }) {
+  const primaryButtonRef = useRef<HTMLButtonElement>(null);
+  // This dialog has no dismiss-only exit: both buttons are route changes, so an
+  // Escape mapped to onClose would navigate to the case list - a keystroke users
+  // press to back out would instead leave the page. Escape is therefore disabled
+  // and leaving takes an explicit press; the focus trap and initial focus stay.
+  const dialogRef = useModalAccessibility<HTMLDivElement>({
+    open: true,
+    onClose: onGoToJobList,
+    initialFocusRef: primaryButtonRef,
+    closeOnEscape: false,
+  });
   const isUndoReject = action === 'undo-reject';
   const isApprove = action === 'approve';
   const isReopen = action === 'reopen';
@@ -537,15 +549,22 @@ function ActionSuccessDialog({
         : <>Sagen <strong>{reportNumber}</strong> er afvist.</>;
 
   return createPortal(
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="admin-case-action-success-title">
-      <div className="modal-card">
+    <div className="modal-backdrop">
+      <div
+        ref={dialogRef}
+        className="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-case-action-success-title"
+        tabIndex={-1}
+      >
         <h3 id="admin-case-action-success-title">{title}</h3>
         <p>{body}</p>
         <div className="modal-actions modal-actions--double">
           <button className="btn btn-secondary" type="button" onClick={onGoToJobList}>
             Til sagslisten
           </button>
-          <button className="btn btn-primary" type="button" onClick={onGoToJob}>
+          <button ref={primaryButtonRef} className="btn btn-primary" type="button" onClick={onGoToJob}>
             Til sagen
           </button>
         </div>

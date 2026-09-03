@@ -90,17 +90,8 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
         )}
 
         <div className="modal-actions modal-actions--double">
-          {isApprove ? (
-            <>
-              {cancelButton}
-              {confirmButton}
-            </>
-          ) : (
-            <>
-              {confirmButton}
-              {cancelButton}
-            </>
-          )}
+          {cancelButton}
+          {confirmButton}
         </div>
       </div>
     </div>,
