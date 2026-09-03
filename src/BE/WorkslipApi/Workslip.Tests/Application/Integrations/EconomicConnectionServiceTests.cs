@@ -7,12 +7,15 @@ namespace Workslip.Tests.Application.Integrations;
 
 public sealed class EconomicConnectionServiceTests
 {
-    private static IConfiguration Configuration(string installationUrl = "https://secure.e-conomic.com/secure/api1/requestaccess.aspx?appPublicToken=test") =>
+    private static IConfiguration Configuration(
+        string installationUrl = "https://secure.e-conomic.com/secure/api1/requestaccess.aspx?appPublicToken=test",
+        string? encryptionKey = "0123456789abcdef0123456789abcdef") =>
         new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Integrations:Economic:AppSecretToken"] = "app-secret",
                 ["Integrations:Economic:InstallationUrl"] = installationUrl,
+                ["Integrations:Economic:TokenEncryptionKey"] = encryptionKey,
             })
             .Build();
 
@@ -36,6 +39,38 @@ public sealed class EconomicConnectionServiceTests
         Assert.Equal(organizationId, attempt.Value.OrganizationId);
         Assert.InRange(attempt.Value.ExpiresAt, DateTimeOffset.UtcNow.AddMinutes(9), DateTimeOffset.UtcNow.AddMinutes(11));
         Assert.DoesNotContain(result.CorrelationToken, attempt.Key, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StartAsync_RejectsNonEconomicInstallationHost()
+    {
+        var service = new EconomicConnectionService(
+            new FakeStore(),
+            new FakeVerifier(),
+            new MutableCurrentUserContext { OrganizationId = Guid.NewGuid() },
+            Configuration("https://example.com/connect"));
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.StartAsync(CancellationToken.None));
+
+        Assert.Contains("official secure e-conomic URL", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task StartAsync_RejectsMissingDedicatedEncryptionKey()
+    {
+        var service = new EconomicConnectionService(
+            new FakeStore(),
+            new FakeVerifier(),
+            new MutableCurrentUserContext { OrganizationId = Guid.NewGuid() },
+            Configuration(encryptionKey: null));
+
+        var status = await service.GetStatusAsync(CancellationToken.None);
+        Assert.False(status.Available);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.StartAsync(CancellationToken.None));
+        Assert.Contains("encryption key", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
