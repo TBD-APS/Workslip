@@ -3,7 +3,11 @@
   grid-template-columns: minmax(17rem, 22rem) minmax(0, 1fr);
   min-height: calc(100dvh - 10.5rem);
   margin: -1.5rem;
-  margin-bottom: calc(-1 * (var(--bottom-nav-height) + var(--bottom-nav-extra)));
+  /* Cancel .app-content's bottom reserve exactly (AppLayout.shell.css) so the
+     docs panes reach the shell edge without overhanging it. Same token, same
+     formula — --app-bottom-chrome is declared on .app-shell and inherits here,
+     and it is the only side of the pair that changes per breakpoint. */
+  margin-bottom: calc(-1 * (var(--app-bottom-chrome) + var(--bottom-nav-extra)));
   background: var(--bg);
   overflow: hidden;
 }
@@ -546,7 +550,7 @@
     display: block;
     min-height: calc(100dvh - 8rem);
     margin: -1rem;
-    margin-bottom: calc(-1 * (var(--bottom-nav-height) + var(--bottom-nav-extra)));
+    margin-bottom: calc(-1 * (var(--app-bottom-chrome) + var(--bottom-nav-extra)));
   }
 
   .docs-sidebar {
