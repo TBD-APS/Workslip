@@ -2,7 +2,7 @@
 
 Workslip owns operational job data. The connected accounting system remains the accounting source of truth for booked invoices, payments, VAT, journals, bank reconciliation and statutory accounting.
 
-The accounting boundary is deliberately narrow:
+The accounting boundary is deliberately narrow. The Workslip UI may surface operational accounting actions, but accounting finalization remains in the connected provider:
 
 - tenant-scoped provider selection and credentials come from configuration / secret-backed configuration;
 - Workslip persists only external identifiers and synchronization state;
