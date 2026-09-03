@@ -51,6 +51,27 @@ vi.mock('../api', () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   }),
+  useEconomicConnection: () => ({
+    isLoading: false,
+    isError: false,
+    data: {
+      available: false,
+      connected: false,
+      providerId: 'economics',
+      providerDisplayName: 'e-conomic',
+      agreementNumber: null,
+      companyName: null,
+      connectedAt: null,
+    },
+  }),
+  useStartEconomicConnection: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useDisconnectEconomic: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
 }));
 
 vi.mock('../../../lib/toast', () => ({
