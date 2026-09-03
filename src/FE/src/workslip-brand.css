@@ -176,7 +176,6 @@ html body:has(.app-shell) :is(
   .nav-item.active,
   .user-avatar[aria-current="page"],
   .linked-job-link,
-  .nav-maps-link:hover,
   .pull-to-refresh.ready,
   .pull-to-refresh.refreshing,
   .multi-select-option-icon,
@@ -197,10 +196,15 @@ html body:has(.app-shell) .linked-job-row:focus-visible {
 
 html body:has(.app-shell) :is(
   .unread-dot,
-  .unassigned-dot,
   .worksheet-list-item.is-selected::before
 ) {
   background: var(--color-info);
+}
+
+/* 'Ikke tildelt' is an assignment gap, not unread activity, so it takes the
+   neutral status tone instead of sharing petrol with `.unread-dot`. */
+html body:has(.app-shell) .unassigned-dot {
+  background: var(--status-neutral-text);
 }
 
 html body:has(.app-shell) .favorite-customer-icon {
