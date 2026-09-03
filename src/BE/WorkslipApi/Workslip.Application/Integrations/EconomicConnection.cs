@@ -78,9 +78,12 @@ public sealed class EconomicConnectionService(
         var metadata = await store.GetConnectionMetadataAsync(organizationId, cancellationToken);
         var installationUrl = configuration["Integrations:Economic:InstallationUrl"];
         var appSecret = configuration["Integrations:Economic:AppSecretToken"];
+        var encryptionKey = configuration["Integrations:Economic:TokenEncryptionKey"];
 
         return new EconomicConnectionStatusResponse(
-            Available: IsSafeInstallationUrl(installationUrl) && !string.IsNullOrWhiteSpace(appSecret),
+            Available: IsSafeInstallationUrl(installationUrl) &&
+                       !string.IsNullOrWhiteSpace(appSecret) &&
+                       HasStrongEncryptionKey(encryptionKey),
             Connected: metadata is not null,
             ProviderId: "economics",
             ProviderDisplayName: "e-conomic",
@@ -94,11 +97,14 @@ public sealed class EconomicConnectionService(
         var organizationId = RequireOrganization();
         var installationUrl = configuration["Integrations:Economic:InstallationUrl"];
         var appSecret = configuration["Integrations:Economic:AppSecretToken"];
+        var encryptionKey = configuration["Integrations:Economic:TokenEncryptionKey"];
 
         if (!IsSafeInstallationUrl(installationUrl))
-            throw new InvalidOperationException("e-conomic installation URL is not configured with a valid HTTPS URL.");
+            throw new InvalidOperationException("e-conomic installation URL is not configured with the official secure e-conomic URL.");
         if (string.IsNullOrWhiteSpace(appSecret))
             throw new InvalidOperationException("e-conomic app secret is not configured.");
+        if (!HasStrongEncryptionKey(encryptionKey))
+            throw new InvalidOperationException("e-conomic token encryption key must be configured with at least 32 characters.");
 
         var correlationToken = Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
         var correlationHash = HashCorrelation(correlationToken);
@@ -149,10 +155,13 @@ public sealed class EconomicConnectionService(
     private static string Base64UrlEncode(byte[] bytes) =>
         Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
+    private static bool HasStrongEncryptionKey(string? value) =>
+        !string.IsNullOrWhiteSpace(value) && value.Trim().Length >= 32;
+
     private static bool IsSafeInstallationUrl(string? value) =>
         Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
         string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
-        !string.IsNullOrWhiteSpace(uri.Host);
+        string.Equals(uri.Host, "secure.e-conomic.com", StringComparison.OrdinalIgnoreCase);
 
     private static string AddLocale(string installationUrl)
     {
