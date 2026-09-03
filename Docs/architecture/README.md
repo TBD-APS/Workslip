@@ -8,6 +8,7 @@ Current implementation is the technical source of truth. This area records durab
 
 ## Current architecture views
 
+- [`accounting-integration-boundary.md`](accounting-integration-boundary.md) — operational boundary between Workslip job economics and external accounting providers such as e-conomic.
 - [`domain-and-dataflows.md`](domain-and-dataflows.md) — tenant ownership and core data-integrity boundaries.
 - [`dependency-map.md`](dependency-map.md) — generated module coupling map; regenerate with `node tools/depmap/depmap.mjs`.
 - [`figma-design-environment.md`](figma-design-environment.md) — colour-token ownership, the Figma export contract and design-file layout.

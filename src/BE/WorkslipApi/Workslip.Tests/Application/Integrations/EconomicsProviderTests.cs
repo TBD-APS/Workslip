@@ -4,13 +4,12 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Json;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 using Workslip.Application.Integrations;
-using Workslip.Domain.Models;
 
 namespace Workslip.Tests.Application.Integrations;
 
@@ -19,41 +18,59 @@ public sealed class EconomicsProviderTests
     private EconomicsProvider CreateProvider(HttpMessageHandler handler)
     {
         var factory = new FakeHttpClientFactory(handler);
-        return new EconomicsProvider(factory);
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Integrations:Economic:AppSecretToken"] = "test-app-secret",
+                ["Integrations:Economic:Agreements:tenant-1:GrantToken"] = "test-grant",
+                ["Integrations:Economic:Agreements:t:GrantToken"] = "test-grant",
+                ["Integrations:Economic:Defaults:CustomerGroupNumber"] = "1",
+                ["Integrations:Economic:Defaults:PaymentTermsNumber"] = "1",
+                ["Integrations:Economic:Defaults:VatZoneNumber"] = "1",
+                ["Integrations:Economic:Products:Hours"] = "HOURS",
+                ["Integrations:Economic:Products:Material"] = "MATERIAL",
+                ["Integrations:Economic:Products:Outlay"] = "OUTLAY",
+            })
+            .Build();
+        return new EconomicsProvider(factory, configuration);
     }
 
     [Fact]
     public async Task TestConnectionAsync_ReturnsTrue_WhenApiRespondsSuccess()
     {
-        // Arrange
         var handler = new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.OK));
         var provider = CreateProvider(handler);
 
-        // Act
         var result = await provider.TestConnectionAsync("tenant-1");
 
-        // Assert
         Assert.True(result);
     }
 
     [Fact]
     public async Task TestConnectionAsync_ReturnsFalse_WhenApiRespondsError()
     {
-        // Arrange
         var handler = new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.InternalServerError));
         var provider = CreateProvider(handler);
 
-        // Act
         var result = await provider.TestConnectionAsync("tenant-1");
 
-        // Assert
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task TestConnectionAsync_ReturnsFalse_WhenTenantHasNoCredentials()
+    {
+        var handler = new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.OK));
+        var provider = CreateProvider(handler);
+
+        var result = await provider.TestConnectionAsync("unconfigured-tenant");
+
         Assert.False(result);
     }
 
     [Fact]
     public async Task GetDocumentsForUserAsync_MapsJsonCorrectly_WhenApiReturnsInvoices()
     {
-        // Arrange
         var json = @"{
             ""collection"": [
                 {
@@ -84,10 +101,8 @@ public sealed class EconomicsProviderTests
         });
         var provider = CreateProvider(handler);
 
-        // Act
         var docs = (await provider.GetDocumentsForUserAsync("t", "u", "s", "e")).ToList();
 
-        // Assert
         Assert.Equal(2, docs.Count);
         var first = docs.First();
         Assert.Equal("101", first.DocumentId);
@@ -99,23 +114,18 @@ public sealed class EconomicsProviderTests
     }
 
     [Fact]
-    public async Task GetDocumentsForUserAsync_ReturnsEmpty_WhenApiReturnsError()
+    public async Task GetDocumentsForUserAsync_PropagatesProviderFailure()
     {
-        // Arrange
         var handler = new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.NotFound));
         var provider = CreateProvider(handler);
 
-        // Act
-        var docs = await provider.GetDocumentsForUserAsync("t", "u", "s", "e");
-
-        // Assert
-        Assert.Empty(docs);
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            provider.GetDocumentsForUserAsync("t", "u", "s", "e"));
     }
 
     [Fact]
     public async Task GetDocumentStreamAsync_ReturnsStream_WhenApiRespondsSuccess()
     {
-        // Arrange
         var content = "Fake PDF Content";
         var handler = new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -123,10 +133,8 @@ public sealed class EconomicsProviderTests
         });
         var provider = CreateProvider(handler);
 
-        // Act
         using var stream = await provider.GetDocumentStreamAsync("t", "doc-1");
 
-        // Assert
         Assert.NotNull(stream);
         using var reader = new StreamReader(stream);
         Assert.Equal(content, await reader.ReadToEndAsync());
@@ -135,14 +143,11 @@ public sealed class EconomicsProviderTests
     [Fact]
     public async Task GetDocumentStreamAsync_ReturnsNull_WhenApiRespondsError()
     {
-        // Arrange
         var handler = new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.NotFound));
         var provider = CreateProvider(handler);
 
-        // Act
         var stream = await provider.GetDocumentStreamAsync("t", "doc-1");
 
-        // Assert
         Assert.Null(stream);
     }
 
@@ -158,6 +163,6 @@ public sealed class EconomicsProviderTests
     {
         private readonly HttpMessageHandler _handler;
         public FakeHttpClientFactory(HttpMessageHandler handler) => _handler = handler;
-        public HttpClient CreateClient(string name = "") => new HttpClient(_handler);
+        public HttpClient CreateClient(string name = "") => new HttpClient(_handler, disposeHandler: false);
     }
 }
