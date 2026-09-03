@@ -101,6 +101,8 @@ public static class DependencyInjection
         services.AddScoped<ISuperAdminUserRepository, EfSuperAdminUserRepository>();
         services.AddScoped<SqlUserBillingRepository>();
         services.AddScoped<IUserBillingRepository, HistorySafeUserBillingRepository>();
+        services.AddScoped<IAccountingSyncRepository, SqlAccountingSyncRepository>();
+        services.AddScoped<IAccountingOperationsService, AccountingOperationsService>();
         services.AddScoped<IWorksheetRepository, EfWorksheetRepository>();
         services.AddSingleton<IMonthlyHoursPdfGenerator, MonthlyCostingPdfGenerator>();
         services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
