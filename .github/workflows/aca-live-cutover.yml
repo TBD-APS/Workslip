@@ -152,6 +152,27 @@ jobs:
           | TXT | \`asuid.app\` | \`$VERIFICATION_ID\` |
 
           Then dispatch this workflow from \`main\` with mode \`bind\` and confirmation \`CUTOVER\`.
+
+          ### The CNAME change is the traffic cutover
+
+          \`$LIVE_DOMAIN\` is the customer-facing production domain. Publishing the CNAME
+          above moves live traffic to the Container App immediately, at the DNS provider,
+          outside this workflow and outside every guard in it.
+
+          Azure cannot validate the custom domain until that record already exists, so there
+          is an unavoidable window in which the production domain resolves to a Container App
+          that has not yet accepted the hostname and has no managed TLS certificate. Users who
+          arrive during that window get a certificate error or a 404 — not degraded service.
+
+          Treat the DNS change and \`bind\` as one operation:
+
+          1. Run \`prepare\` and keep these values to hand.
+          2. Open a maintenance window with a named operator and a rollback commander.
+          3. Publish both DNS records.
+          4. Dispatch \`bind\` immediately — not later, not the next day.
+          5. If \`bind\` fails, revert the CNAME to its previous target to close the window.
+
+          Do not publish the CNAME until step 4 can follow it within minutes.
           EOF
 
       - name: Require canonical Entra redirect before binding
