@@ -9,6 +9,52 @@
 | SQL Server | `localhost,1433` | sa / `WorkslipLocal123!` (matches `appsettings.Local.json`) |
 | Seq | http://localhost:5341 | structured log viewer |
 
+## Saassy-style demo commands
+
+Workslip exposes the same everyday local command contract as MR SAAS'y:
+
+```bash
+make demo         # start Workslip locally
+make demo-status  # show status
+make demo-logs    # follow logs
+make demo-down    # stop; persistent volumes survive
+```
+
+On macOS, `make demo` opens OrbStack when it is installed, waits for the `orbstack` Docker context, switches to it non-destructively, validates the Compose model, starts the full stack and waits until both the API and frontend are reachable. It never resets OrbStack and never deletes Docker volumes automatically.
+
+When startup succeeds it prints copyable endpoint variables:
+
+```text
+WORKSLIP_URL=http://127.0.0.1:5270
+WORKSLIP_API_URL=http://127.0.0.1:5262
+WORKSLIP_SEQ_URL=http://127.0.0.1:5341
+```
+
+The older `make up`, `make ps`, `make logs` and `make down` targets remain supported.
+
+### Global `workslip` command
+
+Install the repository-aware command once:
+
+```bash
+make install-global
+```
+
+It installs `workslip` in `~/.local/bin` and records the current repository path in the generated wrapper. If `~/.local/bin` is not already on `PATH`, the installer prints the one-line `export PATH=...` command to add to your shell configuration.
+
+After that these commands work from any directory:
+
+```bash
+workslip          # start
+workslip status   # status
+workslip logs     # logs
+workslip down     # stop, keep data
+```
+
+Re-run `make install-global` if the repository is moved to another path. Remove the command with `make uninstall-global`.
+
+The destructive local reset stays explicit as `make down-hard` from the repository; it is intentionally not exposed through the global shortcut.
+
 ## Cleaner startup
 
 On the **first** start Compose waits ~1 minute for SQL Server to report healthy before it creates the API (which `depends_on` the db healthcheck). During that wait some terminals redraw the progress line repeatedly, printing many identical `[+] up 6/7... Created` lines. This is expected waiting, not an error — the stack finishes once the db is healthy (subsequent starts are faster because the SQL volume is already initialized).
