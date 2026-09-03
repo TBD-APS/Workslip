@@ -59,6 +59,22 @@ const formatCurrency = (value: number) => new Intl.NumberFormat('da-DK', {
   maximumFractionDigits: 0,
 }).format(value);
 
+const formatPercent = (value: number) => new Intl.NumberFormat('da-DK', {
+  style: 'percent',
+  maximumFractionDigits: 0,
+}).format(value);
+
+export const calculateEconomicsKpis = (rows: AnalyticsResponse['workHours']) => {
+  const totalHours = rows.reduce((sum, row) => sum + (row.hours ?? 0), 0);
+  const pricedHours = rows.reduce((sum, row) => sum + (row.billableAmount !== null ? (row.hours ?? 0) : 0), 0);
+  const totalBillable = rows.reduce((sum, row) => sum + (row.billableAmount ?? 0), 0);
+  const unpricedHours = Math.max(0, totalHours - pricedHours);
+  const pricingCoverage = totalHours > 0 ? pricedHours / totalHours : 0;
+  const averageBillableRate = pricedHours > 0 ? totalBillable / pricedHours : 0;
+
+  return { totalHours, pricedHours, unpricedHours, totalBillable, pricingCoverage, averageBillableRate };
+};
+
 const monthKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 const monthLabel = (key: string) => {
   const [year, month] = key.split('-').map(Number);
@@ -80,18 +96,30 @@ export function AdminPowerBiJobStatusChart() {
   const segments = useMemo(() => buildSegments(data?.jobs ?? []), [data?.jobs]);
   const total = data?.jobs.length ?? 0;
   const chartSegments = buildChartSegments(segments, total);
+  const economics = useMemo(() => calculateEconomicsKpis(data?.workHours ?? []), [data?.workHours]);
 
   const employeeValues = useMemo(() => {
     if (!data) return [];
-    const sums = data.workHours.reduce<Record<string, number>>((acc, row) => {
-      acc[row.userId] = (acc[row.userId] ?? 0) + (row.billableAmount ?? 0);
+    const values = data.workHours.reduce<Record<string, { amount: number; hours: number; pricedHours: number }>>((acc, row) => {
+      const current = acc[row.userId] ?? { amount: 0, hours: 0, pricedHours: 0 };
+      current.amount += row.billableAmount ?? 0;
+      current.hours += row.hours ?? 0;
+      if (row.billableAmount !== null) current.pricedHours += row.hours ?? 0;
+      acc[row.userId] = current;
       return acc;
     }, {});
     return data.employees
-      .map((employee) => ({ ...employee, amount: sums[employee.userId] ?? 0 }))
-      .filter((employee) => employee.amount > 0)
+      .map((employee) => {
+        const value = values[employee.userId] ?? { amount: 0, hours: 0, pricedHours: 0 };
+        return {
+          ...employee,
+          ...value,
+          effectiveRate: value.pricedHours > 0 ? value.amount / value.pricedHours : 0,
+        };
+      })
+      .filter((employee) => employee.hours > 0)
       .sort((a, b) => b.amount - a.amount)
-      .slice(0, 6);
+      .slice(0, 8);
   }, [data]);
 
   const customerGrowth = useMemo(() => {
@@ -130,7 +158,7 @@ export function AdminPowerBiJobStatusChart() {
 
       <div id="overview-analytics-tabs" className="overview-analytics-tabs" role="tablist" aria-label="Virksomhedsstatistik">
         <button id="overview-analytics-tab-cases" type="button" role="tab" aria-selected={tab === 'cases'} onClick={() => setTab('cases')}><BarChart3 size={16} aria-hidden="true" /> Sager</button>
-        <button id="overview-analytics-tab-employees" type="button" role="tab" aria-selected={tab === 'employees'} onClick={() => setTab('employees')}><WalletCards size={16} aria-hidden="true" /> Medarbejderøkonomi</button>
+        <button id="overview-analytics-tab-employees" type="button" role="tab" aria-selected={tab === 'employees'} onClick={() => setTab('employees')}><WalletCards size={16} aria-hidden="true" /> Økonomi</button>
         <button id="overview-analytics-tab-customers" type="button" role="tab" aria-selected={tab === 'customers'} onClick={() => setTab('customers')}><UsersRound size={16} aria-hidden="true" /> Nye kunder</button>
       </div>
 
@@ -152,9 +180,56 @@ export function AdminPowerBiJobStatusChart() {
           </ul>
         </div>
       ) : tab === 'employees' ? (
-        <div id="overview-analytics-panel-employees" className="overview-analytics-list" role="tabpanel">
-          <p className="overview-analytics-note">Viser fakturerbar værdi fra registrerede timer. Workslip har ikke en verificeret intern lønkostpris endnu.</p>
-          {employeeValues.length ? employeeValues.map((employee) => <div className="overview-analytics-row" key={employee.userId}><span>{employee.employee}</span><strong>{formatCurrency(employee.amount)}</strong></div>) : <p className="overview-analytics-empty">Ingen fakturerbare timer i perioden.</p>}
+        <div id="overview-analytics-panel-employees" role="tabpanel" style={{ display: 'grid', gap: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px' }}>
+            <div className="leader-kpi-card" id="overview-economics-billable-value">
+              <span className="leader-kpi-card__label">Fakturerbar værdi</span>
+              <strong className="leader-kpi-card__value">{formatCurrency(economics.totalBillable)}</strong>
+              <span className="leader-kpi-card__hint">Fra registrerede timer</span>
+            </div>
+            <div className="leader-kpi-card" id="overview-economics-total-hours">
+              <span className="leader-kpi-card__label">Registrerede timer</span>
+              <strong className="leader-kpi-card__value">{economics.totalHours.toFixed(1)} t</strong>
+              <span className="leader-kpi-card__hint">Seneste 24 måneder</span>
+            </div>
+            <div className="leader-kpi-card" id="overview-economics-pricing-coverage">
+              <span className="leader-kpi-card__label">Prisdækning</span>
+              <strong className="leader-kpi-card__value">{formatPercent(economics.pricingCoverage)}</strong>
+              <span className="leader-kpi-card__hint">Timer med fakturerbar sats</span>
+            </div>
+            <div className="leader-kpi-card" id="overview-economics-effective-rate">
+              <span className="leader-kpi-card__label">Effektiv sats</span>
+              <strong className="leader-kpi-card__value">{formatCurrency(economics.averageBillableRate)}/t</strong>
+              <span className="leader-kpi-card__hint">Værdi / prissatte timer</span>
+            </div>
+          </div>
+
+          {economics.unpricedHours > 0 && (
+            <div id="overview-economics-data-warning" role="status" style={{ border: '1px solid var(--status-amber-text)', borderRadius: '12px', padding: '10px 12px', background: 'color-mix(in srgb, var(--status-amber-text) 8%, var(--surface))', fontSize: '13px' }}>
+              <strong>{economics.unpricedHours.toFixed(1)} timer mangler fakturerbar sats.</strong>{' '}
+              De timer tæller med i tidsforbruget, men ikke i fakturerbar værdi. Sæt satsen på medarbejderprofilen for et komplet økonomibillede.
+            </div>
+          )}
+
+          <p className="overview-analytics-note" style={{ margin: 0 }}>
+            Fakturerbar værdi er et omsætningsmål — ikke dækningsbidrag. Workslip har endnu ikke en verificeret intern lønkostpris eller fuld materialekost pr. sag, så vi viser ikke en kunstig profitmargin.
+          </p>
+
+          <div className="overview-analytics-list">
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'baseline' }}>
+              <strong>Fakturerbar værdi pr. medarbejder</strong>
+              <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Top {employeeValues.length}</span>
+            </div>
+            {employeeValues.length ? employeeValues.map((employee) => (
+              <div className="overview-analytics-row" key={employee.userId}>
+                <span>
+                  <strong style={{ display: 'block' }}>{employee.employee}</strong>
+                  <small style={{ color: 'var(--text-secondary)' }}>{employee.hours.toFixed(1)} t · {formatCurrency(employee.effectiveRate)}/t effektiv sats</small>
+                </span>
+                <strong>{formatCurrency(employee.amount)}</strong>
+              </div>
+            )) : <p className="overview-analytics-empty">Ingen registrerede timer i perioden.</p>}
+          </div>
         </div>
       ) : (
         <div id="overview-analytics-panel-customers" className="overview-customer-growth" role="tabpanel" aria-label="Nye kunder pr. måned">
