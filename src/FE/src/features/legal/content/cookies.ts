@@ -2,7 +2,7 @@ import type { LegalContent } from './types';
 
 export const cookiesContent: LegalContent = {
   title: 'Cookie- og lagringspolitik',
-  lastUpdated: '23. juli 2026',
+  lastUpdated: '3. september 2026',
   sections: [
     {
       heading: 'Hvad er cookies',
@@ -22,7 +22,7 @@ export const cookiesContent: LegalContent = {
     {
       heading: 'Tredjeparts cookies',
       content: [
-        'Når de er aktiveret i den konkrete production-deployment, bruges Vercel Analytics, Vercel Speed Insights og Microsoft Application Insights til analyse, fejl og ydeevne.',
+        'Når det er aktiveret i den konkrete production-deployment, bruges Microsoft Application Insights til analyse, fejl og ydeevne.',
         'Application Insights er konfigureret med cookie-brug deaktiveret og uden automatisk AJAX-, fetch-, exception- og route-tracking. Workslip sender dog selv tekniske hændelser som route, statuskode og correlation ID.',
         'Ved Microsoft Entra-login kan Microsofts egne login- og sikkerhedscookies bruges på Microsofts login-domæne. De kontrolleres af Microsoft.',
       ],

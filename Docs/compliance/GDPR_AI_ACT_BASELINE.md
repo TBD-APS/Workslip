@@ -40,7 +40,7 @@ This list is a code-derived starting point, not a complete record of processing 
 
 ### Services and integrations requiring classification
 
-The repository contains integrations or infrastructure for Microsoft Entra ID and Microsoft Graph, Azure App Service, Azure SQL, Azure Storage, Key Vault, App Configuration, Application Insights, Azure Communication Services, Vercel, and the Danish Address Web API (DAWA). Development and delivery also use GitHub and test tooling.
+The repository contains integrations or infrastructure for Microsoft Entra ID and Microsoft Graph, Azure Container Apps, Azure Container Registry, Azure App Service, Azure SQL, Azure Storage, Key Vault, App Configuration, Application Insights, Azure Communication Services, and the Danish Address Web API (DAWA). Development and delivery also use GitHub and test tooling.
 
 For each service, the accountable owner must verify and record:
 
