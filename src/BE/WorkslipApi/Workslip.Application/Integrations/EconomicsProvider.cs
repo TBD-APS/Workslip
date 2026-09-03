@@ -139,8 +139,6 @@ public sealed class EconomicsProvider(
             }
             else
             {
-                // e-conomic accepts free invoice lines. This keeps onboarding usable without
-                // forcing a customer to create Workslip-specific products in their chart setup.
                 line = new JsonObject { ["discountPercentage"] = 0m };
             }
 
@@ -187,40 +185,33 @@ public sealed class EconomicsProvider(
         if (string.IsNullOrWhiteSpace(configuration["Integrations:Economic:AppSecretToken"]))
             return Array.Empty<AccountingDocument>();
 
-        try
-        {
-            using var client = await CreateClientAsync(tenantId, CancellationToken.None);
-            var rows = await GetCollectionAsync(client, "invoices/booked?pagesize=1000", CancellationToken.None);
-            DateOnly.TryParse(startDate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var from);
-            DateOnly.TryParse(endDate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var to);
+        using var client = await CreateClientAsync(tenantId, CancellationToken.None);
+        var rows = await GetCollectionAsync(client, "invoices/booked?pagesize=1000", CancellationToken.None);
+        DateOnly.TryParse(startDate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var from);
+        DateOnly.TryParse(endDate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var to);
 
-            return rows
-                .Where(row =>
-                {
-                    if (!DateOnly.TryParse(NodeText(row["date"]), out var date)) return true;
-                    if (from != default && date < from) return false;
-                    if (to != default && date > to) return false;
-                    return true;
-                })
-                .Select(row =>
-                {
-                    var number = NodeInt(row["bookedInvoiceNumber"]) ?? 0;
-                    var remainder = NodeDecimal(row["remainder"]) ?? 0m;
-                    return new AccountingDocument(
-                        number.ToString(CultureInfo.InvariantCulture),
-                        $"FAK-{number:D4}",
-                        "Invoice",
-                        NodeDecimal(row["netAmount"]) ?? 0m,
-                        NodeText(row["date"]) ?? string.Empty,
-                        remainder == 0m ? "Paid" : "Unpaid",
-                        $"{BaseUrl}invoices/booked/{number}");
-                })
-                .ToArray();
-        }
-        catch
-        {
-            return Array.Empty<AccountingDocument>();
-        }
+        return rows
+            .Where(row =>
+            {
+                if (!DateOnly.TryParse(NodeText(row["date"]), out var date)) return true;
+                if (from != default && date < from) return false;
+                if (to != default && date > to) return false;
+                return true;
+            })
+            .Select(row =>
+            {
+                var number = NodeInt(row["bookedInvoiceNumber"]) ?? 0;
+                var remainder = NodeDecimal(row["remainder"]) ?? 0m;
+                return new AccountingDocument(
+                    number.ToString(CultureInfo.InvariantCulture),
+                    $"FAK-{number:D4}",
+                    "Invoice",
+                    NodeDecimal(row["netAmount"]) ?? 0m,
+                    NodeText(row["date"]) ?? string.Empty,
+                    remainder == 0m ? "Paid" : "Unpaid",
+                    $"{BaseUrl}invoices/booked/{number}");
+            })
+            .ToArray();
     }
 
     public async Task<Stream?> GetDocumentStreamAsync(string tenantId, string documentId)
