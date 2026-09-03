@@ -22,8 +22,9 @@
   }
 
   .page-container {
+    /* max-width is owned by farvelab-theme.css:452 (`body:has(.app-shell)
+       .page-container`, same 90rem at (0,2,1)) — a copy here could never win. */
     width: 100%;
-    max-width: 90rem;
     min-width: 0;
     margin-inline: auto;
   }
@@ -33,10 +34,9 @@
     padding-inline: 0;
   }
 
-  .job-detail-page,
-  .report-overview-page {
-    max-width: 72rem;
-  }
+  /* .job-detail-page / .report-overview-page max-width is owned by
+     farvelab-theme.css:456, which sets 74rem at (0,2,1); the 72rem copy that
+     used to sit here was unreachable. */
 
   .page-container:has(> .detail-form),
   .page-container:has(> .customer-edit-form) {
@@ -61,10 +61,6 @@
     gap: 0.5rem;
   }
 
-  .app-header-user {
-    max-width: 18rem;
-  }
-
   .nav-item {
     min-height: 2.75rem;
     padding: 0.55rem 0.8rem;
@@ -81,13 +77,11 @@
   .nav-item:focus-visible,
   .logo-header:focus-visible,
   .user-avatar:focus-visible,
-  .app-header-logout:focus-visible,
   .btn-icon:focus-visible,
   .btn-icon-back:focus-visible,
   .status-filter-btn:focus-visible,
   .time-today-button:focus-visible,
   .time-week-toggle:focus-visible,
-  .nav-maps-link:focus-visible,
   .report-overview-link-card:focus-visible,
   .create-type-tile:focus-visible,
   .create-sheet-tile:focus-visible,
@@ -135,16 +129,29 @@
 /* WOR-716 — persistent desktop rail. The existing permission-aware bottom-nav
    remains the single navigation source; desktop only changes its geometry. */
 @media (min-width: 1120px) {
-  .app-shell {
+  /* Rail geometry lives on :root so the width has exactly one declaration site.
+     Everything that has to line up with the rail reads it from here — the rail
+     itself, the header/banner/content offset and width cap, .logo-header, the
+     rail-footer .app-header-actions and the create FAB — and any second copy of
+     13.5rem/4.75rem drifts out of step the moment the rail is resized. The
+     :has() collapse switch below has to keep the same subject as the base
+     declaration; move one to .app-shell without the other and the collapsed
+     override lands on a different element and stops resolving. */
+  :root {
     --desktop-nav-rail-width: 13.5rem;
     --desktop-nav-rail-collapsed-width: 4.75rem;
     --desktop-nav-rail-current-width: var(--desktop-nav-rail-width);
-    /* The rail is vertical here: the window bottom carries no chrome to clear. */
-    --app-bottom-chrome: 0.5rem;
   }
 
-  .app-shell:has(.desktop-rail-toggle-input:checked) {
+  :root:has(.app-shell .desktop-rail-toggle-input:checked) {
     --desktop-nav-rail-current-width: var(--desktop-nav-rail-collapsed-width);
+  }
+
+  .app-shell {
+    /* Stays shell-scoped per AppLayout.shell.css:21-27: :root would leak it to
+       body-level portals that are not laid out inside the shell.
+       The rail is vertical here, so the window bottom carries no chrome. */
+    --app-bottom-chrome: 0.5rem;
   }
 
   .app-header,

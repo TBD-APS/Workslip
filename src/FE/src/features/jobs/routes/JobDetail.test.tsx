@@ -1,7 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
+import {
+  MemoryRouter,
+  Route,
+  RouterProvider,
+  Routes,
+  createMemoryRouter,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JobStatus } from '../../../api/generated/models';
 import { JobDetail } from './JobDetail';
@@ -17,8 +25,23 @@ vi.mock('../hooks/useJobDetails', () => ({
 }));
 
 vi.mock('../components/JobDetails', () => ({
-  JobDetailsPage: ({ details }: { details: { currentStep: number } }) => (
-    <div>Wizard step {details.currentStep}</div>
+  JobDetailsPage: ({
+    details,
+    onBack,
+    onDone,
+    onGoToReport,
+  }: {
+    details: { job?: { id: string } | null; currentStep: number };
+    onBack: () => void;
+    onDone: () => void;
+    onGoToReport: (jobId: string) => void;
+  }) => (
+    <div>
+      <span>Wizard step {details.currentStep}</span>
+      <button type="button" onClick={onBack}>Tilbage</button>
+      <button type="button" onClick={onDone}>Færdig</button>
+      <button type="button" onClick={() => onGoToReport(details.job?.id ?? '')}>Gå til rapport</button>
+    </div>
   ),
 }));
 
@@ -176,5 +199,111 @@ describe('JobDetail rejected-job landing', () => {
     expect(await screen.findByText('Completed report')).toBeInTheDocument();
     expect(details.setCurrentStep).not.toHaveBeenCalled();
     expect(mocks.markJobAsSeen).not.toHaveBeenCalled();
+  });
+});
+
+function ReportProbe() {
+  const location = useLocation();
+  const state = (location.state as { from?: string } | null) ?? null;
+
+  return <div>Rapport · from {state?.from ?? 'ingen'}</div>;
+}
+
+function renderExitTree(initialEntries: Array<string | { pathname: string; state?: unknown }>) {
+  const router = createMemoryRouter(
+    [
+      { path: '/app', element: <div>Sagsoversigt</div> },
+      { path: '/app/brugere/:userId', element: <div>Brugerkort</div> },
+      { path: '/app/jobs/:id', element: <div className="app-shell"><JobDetail /></div> },
+      { path: '/app/completed/:id', element: <ReportProbe /> },
+    ],
+    { initialEntries },
+  );
+
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
+
+  return router;
+}
+
+describe('JobDetail wizard exits', () => {
+  afterEach(cleanup);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.isAdmin = false;
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+      configurable: true,
+      value: vi.fn(),
+    });
+  });
+
+  it('sends the exit to the origin list when the wizard is the entry the app booted on', async () => {
+    mocks.useJobDetails.mockReturnValue(createDetails('job-1', JobStatus.Draft, 2));
+    const router = renderExitTree(['/app/jobs/job-1']);
+    // React Router's marker for the initial entry: the cold push-notification deep
+    // link, where there is nothing behind the wizard for navigate(-1) to pop.
+    expect(router.state.location.key).toBe('default');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tilbage' }));
+
+    await waitFor(() => expect(screen.getByText('Sagsoversigt')).toBeInTheDocument());
+    expect(router.state.location.pathname).toBe('/app');
+
+    await act(async () => { await router.navigate(-1); });
+    expect(router.state.location.pathname).toBe('/app');
+    expect(screen.queryByText(/Wizard step/)).not.toBeInTheDocument();
+  });
+
+  it('steps the exit back through history for a warm entry', async () => {
+    mocks.useJobDetails.mockReturnValue(createDetails('job-1', JobStatus.Draft, 2));
+    const router = renderExitTree(['/app/brugere/u-1', '/app/jobs/job-1']);
+    expect(router.state.location.key).not.toBe('default');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tilbage' }));
+
+    // The previous entry, not `from` - the five call sites that open a sag without
+    // a state.from must not be dumped on the job list.
+    await waitFor(() => expect(screen.getByText('Brugerkort')).toBeInTheDocument());
+    expect(router.state.location.pathname).toBe('/app/brugere/u-1');
+  });
+
+  it('leaves no wizard entry behind when the sag is done', async () => {
+    mocks.useJobDetails.mockReturnValue(createDetails('job-1', JobStatus.Draft, 5));
+    const router = renderExitTree([
+      '/app',
+      { pathname: '/app/jobs/job-1', state: { from: '/app' } },
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Færdig' }));
+
+    await waitFor(() => expect(screen.getByText('Sagsoversigt')).toBeInTheDocument());
+
+    // Back after a delete or a submit can no longer render a wizard for a sag that
+    // is gone: the entry it lived on was replaced, not stacked under the list.
+    await act(async () => { await router.navigate(-1); });
+    expect(router.state.location.pathname).toBe('/app');
+    expect(screen.queryByText(/Wizard step/)).not.toBeInTheDocument();
+  });
+
+  it('carries the origin list into the report and drops the wizard entry', async () => {
+    mocks.useJobDetails.mockReturnValue(createDetails('job-1', JobStatus.Draft, 5));
+    const router = renderExitTree([
+      '/app',
+      { pathname: '/app/jobs/job-1', state: { from: '/app/brugere/u-1' } },
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Gå til rapport' }));
+
+    // AdminCompletedJobReport feeds its own back arrow from state.from.
+    await waitFor(() => expect(screen.getByText('Rapport · from /app/brugere/u-1')).toBeInTheDocument());
+    expect(router.state.location.pathname).toBe('/app/completed/job-1');
+
+    await act(async () => { await router.navigate(-1); });
+    expect(router.state.location.pathname).toBe('/app');
+    expect(screen.queryByText(/Wizard step/)).not.toBeInTheDocument();
   });
 });

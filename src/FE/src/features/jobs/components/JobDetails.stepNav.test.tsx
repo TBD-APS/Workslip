@@ -54,9 +54,20 @@ vi.mock('./steps/JobCompletionStep', () => ({
   JobCompletionStep: () => <div>completion-step</div>,
 }));
 
-vi.mock('./steps/JobAttestationStep', () => ({
-  JobAttestationStep: () => <div>attestation-step</div>,
-}));
+// The submit confirmation is a contract between two components: the step reads
+// the sag number off the submit response, this page renders it. A stub that
+// called onSubmitted itself would keep passing if the step stopped forwarding
+// the response, so the confirmation tests let the REAL step through and drive it
+// from submitJob's resolved value. Every other test keeps the cheap stub.
+const attestation = vi.hoisted(() => ({ useReal: false }));
+
+vi.mock('./steps/JobAttestationStep', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./steps/JobAttestationStep')>();
+  return {
+    JobAttestationStep: (props: Parameters<typeof actual.JobAttestationStep>[0]) =>
+      attestation.useReal ? <actual.JobAttestationStep {...props} /> : <div>attestation-step</div>,
+  };
+});
 
 vi.mock('./JobWizardTutorial', () => ({
   JobWizardTutorial: () => null,
@@ -87,6 +98,11 @@ type StubOptions = {
   // boolean - true when the step actually changed, false when it refused - and
   // JobDetails only moves focus on a true, so a stub must answer honestly.
   navigateToStep?: (step: number) => boolean;
+  // Only the tests that render the real attestation step need a whole sag on
+  // details.job; everything else reads no further than the header's number.
+  jobOverrides?: Record<string, unknown>;
+  saveAllChanges?: () => unknown;
+  submitJob?: () => unknown;
 };
 
 function createDetailsStub({
@@ -95,9 +111,12 @@ function createDetailsStub({
   worksheets = [],
   customerName = 'Kunde A/S',
   navigateToStep = () => true,
+  jobOverrides = {},
+  saveAllChanges = () => undefined,
+  submitJob = () => undefined,
 }: StubOptions = {}) {
   return {
-    job: { id: 'job-1', reportNumber: '1234', jobType: 'KLS', status: JobStatus.Draft },
+    job: { id: 'job-1', reportNumber: '1234', jobType: 'KLS', status: JobStatus.Draft, ...jobOverrides },
     form: {
       reportNumber: '1234',
       jobType: 'KLS',
@@ -132,7 +151,7 @@ function createDetailsStub({
     isDeletingWorksheet: false,
     isAdmin: false,
     saveCurrentStep: vi.fn(),
-    saveAllChanges: vi.fn(),
+    saveAllChanges: vi.fn(saveAllChanges),
     discardChanges: vi.fn(),
     navigateToStep: vi.fn(navigateToStep),
     flushSave: vi.fn(),
@@ -161,7 +180,7 @@ function createDetailsStub({
     updateTechnicalObservations: vi.fn(),
     updateAssignedUsers: vi.fn(),
     updateLinkedJobs: vi.fn(),
-    submitJob: vi.fn(),
+    submitJob: vi.fn(submitJob),
     submitJobFieldErrors: [],
     saveCurrentStepAndSetCurrentStep: vi.fn(),
   } as unknown as ReturnType<typeof useJobDetails>;
@@ -394,5 +413,73 @@ describe('JobDetailsPage forward gate', () => {
 
     expect(details.jumpToStep).toHaveBeenCalledWith(1);
     expect(details.navigateToStep).not.toHaveBeenCalledWith(5);
+  });
+});
+
+describe('JobDetailsPage submit confirmation', () => {
+  // The real attestation step reads the whole sag, not just its number.
+  const SUBMITTABLE_JOB = {
+    destinationAddress: 'Havnegade 4',
+    customerSnapshot: { name: 'Kunde A/S', address: 'Vejen 1', contactPerson: 'Bo Bech', phone: '', email: '' },
+    observations: { taskDescription: '', customerObservations: '', technicalObservations: '' },
+    work: { installationTypes: [], closureFlags: [{ id: 'done', label: 'Færdig' }], remarks: '' },
+    totalHours: 4,
+    totalOutlay: 0,
+  };
+  const WORKSHEET = {
+    id: 'ws-1',
+    userId: 'user-1',
+    userDisplayName: 'Mette Hansen',
+    workDate: '2026-02-02',
+    hoursWorked: 4,
+  };
+
+  beforeEach(() => {
+    attestation.useReal = true;
+  });
+
+  afterEach(() => {
+    attestation.useReal = false;
+  });
+
+  const attestAndSubmit = async (submitJob: () => unknown) => {
+    const rendered = renderPage({
+      currentStep: 5,
+      work: FILLED_WORK,
+      worksheets: [WORKSHEET],
+      jobOverrides: SUBMITTABLE_JOB,
+      saveAllChanges: () => Promise.resolve(true),
+      submitJob,
+    });
+
+    fireEvent.click(rendered.container.querySelector<HTMLInputElement>('#job-attestation-confirmation')!);
+    // The step awaits the final draft write and the submit before it calls back,
+    // so the click has to settle inside act.
+    await act(async () => {
+      fireEvent.click(rendered.container.querySelector<HTMLButtonElement>('#job-attestation-submit')!);
+    });
+
+    // The page parks on the submission overlay for 1500ms before it swaps in the
+    // confirmation, so this has to wait past that delay.
+    const heading = await screen.findByText('Sag sendt til kontoret', undefined, { timeout: 4000 });
+    return { ...rendered, confirmation: heading.closest('.submitted-confirmation')! };
+  };
+
+  it('shows the sag number the submit response assigned, not the cached draft', async () => {
+    const { details, confirmation } = await attestAndSubmit(
+      () => Promise.resolve({ reportNumber: 'SAG-2026-0042' }),
+    );
+
+    expect(details.submitJob).toHaveBeenCalledTimes(1);
+    expect(confirmation).toHaveTextContent('Sag SAG-2026-0042 er nu indsendt');
+    // 1234 is the pre-submit draft the call site used to read out of its closure;
+    // a Draft the server numbers on submit has no number there at all.
+    expect(confirmation).not.toHaveTextContent('1234');
+  });
+
+  it('keeps the number already on the sag when the response carries none', async () => {
+    const { confirmation } = await attestAndSubmit(() => Promise.resolve(undefined));
+
+    expect(confirmation).toHaveTextContent('Sag 1234 er nu indsendt');
   });
 });

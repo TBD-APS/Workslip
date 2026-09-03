@@ -306,14 +306,16 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
             confirmed={attestationConfirmed}
             onConfirmedChange={setAttestationConfirmed}
             onValidationAction={(validationIssue) => goToValidationIssue(validationIssue, false)}
-            onSubmitted={() => {
+            // The server assigns the sag number on the transition to InReview, so
+            // the confirmation must render the number the step forwarded from the
+            // submit response. `details.job` in this closure is still the
+            // pre-submit draft and is empty for exactly the sager the server just
+            // numbered, so it is never read here.
+            onSubmitted={(reportNumber) => {
               setIsPostSubmitting(true);
               setTimeout(() => {
                 setIsPostSubmitting(false);
-                setSubmission({
-                  reportNumber: details.job?.reportNumber ?? '',
-                  submittedAt: new Date(),
-                });
+                setSubmission({ reportNumber, submittedAt: new Date() });
               }, 1500);
             }}
           />

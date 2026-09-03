@@ -397,7 +397,7 @@
 
 .admin-case-reference-timeline-event h3 {
   color: var(--text);
-  font-size: var(--fs-base);
+  font-size: var(--fs-body);
   font-weight: 700;
   margin: 0 0 0.15rem;
 }

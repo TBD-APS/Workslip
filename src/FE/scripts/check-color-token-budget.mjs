@@ -21,7 +21,7 @@ import process from 'node:process';
 const STYLESHEET_ROOT = fileURLToPath(new URL('../src', import.meta.url));
 
 // Lower this whenever a change converts literals to tokens. Never raise it.
-const MAX_UNTOKENISED_COLOURS = 127;
+const MAX_UNTOKENISED_COLOURS = 108;
 
 const COLOUR = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?)\([^)]*\)/gi;
 

@@ -3,148 +3,25 @@
 /*
  * WOR-452 — Farvelab visual system
  *
+ * This file owns component structure, states and responsive behaviour for the
+ * authenticated app. It does NOT own the palette: workslip-brand.css declares
+ * every colour token from `html body:has(.app-shell)`, one type selector more
+ * specific than anything here, so the two full palettes this file used to carry
+ * could never win a single declaration. Deleted rather than left to mislead.
+ *
  * The authenticated theme is scoped from body rather than only .app-shell.
  * Several existing dialogs and action menus intentionally portal to document.body;
- * keeping the semantic tokens on the authenticated body makes those overlays part
+ * keeping the shape tokens on the authenticated body makes those overlays part
  * of the same visual and accessibility system without duplicating feature CSS.
  */
 
+/* Shape and rhythm are all that is left unclaimed. Scoped to the app shell on
+   purpose: base.css's 8/12/16px radii must stay in force on /login and /invite.
+   --card-padding is not repeated — base.css already declares 1.25rem. */
 body:has(.app-shell) {
-  /* Core canvas */
-  --bg: #0b1020;
-  --text: #f7f8ff;
-  --text-primary: var(--text);
-  --text-muted: #aeb8d1;
-  --text-secondary: var(--text-muted);
-  --text-dim: #77829f;
-  --text-disabled: rgba(220, 226, 245, 0.46);
-
-  /* Farvelab brand accents */
-  --primary: #7c83ff;
-  --primary-hover: #9096ff;
-  --primary-pressed: #6a72e9;
-  --on-primary: #0b1020;
-  --accent-cyan: #49c8db;
-  --accent-mint: #5bd6aa;
-  --accent-amber: #f5b84b;
-  --accent-coral: #ff7d73;
-
-  /* Surfaces */
-  --surface-floating: #121a2f;
-  --surface-color: var(--surface-floating);
-  --surface: rgba(151, 167, 216, 0.08);
-  --surface-raised: rgba(151, 167, 216, 0.13);
-  --surface-input: rgba(7, 13, 28, 0.72);
-  --surface-elevated: rgba(151, 167, 216, 0.19);
-  --surface-selected: rgba(124, 131, 255, 0.18);
-  --surface-selected-strong: rgba(124, 131, 255, 0.28);
-  --surface-modal: #121a2f;
-  --surface-actions-menu: #121a2f;
-  --surface-overlay: rgba(5, 9, 20, 0.64);
-
-  /* Borders, focus and elevation */
-  --border: rgba(174, 190, 229, 0.13);
-  --border-strong: rgba(174, 190, 229, 0.24);
-  --surface-border: var(--border);
-  --focus-ring: #969cff;
-  --shadow-sm: 0 8px 24px rgba(1, 5, 16, 0.16);
-  --shadow-sm-raw: 0 4px 12px rgba(1, 5, 16, 0.16);
-  --shadow-lg: 0 24px 70px rgba(1, 5, 16, 0.34);
-  --shadow-accent: 0 10px 30px rgba(124, 131, 255, 0.24);
-
-  /* Semantic feedback */
-  --danger: #ff746e;
-  --danger-hover: #ff8b86;
-  --warning: #f5b84b;
-  --success: #58d3a4;
-  --status-blue-bg: rgba(73, 200, 219, 0.14);
-  --status-blue-text: #7ad8e7;
-  --status-red-bg: rgba(255, 116, 110, 0.14);
-  --status-red-text: #ff9994;
-  --status-amber-bg: rgba(245, 184, 75, 0.16);
-  --status-amber-text: #f8ca72;
-  --status-green-bg: rgba(88, 211, 164, 0.14);
-  --status-green-text: #82dfbd;
-  --status-neutral-bg: rgba(174, 184, 209, 0.12);
-  --status-neutral-text: #b9c2d8;
-
-  /* Overlays */
-  --overlay-subtle: rgba(3, 7, 18, 0.38);
-  --overlay-medium: rgba(3, 7, 18, 0.62);
-  --overlay-heavy: rgba(3, 7, 18, 0.86);
-  --overlay-blur: rgba(11, 16, 32, 0.82);
-  --nav-bg: rgba(13, 19, 38, 0.92);
-  --safe-area-top-bg: #0b1020;
-  --overlay-light-050: rgba(225, 230, 247, 0.7);
-
-  /* Shape and rhythm */
   --radius-sm: 10px;
   --radius: 14px;
   --radius-lg: 20px;
-  --card-padding: 1.25rem;
-}
-
-[data-theme="day"] body:has(.app-shell) {
-  --bg: #f6f7fb;
-  --text: #172039;
-  --text-primary: var(--text);
-  --text-muted: #66718d;
-  --text-secondary: var(--text-muted);
-  --text-dim: #65708a;
-  --text-disabled: rgba(55, 68, 99, 0.44);
-
-  --primary: #5660df;
-  --primary-hover: #4650cc;
-  --primary-pressed: #3e47bb;
-  --on-primary: #ffffff;
-  --accent-cyan: #159caf;
-  --accent-mint: #1aa77d;
-  --accent-amber: #c98618;
-  --accent-coral: #df5d57;
-
-  --surface-floating: #ffffff;
-  --surface-color: #ffffff;
-  --surface: rgba(69, 83, 128, 0.055);
-  --surface-raised: rgba(75, 88, 132, 0.09);
-  --surface-input: #ffffff;
-  --surface-elevated: rgba(75, 88, 132, 0.14);
-  --surface-selected: rgba(86, 96, 223, 0.11);
-  --surface-selected-strong: rgba(86, 96, 223, 0.18);
-  --surface-modal: #ffffff;
-  --surface-actions-menu: #ffffff;
-  --surface-overlay: rgba(247, 248, 252, 0.72);
-
-  --border: rgba(65, 78, 119, 0.12);
-  --border-strong: rgba(65, 78, 119, 0.22);
-  --surface-border: var(--border);
-  --focus-ring: #4f59d4;
-  --shadow-sm: 0 8px 24px rgba(47, 57, 93, 0.08);
-  --shadow-sm-raw: 0 4px 12px rgba(47, 57, 93, 0.08);
-  --shadow-lg: 0 24px 70px rgba(47, 57, 93, 0.14);
-  --shadow-accent: 0 10px 28px rgba(86, 96, 223, 0.2);
-
-  --danger: #c84c47;
-  --danger-hover: #b33f3b;
-  --warning: #a96d0d;
-  --success: #137b5b;
-  --status-blue-bg: #e4f6f8;
-  --status-blue-text: #0d7183;
-  --status-red-bg: #ffebe9;
-  --status-red-text: #ad3f3b;
-  --status-amber-bg: #fff3d9;
-  --status-amber-text: #86560a;
-  --status-green-bg: #e2f7ef;
-  --status-green-text: #137b5b;
-  --status-neutral-bg: #edf0f6;
-  --status-neutral-text: #59647e;
-
-  --overlay-subtle: rgba(36, 46, 76, 0.08);
-  --overlay-medium: rgba(36, 46, 76, 0.22);
-  --overlay-heavy: rgba(22, 30, 52, 0.48);
-  --overlay-blur: rgba(246, 247, 251, 0.84);
-  --nav-bg: rgba(255, 255, 255, 0.91);
-  --safe-area-top-bg: #f6f7fb;
-  --overlay-light-050: rgba(58, 70, 105, 0.7);
 }
 
 body:has(.app-shell) .app-shell {
@@ -171,13 +48,10 @@ body:has(.app-shell) .logo-icon {
   filter: drop-shadow(0 4px 10px color-mix(in srgb, var(--primary) 28%, transparent));
 }
 
-body:has(.app-shell) :is(.app-header-user, .user-avatar, .app-header-logout) {
+body:has(.app-shell) .user-avatar {
   background: var(--surface-floating);
   border-color: var(--border);
   box-shadow: var(--shadow-sm-raw);
-}
-
-body:has(.app-shell) .user-avatar {
   width: 44px;
   height: 44px;
 }
@@ -426,13 +300,24 @@ body:has(.app-shell) :is(
 }
 
 /* Desktop: deliberate app chrome rather than enlarged mobile UI -------- */
-@media (min-width: 768px) {
+
+/* Only a horizontal bar can be a rounded card. At >=1120px .bottom-nav is the
+   full-height left rail (AppLayout.desktop.css:199-217), and this rule's (0,2,1)
+   `border` shorthand outranked that file's (0,1,0) `border-top: 0` /
+   `border-right`, so the rail rendered as a 20px-rounded floating card clipped
+   by the viewport with the page background showing through its corners.
+   Deliberately NOT bounding the whole 768px block: `body:has(.app-shell)
+   .nav-item` (0,2,1) still has to outrank `.bottom-nav .nav-item` (0,2,0) at
+   >=1120px, so the rail keeps its item radius and padding. */
+@media (min-width: 768px) and (not (min-width: 1120px)) {
   body:has(.app-shell) .bottom-nav {
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
   }
+}
 
+@media (min-width: 768px) {
   body:has(.app-shell) .nav-item {
     min-height: 44px;
     border-radius: 12px;
@@ -467,10 +352,6 @@ body:has(.app-shell) :is(
 
   body:has(.app-shell) .app-header-actions {
     gap: 0.4rem;
-  }
-
-  body:has(.app-shell) .app-header-user {
-    display: none;
   }
 
   body:has(.app-shell) .app-content {
@@ -539,15 +420,35 @@ body:has(.app-shell) :is(
   }
 }
 
-/* Motion is decorative here; include body-portaled overlays as well. */
+/* Motion is decorative here; include body-portaled overlays as well.
+   A busy indicator is not decoration, though: `animation-iteration-count: 1`
+   stopped all 31 `Loader2 className="animate-spin"` instances after one 0.01ms
+   turn, so "Gemmer...", "Henter sag..." and the submit overlay showed a static
+   icon next to text claiming work was in progress, with no way to tell a hung
+   request from a working one. Exempt genuine progress indicators and slow them
+   instead — a slower, non-parallax rotation is the accepted accessible
+   treatment.
+
+   `.skeleton` does animate — App.css declares `animation: shimmer 1.5s
+   ease-in-out infinite` against its own `@keyframes shimmer` — and is
+   deliberately NOT exempted, so `*:not(.animate-spin)` still freezes it. The
+   distinction is what the motion asserts, not whether motion exists: a shimmer
+   is decoration on a placeholder that is already legible standing still,
+   whereas a spinner is the only thing telling the user that work is in
+   progress. Freezing decoration costs nothing; freezing a busy indicator
+   removes information. */
 @media (prefers-reduced-motion: reduce) {
-  body:has(.app-shell) *,
-  body:has(.app-shell) *::before,
-  body:has(.app-shell) *::after {
+  body:has(.app-shell) *:not(.animate-spin),
+  body:has(.app-shell) *:not(.animate-spin)::before,
+  body:has(.app-shell) *:not(.animate-spin)::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+
+  body:has(.app-shell) .animate-spin {
+    animation-duration: 1.6s !important;
   }
 }
 

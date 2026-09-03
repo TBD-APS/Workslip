@@ -556,10 +556,6 @@
   animation: spin 0.8s linear infinite;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 /* ------------------------------------------------------------
    Card top: SAG-id + customer name (left), status pill (right)
    ------------------------------------------------------------ */
@@ -1009,6 +1005,21 @@
   color: var(--text-muted);
 }
 
+/* Nothing styled `.empty-state-text`, so its ten call sites read as body
+   copy. Centring is scoped to the wizard step container, where the line is a
+   whole empty section body. CompletedJobReport's AssignedUsers, DetailGrid
+   and LinkedJobs replace a left-aligned list under a heading, so stay left. */
+.empty-state-text {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  padding: 0.5rem 0;
+}
+
+.job-details-content .detail-section > .empty-state-text {
+  text-align: center;
+  padding: 1.25rem 0;
+}
+
 .error-state {
   display: flex;
   flex-direction: column;
@@ -1379,21 +1390,6 @@
 .section-header-row h3 {
   font-size: var(--fs-body);
   margin: 0;
-}
-
-.nav-maps-link {
-  margin-left: auto;
-  color: var(--text-muted, #6b7280);
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  padding: 4px;
-  border-radius: 4px;
-  transition: color 0.15s ease;
-}
-
-.nav-maps-link:hover {
-  color: var(--primary, #2563eb);
 }
 
 .customer-search-slot {
@@ -2112,11 +2108,6 @@
   color: var(--text);
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
 .address-suggestions {
   position: absolute;
   z-index: 100;
@@ -2216,15 +2207,12 @@
 }
 
 .step-dot {
+  /* Box, border, fill and text colour are owned by jobWizardTheme.css's
+     `html body:has(.app-shell) .step-dot`. font-size stays here: that rule sets
+     font-weight but never font-size. */
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  min-height: 46px;
-  padding: 0.6rem 0.9rem;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: var(--surface);
-  color: var(--text);
   cursor: pointer;
   font-size: var(--fs-sm);
   white-space: nowrap;
@@ -2269,6 +2257,11 @@
 }
 
 .step-nav {
+  /* A flex item of a column/align-items:center parent sizes to its content, so
+     the whole bar grew and re-centred when 'Næste' swapped to 'Ret oplysninger'
+     and slid Tilbage out from under the thumb. Pin the box instead. */
+  width: min(34rem, 100%);
+  margin-inline: auto;
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -2280,15 +2273,12 @@
 }
 
 .step-nav-btn {
+  /* Padding, border, radius and type scale are owned by jobWizardTheme.css's
+     `html body:has(.app-shell) .step-nav-btn`. */
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.6rem 1.25rem;
   font: inherit;
-  font-size: var(--fs-sm);
-  font-weight: 400;
-  border: 0;
-  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s, opacity 0.15s;
 }
@@ -2299,18 +2289,9 @@
 }
 
 .step-nav-btn:disabled {
-  opacity: 0.4;
+  /* jobWizardTheme.css owns the disabled fill/opacity at (0,3,2), including the
+     icon colour; only the cursor is left unclaimed there. */
   cursor: not-allowed;
-  background: var(--surface-raised);
-  color: var(--text-muted);
-  box-shadow: none;
-}
-
-@media (hover: hover) {
-.step-nav-btn:disabled:hover {
-  background: var(--surface-raised);
-  transform: none;
-}
 }
 
 .step-nav-btn-back {
@@ -2330,20 +2311,11 @@
 }
 
 .step-nav-btn-next {
+  /* Fixed forward slot, so the counter stays centred and Tilbage stays put when
+     the label swaps. `.step-nav-btn-next--wide` below raises it to 12rem. */
+  min-width: 8.5rem;
+  justify-content: center;
   margin-left: auto;
-  color: white;
-  background: var(--primary);
-  border: 1px solid var(--border);
-}
-
-.step-nav-btn-next svg {
-  color: white;
-}
-
-.step-nav-btn-next:active {
-  background: var(--surface-selected-strong);
-  border-color: var(--focus-ring);
-  transform: scale(0.96);
 }
 
 .step-nav-btn-next--wide {
@@ -2454,24 +2426,6 @@
 
 .control-point-category-group.irrelevant .control-point-category-label {
   color: var(--text-disabled, rgba(255, 255, 255, 0.4));
-}
-
-.multi-select-option.control-point-irrelevant-row {
-  min-height: 42px;
-  padding: 0.6rem 0.8rem 0.6rem 1rem;
-  margin-bottom: 0;
-  color: var(--text);
-}
-
-@media (hover: hover) {
-.multi-select-option.control-point-irrelevant-row:hover {
-  color: var(--text);
-}
-}
-
-
-.irrelevant-label {
-  display: none;
 }
 
 .multi-select-option:disabled {
@@ -3605,52 +3559,6 @@
   word-break: break-word;
 }
 
-/* Long-form free-text fields (observationer/noter). Each note gets its own
-   block with a small label above the body so paragraphs of technician notes
-   don't have to share a column with one-word values like "Sag" / "Kunde".
-   The new layout also leaves a divider between notes so multi-paragraph
-   inputs stay scannable. */
-.attestation-notes-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  margin: 0;
-}
-
-.attestation-note {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.65rem 0.85rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-
-.attestation-note + .attestation-note {
-  margin-top: 0;
-}
-
-.attestation-note-label {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.attestation-note-value {
-  margin: 0;
-  color: var(--text);
-  font-size: var(--fs-body);
-  font-weight: 400;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-
 .attestation-control-list {
   display: flex;
   flex-direction: column;
@@ -3797,12 +3705,6 @@
   font-size: var(--fs-xs);
 }
 
-.attestation-irrelevant-block {
-  margin-top: var(--section-content-margin);
-  padding-top: var(--section-content-margin);
-  border-top: 1px solid var(--border);
-}
-
 .attestation-irrelevant-collapsible {
   border: none !important;
   padding: 0 !important;
@@ -3817,19 +3719,6 @@
   padding: 0;
 }
 
-.attestation-irrelevant-label {
-  display: block;
-  margin-bottom: 0.4rem;
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
-  font-weight: 500;
-  letter-spacing: 0.05em;
-}
-
-.attestation-irrelevant-block .attestation-control-list.compact {
-  margin-top: 0;
-}
-
 .attestation-confirm-section {
   display: flex;
   flex-direction: column;
@@ -3839,20 +3728,6 @@
 .attestation-confirm-section .attestation-confirm-row {
   border: 1px solid var(--border);
   border-radius: var(--radius);
-}
-
-.attestation-validation-error {
-  align-items: flex-start;
-}
-
-.attestation-validation-title {
-  display: block;
-  margin-bottom: 0.35rem;
-}
-
-.attestation-validation-error ul {
-  padding-left: 1rem;
-  margin: 0;
 }
 
 .attestation-confirm-row {
@@ -4088,10 +3963,6 @@
 @keyframes ring-draw {
   0% { stroke-dashoffset: 226; }
   100% { stroke-dashoffset: 0; }
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .submitted-confirmation {
@@ -4367,31 +4238,6 @@
   color: var(--text-muted);
 }
 
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.animate-spin {
-  animation: spin 1s linear infinite;
-}
-
-@media (max-width: 640px) {
-  .app-header-user {
-    display: none;
-  }
-
-  .app-header-logout span {
-    display: none;
-  }
-
-  .app-header-logout {
-    padding: 0.5rem;
-  }
-}
-
 .edit-form-bottom-actions {
   display: flex;
   gap: 0.75rem;
@@ -4606,73 +4452,11 @@
 
 /* ------------------------------------------------------------
    My worksheets monthly overview
-   ------------------------------------------------------------ */
-.time-overview-page {
-  max-width: 1100px;
-  padding: 0 1rem;
-}
-
-.time-overview-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.time-month-controls {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.5rem;
-}
-
-.time-month-switcher {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  padding: 0.35rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  color: var(--text);
-  text-transform: capitalize;
-  white-space: nowrap;
-}
-
-.time-month-switcher span {
-  min-width: 9rem;
-  text-align: center;
-  font-size: var(--fs-body);
-}
-
-.time-month-button {
-  width: 2rem;
-  height: 2rem;
-  border-radius: var(--radius-pill);
-}
-
-.time-today-button {
-  padding: 0.4rem 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--surface-raised);
-  color: var(--text-muted);
-  font: inherit;
-  font-size: var(--fs-xs);
-  cursor: pointer;
-}
-
-.time-today-button:not(:disabled) {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
-}
-
-.time-today-button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
+   ------------------------------------------------------------
+   The month header, switcher and 'today' button are owned entirely by
+   features/worksheets/routes/MyWorksheets.css — the only route that renders
+   them. The duplicates that used to sit here were decided by lazy-chunk
+   arrival order rather than intent. */
 .time-summary-grid {
   display: flex;
   align-items: center;
@@ -5013,13 +4797,6 @@
 
   .time-overview-header > div:first-child {
     flex: 1;
-  }
-
-  .time-month-controls {
-    flex-direction: row;
-    align-items: center;
-    gap: 1rem;
-    margin-left: auto;
   }
 
   .time-today-button {
@@ -5447,128 +5224,6 @@
   50% { transform: translateX(-3px); opacity: 0.9; }
 }
 
-.history-timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.history-event {
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-  transition: transform 0.15s ease;
-}
-
-.history-event-header {
-  padding: 1rem;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-@media (hover: hover) {
-.history-event-header:hover {
-  background: var(--overlay-light-002);
-}
-}
-
-.history-event-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
-}
-
-.history-event-user, .history-event-time {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.history-event-type-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.history-event-type-label {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: var(--fs-sm);
-  font-weight: 500;
-  color: var(--text-muted);
-}
-
-.history-event-summary {
-  padding: 0 1rem 0.5rem;
-  font-size: var(--fs-body);
-  color: var(--text);
-  line-height: 1.4;
-}
-
-.history-event-details {
-  border-top: 1px solid var(--border);
-  padding: 0.75rem;
-  background: var(--overlay-dark-01);
-  overflow-x: auto; /* Enable scrolling on small screens */
-}
-
-.history-changes-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-sm);
-  table-layout: fixed; /* Force fixed layout to respect widths */
-}
-
-.history-changes-table th {
-  text-align: left;
-  padding: 0.5rem;
-  color: var(--text-muted);
-  font-weight: 400;
-  border-bottom: 1px solid var(--border);
-}
-
-.history-changes-table td {
-  padding: 0.6rem 0.5rem;
-  vertical-align: top;
-  word-wrap: break-word; /* Force wrapping of long words */
-}
-
-.change-field {
-  color: var(--text);
-  font-weight: 500;
-  width: 30%; /* Set explicit width */
-}
-
-.change-value-old {
-  color: var(--text-muted);
-  opacity: 0.9;
-}
-
-.change-value-old, .change-value-new {
-  width: 35%; /* Set explicit width */
-}
-
-
-.value-empty {
-  font-style: italic;
-  font-size: var(--fs-xs);
-}
-
-.drawer-loading, .drawer-empty {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 200px;
-  color: var(--text-muted);
-  text-align: center;
-}
-
 .history-btn {
   margin-right: 0.25rem;
   color: var(--text-muted);
@@ -5606,387 +5261,11 @@
   animation: spin 0.6s linear infinite;
 }
 
-/* Invite Accept Page */
-.invite-container {
-  justify-content: center;
-  align-items: center;
-  min-height: 100dvh;
-}
-
-.invite-card {
-  width: min(100%, 420px);
-  padding: 2.5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  backdrop-filter: blur(20px);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  text-align: center;
-  z-index: 1;
-}
-
-.invite-logo-wrapper {
-  justify-content: center;
-  margin-bottom: 1.5rem;
-}
-
-.invite-status-icon {
-  margin-bottom: 1rem;
-}
-
-.invite-status-icon--success {
-  color: var(--success);
-}
-
-.invite-status-icon--danger {
-  color: var(--danger);
-}
-
-.invite-title {
-  margin-bottom: 0.5rem;
-}
-
-.invite-text {
-  color: var(--text-muted);
-  margin-bottom: 1.5rem;
-}
-
-.invite-text--long {
-  margin-bottom: 2rem;
-}
-
-.invite-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.invite-field {
-  text-align: left;
-}
-
-.invite-label {
-  display: block;
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-  margin-bottom: 0.35rem;
-}
-
-.invite-input-wrapper {
-  position: relative;
-}
-
-.invite-input-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-dim);
-}
-
-.invite-input {
-  width: 100%;
-  padding: 0.7rem 0.75rem 0.7rem 2.5rem;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  color: var(--text);
-  font-size: var(--fs-body);
-  outline: none;
-  box-sizing: border-box;
-  transition: border-color 0.2s;
-}
-
-.invite-input:focus {
-  border-color: var(--focus-ring);
-}
-
-.invite-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.invite-btn-accept {
-  width: 100%;
-}
-
-.invite-btn-submit {
-  margin-top: 0.5rem;
-}
-
-.invite-error-badge {
-  padding: 0.75rem 1rem;
-  background: var(--status-red-bg);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 12px;
-  margin-bottom: 1.5rem;
-  color: var(--status-red-text);
-  font-size: var(--fs-sm);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  text-align: left;
-}
-
-.invite-footer {
-  margin-top: 1.5rem;
-  font-size: var(--fs-sm);
-}
-
-/* ------------------------------------------------------------
-   Login page
-   ------------------------------------------------------------ */
-.app-container-center {
-  justify-content: center;
-  align-items: center;
-}
-
-.login-card {
-  width: 100%;
-  max-width: 400px;
-  padding: 2rem;
-  background: var(--surface-color);
-  border: 1px solid var(--surface-border);
-  border-radius: 24px;
-  backdrop-filter: blur(20px);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-}
-
-.login-card-header {
-  text-align: center;
-  margin-bottom: 2rem;
-}
-
-.login-card-header h2 {
-  margin-bottom: 0.5rem;
-}
-
-.login-card-header p {
-  color: var(--text-secondary);
-}
-
-.login-email-info {
-  font-weight: 400;
-  font-size: 1.1rem;
-  margin-top: 0.25rem;
-}
-
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.login-form label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-size: 0.9rem;
-  font-weight: 400;
-}
-
-.login-form .btn-primary {
-  width: 100%;
-  margin-top: 0.5rem;
-}
-
-.login-form .btn-primary svg:first-child {
-  margin-right: 0.5rem;
-}
-
-.logo-center {
-  justify-content: center;
-  margin-bottom: 1rem;
-}
-
 /* ------------------------------------------------------------
    AppLayout
    ------------------------------------------------------------ */
 .logo-header {
   font-size: 1.25rem;
-}
-
-.user-avatar-initial {
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-/* ------------------------------------------------------------
-   Login page â€” reauth spinner
-   ------------------------------------------------------------ */
-.reauth-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: 2rem;
-  background: var(--surface-color);
-  border: 1px solid var(--surface-border);
-  border-radius: 24px;
-  backdrop-filter: blur(20px);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  max-width: 400px;
-  width: 100%;
-}
-
-.reauth-card .animate-spin {
-  color: var(--text-secondary);
-}
-
-.reauth-card p {
-  color: var(--text-secondary);
-  text-align: center;
-  margin: 0;
-}
-
-.reauth-cancel-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  padding: 0.5rem;
-  text-decoration: underline;
-}
-
-/* ------------------------------------------------------------
-   Login page â€” email step buttons
-   ------------------------------------------------------------ */
-.login-email-step {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.login-otc-btn {
-  width: 100%;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  padding: 0.75rem;
-}
-
-.login-submit-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  position: relative;
-  overflow: hidden;
-}
-
-.login-submit-btn:disabled {
-  opacity: 0.7;
-  cursor: wait;
-}
-
-.login-submit-btn-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: inherit;
-  backdrop-filter: blur(2px);
-}
-
-/* ------------------------------------------------------------
-   Login page â€” code step back button
-   ------------------------------------------------------------ */
-.login-back-btn {
-  width: 100%;
-  background: none;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  padding: 0.75rem;
-}
-
-/* ------------------------------------------------------------
-   Login page â€” error banner
-   ------------------------------------------------------------ */
-.login-error-banner {
-  padding: 0.75rem 1rem;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 12px;
-  margin-bottom: 1.5rem;
-  color: #ef4444;
-  font-size: 0.9rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* ------------------------------------------------------------
-   Login page â€” email sent info
-   ------------------------------------------------------------ */
-
-/* ------------------------------------------------------------
-   Login page â€” back to front page
-   ------------------------------------------------------------ */
-.login-frontpage-footer {
-  text-align: center;
-  margin-top: 1.5rem;
-  font-size: 0.9rem;
-}
-
-.login-frontpage-footer a {
-  color: var(--text-secondary);
-}
-
-/* ------------------------------------------------------------
-   Login page â€” dev login section
-   ------------------------------------------------------------ */
-.login-dev-section {
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--surface-border);
-}
-
-.login-dev-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.login-dev-btn {
-  width: 100%;
-  font-size: 0.85rem;
-}
-
-/* ------------------------------------------------------------
-   Protected route loading
-   ------------------------------------------------------------ */
-.protected-route-loading {
-  text-align: center;
-  padding: clamp(8rem, 30svh, 16rem) 2rem 2rem;
-  color: var(--text-secondary);
-}
-
-/* ------------------------------------------------------------
-   Invite â€” submit button disabled state
-   ------------------------------------------------------------ */
-.invite-btn-submit:disabled {
-  opacity: 0.7;
-  cursor: wait;
-}
-
-/* ------------------------------------------------------------
-   Invite â€” footer link
-   ------------------------------------------------------------ */
-.invite-footer-link {
-  color: var(--text-muted);
 }
 
 /* ------------------------------------------------------------
