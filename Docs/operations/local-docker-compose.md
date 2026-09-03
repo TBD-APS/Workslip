@@ -49,10 +49,11 @@ workslip          # start
 workslip status   # status
 workslip logs     # logs
 workslip down     # stop, keep data
-workslip hard-reset # stop and delete local Compose volumes
 ```
 
 Re-run `make install-global` if the repository is moved to another path. Remove the command with `make uninstall-global`.
+
+The destructive local reset stays explicit as `make down-hard` from the repository; it is intentionally not exposed through the global shortcut.
 
 ## Cleaner startup
 
