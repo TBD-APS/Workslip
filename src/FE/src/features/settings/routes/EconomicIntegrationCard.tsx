@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { ErrorState } from '../../../components/ErrorState';
+import { formatDate } from '../../../lib/formatDate';
 import { notify } from '../../../lib/toast';
 import {
   useDisconnectEconomic,
@@ -175,13 +176,7 @@ export const EconomicIntegrationCard = () => {
                   {data.connectedAt && (
                     <div>
                       <div className="subtitle" style={{ margin: 0, fontSize: '0.75rem' }}>Forbundet</div>
-                      <strong>
-                        {new Date(data.connectedAt).toLocaleDateString('da-DK', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </strong>
+                      <strong>{formatDate(data.connectedAt) ?? data.connectedAt}</strong>
                     </div>
                   )}
                 </div>
