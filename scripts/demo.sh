@@ -100,8 +100,8 @@ start_demo() {
   log "Starting Workslip full local stack"
   "${COMPOSE[@]}" up -d --wait --quiet-pull --progress plain
 
-  log "Waiting for API"
-  wait_for_url "Workslip API" "$API_URL" 120
+  log "Waiting for API health"
+  wait_for_url "Workslip API" "$API_URL/health" 120
 
   log "Waiting for frontend"
   wait_for_url "Workslip frontend" "$LOCAL_URL" 120
@@ -126,10 +126,10 @@ show_status() {
     log "Frontend: unavailable ($LOCAL_URL)"
   fi
 
-  if command -v curl >/dev/null 2>&1 && curl --fail --silent "$API_URL" >/dev/null 2>&1; then
-    log "API: reachable ($API_URL)"
+  if command -v curl >/dev/null 2>&1 && curl --fail --silent "$API_URL/health" >/dev/null 2>&1; then
+    log "API: healthy ($API_URL/health)"
   else
-    log "API: unavailable or root route is not HTTP 2xx ($API_URL)"
+    log "API: unavailable ($API_URL/health)"
   fi
 }
 
