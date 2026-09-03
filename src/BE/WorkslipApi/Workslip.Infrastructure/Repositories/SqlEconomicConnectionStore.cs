@@ -203,11 +203,9 @@ public sealed class SqlEconomicConnectionStore(
 
     private byte[] GetEncryptionKey()
     {
-        var material = configuration["Integrations:Economic:TokenEncryptionKey"];
-        if (string.IsNullOrWhiteSpace(material))
-            material = configuration["Integrations:Economic:AppSecretToken"];
-        if (string.IsNullOrWhiteSpace(material))
-            throw new InvalidOperationException("e-conomic token encryption key is not configured.");
+        var material = configuration["Integrations:Economic:TokenEncryptionKey"]?.Trim();
+        if (string.IsNullOrWhiteSpace(material) || material.Length < 32)
+            throw new InvalidOperationException("e-conomic token encryption key must be configured with at least 32 characters.");
 
         return SHA256.HashData(Encoding.UTF8.GetBytes($"workslip:economic:grant-token:v1:{material}"));
     }
