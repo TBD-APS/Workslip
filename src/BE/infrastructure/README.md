@@ -135,7 +135,13 @@ The template takes no compile-time file input. Everything instance-specific arri
 
 An infrastructure-only deployment does not generate the VAPID private key. Use the full `deploy.ps1` entry point when establishing a new environment or repairing a missing VAPID secret.
 
-Vercel cache-purge credentials and project configuration are outside the Azure infrastructure deployment boundary. The infrastructure scripts neither require nor reconcile them.
+Frontend hosting is outside these entry points. The frontend is an image built
+from `src/FE/Dockerfile` and released with the API by
+`.github/workflows/aca-live-deploy.yml`, against the Container Apps resources
+declared in `src/BE/infrastructure/aca/`. `deploy.ps1`,
+`deploy-infrastructure.ps1` and `deploy-entra.ps1` neither build nor reconcile
+that image, and there is no external hosting account or cache-purge credential
+for them to hold.
 
 ## Internal helpers
 

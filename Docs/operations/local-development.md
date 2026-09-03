@@ -106,7 +106,7 @@ Run the runner under the same Windows user context that owns the supported Works
 
 After the runner is online, from iPhone open the repository in GitHub, go to **Actions → Mobile · Local session → Run workflow**, keep the branch set to `main`, choose the session duration and start it. When the job reaches **Publish phone URL**, open the URL from the job summary while the iPhone is on the same Wi-Fi/LAN. Cancel the workflow run to end the session early.
 
-This design deliberately keeps GitHub as the authenticated control plane and the application traffic on the local network. GitHub triggers the runner, but browser traffic from the phone does not traverse GitHub, Vercel or a public tunnel.
+This design deliberately keeps GitHub as the authenticated control plane and the application traffic on the local network. GitHub triggers the runner, but browser traffic from the phone does not traverse GitHub, the Azure production host or a public tunnel.
 
 ## Useful modes
 
