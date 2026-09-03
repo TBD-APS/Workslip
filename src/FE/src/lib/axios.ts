@@ -32,8 +32,14 @@ import {
 
 const configuredApiUrl = import.meta.env.VITE_API_BASE_URL?.trim() ?? '';
 const hostname = typeof window === 'undefined' ? '' : window.location.hostname;
-const isVercelHosted = hostname === 'app.mrsoftware.dk' || hostname.endsWith('.vercel.app');
-const apiUrl = isVercelHosted ? '' : configuredApiUrl;
+
+// The application's own reverse proxy serves the API from the page's origin:
+// `src/FE/nginx.conf` proxies `/api/` to the API container beside it. A relative
+// base URL is therefore the only correct one on these hostnames, whatever
+// `VITE_API_BASE_URL` a build happened to bake into the bundle.
+const SAME_ORIGIN_API_HOSTNAMES = new Set(['app.mrsoftware.dk']);
+const servesApiFromSameOrigin = SAME_ORIGIN_API_HOSTNAMES.has(hostname);
+const apiUrl = servesApiFromSameOrigin ? '' : configuredApiUrl;
 const AUTH_ME_TIMEOUT_MS = 6_000;
 
 const isAuthMeRequest = (url: string | undefined): boolean => {

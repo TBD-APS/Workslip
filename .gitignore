@@ -9,7 +9,6 @@ build/
 out/
 .next/
 .turbo/
-.vercel/
 *.tsbuildinfo
 *.dll
 *.pdb
