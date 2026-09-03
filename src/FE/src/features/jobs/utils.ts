@@ -159,6 +159,12 @@ export function toUpdateRequest(
     reportNumber: job.reportNumber
       ? null
       : (initial.reportNumber !== form.reportNumber ? form.reportNumber.trim() || null : null),
+    // Whether work is sent at all is only about the user: did they touch it,
+    // and is this a caller that carries work. WHICH installationTypes value is
+    // faithful - a list, or `null` for "leave the recorded ones alone" - is
+    // decided in `toWorkRequest`, the only place that builds the list, so no
+    // caller can emit a wipe and none has to withhold the whole write to avoid
+    // one.
     work: includeWork && !sameWork(initial, form) ? toWorkRequest(form, referenceData) : null,
     observations:
       initial.taskDescription !== form.taskDescription ||
@@ -174,31 +180,76 @@ export function toUpdateRequest(
   };
 }
 
+/**
+ * Serialise `form.work` into the work slice of a PATCH.
+ *
+ * `installationTypes` is nullable in the contract, and the two values mean very
+ * different things to the API: a list REPLACES the recorded installations -
+ * taking their kontrolpunkt ticks and isIrrelevant markers with it - while
+ * `null` leaves them exactly as they are and still applies opgavetype,
+ * afslutningsstatus and bemærkning. `EfJobRepository` only calls
+ * `SyncSelectedInstallationsAsync` `if (request.Work.InstallationTypes is not
+ * null)`.
+ *
+ * The list is the selection intersected with the anlægstype catalogue, so
+ * `null` is the honest answer whenever that intersection says nothing about
+ * what the user wants:
+ *
+ * - Empty selection -> `[]`. Nothing needs resolving, and clearing the
+ *   selection is a deliberate "remove them all" that the API is meant to
+ *   honour.
+ * - A selection the catalogue resolves nothing of -> `null`. The catalogue is
+ *   either not loaded or deliberately empty: `/api/reference-data` strips
+ *   `installationTypes` for a tenant without the compliance-evidence module
+ *   while `GET /api/jobs/{id}` keeps them, so an empty catalogue is a permanent
+ *   server answer and not a loading state. Emitting the empty intersection
+ *   would delete every recorded installation; refusing the whole write instead
+ *   left the sag neither savable nor leavable, because step 4 demands an
+ *   afslutningsstatus that lands in `form.work` and so keeps the write pending
+ *   for ever.
+ * - A selection the catalogue resolves in part -> the resolved subset. The
+ *   missing ids are gone from the catalogue, so the work step can neither
+ *   render nor re-select them: the list the user is looking at is exactly the
+ *   list that reaches the API.
+ *
+ * `remarks` is catalogue-derived in the same way - it only means anything when
+ * every selected category is irrelevant - so the "resolves nothing" case leaves
+ * it as the server has it rather than nulling a bemærkning that cannot be seen
+ * or reached while the catalogue is empty.
+ */
 export function toWorkRequest(
   form: JobForm,
   referenceData: ReferenceDataResponse | null,
 ): CreateJobWorkRequest {
   const selectedTypes = referenceData?.installationTypes
     .filter((type) => form.work.categoryIds.includes(type.id)) ?? [];
+  const resolvesNothing = form.work.categoryIds.length > 0 && selectedTypes.length === 0;
 
   return {
-    installationTypes: selectedTypes.map((type) => ({
-      id: type.id,
-      categories: type.categories.map((cat) => ({
-        id: cat.id,
-        controlPoints: cat.controlPoints.map((cp) => ({
-          id: cp.id,
-          sortOrder: cp.sortOrder,
-          isRequired: cp.isRequired,
-          isChecked: form.work.controlPointSelections[cp.id] ?? false,
+    installationTypes: resolvesNothing
+      ? null
+      : selectedTypes.map((type) => ({
+          id: type.id,
+          categories: type.categories.map((cat) => ({
+            id: cat.id,
+            controlPoints: cat.controlPoints.map((cp) => ({
+              id: cp.id,
+              sortOrder: cp.sortOrder,
+              isRequired: cp.isRequired,
+              isChecked: form.work.controlPointSelections[cp.id] ?? false,
+            })),
+            isIrrelevant: form.work.irrelevantCategoryIds.includes(`${type.id}-${cat.id}`),
+          })),
         })),
-        isIrrelevant: form.work.irrelevantCategoryIds.includes(`${type.id}-${cat.id}`),
-      })),
-    })),
     workKind: form.work.workKind || null,
     customWorkKind: form.work.customWorkKind.trim() || null,
     closureFlags: form.work.closureFlags || [],
-    remarks: areAllSelectedCategoriesIrrelevant(form, referenceData)
+    // In the resolves-nothing case this echoes the persisted bemaerkning back
+    // unchanged (modulo trim): allIrrelevantReason is seeded from
+    // job.work.remarks and is only editable in ControlPointsStep, which cannot
+    // render without a resolvable selection. Remarks has no null-skip on the
+    // server, so omitting it would delete it.
+    remarks: resolvesNothing || areAllSelectedCategoriesIrrelevant(form, referenceData)
       ? form.work.allIrrelevantReason.trim() || null
       : null,
   };
