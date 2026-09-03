@@ -18,7 +18,7 @@ The MR Software e-conomic app is configured once globally. Production secrets ar
 ```text
 Integrations:Economic:AppSecretToken=<secret>
 Integrations:Economic:InstallationUrl=<installation-url-from-e-conomic-developer-portal>
-Integrations:Economic:TokenEncryptionKey=<recommended-dedicated-secret>
+Integrations:Economic:TokenEncryptionKey=<dedicated-random-secret-at-least-32-characters>
 ```
 
 In the e-conomic developer portal, the app redirect URL must point to:
@@ -27,18 +27,18 @@ In the e-conomic developer portal, the app redirect URL must point to:
 https://app.mrsoftware.dk/api/accounting/economic/callback
 ```
 
-The `TokenEncryptionKey` is recommended so AppSecret rotation is independent from stored customer grants. For backwards-compatible deployments, Workslip derives the encryption key from `AppSecretToken` when a dedicated key is not present; establish the dedicated key before rotating the app secret.
+`TokenEncryptionKey` is deliberately separate from `AppSecretToken`. This allows MR Software to rotate the e-conomic app secret without making existing encrypted customer grants unreadable. The UI connection flow stays unavailable until all three global values above are configured.
 
 ### Customer connection flow
 
 1. An authenticated Workslip admin opens **Administrativt → Integrationer** and selects **Forbind e-conomic**.
 2. Workslip creates a cryptographically random, ten-minute connection correlation. Only its SHA-256 hash is persisted; the browser receives the correlation in an HttpOnly, SameSite=Lax cookie scoped to the callback path.
-3. The browser is redirected to the official e-conomic installation URL.
+3. The browser is redirected to the official `secure.e-conomic.com` installation URL with Danish locale.
 4. e-conomic asks the accounting user to grant the MR Software app access and redirects the browser to the Workslip callback with `token=<AgreementGrantToken>`.
 5. Workslip consumes the one-time correlation, verifies the grant against e-conomic `/self`, encrypts the grant with AES-GCM and tenant-bound associated data, and stores only ciphertext in `EconomicConnections`.
 6. The browser returns to `/app/settings` with a green connected state. The integration engine now selects e-conomic automatically for that organization.
 
-The AgreementGrantToken is never returned to React, logs, telemetry or API responses. It exists as plaintext only transiently inside the backend callback and provider request pipeline.
+The AgreementGrantToken is never returned to React, logs, telemetry or API responses. It exists as plaintext only transiently inside the backend callback and provider request pipeline. Request telemetry explicitly strips the callback query string so the grant cannot be persisted through Application Insights request URLs.
 
 ### Defaults
 
@@ -70,6 +70,7 @@ Legacy deployments may still provide `Integrations:Economic:Agreements:<organiza
 - No plaintext provider secret values in logs, telemetry, API responses or database rows.
 - Connection callbacks are one-time and expire after ten minutes.
 - A callback cannot choose its organization from a query parameter; tenant identity comes from server-side correlation state.
+- Only the configured official `secure.e-conomic.com` installation URL can be used for onboarding redirects.
 - Draft creation is idempotent per Workslip job.
 - Booking/sending invoices is intentionally outside this operational integration.
 - Workslip never calculates or posts VAT/accounting entries itself.
