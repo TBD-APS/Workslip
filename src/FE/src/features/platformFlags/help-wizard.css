@@ -165,15 +165,46 @@
 }
 
 @media (min-width: 1120px) {
+  /* Follows the rail from the one variable that owns its width
+     (AppLayout.desktop.css, now on :root). The two hardcoded copies that used to
+     live here — 13.5rem expanded, 4.75rem collapsed — silently drifted out of
+     step with the rail whenever its width changed. */
   body:has(.app-shell) .help-wizard {
-    left: calc(13.5rem + 14px);
+    left: calc(var(--desktop-nav-rail-current-width) + 14px);
     bottom: max(16px, env(safe-area-inset-bottom, 0px));
     transition: left 160ms ease;
   }
+}
 
-  body:has(.app-shell .desktop-rail-toggle-input:checked) .help-wizard {
-    left: calc(4.75rem + 14px);
-  }
+/*
+ * Clippy vs. the wizard action bar. Both are anchored to the bottom-left corner:
+ * .help-wizard-toggle is 78x106px starting 76px up, and .step-nav-anchor pins at
+ * --app-bottom-chrome + --bottom-nav-extra + 0.25rem with a ~63px pill on top of
+ * it. They overlapped for the pill's full height on all six wizard steps, and the
+ * bar wins on z-index (150 vs 120), so the mascot's head was sliced by Tilbage
+ * and the surviving sliver stayed a live 44px tap target under the user's thumb.
+ *
+ * Raised into the same lane the toast fix uses rather than repointed to the right
+ * — bottom-left is the deliberate placement this corner's other overlays share.
+ * Gated on the bar being on screen, not on width: the wizard is the only screen
+ * that renders one, so Clippy keeps its normal corner everywhere else and while
+ * the bar is scroll-hidden or deferred to an open dropdown (.is-hidden).
+ *
+ * Placed after the >=1120px block on purpose — the overlap exists on desktop too
+ * (the bar pins ~24px up there). This selector is (0,3,1) against that block's
+ * (0,2,1), so it wins on specificity and the placement is for readability, not
+ * for the cascade. It sets only `bottom`, so the rail-relative `left` above still
+ * applies.
+ *
+ * --toaster-bottom-chrome is ThemedToaster.css's mirror of the shell-scoped
+ * --app-bottom-chrome, which a body-level portal like this one cannot inherit.
+ * Consumed rather than copied so this is not a fourth transcription of the same
+ * arithmetic; the fallback covers ThemedToaster's chunk not having landed yet.
+ */
+body:has(.step-nav-anchor:not(.is-hidden)) .help-wizard {
+  bottom: calc(
+    var(--toaster-bottom-chrome, var(--bottom-nav-height)) + var(--bottom-nav-extra) + 0.25rem + 6.5rem
+  );
 }
 
 @keyframes clippy-blink {

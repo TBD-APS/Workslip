@@ -60,13 +60,18 @@ body:has(.step-nav-anchor:not(.is-hidden)) [data-sonner-toaster][data-y-position
  * focused desktop field from lowering a toast onto a visible bar. Written as one
  * flat :has() with the .app-shell scope repeated per branch, because :has()
  * cannot be nested inside :has().
+ *
+ * The .step-nav-anchor--page-action guard mirrors the same exclusion that rule
+ * carries: the create pages keep the bar's geometry but opt out of the fade, so
+ * their bar is still on screen while a field is focused and a toast must not
+ * drop onto it.
  */
 @media (hover: none) and (pointer: coarse) {
   body:has(
     .app-shell input:not([type='button']):not([type='checkbox']):not([type='color']):not([type='file']):not([type='hidden']):not([type='image']):not([type='radio']):not([type='range']):not([type='reset']):not([type='submit']):not([inputmode='none']):not([readonly]):not([disabled]):focus,
     .app-shell textarea:not([readonly]):not([disabled]):focus,
     .app-shell [contenteditable]:not([contenteditable='false']):focus
-  ) [data-sonner-toaster][data-y-position="bottom"] {
+  ):not(:has(.step-nav-anchor--page-action)) [data-sonner-toaster][data-y-position="bottom"] {
     bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem) !important;
   }
 }

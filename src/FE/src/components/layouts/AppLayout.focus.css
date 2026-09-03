@@ -105,18 +105,25 @@
     box-shadow: 8px 0 28px var(--overlay-subtle);
     overflow-y: auto;
     overscroll-behavior: contain;
-    /* !important overrides the mobile-first bottom-bar's `transform/transition:
-       none !important` in AppLayout.shell.css so the drawer can slide off-canvas. */
-    transform: translateX(-100%) !important;
+    /* Plain declarations: this file @imports AppLayout.shell.css at :1, so the
+       shell's `.bottom-nav` (0,1,0) is emitted first and these later rules at
+       equal specificity already win. The only other transform/transition
+       declarations on .bottom-nav are AppLayout.desktop.css's, and neither can
+       collide: `transition: width 160ms ease` sits in @media (min-width:
+       1120px), disjoint from this max-width: 767px band, and the
+       `transition: none` group sits in @media (prefers-reduced-motion: reduce),
+       where farvelab-theme.css's `transition-duration: 0.01ms !important`
+       already wins outright. */
+    transform: translateX(-100%);
     visibility: hidden;
-    transition: transform 220ms ease, visibility 0s linear 220ms !important;
+    transition: transform 220ms ease, visibility 0s linear 220ms;
     z-index: 200;
   }
 
   .app-shell.mobile-nav-open .bottom-nav {
-    transform: translateX(0) !important;
+    transform: translateX(0);
     visibility: visible;
-    transition: transform 220ms ease !important;
+    transition: transform 220ms ease;
   }
 
   /* Drawer rows: icon + visible label, in a left-aligned row. Overrides the
@@ -193,6 +200,15 @@
  * field, whereas a width gate strands the reflow-zoom user with no recovery at all.
  * Revisit only with a real visual-viewport signal, not another breakpoint guess.
  *
+ * Scoped off `.step-nav-anchor--page-action`. That modifier marks an action row
+ * that is the LAST thing in its page's document flow (JobCreate, SimpleJobCreate)
+ * rather than a bar floating over a scrolling wizard step. Those pages reuse this
+ * anchor purely for its sticky geometry and its toast/Clippy clearance, and their
+ * primary action ("Opret sag" / "Opret job") is the button the user reaches for
+ * immediately after typing in the last field. Fading it out on every field focus
+ * would hide the create button for almost the whole time the form is being filled
+ * in, with nothing gained: the bar sits below the form, not over it.
+ *
  * opacity + pointer-events, never visibility: `visibility: hidden` drops Tilbage and
  * Næste out of sequential focus navigation, so an iPad with an attached keyboard
  * could not Tab to Næste at all while a field was focused. This keeps the bar in the
@@ -205,7 +221,7 @@
     input:not([type='button']):not([type='checkbox']):not([type='color']):not([type='file']):not([type='hidden']):not([type='image']):not([type='radio']):not([type='range']):not([type='reset']):not([type='submit']):not([inputmode='none']):not([readonly]):not([disabled]):focus,
     textarea:not([readonly]):not([disabled]):focus,
     [contenteditable]:not([contenteditable='false']):focus
-  ) .step-nav-anchor {
+  ) .step-nav-anchor:not(.step-nav-anchor--page-action) {
     opacity: 0;
     pointer-events: none;
   }
