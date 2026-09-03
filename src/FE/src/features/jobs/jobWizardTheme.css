@@ -147,6 +147,11 @@ html body:has(.app-shell) .step-nav-btn-next:not(:disabled) {
   box-shadow: var(--shadow-accent);
 }
 
+/* Scoped to :not(:disabled) on purpose. App.css's `.step-nav-btn-next svg {
+   color: white }` was the sole owner of the DISABLED icon colour and has been
+   deleted, so a disabled forward button's icon now inherits --text-disabled from
+   the rule below — the "Gemmer..." spinner on both create pages included. That is
+   the intended change: white on --surface-raised was the low-contrast case. */
 html body:has(.app-shell) .step-nav-btn-next:not(:disabled) svg {
   color: currentColor;
 }

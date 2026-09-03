@@ -245,6 +245,17 @@
   }
 }
 
+/* Sole owner of the login/invite/reauth shell since App.css's byte-near copy was
+   deleted. App.css lands in the authenticated shell's lazy chunk, i.e. after this
+   file, so at equal specificity its copy WON for any tab that had already loaded
+   the app — log-in, log-out, /login again; a session expiring into reauth; /invite
+   opened from inside the app. Four declarations differed in value and those paths
+   change appearance on purpose: the card shadow becomes var(--shadow-lg) instead
+   of a hardcoded 0 25px 50px -12px rgba(0,0,0,0.5), and the error banner/badge
+   take --status-red-bg / --status-red-text / a color-mix border instead of
+   hardcoded rgba(239,68,68,…) and #ef4444. Cold-boot /login always rendered these
+   values, so this converges the two paths on the token layer rather than changing
+   the design. */
 .login-card,
 .reauth-card {
   width: 100%;
