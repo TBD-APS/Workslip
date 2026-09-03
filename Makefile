@@ -67,8 +67,7 @@ install-global: ## Install global `workslip` command into ~/.local/bin
 		echo '  down|stop) exec make -C "$$REPO" demo-down ;;'; \
 		echo '  status|ps) exec make -C "$$REPO" demo-status ;;'; \
 		echo '  logs|log) exec make -C "$$REPO" demo-logs ;;'; \
-		echo '  hard-reset|down-hard) exec make -C "$$REPO" down-hard ;;'; \
-		echo '  *) echo "Usage: workslip [up|status|logs|down|hard-reset]" >&2; exit 2 ;;'; \
+		echo '  *) echo "Usage: workslip [up|status|logs|down]" >&2; exit 2 ;;'; \
 		echo 'esac'; \
 	} > "$(GLOBAL_CMD)"
 	@chmod +x "$(GLOBAL_CMD)"
