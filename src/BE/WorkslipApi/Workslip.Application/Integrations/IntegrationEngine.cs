@@ -18,25 +18,30 @@ public class IntegrationEngine : IIntegrationEngine
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IConfiguration _configuration;
+    private readonly IEconomicConnectionStore? _economicConnections;
 
-    public IntegrationEngine(IServiceProvider serviceProvider, IConfiguration configuration)
+    public IntegrationEngine(
+        IServiceProvider serviceProvider,
+        IConfiguration configuration,
+        IEconomicConnectionStore? economicConnections = null)
     {
         _serviceProvider = serviceProvider;
         _configuration = configuration;
+        _economicConnections = economicConnections;
     }
 
     public IEnumerable<IIntegrationProvider> GetAvailableProviders() =>
         _serviceProvider.GetServices<IIntegrationProvider>();
 
-    public Task<IAccountingProvider> GetAccountingProviderAsync(string tenantId)
+    public async Task<IAccountingProvider> GetAccountingProviderAsync(string tenantId)
     {
-        var providerId = ResolveProviderId(tenantId);
+        var providerId = await ResolveProviderIdAsync(tenantId);
         var provider = _serviceProvider
             .GetServices<IAccountingProvider>()
             .FirstOrDefault(candidate => string.Equals(candidate.ProviderId, providerId, StringComparison.OrdinalIgnoreCase));
 
-        return Task.FromResult(provider
-            ?? throw new NotSupportedException($"Accounting provider '{providerId}' is not registered."));
+        return provider
+            ?? throw new NotSupportedException($"Accounting provider '{providerId}' is not registered.");
     }
 
     public async Task<IAccountingOperationsProvider> GetAccountingOperationsProviderAsync(string tenantId)
@@ -46,11 +51,15 @@ public class IntegrationEngine : IIntegrationEngine
             ?? throw new NotSupportedException($"Accounting provider '{provider.ProviderId}' does not support operational synchronization.");
     }
 
-    private string ResolveProviderId(string tenantId)
+    private async Task<string> ResolveProviderIdAsync(string tenantId)
     {
         var explicitProvider = _configuration[$"Integrations:Accounting:Organizations:{tenantId}:Provider"];
         if (!string.IsNullOrWhiteSpace(explicitProvider))
             return explicitProvider.Trim();
+
+        if (_economicConnections is not null && Guid.TryParse(tenantId, out var organizationId) &&
+            await _economicConnections.HasConnectionAsync(organizationId, CancellationToken.None))
+            return "economics";
 
         var economicGrant = _configuration[$"Integrations:Economic:Agreements:{tenantId}:GrantToken"];
         if (!string.IsNullOrWhiteSpace(economicGrant))
