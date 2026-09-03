@@ -25,7 +25,7 @@ public sealed class CorrelationTelemetryInitializer(IHttpContextAccessor httpCon
 
         // e-conomic's documented redirect returns AgreementGrantToken as `?token=...`.
         // Request telemetry must never persist that query string.
-        if (httpContext.Request.Path.Equals(EconomicCallbackPath, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(httpContext.Request.Path.Value, EconomicCallbackPath, StringComparison.OrdinalIgnoreCase))
         {
             requestTelemetry.Url = new Uri($"{httpContext.Request.Scheme}://{httpContext.Request.Host}{EconomicCallbackPath}");
         }
