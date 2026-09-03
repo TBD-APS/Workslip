@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Workslip.Api.Helpers;
 using Workslip.Application.Integrations;
@@ -6,6 +7,8 @@ namespace Workslip.Api.Endpoints;
 
 public static class AccountingIntegrationEndpoints
 {
+    private const string EconomicCorrelationCookie = "workslip-economic-connect";
+
     public static IEndpointRouteBuilder MapAccountingIntegrationEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapAdminGroup("/api/accounting", "accounting");
@@ -18,6 +21,54 @@ public static class AccountingIntegrationEndpoints
             HttpCacheHeaders.SetNoStore(httpContext);
             return Results.Ok(await service.GetStatusAsync(cancellationToken));
         }).Produces<AccountingConnectionStatusResponse>();
+
+        group.MapGet("/economic/connection", async (
+            [FromServices] IEconomicConnectionService service,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            return Results.Ok(await service.GetStatusAsync(cancellationToken));
+        }).ExcludeFromDescription();
+
+        group.MapPost("/economic/connect", async (
+            [FromServices] IEconomicConnectionService service,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            try
+            {
+                var start = await service.StartAsync(cancellationToken);
+                httpContext.Response.Cookies.Append(
+                    EconomicCorrelationCookie,
+                    start.CorrelationToken,
+                    new CookieOptions
+                    {
+                        HttpOnly = true,
+                        Secure = true,
+                        SameSite = SameSiteMode.Lax,
+                        MaxAge = TimeSpan.FromMinutes(10),
+                        Path = "/api/accounting/economic/callback",
+                        IsEssential = true
+                    });
+                return Results.Ok(new { installationUrl = start.InstallationUrl });
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Results.Conflict(new { error = exception.Message });
+            }
+        }).ExcludeFromDescription();
+
+        group.MapDelete("/economic/connection", async (
+            [FromServices] IEconomicConnectionService service,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            await service.DisconnectAsync(cancellationToken);
+            return Results.NoContent();
+        }).ExcludeFromDescription();
 
         group.MapPost("/customers/sync", async (
             [FromServices] IAccountingOperationsService service,
@@ -156,6 +207,44 @@ public static class AccountingIntegrationEndpoints
                 return Results.NotFound(new { error = exception.Message });
             }
         });
+
+        app.MapGet("/api/accounting/economic/callback", async (
+            [FromQuery(Name = "token")] string? token,
+            [FromServices] IEconomicConnectionService service,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            if (!httpContext.Request.Cookies.TryGetValue(EconomicCorrelationCookie, out var correlation) ||
+                string.IsNullOrWhiteSpace(correlation) || string.IsNullOrWhiteSpace(token))
+            {
+                return Results.Redirect("/app/settings?economic=error");
+            }
+
+            try
+            {
+                await service.CompleteAsync(correlation, token, cancellationToken);
+                httpContext.Response.Cookies.Delete(EconomicCorrelationCookie, new CookieOptions
+                {
+                    Path = "/api/accounting/economic/callback",
+                    Secure = true,
+                    SameSite = SameSiteMode.Lax
+                });
+                return Results.Redirect("/app/settings?economic=connected");
+            }
+            catch
+            {
+                httpContext.Response.Cookies.Delete(EconomicCorrelationCookie, new CookieOptions
+                {
+                    Path = "/api/accounting/economic/callback",
+                    Secure = true,
+                    SameSite = SameSiteMode.Lax
+                });
+                return Results.Redirect("/app/settings?economic=error");
+            }
+        })
+        .AllowAnonymous()
+        .ExcludeFromDescription();
 
         return app;
     }

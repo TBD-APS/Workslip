@@ -7,7 +7,8 @@ namespace Workslip.Application.Integrations;
 
 public sealed class EconomicsProvider(
     IHttpClientFactory httpClientFactory,
-    IConfiguration configuration) : IAccountingOperationsProvider
+    IConfiguration configuration,
+    IEconomicConnectionStore? connectionStore = null) : IAccountingOperationsProvider, IEconomicConnectionVerifier
 {
     private const string BaseUrl = "https://restapi.e-conomic.com/";
 
@@ -16,15 +17,15 @@ public sealed class EconomicsProvider(
 
     public bool IsConfigured(string tenantId) =>
         !string.IsNullOrWhiteSpace(configuration["Integrations:Economic:AppSecretToken"]) &&
-        !string.IsNullOrWhiteSpace(configuration[$"Integrations:Economic:Agreements:{tenantId}:GrantToken"]);
+        (!string.IsNullOrWhiteSpace(configuration[$"Integrations:Economic:Agreements:{tenantId}:GrantToken"]) || connectionStore is not null);
 
     public async Task<bool> TestConnectionAsync(string tenantId)
     {
-        if (!IsConfigured(tenantId)) return false;
+        if (string.IsNullOrWhiteSpace(configuration["Integrations:Economic:AppSecretToken"])) return false;
         try
         {
-            using var client = CreateClient(tenantId);
-            using var response = await client.GetAsync("customers?pagesize=1");
+            using var client = await CreateClientAsync(tenantId, CancellationToken.None);
+            using var response = await client.GetAsync("self");
             return response.IsSuccessStatusCode;
         }
         catch
@@ -33,11 +34,25 @@ public sealed class EconomicsProvider(
         }
     }
 
+    public async Task<EconomicAgreementIdentity> VerifyGrantTokenAsync(
+        string agreementGrantToken,
+        CancellationToken cancellationToken)
+    {
+        using var client = CreateClientWithGrantToken(agreementGrantToken);
+        using var response = await client.GetAsync("self", cancellationToken);
+        response.EnsureSuccessStatusCode();
+        var self = await ParseObjectAsync(response, cancellationToken);
+
+        return new EconomicAgreementIdentity(
+            AgreementNumber: NodeText(self["agreementNumber"]) ?? NodeText(self["agreement"]?["agreementNumber"]),
+            CompanyName: NodeText(self["company"]?["name"]) ?? NodeText(self["name"]));
+    }
+
     public async Task<IReadOnlyList<ExternalAccountingCustomer>> GetCustomersAsync(
         string tenantId,
         CancellationToken cancellationToken)
     {
-        using var client = CreateClient(tenantId);
+        using var client = await CreateClientAsync(tenantId, cancellationToken);
         var rows = await GetCollectionAsync(client, "customers?pagesize=1000", cancellationToken);
         return rows.Select(ToExternalCustomer).ToArray();
     }
@@ -47,14 +62,14 @@ public sealed class EconomicsProvider(
         ExternalAccountingCustomer customer,
         CancellationToken cancellationToken)
     {
-        using var client = CreateClient(tenantId);
+        using var client = await CreateClientAsync(tenantId, cancellationToken);
         JsonObject payload;
         HttpMethod method;
         string path;
 
         if (string.IsNullOrWhiteSpace(customer.ExternalCustomerNumber))
         {
-            payload = CreateCustomerPayload(customer);
+            payload = await CreateCustomerPayloadAsync(client, customer, cancellationToken);
             method = HttpMethod.Post;
             path = "customers";
         }
@@ -86,7 +101,7 @@ public sealed class EconomicsProvider(
         if (request.Lines.Count == 0)
             throw new InvalidOperationException("Cannot create an empty invoice draft.");
 
-        using var client = CreateClient(tenantId);
+        using var client = await CreateClientAsync(tenantId, cancellationToken);
         var customerNumber = Uri.EscapeDataString(request.ExternalCustomerNumber);
 
         using var templateResponse = await client.GetAsync(
@@ -110,13 +125,23 @@ public sealed class EconomicsProvider(
         var lines = new JsonArray();
         foreach (var sourceLine in request.Lines)
         {
-            var productNumber = ProductNumber(sourceLine.Kind);
-            var quantity = sourceLine.Quantity.ToString(CultureInfo.InvariantCulture);
-            using var lineResponse = await client.GetAsync(
-                $"customers/{customerNumber}/templates/invoiceline/{Uri.EscapeDataString(productNumber)}?quantity={Uri.EscapeDataString(quantity)}",
-                cancellationToken);
-            lineResponse.EnsureSuccessStatusCode();
-            var line = await ParseObjectAsync(lineResponse, cancellationToken);
+            var productNumber = ProductNumberOrNull(sourceLine.Kind);
+            JsonObject line;
+
+            if (!string.IsNullOrWhiteSpace(productNumber))
+            {
+                var quantity = sourceLine.Quantity.ToString(CultureInfo.InvariantCulture);
+                using var lineResponse = await client.GetAsync(
+                    $"customers/{customerNumber}/templates/invoiceline/{Uri.EscapeDataString(productNumber)}?quantity={Uri.EscapeDataString(quantity)}",
+                    cancellationToken);
+                lineResponse.EnsureSuccessStatusCode();
+                line = await ParseObjectAsync(lineResponse, cancellationToken);
+            }
+            else
+            {
+                line = new JsonObject { ["discountPercentage"] = 0m };
+            }
+
             line["description"] = sourceLine.Description;
             line["quantity"] = sourceLine.Quantity;
             line["unitNetPrice"] = sourceLine.UnitNetPrice;
@@ -135,18 +160,18 @@ public sealed class EconomicsProvider(
         string externalReference,
         CancellationToken cancellationToken)
     {
-        using var client = CreateClient(tenantId);
+        using var client = await CreateClientAsync(tenantId, cancellationToken);
         var filter = Uri.EscapeDataString($"references.other$eq:{externalReference}");
 
         var drafts = await GetCollectionAsync(client, $"invoices/drafts?filter={filter}&pagesize=5", cancellationToken);
         var draft = drafts.FirstOrDefault(row =>
-            string.Equals(row["references"]?["other"]?.GetValue<string>(), externalReference, StringComparison.Ordinal));
+            string.Equals(NodeText(row["references"]?["other"]), externalReference, StringComparison.Ordinal));
         if (draft is not null)
             return ToDraftState(draft, externalReference);
 
         var booked = await GetCollectionAsync(client, $"invoices/booked?filter={filter}&pagesize=5", cancellationToken);
         var bookedInvoice = booked.FirstOrDefault(row =>
-            string.Equals(row["references"]?["other"]?.GetValue<string>(), externalReference, StringComparison.Ordinal));
+            string.Equals(NodeText(row["references"]?["other"]), externalReference, StringComparison.Ordinal));
         return bookedInvoice is null ? null : ToBookedState(bookedInvoice, externalReference);
     }
 
@@ -157,9 +182,10 @@ public sealed class EconomicsProvider(
         string endDate)
     {
         _ = userId;
-        if (!IsConfigured(tenantId)) return Array.Empty<AccountingDocument>();
+        if (string.IsNullOrWhiteSpace(configuration["Integrations:Economic:AppSecretToken"]))
+            return Array.Empty<AccountingDocument>();
 
-        using var client = CreateClient(tenantId);
+        using var client = await CreateClientAsync(tenantId, CancellationToken.None);
         var rows = await GetCollectionAsync(client, "invoices/booked?pagesize=1000", CancellationToken.None);
         DateOnly.TryParse(startDate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var from);
         DateOnly.TryParse(endDate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var to);
@@ -167,21 +193,21 @@ public sealed class EconomicsProvider(
         return rows
             .Where(row =>
             {
-                if (!DateOnly.TryParse(row["date"]?.GetValue<string>(), out var date)) return true;
+                if (!DateOnly.TryParse(NodeText(row["date"]), out var date)) return true;
                 if (from != default && date < from) return false;
                 if (to != default && date > to) return false;
                 return true;
             })
             .Select(row =>
             {
-                var number = row["bookedInvoiceNumber"]?.GetValue<int>() ?? 0;
-                var remainder = row["remainder"]?.GetValue<decimal>() ?? 0m;
+                var number = NodeInt(row["bookedInvoiceNumber"]) ?? 0;
+                var remainder = NodeDecimal(row["remainder"]) ?? 0m;
                 return new AccountingDocument(
                     number.ToString(CultureInfo.InvariantCulture),
                     $"FAK-{number:D4}",
                     "Invoice",
-                    row["netAmount"]?.GetValue<decimal>() ?? 0m,
-                    row["date"]?.GetValue<string>() ?? string.Empty,
+                    NodeDecimal(row["netAmount"]) ?? 0m,
+                    NodeText(row["date"]) ?? string.Empty,
                     remainder == 0m ? "Paid" : "Unpaid",
                     $"{BaseUrl}invoices/booked/{number}");
             })
@@ -190,12 +216,19 @@ public sealed class EconomicsProvider(
 
     public async Task<Stream?> GetDocumentStreamAsync(string tenantId, string documentId)
     {
-        if (!IsConfigured(tenantId)) return null;
-        using var client = CreateClient(tenantId);
-        using var response = await client.GetAsync($"invoices/booked/{Uri.EscapeDataString(documentId)}/pdf");
-        if (!response.IsSuccessStatusCode) return null;
-        var bytes = await response.Content.ReadAsByteArrayAsync();
-        return new MemoryStream(bytes, writable: false);
+        if (string.IsNullOrWhiteSpace(configuration["Integrations:Economic:AppSecretToken"])) return null;
+        try
+        {
+            using var client = await CreateClientAsync(tenantId, CancellationToken.None);
+            using var response = await client.GetAsync($"invoices/booked/{Uri.EscapeDataString(documentId)}/pdf");
+            if (!response.IsSuccessStatusCode) return null;
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            return new MemoryStream(bytes, writable: false);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     [Obsolete("Use operational invoice draft synchronization instead of pushing raw hours.")]
@@ -206,25 +239,57 @@ public sealed class EconomicsProvider(
         return Task.FromResult(false);
     }
 
-    private HttpClient CreateClient(string tenantId)
+    private async Task<HttpClient> CreateClientAsync(string tenantId, CancellationToken cancellationToken)
+    {
+        var grantToken = configuration[$"Integrations:Economic:Agreements:{tenantId}:GrantToken"];
+        if (string.IsNullOrWhiteSpace(grantToken) && connectionStore is not null && Guid.TryParse(tenantId, out var organizationId))
+            grantToken = await connectionStore.GetAgreementGrantTokenAsync(organizationId, cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(grantToken))
+            throw new InvalidOperationException("e-conomic is not connected for this organization.");
+
+        return CreateClientWithGrantToken(grantToken);
+    }
+
+    private HttpClient CreateClientWithGrantToken(string agreementGrantToken)
     {
         var appSecret = configuration["Integrations:Economic:AppSecretToken"];
-        var grantToken = configuration[$"Integrations:Economic:Agreements:{tenantId}:GrantToken"];
-        if (string.IsNullOrWhiteSpace(appSecret) || string.IsNullOrWhiteSpace(grantToken))
-            throw new InvalidOperationException("e-conomic credentials are not configured for this organization.");
+        if (string.IsNullOrWhiteSpace(appSecret))
+            throw new InvalidOperationException("e-conomic app secret is not configured.");
 
         var client = httpClientFactory.CreateClient();
         client.BaseAddress = new Uri(BaseUrl);
         client.DefaultRequestHeaders.TryAddWithoutValidation("X-AppSecretToken", appSecret);
-        client.DefaultRequestHeaders.TryAddWithoutValidation("X-AgreementGrantToken", grantToken);
+        client.DefaultRequestHeaders.TryAddWithoutValidation("X-AgreementGrantToken", agreementGrantToken);
         return client;
     }
 
-    private JsonObject CreateCustomerPayload(ExternalAccountingCustomer customer)
+    private async Task<JsonObject> CreateCustomerPayloadAsync(
+        HttpClient client,
+        ExternalAccountingCustomer customer,
+        CancellationToken cancellationToken)
     {
-        var group = RequiredInt("Integrations:Economic:Defaults:CustomerGroupNumber");
-        var paymentTerms = RequiredInt("Integrations:Economic:Defaults:PaymentTermsNumber");
-        var vatZone = RequiredInt("Integrations:Economic:Defaults:VatZoneNumber");
+        var group = await ResolveDefaultNumberAsync(
+            client,
+            "Integrations:Economic:Defaults:CustomerGroupNumber",
+            "customer-groups?pagesize=100",
+            "customerGroupNumber",
+            row => !NodeBool(row["barred"]),
+            cancellationToken);
+        var paymentTerms = await ResolveDefaultNumberAsync(
+            client,
+            "Integrations:Economic:Defaults:PaymentTermsNumber",
+            "payment-terms?pagesize=100",
+            "paymentTermsNumber",
+            _ => true,
+            cancellationToken);
+        var vatZone = await ResolveDefaultNumberAsync(
+            client,
+            "Integrations:Economic:Defaults:VatZoneNumber",
+            "vat-zones?pagesize=100",
+            "vatZoneNumber",
+            row => string.Equals(NodeText(row["name"]), "Domestic", StringComparison.OrdinalIgnoreCase),
+            cancellationToken);
 
         var payload = new JsonObject
         {
@@ -235,6 +300,25 @@ public sealed class EconomicsProvider(
         };
         ApplyCustomerFields(payload, customer);
         return payload;
+    }
+
+    private async Task<int> ResolveDefaultNumberAsync(
+        HttpClient client,
+        string configurationKey,
+        string endpoint,
+        string numberProperty,
+        Func<JsonObject, bool> preferred,
+        CancellationToken cancellationToken)
+    {
+        if (int.TryParse(configuration[configurationKey], NumberStyles.Integer, CultureInfo.InvariantCulture, out var configured) && configured > 0)
+            return configured;
+
+        var rows = await GetCollectionAsync(client, endpoint, cancellationToken);
+        var selected = rows.FirstOrDefault(preferred) ?? rows.FirstOrDefault();
+        var number = selected is null ? null : NodeInt(selected[numberProperty]);
+        return number is > 0
+            ? number.Value
+            : throw new InvalidOperationException($"e-conomic has no usable default for '{numberProperty}'. Configure '{configurationKey}' explicitly.");
     }
 
     private static void ApplyCustomerFields(JsonObject payload, ExternalAccountingCustomer customer)
@@ -254,39 +338,39 @@ public sealed class EconomicsProvider(
         else payload[name] = value.Trim();
     }
 
-    private ExternalAccountingCustomer ToExternalCustomer(JsonObject row)
+    private static ExternalAccountingCustomer ToExternalCustomer(JsonObject row)
     {
-        var number = row["customerNumber"]?.ToString() ?? string.Empty;
+        var number = NodeText(row["customerNumber"]) ?? string.Empty;
         return new ExternalAccountingCustomer(
             number,
-            row["name"]?.GetValue<string>() ?? $"Kunde {number}",
-            StringValue(row, "address"),
-            StringValue(row, "zip"),
-            StringValue(row, "city"),
-            StringValue(row, "country"),
-            StringValue(row, "email"),
+            NodeText(row["name"]) ?? $"Kunde {number}",
+            NodeText(row["address"]),
+            NodeText(row["zip"]),
+            NodeText(row["city"]),
+            NodeText(row["country"]),
+            NodeText(row["email"]),
             null,
-            StringValue(row, "telephoneAndFaxNumber") ?? StringValue(row, "mobilePhone"));
+            NodeText(row["telephoneAndFaxNumber"]) ?? NodeText(row["mobilePhone"]));
     }
 
-    private AccountingInvoiceState ToDraftState(JsonObject row, string reference)
+    private static AccountingInvoiceState ToDraftState(JsonObject row, string reference)
     {
-        var number = row["draftInvoiceNumber"]?.GetValue<int>();
+        var number = NodeInt(row["draftInvoiceNumber"]);
         return new AccountingInvoiceState(
             number,
             null,
             "Draft",
             reference,
             number is null ? null : $"{BaseUrl}invoices/drafts/{number}",
-            row["netAmount"]?.GetValue<decimal>() ?? CalculateNet(row),
+            NodeDecimal(row["netAmount"]) ?? CalculateNet(row),
             null,
             ParseDate(row["dueDate"]));
     }
 
-    private AccountingInvoiceState ToBookedState(JsonObject row, string reference)
+    private static AccountingInvoiceState ToBookedState(JsonObject row, string reference)
     {
-        var number = row["bookedInvoiceNumber"]?.GetValue<int>();
-        var remainder = row["remainder"]?.GetValue<decimal>();
+        var number = NodeInt(row["bookedInvoiceNumber"]);
+        var remainder = NodeDecimal(row["remainder"]);
         var dueDate = ParseDate(row["dueDate"]);
         var status = remainder == 0m
             ? "Paid"
@@ -299,7 +383,7 @@ public sealed class EconomicsProvider(
             status,
             reference,
             number is null ? null : $"{BaseUrl}invoices/booked/{number}",
-            row["netAmount"]?.GetValue<decimal>() ?? CalculateNet(row),
+            NodeDecimal(row["netAmount"]) ?? CalculateNet(row),
             remainder,
             dueDate);
     }
@@ -308,12 +392,12 @@ public sealed class EconomicsProvider(
     {
         if (row["lines"] is not JsonArray lines) return 0m;
         return lines.OfType<JsonObject>().Sum(line =>
-            (line["quantity"]?.GetValue<decimal>() ?? 0m) *
-            (line["unitNetPrice"]?.GetValue<decimal>() ?? 0m) *
-            (1m - ((line["discountPercentage"]?.GetValue<decimal>() ?? 0m) / 100m)));
+            (NodeDecimal(line["quantity"]) ?? 0m) *
+            (NodeDecimal(line["unitNetPrice"]) ?? 0m) *
+            (1m - ((NodeDecimal(line["discountPercentage"]) ?? 0m) / 100m)));
     }
 
-    private async Task<IReadOnlyList<JsonObject>> GetCollectionAsync(
+    private static async Task<IReadOnlyList<JsonObject>> GetCollectionAsync(
         HttpClient client,
         string path,
         CancellationToken cancellationToken)
@@ -333,7 +417,7 @@ public sealed class EconomicsProvider(
                     .OfType<JsonObject>()
                     .Select(item => (JsonObject)item.DeepClone()));
             }
-            next = root["pagination"]?["nextPage"]?.GetValue<string>();
+            next = NodeText(root["pagination"]?["nextPage"]);
         }
 
         return result;
@@ -346,12 +430,7 @@ public sealed class EconomicsProvider(
             ?? throw new InvalidOperationException("e-conomic returned an unexpected JSON payload.");
     }
 
-    private int RequiredInt(string key) =>
-        int.TryParse(configuration[key], NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) && value > 0
-            ? value
-            : throw new InvalidOperationException($"Missing or invalid e-conomic configuration '{key}'.");
-
-    private string ProductNumber(string kind)
+    private string? ProductNumberOrNull(string kind)
     {
         var suffix = kind switch
         {
@@ -360,13 +439,38 @@ public sealed class EconomicsProvider(
             "outlay" => "Outlay",
             _ => throw new InvalidOperationException($"Unsupported invoice line kind '{kind}'.")
         };
-        return configuration[$"Integrations:Economic:Products:{suffix}"]
-            ?? throw new InvalidOperationException($"Missing e-conomic product mapping for '{kind}'.");
+        return configuration[$"Integrations:Economic:Products:{suffix}"];
     }
 
-    private static string? StringValue(JsonObject row, string property) =>
-        row[property] is null ? null : row[property]!.GetValue<string>();
+    private static string? NodeText(JsonNode? node)
+    {
+        if (node is null) return null;
+        if (node is JsonValue value)
+        {
+            if (value.TryGetValue<string>(out var text)) return text;
+            if (value.TryGetValue<int>(out var number)) return number.ToString(CultureInfo.InvariantCulture);
+            if (value.TryGetValue<long>(out var longNumber)) return longNumber.ToString(CultureInfo.InvariantCulture);
+        }
+        return node.ToJsonString().Trim('"');
+    }
+
+    private static int? NodeInt(JsonNode? node)
+    {
+        if (node is not JsonValue value) return null;
+        if (value.TryGetValue<int>(out var number)) return number;
+        return int.TryParse(NodeText(node), NumberStyles.Integer, CultureInfo.InvariantCulture, out number) ? number : null;
+    }
+
+    private static decimal? NodeDecimal(JsonNode? node)
+    {
+        if (node is not JsonValue value) return null;
+        if (value.TryGetValue<decimal>(out var number)) return number;
+        return decimal.TryParse(NodeText(node), NumberStyles.Number, CultureInfo.InvariantCulture, out number) ? number : null;
+    }
+
+    private static bool NodeBool(JsonNode? node) =>
+        node is JsonValue value && value.TryGetValue<bool>(out var result) && result;
 
     private static DateOnly? ParseDate(JsonNode? node) =>
-        node is not null && DateOnly.TryParse(node.GetValue<string>(), out var value) ? value : null;
+        DateOnly.TryParse(NodeText(node), CultureInfo.InvariantCulture, DateTimeStyles.None, out var value) ? value : null;
 }
