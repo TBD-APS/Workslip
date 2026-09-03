@@ -125,8 +125,9 @@ const SimpleJobCreate = () => {
       {/* Same floating bar as the wizard's. Route-specific ids on purpose —
           job-step-back/job-step-done stay unambiguous for the Playwright contract.
 
-          `--page-action` keeps .step-nav-anchor's sticky offset and its toast and
-          Clippy clearance, but opts out of the wizard's touch focus-fade in
+          `--page-action` keeps .step-nav-anchor's sticky offset and the toast
+          clearance ThemedToaster.css keys off it, but opts out of the wizard's
+          touch focus-fade in
           AppLayout.focus.css. The wizard's bar floats over a scrolling step, so
           blanking it while an editor holds focus is correct there. This bar is the
           end of the page, and the fade would hide "Opret job" for as long as any

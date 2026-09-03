@@ -129,11 +129,14 @@
 /* WOR-716 — persistent desktop rail. The existing permission-aware bottom-nav
    remains the single navigation source; desktop only changes its geometry. */
 @media (min-width: 1120px) {
-  /* Rail geometry lives on :root, not .app-shell. features/platformFlags's
-     Clippy assistant is a body-level portal rendered from App.tsx, outside the
-     shell, so it could not inherit these and had to hardcode 13.5rem/4.75rem —
-     two more copies to keep in step. The :has() subject has to move with them
-     or the collapse switch stops resolving. */
+  /* Rail geometry lives on :root so the width has exactly one declaration site.
+     Everything that has to line up with the rail reads it from here — the rail
+     itself, the header/banner/content offset and width cap, .logo-header, the
+     rail-footer .app-header-actions and the create FAB — and any second copy of
+     13.5rem/4.75rem drifts out of step the moment the rail is resized. The
+     :has() collapse switch below has to keep the same subject as the base
+     declaration; move one to .app-shell without the other and the collapsed
+     override lands on a different element and stops resolving. */
   :root {
     --desktop-nav-rail-width: 13.5rem;
     --desktop-nav-rail-collapsed-width: 4.75rem;

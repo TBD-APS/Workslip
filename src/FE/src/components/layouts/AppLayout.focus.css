@@ -203,7 +203,8 @@
  * Scoped off `.step-nav-anchor--page-action`. That modifier marks an action row
  * that is the LAST thing in its page's document flow (JobCreate, SimpleJobCreate)
  * rather than a bar floating over a scrolling wizard step. Those pages reuse this
- * anchor purely for its sticky geometry and its toast/Clippy clearance, and their
+ * anchor purely for the sticky geometry and the toast clearance that
+ * ThemedToaster.css keys off `.step-nav-anchor` being on screen, and their
  * primary action ("Opret sag" / "Opret job") is the button the user reaches for
  * immediately after typing in the last field. Fading it out on every field focus
  * would hide the create button for almost the whole time the form is being filled

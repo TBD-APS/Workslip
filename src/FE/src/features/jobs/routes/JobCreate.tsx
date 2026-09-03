@@ -133,9 +133,10 @@ export const JobCreate = () => {
           for the Playwright contract, which owns them on the wizard.
 
           `--page-action` keeps everything .step-nav-anchor gives us — the sticky
-          offset over whatever bottom chrome the breakpoint has, and the toast and
-          Clippy clearance keyed off `body:has(.step-nav-anchor:not(.is-hidden))` —
-          while opting out of the wizard's touch focus-fade in
+          offset over whatever bottom chrome the breakpoint has, and the toast
+          clearance ThemedToaster.css keys off
+          `body:has(.step-nav-anchor:not(.is-hidden))` — while opting out of the
+          wizard's touch focus-fade in
           AppLayout.focus.css. That fade is right for the wizard, whose bar floats
           over a scrolling step while a software keyboard is open. Here the bar is
           the last thing in the page and this form is almost entirely text fields,
