@@ -14,6 +14,11 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $targetDir = Join-Path $env:LOCALAPPDATA 'Workslip\bin'
 $targetCmd = Join-Path $targetDir 'workslip.cmd'
 
+function Normalize-PathEntry([string]$PathEntry) {
+    if ([string]::IsNullOrWhiteSpace($PathEntry)) { return '' }
+    return $PathEntry.Trim().TrimEnd([char]'\')
+}
+
 function Get-UserPathParts {
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
     if ([string]::IsNullOrWhiteSpace($userPath)) { return @() }
@@ -22,7 +27,8 @@ function Get-UserPathParts {
 
 if ($Uninstall) {
     if (Test-Path $targetCmd) { Remove-Item $targetCmd -Force }
-    $parts = @(Get-UserPathParts | Where-Object { $_.TrimEnd('\\') -ne $targetDir.TrimEnd('\\') })
+    $normalizedTarget = Normalize-PathEntry $targetDir
+    $parts = @(Get-UserPathParts | Where-Object { (Normalize-PathEntry $_) -ne $normalizedTarget })
     [Environment]::SetEnvironmentVariable('Path', ($parts -join ';'), 'User')
     Write-Host "Removed global Workslip command: $targetCmd"
     Write-Host 'Open a new terminal to pick up the PATH change.'
@@ -39,7 +45,9 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$demoScript" %*
 Set-Content -Path $targetCmd -Value $wrapper -Encoding Ascii
 
 $parts = @(Get-UserPathParts)
-if (-not ($parts | Where-Object { $_.TrimEnd('\\') -eq $targetDir.TrimEnd('\\') })) {
+$normalizedTarget = Normalize-PathEntry $targetDir
+$alreadyPresent = $parts | Where-Object { (Normalize-PathEntry $_) -eq $normalizedTarget }
+if (-not $alreadyPresent) {
     $newUserPath = (@($parts) + $targetDir) -join ';'
     [Environment]::SetEnvironmentVariable('Path', $newUserPath, 'User')
 }
