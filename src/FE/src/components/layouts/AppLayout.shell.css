@@ -18,6 +18,13 @@
   background-color: var(--bg);
   overflow-y: auto;
   overflow-anchor: none;
+  /* How much fixed bottom chrome a sticky bar inside the shell must clear.
+     Declared on the shell, never :root: this is a shell-scoped layout fact, and
+     :root would leak it to body-level portals that are not laid out inside the
+     shell at all -- the sonner toaster is why ThemedToaster.css has to mirror
+     the same arithmetic separately. Overridden per breakpoint in
+     AppLayout.focus.css (phone) and AppLayout.desktop.css (wide). */
+  --app-bottom-chrome: var(--bottom-nav-height);
 }
 
 .app-shell::before {
@@ -120,13 +127,17 @@
 .app-content {
   flex: 1;
   padding: 1.5rem;
-  padding-bottom: calc(var(--bottom-nav-height) + var(--bottom-nav-extra));
+  /* Reserve the same bottom chrome the sticky wizard bar offsets itself by. A
+     sticky-bottom box only ever shifts upward, so a reserve larger than that
+     offset lets the bar rest lower at full scroll than where it pins mid-scroll
+     — a visible jump every time the user reaches the end of a step. */
+  padding-bottom: calc(var(--app-bottom-chrome) + var(--bottom-nav-extra));
 }
 
 @media (max-width: 480px) {
   .app-content {
     padding: 1rem;
-    padding-bottom: calc(var(--bottom-nav-height) + var(--bottom-nav-extra));
+    padding-bottom: calc(var(--app-bottom-chrome) + var(--bottom-nav-extra));
   }
 }
 
@@ -148,13 +159,6 @@
   z-index: 100;
   transform: none !important;
   transition: none !important;
-}
-
-/* Hide the nav without moving it: visibility keeps its box in place
-   (layout/scroll are unaffected), only its painted output disappears. */
-.app-shell.keyboard-visible .bottom-nav {
-  visibility: hidden;
-  pointer-events: none;
 }
 
 .nav-item {
