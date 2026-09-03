@@ -39,6 +39,7 @@ public sealed class OutOfAppNotificationContractTests
             repository,
             sender,
             service,
+            new NullVapidPublicKeyProvider(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<PushNotificationProcessor>.Instance);
 
         await processor.ProcessNotificationAsync(queued, CancellationToken.None);
@@ -83,6 +84,7 @@ public sealed class OutOfAppNotificationContractTests
             repository,
             sender,
             service,
+            new NullVapidPublicKeyProvider(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<PushNotificationProcessor>.Instance);
 
         await processor.ProcessNotificationAsync(

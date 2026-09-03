@@ -47,7 +47,14 @@ public sealed class VapidKeyMaterial : IVapidPublicKeyProvider
             privateKeyBytes = DecodeBase64Url(configured.PrivateKey, "Vapid:PrivateKey");
             if (privateKeyBytes.Length != 32)
             {
-                throw new InvalidOperationException("Vapid:PrivateKey must be a 32-byte P-256 private key.");
+                logger?.LogWarning(
+                    "Vapid:PrivateKey is not a valid 32-byte P-256 private key (length {PrivateKeyLength}). Push notifications are disabled until the key is corrected. Returning 503 for public-key requests and skipping push delivery.",
+                    privateKeyBytes.Length);
+                IsConfigured = false;
+                PublicKey = string.Empty;
+                PrivateKey = string.Empty;
+                Subject = subject;
+                return;
             }
         }
 
