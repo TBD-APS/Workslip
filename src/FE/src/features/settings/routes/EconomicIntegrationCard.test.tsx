@@ -108,7 +108,7 @@ describe('EconomicIntegrationCard', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('Forbundet')).toBeInTheDocument();
+    expect(screen.getAllByText('Forbundet')).toHaveLength(2);
     expect(screen.getByText('Niels VVS')).toBeInTheDocument();
     expect(screen.getByText('123456')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Afbryd forbindelse' })).toBeEnabled();
