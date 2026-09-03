@@ -2213,7 +2213,6 @@
   overflow-x: auto;
   padding-bottom: 0.25rem;
   -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
 }
 
 .step-dot {
@@ -2233,26 +2232,14 @@
   flex-shrink: 0;
 }
 
-.step-dot.active {
-  color: white;
-  background: var(--primary);
-  border: none;
-}
-
-.step-dot.completed {
-  background: var(--surface-selected-strong);
-  color: var(--text);
-  border: none;
-}
-
-.step-dot[aria-disabled="true"] {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 
 .step-label {
   font-weight: 400;
+}
+
+/* Focus is moved here on every step change; the region is not a control. */
+.job-details-content:focus {
+  outline: none;
 }
 
 /* ------------------------------------------------------------
@@ -2260,22 +2247,25 @@
    ------------------------------------------------------------ */
 .step-nav-anchor {
   position: sticky;
-  /* Sit just above the fixed bottom-nav (uses --bottom-nav-height which now
-     already includes env(safe-area-inset-bottom) so the buttons never end up
-     underneath the nav on devices with a tall home-indicator). */
-  bottom: calc(var(--bottom-nav-height) + var(--bottom-nav-extra) + 0.25rem);
+  /* Clear whatever bottom chrome this breakpoint actually has: every one sets
+     --app-bottom-chrome for itself. */
+  bottom: calc(var(--app-bottom-chrome) + var(--bottom-nav-extra) + 0.25rem);
   z-index: 150;
   display: flex;
   flex-direction: column;
   align-items: center;
   opacity: 1;
   visibility: visible;
-  transition: opacity 0.18s ease, visibility 0.18s ease;
+  transition: opacity 0.18s ease;
 }
 
+/* visibility is deliberately not transitioned: per spec it holds `visible` for
+   the whole fade-out, leaving the invisible bar hit-testable over a dropdown it
+   covers. Inert the moment it hides, interactive the moment it shows. */
 .step-nav-anchor.is-hidden {
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
 }
 
 .step-nav {

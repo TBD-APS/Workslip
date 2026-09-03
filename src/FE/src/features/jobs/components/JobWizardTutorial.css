@@ -99,37 +99,6 @@
   color: var(--text);
 }
 
-.job-wizard-tutorial-progress {
-  display: flex;
-  gap: 0.35rem;
-  margin-top: 0.9rem;
-}
-
-.job-wizard-tutorial-progress-step {
-  display: flex;
-  flex: 1 1 0;
-  align-items: center;
-  min-width: 0;
-}
-
-.job-wizard-tutorial-progress-dot {
-  width: 100%;
-  height: 0.25rem;
-  border-radius: var(--radius-pill);
-  background: var(--border-strong);
-}
-
-.job-wizard-tutorial-progress-step.is-past .job-wizard-tutorial-progress-dot {
-  background: var(--status-green-text);
-  opacity: 0.55;
-}
-
-/* Tutorial progress is navigation state, not a primary action. */
-.job-wizard-tutorial-progress-step.is-active .job-wizard-tutorial-progress-dot {
-  background: var(--color-primary);
-  opacity: 1;
-}
-
 .job-wizard-tutorial-footer {
   margin: 0.65rem 0 0;
   color: var(--text-muted);
