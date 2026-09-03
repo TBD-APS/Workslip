@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getGetApiJobsQueryKey } from '../../../api/generated/jobs/jobs';
 import { useJobCreateWithAuditorScope } from '../hooks/useJobCreateWithAuditorScope';
@@ -128,19 +128,36 @@ export const JobCreate = () => {
         </div>
       )}
 
-      <div className="step-nav">
-        <button className="step-nav-btn step-nav-btn-back" type="button" onClick={() => navigate(-1)}>
-          Tilbage
-        </button>
-        <button
-          className="step-nav-btn step-nav-btn-next step-nav-btn-next--wide"
-          type="button"
-          onClick={create.save}
-          disabled={create.isSaving || create.hasPendingAuditorScope}
-        >
-          {create.isSaving ? <Loader2 className="animate-spin" size={18} aria-hidden="true" /> : null}
-          <span>{create.isSaving ? 'Gemmer...' : 'Opret sag'}</span>
-        </button>
+      {/* Same floating bar as the wizard's. The ids are deliberately route-specific
+          rather than job-step-back/job-step-done: those two must stay unambiguous
+          for the Playwright contract, which owns them on the wizard.
+
+          `--page-action` keeps everything .step-nav-anchor gives us — the sticky
+          offset over whatever bottom chrome the breakpoint has, and the toast and
+          Clippy clearance keyed off `body:has(.step-nav-anchor:not(.is-hidden))` —
+          while opting out of the wizard's touch focus-fade in
+          AppLayout.focus.css. That fade is right for the wizard, whose bar floats
+          over a scrolling step while a software keyboard is open. Here the bar is
+          the last thing in the page and this form is almost entirely text fields,
+          so the fade would blank "Opret sag" for nearly the whole time the user is
+          filling the form in, and restore it only once they blur the final field. */}
+      <div className="step-nav-anchor step-nav-anchor--page-action">
+        <div className="step-nav">
+          <button id="job-create-back" className="step-nav-btn step-nav-btn-back" type="button" onClick={() => navigate(-1)}>
+            <ChevronLeft size={18} aria-hidden="true" />
+            <span>Tilbage</span>
+          </button>
+          <button
+            id="job-create-submit"
+            className="step-nav-btn step-nav-btn-next step-nav-btn-next--wide"
+            type="button"
+            onClick={create.save}
+            disabled={create.isSaving || create.hasPendingAuditorScope}
+          >
+            {create.isSaving ? <Loader2 className="animate-spin" size={18} aria-hidden="true" /> : null}
+            <span>{create.isSaving ? 'Gemmer...' : 'Opret sag'}</span>
+          </button>
+        </div>
       </div>
 
       {createdJobIds.length > 0 && (
