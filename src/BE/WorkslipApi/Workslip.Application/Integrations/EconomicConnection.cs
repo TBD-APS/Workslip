@@ -156,7 +156,7 @@ public sealed class EconomicConnectionService(
 
     private static string AddLocale(string installationUrl)
     {
-        var separator = installationUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
+        var separator = installationUrl.Contains('?') ? "&" : "?";
         return installationUrl.Contains("locale=", StringComparison.OrdinalIgnoreCase)
             ? installationUrl
             : $"{installationUrl}{separator}locale=da-DK";
