@@ -181,6 +181,44 @@ function wizardStepIndex(label) {
 function wizardStepLocator(page, label) { return page.locator(`#job-step-${wizardStepIndex(label)}`); }
 async function fillIfVisible(locator, value) { if (await locator.isVisible().catch(() => false)) await locator.fill(String(value ?? '')); }
 async function waitForEnabled(locator, description, timeout = UI_TIMEOUT) { await locator.waitFor({ state: 'visible', timeout }); const start = Date.now(); while (await locator.isDisabled()) { if (Date.now() - start > timeout) throw new Error(`${description} remained disabled.`); await new Promise((resolve) => setTimeout(resolve, 150)); } }
+// A wizard control that is only *temporarily* unreachable no longer advertises itself
+// with aria-disabled: the Næste button and the locked step dots stay clickable on
+// purpose, so that pressing one teleports the user to the offending step instead of
+// doing nothing. `locator.isDisabled()` (which honours aria-disabled) can therefore no
+// longer tell "not ready yet" from "ready", and clicking without waiting would fire the
+// teleport and move the wizard backwards. The surviving signal is the accessible name:
+// while blocked it carries the Danish reason as a " — <reason>" suffix, and for Næste
+// the ready name is exactly "Næste".
+const BLOCKED_NAME_SEPARATOR = ' — ';
+function blockedReasonFromName(name, readyName) {
+  const label = String(name ?? '').trim();
+  if (label === '') return null;
+  if (readyName === undefined) {
+    if (!label.includes(BLOCKED_NAME_SEPARATOR)) return null;
+  } else if (label === readyName) {
+    return null;
+  }
+  const separator = label.indexOf(BLOCKED_NAME_SEPARATOR);
+  const reason = separator < 0 ? label : label.slice(separator + BLOCKED_NAME_SEPARATOR.length);
+  return reason.trim() || 'ingen årsag oplyst';
+}
+async function blockedReason(locator, readyName) { return blockedReasonFromName(await locator.getAttribute('aria-label'), readyName); }
+async function waitForActionable(locator, description, { readyName, timeout = UI_TIMEOUT } = {}) {
+  await locator.waitFor({ state: 'visible', timeout });
+  const start = Date.now();
+  for (;;) {
+    const disabled = await locator.isDisabled();
+    const reason = await blockedReason(locator, readyName);
+    if (!disabled && reason === null) return;
+    if (Date.now() - start > timeout) {
+      const state = disabled ? 'disabled' : 'blocked';
+      throw new Error(reason === null
+        ? `${description} remained ${state}.`
+        : `${description} remained ${state}: ${reason}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+}
 async function waitForWizardStep(page, label) { await page.locator(`#job-step-${wizardStepIndex(label)}[aria-current="step"]`).waitFor({ state: 'visible', timeout: UI_TIMEOUT }); }
 async function currentWizardStep(page) { for (let index = 0; index < WIZARD_STEPS.length; index += 1) if (await page.locator(`#job-step-${index}[aria-current="step"]`).isVisible().catch(() => false)) return WIZARD_STEPS[index]; return null; }
 async function revealStepNavigation(page) {
@@ -227,8 +265,20 @@ async function waitForTransientToastsToClear(page, timeout = 10_000) {
     }
   }
 }
-async function clickNext(page, nextStep) { await waitForTransientToastsToClear(page); const button = await revealStepNavigation(page); await waitForEnabled(button, `Næste before ${nextStep}`); await button.click(); await waitForWizardStep(page, nextStep); }
-async function clickWizardStep(page, label) { const button = wizardStepLocator(page, label); await button.waitFor({ state: 'visible', timeout: UI_TIMEOUT }); await button.click(); await waitForWizardStep(page, label); }
+async function clickNext(page, nextStep) { await waitForTransientToastsToClear(page); const button = await revealStepNavigation(page); await waitForActionable(button, `Næste before ${nextStep}`, { readyName: 'Næste' }); await button.click(); await waitForWizardStep(page, nextStep); }
+async function clickWizardStep(page, label) {
+  const button = wizardStepLocator(page, label);
+  await button.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  // Only a forward jump can be bounced back by the wizard, so only a forward jump
+  // has to wait for the lock on the target dot to lift; a dot behind the current
+  // step is always reachable even while it is styled as blocked.
+  const current = await currentWizardStep(page);
+  if (current === null || wizardStepIndex(label) > wizardStepIndex(current)) {
+    await waitForActionable(button, `Wizard step ${label}`);
+  }
+  await button.click();
+  await waitForWizardStep(page, label);
+}
 async function clickByTextCandidates(locator, values, description) { for (const value of values) { const match = locator.filter({ hasText: value }).first(); if (await match.isVisible().catch(() => false)) { await match.click(); return; } } throw new Error(`No visible ${description} matched runtime values: ${values.join(', ')}.`); }
 async function checkRadioByCandidates(page, values, description) {
   for (const value of values) {
@@ -276,6 +326,7 @@ function escapeRegex(value) { return String(value).replace(/[.*+?^${}()|[\]\\]/g
     sectionByHeading,
     fillIfVisible,
     waitForEnabled,
+    waitForActionable,
     waitForWizardStep,
     currentWizardStep,
     clickNext,
