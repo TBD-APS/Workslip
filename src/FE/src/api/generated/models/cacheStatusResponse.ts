@@ -8,5 +8,4 @@ import type { CacheDiagnosticsSnapshot } from './cacheDiagnosticsSnapshot';
 
 export interface CacheStatusResponse {
   backend: CacheDiagnosticsSnapshot;
-  vercelConfigured: boolean;
 }

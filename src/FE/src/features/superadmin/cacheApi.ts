@@ -25,15 +25,11 @@ export interface BackendCacheDiagnostics {
 
 export interface CacheStatusResponse {
   backend: BackendCacheDiagnostics;
-  vercelConfigured: boolean;
 }
 
 export interface CacheClearResponse {
   message: string;
   clearedAt: string;
-  vercelConfigured: boolean;
-  vercelCleared: boolean;
-  warning: string | null;
 }
 
 export async function getCacheStatus(): Promise<CacheStatusResponse> {

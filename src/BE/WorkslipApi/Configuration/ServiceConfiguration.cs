@@ -19,7 +19,6 @@ public static class ServiceConfiguration
         builder.Services.AddOpenApi();
         builder.Services.AddHybridCache();
         builder.Services.AddMemoryCache();
-        builder.Services.AddHttpClient("vercel-cache");
         builder.Services.AddSingleton(_ => new CacheDiagnostics(
         [
             new CacheRegionDefinition(CacheRegionNames.ReferenceData, "HybridCache", 600),
