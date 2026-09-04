@@ -1,3 +1,6 @@
+using System.Buffers.Binary;
+using System.Security.Cryptography;
+using System.Text;
 using Ardalis.Result;
 using FluentValidation;
 using FluentValidation.Results;
@@ -50,6 +53,21 @@ public sealed class JobService(
     {
         LocalCacheExpiration = TimeSpan.FromSeconds(15)
     };
+
+    /// <summary>
+    /// The sort columns the repository names in its ordering switch. Used only to keep the
+    /// readable part of a job list cache key legible - see <see cref="SortKeyPart"/>.
+    /// </summary>
+    private static readonly string[] JobListSortColumns =
+        ["name", "address", "reportNumber", "createdAt", "updatedAt", "reportDate"];
+
+    /// <summary>
+    /// 32 hex characters, so 128 bits of the SHA-256 digest. A cache key is not a security
+    /// boundary, but a collision here merges two result sets, so the margin is deliberate:
+    /// at a million distinct job list keys the birthday probability is about 1.5e-27, and a
+    /// chosen collision still costs a 2^64 search because the digest is cryptographic.
+    /// </summary>
+    private const int JobListFingerprintHexChars = 32;
 
     public async Task<Result<JobReportSummaryResponse>> CreateAsync(CreateJobRequest request, CancellationToken cancellationToken)
     {
@@ -698,21 +716,184 @@ public sealed class JobService(
             normalizedSortBy, normalizedSortDirection);
     }
 
+    /// <summary>
+    /// Job list cache keys are HybridCache keys, so once a distributed second level is
+    /// registered they are Redis key <em>names</em>: sent to the server in the clear,
+    /// printed by <c>redis-cli --scan</c>, and quoted verbatim in provider exceptions.
+    /// They therefore carry no customer data in plaintext.
+    ///
+    /// The key has two halves. What an operator needs in order to read the keyspace stays
+    /// readable - organization, viewer, assignment scope, the status set, the ordering and
+    /// the page - because each of those is either an opaque identifier or a closed
+    /// vocabulary. Everything the query distinguishes, the readable components included,
+    /// is then folded into one SHA-256 fingerprint over a length-framed encoding of the
+    /// whole <see cref="JobQuery"/>, and that fingerprint is what guarantees two different
+    /// queries get two different keys. The readable half is allowed to summarise; the
+    /// fingerprint is not.
+    /// </summary>
     private static string BuildJobListCacheKey(JobQuery query)
     {
-        var statusKey = query.Statuses is not null && query.Statuses.Count > 0
-            ? string.Join(",", query.Statuses.OrderBy(x => x).Select(x => x.ToString()))
-            : "all";
-    
-        var currentUserKey = query.CurrentUserId?.ToString("N") ?? "none";
-        var assignedToUserKey = query.AssignedToUserId?.ToString("N") ?? "all";
+        var statuses = CanonicalStatuses(query.Statuses);
 
-        return $"jobs:list:organization={query.OrganizationId:N}:currentUser={currentUserKey}:assignedTo={assignedToUserKey}:status={statusKey}" +
-            $":reportNumber={query.ReportNumber ?? "none"}:customerName={query.CustomerName ?? "none"}" +
-            $":customerEmail={query.CustomerEmail ?? "none"}:customerAddress={query.CustomerAddress ?? "none"}" +
-            $":search={query.Search ?? "none"}" +
-            $":sortBy={query.SortBy ?? "default"}:sortDirection={query.SortDirection ?? "default"}" +
-            $":limit={query.Limit}:offset={query.Offset}";
+        return $"jobs:list:organization={query.OrganizationId:N}" +
+            $":currentUser={query.CurrentUserId?.ToString("N") ?? "none"}" +
+            $":assignedTo={query.AssignedToUserId?.ToString("N") ?? "all"}" +
+            $":status={StatusKeyPart(statuses)}" +
+            $":sort={SortKeyPart(query.SortBy, query.SortDirection)}" +
+            $":limit={query.Limit}:offset={query.Offset}" +
+            $":filters={FilterPresenceKeyPart(query)}" +
+            $":query={JobListQueryFingerprint(query, statuses)}";
+    }
+
+    /// <summary>
+    /// The repository filters statuses with set semantics (<c>Distinct()</c>, then
+    /// <c>Contains</c>), so neither order nor duplicates can change a result set.
+    /// Collapsing them therefore buys cache hits without merging two different queries -
+    /// and it keeps the readable status component bounded.
+    /// </summary>
+    private static List<JobStatus> CanonicalStatuses(List<JobStatus>? statuses) =>
+        statuses is null || statuses.Count == 0
+            ? []
+            : statuses.Distinct().OrderBy(status => (int)status).ToList();
+
+    /// <summary>
+    /// Status names for the values the enum defines, plus a count of any undefined ones
+    /// that model binding let through. Names are a closed vocabulary, so this component
+    /// cannot contain the key delimiter, and it stays short however many status values
+    /// arrive.
+    /// </summary>
+    private static string StatusKeyPart(IReadOnlyList<JobStatus> canonicalStatuses)
+    {
+        if (canonicalStatuses.Count == 0)
+        {
+            return "all";
+        }
+
+        var defined = canonicalStatuses
+            .Where(status => Enum.IsDefined(status))
+            .Select(status => status.ToString());
+        var undefinedCount = canonicalStatuses.Count(status => !Enum.IsDefined(status));
+
+        return string.Join(",", undefinedCount == 0 ? defined : defined.Append($"{undefinedCount}unknown"));
+    }
+
+    /// <summary>
+    /// A label for the ordering, not the authority on it. The raw sort inputs are in the
+    /// fingerprint, so an ordering this method cannot name still gets its own key: if a
+    /// sort column is added to the repository and not to <see cref="JobListSortColumns"/>,
+    /// the label degrades to "default" and no two orderings merge. Every unrecognised
+    /// column falls into the repository's default ordering, which does not consult the
+    /// direction either, so the label drops it there.
+    /// </summary>
+    private static string SortKeyPart(string? sortBy, string? sortDirection)
+    {
+        if (sortBy is null || !JobListSortColumns.Contains(sortBy, StringComparer.Ordinal))
+        {
+            return "default";
+        }
+
+        return string.Equals(sortDirection, "asc", StringComparison.Ordinal)
+            ? $"{sortBy}.asc"
+            : $"{sortBy}.desc";
+    }
+
+    /// <summary>
+    /// Which free-text filters a query applied - field names only, never their values -
+    /// so the shape of a query is still legible from the keyspace.
+    /// </summary>
+    private static string FilterPresenceKeyPart(JobQuery query)
+    {
+        (string Name, string? Value)[] filters =
+        [
+            ("report", query.ReportNumber),
+            ("name", query.CustomerName),
+            ("email", query.CustomerEmail),
+            ("address", query.CustomerAddress),
+            ("search", query.Search)
+        ];
+
+        var applied = filters
+            .Where(filter => filter.Value is not null)
+            .Select(filter => filter.Name)
+            .ToArray();
+
+        return applied.Length == 0 ? "none" : string.Join("+", applied);
+    }
+
+    /// <summary>
+    /// SHA-256 over a length-framed encoding of every component of the query, truncated to
+    /// 128 bits (32 hex characters).
+    ///
+    /// The framing is what makes the fingerprint unambiguous. Every component is written
+    /// either at a fixed width (a Guid, an int, a presence flag) or as a 4-byte UTF-8 byte
+    /// count followed by exactly that many bytes, with a count of -1 for null, in a fixed
+    /// order. The encoding is therefore parseable, which means it has a left inverse and
+    /// is injective: no value - however many colons, equals signs or "none" literals it
+    /// contains - can absorb the component after it or impersonate a component boundary.
+    /// Two queries share a fingerprint only if every component is byte-identical (statuses
+    /// after the canonicalisation above), or if SHA-256 collides on 128 bits.
+    /// </summary>
+    private static string JobListQueryFingerprint(JobQuery query, IReadOnlyList<JobStatus> canonicalStatuses)
+    {
+        using var fingerprint = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+
+        AppendGuid(fingerprint, query.OrganizationId);
+        AppendOptionalGuid(fingerprint, query.CurrentUserId);
+        AppendOptionalGuid(fingerprint, query.AssignedToUserId);
+
+        AppendInt32(fingerprint, canonicalStatuses.Count);
+        foreach (var status in canonicalStatuses)
+        {
+            AppendInt32(fingerprint, (int)status);
+        }
+
+        AppendInt32(fingerprint, query.Limit);
+        AppendInt32(fingerprint, query.Offset);
+        AppendOptionalText(fingerprint, query.ReportNumber);
+        AppendOptionalText(fingerprint, query.CustomerName);
+        AppendOptionalText(fingerprint, query.CustomerEmail);
+        AppendOptionalText(fingerprint, query.CustomerAddress);
+        AppendOptionalText(fingerprint, query.Search);
+        AppendOptionalText(fingerprint, query.SortBy);
+        AppendOptionalText(fingerprint, query.SortDirection);
+
+        return Convert.ToHexString(fingerprint.GetHashAndReset())[..JobListFingerprintHexChars].ToLowerInvariant();
+    }
+
+    private static void AppendInt32(IncrementalHash fingerprint, int value)
+    {
+        Span<byte> framed = stackalloc byte[sizeof(int)];
+        BinaryPrimitives.WriteInt32LittleEndian(framed, value);
+        fingerprint.AppendData(framed);
+    }
+
+    private static void AppendGuid(IncrementalHash fingerprint, Guid value)
+    {
+        Span<byte> framed = stackalloc byte[16];
+        value.TryWriteBytes(framed);
+        fingerprint.AppendData(framed);
+    }
+
+    private static void AppendOptionalGuid(IncrementalHash fingerprint, Guid? value)
+    {
+        AppendInt32(fingerprint, value.HasValue ? 1 : 0);
+        if (value.HasValue)
+        {
+            AppendGuid(fingerprint, value.Value);
+        }
+    }
+
+    private static void AppendOptionalText(IncrementalHash fingerprint, string? value)
+    {
+        if (value is null)
+        {
+            AppendInt32(fingerprint, -1);
+            return;
+        }
+
+        var bytes = Encoding.UTF8.GetBytes(value);
+        AppendInt32(fingerprint, bytes.Length);
+        fingerprint.AppendData(bytes);
     }
     private async Task<ValidationError?> ValidateLinkTargetAsync(Guid reportId, Guid targetId, Guid organizationId, CancellationToken cancellationToken)
     {
