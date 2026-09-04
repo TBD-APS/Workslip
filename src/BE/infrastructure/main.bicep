@@ -196,12 +196,23 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
     // This workspace is the telemetry boundary (ADR 0018): the platform reads
     // Workslip's telemetry here rather than receiving a delivery. A reached
     // daily cap stops ingestion until the next day and the gap cannot be
-    // backfilled, so the cap has to leave headroom for the full signal, not
-    // just for the cheapest month. 5 GB/day is a deliberate starting point,
-    // not a free-tier figure — sustained at the cap it is roughly 150 GB/month
-    // and billable. Review it against actual ingestion before raising it again.
+    // backfilled, so the cap has to leave room for the full signal — but not
+    // more room than the cost budget has.
+    //
+    // 2 GB/day is derived rather than picked. It doubles the previous 1 GB cap,
+    // which was tight enough that it may have been discarding signal unnoticed,
+    // while landing near half of the roughly 266 of headroom the budget in
+    // budgets.bicep leaves above its ~534 baseline: about 60 GB/month billable
+    // against about 30 before. The rest of that headroom is not free either —
+    // the always-warm replica in aca/app.bicep draws on the same budget.
+    //
+    // The per-GB rate was not verified for this region, so treat the currency
+    // side as an estimate and the GB side as the real control. Measure actual
+    // daily ingestion before moving this again; a cap is a ceiling, not a
+    // forecast, and raising it blind is how the budget starts alarming on
+    // normal operation.
     workspaceCapping: {
-      dailyQuotaGb: 5
+      dailyQuotaGb: 2
     }
     // Stated rather than inherited. This is the hard limit on how far back any
     // consumer can query, so it belongs in the template where it can be seen.

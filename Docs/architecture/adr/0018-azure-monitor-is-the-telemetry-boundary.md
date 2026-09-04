@@ -36,11 +36,17 @@ decision.
 `dailyQuotaGb: 1`, commented as the lowest cap Azure allows. A reached daily cap
 stops ingestion until the next day, so a consumer would have seen telemetry end
 mid-afternoon with no error anywhere, and the gap is unrecoverable — data not
-ingested is not stored late. The cap is now 5 GB/day. That is a deliberate
-starting point rather than a free-tier figure: sustained at the cap it is roughly
-150 GB/month and billable. Review it against actual ingestion before raising it
-again, and prefer raising it to removing it, since an uncapped workspace has no
-brake at all.
+ingested is not stored late.
+
+The cap is now 2 GB/day, derived from the cost budget rather than picked. It
+doubles the old cap, so it stops discarding signal unnoticed, while claiming
+about 60 GB/month against the roughly 266 of headroom `budgets.bicep` leaves
+above its baseline — near half of it rather than all. The always-warm replica
+in `aca/app.bicep` draws on the same headroom, so the two are read
+together. It stays capped rather than uncapped, because an uncapped workspace has
+no brake at all, and the per-GB rate behind the currency estimate was not
+verified for this region: the GB figure is the real control. Measure actual daily
+ingestion before moving it again.
 
 **Retention.** The production workspace set no `retentionInDays` and inherited
 the Azure default, while the demo workspace stated its own. It is now stated
