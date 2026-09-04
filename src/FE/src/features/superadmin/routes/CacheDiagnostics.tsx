@@ -5,7 +5,6 @@ import {
   Activity,
   AlertTriangle,
   ArrowLeft,
-  CheckCircle2,
   Cpu,
   Database,
   HardDrive,
@@ -236,7 +235,7 @@ export function CacheDiagnostics() {
 
   const clearMutation = useMutation({
     mutationFn: clearCaches,
-    onSuccess: async (result) => {
+    onSuccess: async () => {
       queryClient.removeQueries({
         predicate: (query) => !isCacheStatusQuery(query.queryKey),
       });
@@ -246,11 +245,7 @@ export function CacheDiagnostics() {
         await Promise.all(names.map((name) => window.caches.delete(name)));
       }
 
-      if (result.warning) {
-        notify.warning('Lokale caches blev ryddet, men Vercel kunne ikke ryddes.');
-      } else {
-        notify.success('Frontend- og backendcaches er ryddet.');
-      }
+      notify.success('Frontend- og backendcaches er ryddet.');
 
       await Promise.all([
         statusQuery.refetch(),
@@ -327,7 +322,7 @@ export function CacheDiagnostics() {
           <div className="cache-diagnostics-heading">
             <h1>Cache command center</h1>
             <p>
-              Live metadata fra klient, API-proces og edge-cache. Ingen payloads,
+              Live metadata fra klient, API-proces og browserens cachelag. Ingen payloads,
               identiteter eller komplette cache keys forlader deres sikkerhedsgrænse.
             </p>
           </div>
@@ -381,8 +376,8 @@ export function CacheDiagnostics() {
           <span className="cache-diagnostics-layer-connector" aria-hidden="true" />
           <div>
             <Layers3 size={17} aria-hidden="true" />
-            <span>Browser / edge</span>
-            <strong>PWA + Vercel</strong>
+            <span>Browser / PWA</span>
+            <strong>Service worker + Cache Storage</strong>
           </div>
         </div>
       </header>
@@ -462,12 +457,6 @@ export function CacheDiagnostics() {
             <span className="cache-diagnostics-chip">
               <RefreshCw size={13} aria-hidden="true" />
               Sidst ryddet {formatDate(statusQuery.data?.backend.lastClearedAt)}
-            </span>
-            <span className={`cache-diagnostics-chip ${statusQuery.data?.vercelConfigured ? 'is-success' : 'is-muted'}`}>
-              {statusQuery.data?.vercelConfigured
-                ? <CheckCircle2 size={13} aria-hidden="true" />
-                : <AlertTriangle size={13} aria-hidden="true" />}
-              Vercel {statusQuery.data?.vercelConfigured ? 'konfigureret' : 'ikke konfigureret'}
             </span>
           </div>
         </div>

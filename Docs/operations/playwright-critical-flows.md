@@ -43,7 +43,7 @@ The job creates a disposable full stack from the exact checked-out revision:
 
 The browser receives a synthetic Development JWT through the existing `/api/dev/token` endpoint, stores it through the same `localStorage.authToken` contract used by the frontend, and then boots the normal authenticated React/API path. `/api/auth/me` must succeed before authenticated UI evidence is accepted.
 
-This is **not a deployed authentication mechanism**. `playwright-ephemeral-auth.mjs` rejects any app or API origin that is not `localhost`, `127.0.0.1`, or `::1`, and the backend endpoint remains available only in ASP.NET Development. A production, Vercel, arbitrary remote, disguised-loopback, credentialed, or path-bearing URL fails before a token request is made.
+This is **not a deployed authentication mechanism**. `playwright-ephemeral-auth.mjs` rejects any app or API origin that is not `localhost`, `127.0.0.1`, or `::1`, and the backend endpoint remains available only in ASP.NET Development. A production, arbitrary remote, disguised-loopback, credentialed, or path-bearing URL fails before a token request is made.
 
 The maintained blocking runner validates the suite stability policy before starting the disposable runtime and then executes the registered authenticated scenarios. `tools/release/validate-pr-browser-evidence.mjs` classifies changed UI paths into flow names. The PR must declare the matching flows, bind every flow to a concrete `playwright-*.mjs` script in `Browser-Scripts`, and declare required viewports. Feature Change Guard verifies those scripts are registered through `run_scenario` in the exact-head `run-playwright-ephemeral.sh`; the exact-head browser job then supplies runtime pass/failure truth.
 

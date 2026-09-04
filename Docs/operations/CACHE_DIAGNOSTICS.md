@@ -82,9 +82,17 @@ The Superadmin clear action:
 
 1. invalidates HybridCache entries tagged `all`;
 2. compacts the process IMemoryCache;
-3. attempts to purge the configured Vercel edge-cache tag;
-4. clears frontend React Query entries;
-5. deletes browser Cache Storage entries.
+3. clears frontend React Query entries;
+4. deletes browser Cache Storage entries.
+
+There is no external edge cache to purge. The frontend is served by nginx from
+inside the Container App revision (`src/FE/Dockerfile`, `src/FE/nginx.conf`), and
+Azure Container Apps ingress does not cache responses. Freshness after a deploy
+is a property of the cache-control policy in `src/FE/nginx.conf` — hashed
+`/assets/*` filenames may be cached immutably, while `/index.html` and `/sw.js`
+must revalidate — not of an operator-triggered purge. A stale client after a
+release is therefore a cache-header bug in `nginx.conf`, and clearing caches from
+this page will not fix it.
 
 The service worker registration remains installed. Deleting its caches is sufficient for the next requests to repopulate current assets without removing PWA capability.
 

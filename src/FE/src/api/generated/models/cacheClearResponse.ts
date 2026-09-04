@@ -8,8 +8,4 @@
 export interface CacheClearResponse {
   message: string;
   clearedAt: string;
-  vercelConfigured: boolean;
-  vercelCleared: boolean;
-  /** @nullable */
-  warning: string | null;
 }

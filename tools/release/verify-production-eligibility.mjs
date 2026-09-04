@@ -43,32 +43,15 @@ function requireSha(value) {
 }
 
 function resolveRepository(explicit) {
-  const repository = explicit
-    || process.env.GITHUB_REPOSITORY
-    || (process.env.VERCEL_GIT_REPO_OWNER && process.env.VERCEL_GIT_REPO_SLUG
-      ? `${process.env.VERCEL_GIT_REPO_OWNER}/${process.env.VERCEL_GIT_REPO_SLUG}`
-      : '');
+  const repository = explicit || process.env.GITHUB_REPOSITORY || '';
   if (!/^[^/\s]+\/[^/\s]+$/.test(repository)) {
     throw new Error('Unable to resolve GitHub repository in owner/name form.');
   }
   return repository;
 }
 
-function resolveSha(explicit, source) {
-  const candidate = explicit
-    || (source === 'vercel' ? process.env.VERCEL_GIT_COMMIT_SHA : process.env.GITHUB_SHA);
-  return requireSha(candidate);
-}
-
-function assertSourceBoundary(source) {
-  if (source === 'vercel') {
-    if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production') {
-      throw new Error(`Vercel production eligibility was invoked for VERCEL_ENV=${process.env.VERCEL_ENV}.`);
-    }
-    if (process.env.VERCEL_GIT_COMMIT_REF && process.env.VERCEL_GIT_COMMIT_REF !== 'main') {
-      throw new Error(`Vercel production may only release main, got ${process.env.VERCEL_GIT_COMMIT_REF}.`);
-    }
-  }
+function resolveSha(explicit) {
+  return requireSha(explicit || process.env.GITHUB_SHA);
 }
 
 export function validateEvidence({ expectedSha, mainSha, run, jobs }) {
@@ -244,14 +227,8 @@ function publishEvidence(evidence) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const source = args.get('source') || (process.env.VERCEL ? 'vercel' : 'actions');
-  if (!['actions', 'vercel'].includes(source)) {
-    throw new Error(`Unsupported source: ${source}.`);
-  }
-  assertSourceBoundary(source);
-
   const repository = resolveRepository(args.get('repository'));
-  const sha = resolveSha(args.get('sha'), source);
+  const sha = resolveSha(args.get('sha'));
   const ciRunId = args.get('ci-run-id') ? asNonNegativeInteger(args.get('ci-run-id'), 0, 'ci-run-id') : 0;
   const waitSeconds = asNonNegativeInteger(args.get('wait-seconds'), 0, 'wait-seconds');
   const pollSeconds = Math.max(5, asNonNegativeInteger(args.get('poll-seconds'), 45, 'poll-seconds'));

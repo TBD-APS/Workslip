@@ -7,11 +7,11 @@
       },
       "Api/Configuration": {
         "files": 16,
-        "loc": 1834
+        "loc": 1833
       },
       "Api/Endpoints": {
         "files": 25,
-        "loc": 2594
+        "loc": 2530
       },
       "Api/Helpers": {
         "files": 6,
@@ -606,7 +606,7 @@
       {
         "name": "jobs",
         "files": 54,
-        "loc": 10238,
+        "loc": 10236,
         "sharedRefs": 193,
         "crossRefs": 2
       },
@@ -627,7 +627,7 @@
       {
         "name": "superadmin",
         "files": 16,
-        "loc": 3398,
+        "loc": 3383,
         "sharedRefs": 10,
         "crossRefs": 1
       },
@@ -690,7 +690,7 @@
       {
         "name": "legal",
         "files": 6,
-        "loc": 256,
+        "loc": 255,
         "sharedRefs": 1,
         "crossRefs": 0
       },
@@ -733,7 +733,7 @@
       },
       {
         "file": "src/FE/src/features/superadmin/routes/CacheDiagnostics.tsx",
-        "loc": 663
+        "loc": 652
       },
       {
         "file": "src/FE/src/components/common/NotificationsDrawer.tsx",

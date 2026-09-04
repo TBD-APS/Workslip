@@ -132,10 +132,10 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 | Feature | Files | LOC | Cross-feature imports | Shared imports |
 | --- | --- | --- | --- | --- |
 | settings | 4 | 947 | **5** | 9 |
-| jobs | 54 | 10238 | **2** | 193 |
+| jobs | 54 | 10236 | **2** | 193 |
 | leader-analysis | 3 | 876 | **2** | 5 |
 | overview | 2 | 466 | **1** | 10 |
-| superadmin | 16 | 3398 | **1** | 10 |
+| superadmin | 16 | 3383 | **1** | 10 |
 | users | 8 | 1262 | **1** | 32 |
 | auditor | 1 | 483 | 0 | 17 |
 | auth | 11 | 1510 | 0 | 20 |
@@ -144,7 +144,7 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 | docs | 5 | 917 | 0 | 19 |
 | images | 7 | 629 | 0 | 5 |
 | inventory | 2 | 714 | 0 | 6 |
-| legal | 6 | 256 | 0 | 1 |
+| legal | 6 | 255 | 0 | 1 |
 | worksheets | 6 | 1395 | 0 | 15 |
 
 ### Cross-feature edges
@@ -189,7 +189,7 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 | `src/FE/src/features/jobs/components/JobConversationDrawer.tsx` | 751 |
 | `src/FE/src/features/jobs/routes/CompletedJobReport.tsx` | 704 |
 | `src/FE/src/features/jobs/routes/AdminCompletedJobReport.tsx` | 671 |
-| `src/FE/src/features/superadmin/routes/CacheDiagnostics.tsx` | 663 |
+| `src/FE/src/features/superadmin/routes/CacheDiagnostics.tsx` | 652 |
 | `src/FE/src/components/common/NotificationsDrawer.tsx` | 563 |
 | `src/FE/src/features/leader-analysis/routes/Lederanalyse.tsx` | 543 |
 | `src/FE/src/features/docs/DocsPage.tsx` | 537 |

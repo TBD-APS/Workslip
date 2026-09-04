@@ -92,21 +92,58 @@ This is not required for the platform to work. `Azure:AdOAuth:Domain` resolves t
 
 ---
 
-## 4. Frontend domain and hosting
+## 4. Frontend domain
 
-Not in Azure IaC at all, and easy to forget because it is not in this repository's deployment path.
+The frontend itself is not a manual step. It is an image built from
+`src/FE/Dockerfile` and deployed alongside the API by
+`.github/workflows/aca-live-deploy.yml`. Only DNS is manual.
 
 `staticConfig.bicep` hard-codes the frontend origin:
 
 ```
-Azure:Domain:BaseUrl   https://app.mrsoftware.dk
-Cors:AllowedOrigins:0  https://app.mrsoftware.dk
-Cors:AllowedOrigins:1  https://workslip-v2-0.vercel.app
+Azure:Domain:BaseUrl    https://app.mrsoftware.dk
+Cors:AllowedOrigins:0   https://app.mrsoftware.dk
 Azure:Acs:InviteBaseUrl https://app.mrsoftware.dk/invite
 ```
 
-- `app.mrsoftware.dk` DNS must point at the frontend host
-- The Vercel project, its environment configuration and cache-purge credentials sit outside the Azure boundary, as the infrastructure README states
+To point `app.mrsoftware.dk` at the deployed Container App:
+
+1. dispatch `Cut over Workslip Live App domain` (`aca-live-cutover.yml`) from
+   `main` in mode `prepare`. It prints the two records the DNS provider needs:
+   `CNAME app` → the Container App FQDN, and `TXT asuid.app` → the app's
+   `customDomainVerificationId`. Do not copy these values from an older run;
+   they are per-app.
+2. create both records at the DNS provider;
+3. set `VITE_AZURE_AD_LOGIN_REDIRECT_URI` on the `live` GitHub environment to
+   `https://app.mrsoftware.dk/login`. Mode `bind` fails closed if it is anything
+   else;
+4. dispatch the same workflow in mode `bind` with confirmation `CUTOVER`. It
+   smoke-tests the Container App on its Azure FQDN, adds the hostname, and binds
+   a managed TLS certificate with CNAME validation.
+
+There is no separate frontend hosting account, project setting or dashboard to
+configure, and no external cache-purge credential to provision.
+
+### Retiring a CORS origin is not a template-only change
+
+`staticConfig.bicep` writes App Configuration key-values through a `for`
+loop over `appConfigValues`. Azure incremental deployments do not delete a
+key-value merely because its Bicep declaration was removed — the same behaviour
+the infrastructure README records for role assignments. Deleting an entry such
+as an obsolete `Cors:AllowedOrigins:<n>` therefore requires an explicit
+follow-up against the target store:
+
+```powershell
+# store name is appcs-<company>-<env>, e.g. appcs-mrsoftwarev2-live
+az appconfig kv delete --name appcs-mrsoftwarev2-live --key 'Cors:AllowedOrigins:1' --yes
+```
+
+The template writes key-values with no label, so the default null-label target
+is the right one. List first (`az appconfig kv list --name <store> --key
+'Cors:AllowedOrigins:*'`) and confirm what exists before deleting.
+
+Until that runs, the API still reads the old origin from App Configuration even
+though the template no longer declares it.
 
 The API keeps its default `api-<company>-<env>.azurewebsites.net` hostname. No custom domain or certificate binding is provisioned for it. If that should change, it is new infrastructure work, not a manual step.
 

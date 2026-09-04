@@ -2,7 +2,7 @@ import type { LegalContent } from './types';
 
 export const privacyContent: LegalContent = {
   title: 'Privatlivspolitik',
-  lastUpdated: '23. juli 2026',
+  lastUpdated: '3. september 2026',
   sections: [
     {
       heading: 'Dataansvarlig',
@@ -46,8 +46,7 @@ export const privacyContent: LegalContent = {
       content: [
         'Vi deler dine data med følgende tredjeparter:',
         '• Microsoft Entra ID — til Single Sign-On',
-        '• Vercel — hosting, Analytics og Speed Insights, hvis aktiveret',
-        '• Microsoft Azure — backend hosting',
+        '• Microsoft Azure — hosting af frontend og backend',
         '• Microsoft Application Insights — brugerhandlinger, API-afhængigheder, fejl og ydeevne, hvis aktiveret',
         'Vi sælger ikke personoplysninger. Leverandørernes roller, datalokationer og eventuelle overførsler uden for EU/EØS skal fremgå af de relevante aftaler; vi lover ikke EU/EØS-lagring uden dokumentation.',
       ],

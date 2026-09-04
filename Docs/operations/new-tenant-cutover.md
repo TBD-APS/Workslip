@@ -19,12 +19,25 @@ mistake this section exists to prevent.
 **The serving path today:**
 
 ```text
-browser → Vercel → api-mrsoftwarev2-live (App Service, rg-mrsoftwarev2-live, Sweden Central) → db-mrsoftwarev2-live
+browser → app.mrsoftware.dk → ca-workslip-live-app (Container App, rg-mrsoftwarev2-live, Sweden Central)
+         ├── frontend container: nginx serving the built SPA
+         └── api container: ASP.NET Core on 127.0.0.1:5262 → db-mrsoftwarev2-live
 ```
 
-`src/FE/vercel.json` proxies `/api/*` to
-`api-mrsoftwarev2-live.azurewebsites.net`, and `backend-production-deploy.yml`
-deploys that App Service as `AZURE_WEBAPP_NAME`. That is the production backend.
+`app.mrsoftware.dk` answers with `server: nginx/1.27.5` and no external-hosting
+edge headers. The only nginx in this repository is `src/FE/Dockerfile`, which
+runs `nginxinc/nginx-unprivileged:1.27-alpine` with `src/FE/nginx.conf`. That
+configuration owns the SPA fallback and proxies `/api/` to `127.0.0.1:5262`, so
+both halves of a browser request are served by one Container App revision built
+by `aca-live-deploy.yml`.
+
+`backend-production-deploy.yml` still deploys the `api-mrsoftwarev2-live` App
+Service as `AZURE_WEBAPP_NAME`. That App Service is **not** in the
+`app.mrsoftware.dk` request path any more, because nginx proxies `/api/` to the
+API container inside the same revision. Deciding whether that workflow should be
+retired, repointed, or kept as the App Service compatibility path is an open
+item; do not assume a green `backend-production-deploy.yml` run changed what
+customers are served.
 
 **What is completed:**
 
@@ -33,26 +46,24 @@ deploys that App Service as `AZURE_WEBAPP_NAME`. That is the production backend.
   seed and runtime-identity/SID reconciliation;
 - Entra B2B guest migration to the new tenant and the reconciliation workflow;
 - API deployment to `api-mrsoftwarev2-live`;
-- Vercel proxy cutover to the new tenant.
+- the Container Apps runtime cutover: `ca-workslip-live-app` (environment
+  `cae-workslip-live-app`) is built and deployed by `aca-live-deploy.yml`, and
+  `app.mrsoftware.dk` is bound to it. The `bind` mode of `aca-live-cutover.yml`
+  has been exercised — the domain resolves to the nginx frontend container.
 
-**What is *not* completed — do not describe this as finished:**
+**What still needs verification — do not describe this as finished:**
 
-The Container Apps track is staged but is **not** the production path. The
-full-stack container app `ca-workslip-live-app` (environment
-`cae-workslip-live-app`, domain `app.mrsoftware.dk`) is built and deployed by
-`aca-live-deploy.yml`, and `aca-live-cutover.yml` still exposes its `bind` and
-`retire` modes as unexercised manual gates. That workflow names
-`api-mrsoftwarev2-live` as `LEGACY_WEBAPP`, so the App Service is retired only
-after the ACA domain bind is approved and verified. Until then the App Service
-is live infrastructure, not legacy in practice.
-
-Because the ACA path is a distinct runtime cutover, the traffic-cutover,
-rollback, and evidence requirements below still apply to it. Reaching the new
-tenant did not consume those gates.
+The `retire` mode of `aca-live-cutover.yml` stops the legacy App Service
+(`LEGACY_WEBAPP: api-mrsoftwarev2-live`). Whether it has run is Azure state, not
+repository state, and this runbook cannot prove it. Verify with
+`az webapp show --resource-group rg-mrsoftwarev2-live --name api-mrsoftwarev2-live --query state`
+before describing the App Service as retired. While it is running it remains
+billable infrastructure and a reachable API surface even though it no longer
+serves `app.mrsoftware.dk`.
 
 **Rollback boundary reminder:** customer writes are already accepted by
-`db-mrsoftwarev2-live`. The simple "point the proxy back" rollback described at
-the end of this document expired when that happened. See
+`db-mrsoftwarev2-live`. The simple "point traffic back" rollback described at the
+end of this document expired when that happened. See
 [Rollback boundary](#rollback-boundary).
 
 ## Fixed boundaries
@@ -69,7 +80,8 @@ reference. "Former production" is no longer serving customers.
 | API | `api-mrsoftware-prod` | `api-mrsoftwarev2-live` |
 | SQL database | `db-mrsoftware-prod` | `db-mrsoftwarev2-live` |
 | Blob account | `stmrsoftwareprod` | `stmrsoftwarev2live` |
-| Frontend traffic | Vercel proxy to `api-mrsoftware-prod` | Vercel proxy to `api-mrsoftwarev2-live` |
+| Frontend hosting | external static host proxying `/api/*` to `api-mrsoftware-prod` | `ca-workslip-live-app` frontend container (nginx) proxying `/api/` to its own API container |
+| Production domain | `app.mrsoftware.dk` at the external static host | `app.mrsoftware.dk` bound to `ca-workslip-live-app` |
 
 Names are selected from this allowlist by the workflow. They are not free-form
 dispatch inputs.
@@ -86,7 +98,7 @@ delivery thread and approval of the selected protected GitHub environment.
 | New-tenant foundation reconcile | Yes, new tenant | `RECONCILE NEW TENANT` |
 | Production data freeze and copy | Yes, both boundaries | phase-specific confirmation in the reviewed data-move procedure |
 | API package deployment without traffic | Yes, new tenant | `DEPLOY NEW TENANT AFTER DATA VERIFIED` plus the reviewed manifest SHA-256 and evidence URL |
-| Vercel proxy cutover | Yes, customer traffic | separate cutover approval |
+| Production domain cutover | Yes, customer traffic | `CUTOVER` in `aca-live-cutover.yml` mode `bind`, plus separate cutover approval |
 | Rollback | Yes | explicit rollback approval unless responding to an active incident |
 
 Merging a PR to `main` is itself a production action: current production backend
@@ -277,16 +289,22 @@ The new-tenant package deployment must:
 - use the protected `live` GitHub environment and its OIDC identity;
 - run reviewed migrations against the verified copied database;
 - deploy to `api-mrsoftwarev2-live` only;
-- leave the Vercel proxy unchanged;
+- leave the production domain binding unchanged;
 - require direct `/health` = 200 and unauthenticated `/api/auth/me` = 401;
 - prove authenticated sign-in, tenant isolation, representative reads, blob
   reads, and ACS delivery before becoming eligible for traffic.
 
 ## Traffic cutover
 
-Traffic movement is a separate decision. It consists of changing the Vercel API
-proxy from the current API to `api-mrsoftwarev2-live` and deploying the exact
-approved frontend SHA. Frontend ownership and browser evidence still apply.
+Traffic movement is a separate decision and a separate workflow. It consists of
+deploying the exact approved SHA with `aca-live-deploy.yml`, then dispatching
+`aca-live-cutover.yml` from `main` in mode `bind` with confirmation `CUTOVER`.
+Frontend ownership and browser evidence still apply.
+
+`bind` fails closed if `VITE_AZURE_AD_LOGIN_REDIRECT_URI` is not
+`https://app.mrsoftware.dk/login`, and it smoke-tests the deployed Container App
+on its Azure FQDN before it touches the hostname. Run mode `prepare` first: it
+prints the exact `CNAME app` and `TXT asuid.app` values the DNS provider needs.
 
 Before approval, record:
 
@@ -298,22 +316,22 @@ Before approval, record:
 - ACS delivery evidence;
 - named operator, start time, communication window, and rollback commander.
 
-After the proxy changes, verify browser → Vercel → new API → copied SQL/blob data
-→ response. A public health check alone is insufficient.
+After the hostname is bound, verify browser → `app.mrsoftware.dk` → nginx →
+API container → copied SQL/blob data → response. A public health check alone is
+insufficient.
 
 ## Rollback boundary
 
 > **We are past the simple-rollback point.** `db-mrsoftwarev2-live` has been
-> accepting customer writes since the proxy cutover, so restoring the Vercel
-> proxy to `api-mrsoftware-prod` would fork or lose every write taken since
-> then. The pre-write procedure immediately below is retained for the
-> outstanding ACA cutover and for any future tenant move; it is **not** the
-> current rollback path for the tenant migration. For that, use the
-> post-write options further down.
+> accepting customer writes since the traffic cutover, so repointing
+> `app.mrsoftware.dk` back at `api-mrsoftware-prod` would fork or lose every
+> write taken since then. The pre-write procedure immediately below is retained
+> for any future tenant move; it is **not** the current rollback path for this
+> tenant migration. For that, use the post-write options further down.
 
 Before writes are enabled on a new boundary, rollback is:
 
-1. keep or restore the Vercel proxy to `api-mrsoftware-prod`;
+1. keep or restore the production domain binding to the previous boundary;
 2. restart current production if it was stopped;
 3. verify current `/health` and the direct/proxied unauthenticated auth contract;
 4. keep the failed new boundary isolated for diagnosis.
@@ -339,5 +357,5 @@ is reopened.
 - all Entra mappings current;
 - ACS verified and delivered;
 - direct new API and authenticated application evidence;
-- Vercel proxy evidence;
+- production-domain binding evidence from `aca-live-cutover.yml` mode `bind`;
 - rollback rehearsal and named incident ownership.

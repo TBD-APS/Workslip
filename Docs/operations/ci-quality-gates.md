@@ -2,7 +2,7 @@
 
 **Status:** Active  
 **Owner:** Workslip repository owner  
-**Source of truth:** `.github/workflows/`, repository rulesets, Vercel project configuration and current successful runs  
+**Source of truth:** `.github/workflows/`, repository rulesets, `src/FE/Dockerfile`, `src/FE/nginx.conf` and current successful runs  
 **Review cadence:** When workflows, deployment targets or required checks change
 
 ## Principle
@@ -21,12 +21,9 @@ A production mutation is **fail-closed**. Frontend deployment, backend deploymen
 
 `failure`, `cancelled`, `timed_out`, `action_required`, `neutral`, `skipped`, a missing gate, a duplicate gate, a stale SHA or an unresolved CI run is not deployable. An older green ancestor is not sufficient.
 
-The contract has two platform adapters because Vercel may isolate a configured Root Directory from repository-level files:
+`tools/release/verify-production-eligibility.mjs` is the single adapter for that contract. Every maintained production workflow calls it before it acquires Azure credentials or mutates anything: `aca-live-deploy.yml`, `backend-production-deploy.yml`, `database-production-migrations.yml`, `infrastructure-production-reconcile.yml`, `appservice-slot-upgrade.yml`, `sql-live-seed-copy.yml` and `production-readiness-smoke.yml`. Do not add a second interpretation of “green”.
 
-- `tools/release/verify-production-eligibility.mjs` — GitHub Actions/manual production operations;
-- `src/FE/scripts/vercel-production-eligibility.mjs` — Vercel production build, physically inside the frontend Root Directory.
-
-Both implement the same exact-SHA/green-gate invariants and both are covered by `Production delivery · Self-test`. Do not add a third interpretation of “green”.
+Frontend delivery no longer needs a second platform-specific adapter. The frontend is a container image built inside the same Azure workflow as the API, so it reads the same evidence from the same repository checkout.
 
 ## Pull request CI
 
@@ -42,7 +39,7 @@ The full backend suite is blocking. Do not replace it with a filtered allowlist,
 
 The frontend carries inherited ESLint debt. CI compares pull-request findings with the exact base revision and blocks new severity-2 errors without treating inherited findings as permission to grow the baseline.
 
-The branch-matched frontend client is generated from the backend in the same revision. After generation, CI requires `src/FE/src/api/generated` to be clean. This matters because Vercel production intentionally does not regenerate against a remote dev/prod OpenAPI endpoint; the client committed in the release SHA must already be the client CI proved against that backend revision.
+The branch-matched frontend client is generated from the backend in the same revision. After generation, CI requires `src/FE/src/api/generated` to be clean. This matters because the production frontend image intentionally does not regenerate against a remote dev/prod OpenAPI endpoint — `src/FE/Dockerfile` runs only `npm ci` and `npm run build` — so the client committed in the release SHA must already be the client CI proved against that backend revision.
 
 ### External contributor escalation (retired)
 
@@ -64,30 +61,46 @@ Core backend, frontend/API-contract and contract/documentation checks run again 
 
 Both application surfaces depend on that exact post-merge evidence:
 
-- Vercel may receive the Git push immediately, but its configured `buildCommand` runs the root-local Vercel adapter, waits for the exact SHA to have a successful `CI Gate`, and verifies the SHA is still current `main` before the frontend build proceeds.
+- The live-app deployment builds the frontend image only after the exact-SHA eligibility adapter has proved a successful `CI Gate` for the checked-out revision. A merge to `main` creates no frontend deployment by itself.
 - Azure backend delivery is triggered by the completed `CI` run and validates the triggering run, exact SHA and `CI Gate`; it repeats the current-main check immediately before migrations/deployment so a release that becomes stale during artifact build cannot mutate production.
 
-This prevents frontend/backend drift caused by one platform releasing while the other revision is red, cancelled, stale or still validating.
+This prevents frontend/backend drift caused by one surface releasing while the other revision is red, cancelled, stale or still validating. For the live app the frontend and API images are built from one SHA in one run and released as a single Container App revision, so that class of drift cannot occur there at all.
 
 ## Production deployment
 
-### Frontend · Vercel production
+### Frontend · Azure Container Apps production
 
-`src/FE/vercel.json` permits Git deployment only from `main`.
+`.github/workflows/aca-live-deploy.yml` is named **Deploy Workslip Live App (Container Apps)** and owns frontend production. It is a `workflow_dispatch` workflow, so a merge to `main` never starts a frontend release on its own.
 
-The production build command first runs:
+The workflow:
 
-`node scripts/vercel-production-eligibility.mjs`
+1. refuses any ref other than `refs/heads/main`;
+2. checks out the exact selected SHA;
+3. runs `node tools/release/verify-production-eligibility.mjs --sha "$GITHUB_SHA"` before any Azure login;
+4. builds `workslip-live-app-frontend:<sha>` from `src/FE/Dockerfile` with `az acr build`, passing the Microsoft-login `VITE_AZURE_AD_*` values as build arguments and failing closed when any is missing;
+5. builds `workslip-live-app-api:<sha>` from `src/BE/WorkslipApi/Dockerfile.demo` in the same run;
+6. deploys both images as one revision of `ca-workslip-live-app` through `src/BE/infrastructure/aca/app.bicep`; and
+7. requires `tools/release/post-deploy-smoke.sh` to pass against the public URL before the release is reported successful.
 
-The adapter uses Vercel's exact Git commit metadata, requires the `main` branch, waits for the exact post-merge `CI Gate`, and performs a second `main` read after validating the CI jobs so a SHA that becomes stale during verification is rejected. Only then does Vercel run the deterministic frontend build.
+The image is served by nginx, not by a hosting platform's edge. `src/FE/Dockerfile` builds the Vite output and copies it into `nginxinc/nginx-unprivileged` together with `src/FE/nginx.conf`, which owns the SPA fallback (`try_files $uri $uri/ /index.html`), the `/api/` reverse proxy to the API container on `127.0.0.1:5262`, the `/health` passthrough and the frontend cache-control policy. Changing frontend routing, proxying or cache headers means changing `src/FE/nginx.conf` and shipping a new image; there is no dashboard-level override.
 
-The adapter reads public GitHub API evidence without a Vercel-held GitHub token. A genuine GitHub rate-limit response (`429`, or `403` with rate-limit evidence) is treated as a transient dependency condition only inside the adapter's existing bounded eligibility window. The adapter waits according to `Retry-After`/rate-limit reset metadata when available, then restarts verification from a fresh current-`main` read and fresh exact-SHA CI evidence. It never reuses previously fetched evidence across a rate-limit retry. If the bounded window cannot accommodate the retry or expires, production remains blocked. Ordinary `401`, permission `403` and other GitHub API failures remain terminal and are not converted into retries.
+The image build does **not** call `generate:api:dev` or fetch OpenAPI from a remote development API. `npm run build` is `tsc -b && npm run typecheck:sw && vite build`. The generated API client is committed and its parity with the same-revision backend contract is a blocking CI check.
 
-The adapter intentionally lives under `src/FE`. Vercel documents that a configured Root Directory may prevent builds from accessing source outside that directory unless a separate project setting enables it. Production safety therefore does not depend on that dashboard option.
+Registry access uses the runtime managed identity with `AcrPull`; ACR admin credentials must stay disabled and the workflow verifies both before it deploys. Images are tagged with the exact SHA, so a production revision is always traceable to one validated commit.
 
-The production build does **not** call `generate:api:dev` or fetch OpenAPI from a remote development API. The generated API client is committed and its parity with the same-revision backend contract is a blocking CI check.
+The public domain is bound separately. See [Frontend · Production domain](#frontend--production-domain).
 
-A Vercel deployment record can therefore exist while CI is pending, but it is not a successful production release until both the exact-SHA gate and the Vercel build succeed.
+### Frontend · Production domain
+
+`.github/workflows/aca-live-cutover.yml` owns `app.mrsoftware.dk`. It is separate from deployment on purpose: shipping a revision and moving customer traffic are different decisions with different rollback semantics.
+
+It runs only from `main` and has three modes:
+
+- `prepare` — reads the Container App FQDN and `customDomainVerificationId` and publishes the required `CNAME app` and `TXT asuid.app` records in the job summary. Non-mutating.
+- `bind` — requires confirmation `CUTOVER`, requires `VITE_AZURE_AD_LOGIN_REDIRECT_URI` to equal `https://app.mrsoftware.dk/login`, smoke-tests the deployed Container App first, then adds the hostname and binds a managed TLS certificate with CNAME validation.
+- `retire` — requires confirmation `RETIRE_LEGACY`, refuses to run unless `app.mrsoftware.dk` is already bound to `ca-workslip-live-app`, and then stops the legacy App Service.
+
+DNS records are the only step performed outside Azure, and the workflow prints the exact values rather than expecting an operator to remember them.
 
 ### Backend · Azure production
 
@@ -117,7 +130,7 @@ and the SHA-256 plus allowlisted evidence URL of the reviewed non-personal
 SQL/blob comparison manifest. The environment reviewer verifies that evidence;
 the workflow records the reference but does not treat a syntactically valid
 hash as proof of data correctness. It targets only `api-mrsoftwarev2-live`; it
-cannot select current production and it does not change the Vercel proxy. The
+cannot select current production and it does not move the production domain. The
 automatic path remains pinned to `api-mrsoftware-prod` during preparation.
 
 The old ancestor check is intentionally not used. A previously green SHA that is merely contained in a newer `main` is stale and cannot deploy.
@@ -144,13 +157,14 @@ Stable cloud resource names are not renamed merely for aesthetics. The active en
 
 - GitHub `prod` — Workslip's protected current Azure application/infrastructure environment. It carries the existing Azure environment configuration and remains the automatic backend target during cutover preparation.
 - GitHub `live` — reserved name for the separately protected new-tenant Azure boundary. Manual paths fail closed unless it already exists, allows exactly `main`, requires repository owner `rasm105k` (GitHub user ID `31623093`) as reviewer, and disables administrator bypass. It is not auto-created by a deployment run.
-- GitHub `Production` and `Preview` — Vercel Git integration environments with active Vercel-created deployment records; they are not duplicates of the Azure `prod` environment.
 - GitHub `github-pages` — independent GitHub Pages deployment environment.
 - GitHub `copilot` — GitHub/Copilot integration environment, not an application production path.
-- Vercel project `workslip-v2-0` — frontend hosting target; only `main` Git deployments are enabled by repository configuration.
-- Azure `api-mrsoftware-prod` in `rg-mrsoftware-prod` — backend production target.
+- Azure `ca-workslip-live-app` in `rg-mrsoftwarev2-live` — the Container App serving `app.mrsoftware.dk`. Its frontend and API containers are one revision built from one SHA.
+- Azure `api-mrsoftware-prod` in `rg-mrsoftware-prod` — backend production target for `backend-production-deploy.yml`.
 
-Do not delete or rename an environment from its name alone. Verify usage, deployment records, secrets/variables and external integration ownership first.
+Frontend hosting has no environment of its own. There is no hosting dashboard, project setting, preview URL or platform-held token in the frontend release path: the image is built in ACR and deployed by the same Azure workflow as the API.
+
+GitHub may still list `Production` and `Preview` deployment environments created by the retired frontend Git integration. They are historical deployment records, not an active production path, and they are not duplicates of the Azure `prod` or `live` environments. Do not delete or rename an environment from its name alone. Verify usage, deployment records, secrets/variables and external integration ownership first.
 
 ## Repository protection
 
@@ -172,16 +186,17 @@ Production delivery no longer trusts that ruleset as its only red-deploy defense
 
 ## Production delivery self-test
 
-`.github/workflows/production-delivery-selftest.yml` protects the delivery implementation itself. It verifies:
+The delivery implementation itself needs regression protection, because a change to the eligibility adapter is a change to what "deployable" means. The invariants that must hold are:
 
-- both Actions and Vercel adapters reject red/cancelled/stale/missing/duplicate gates;
-- Vercel production uses the Root-Directory-local exact-SHA gate and has no `generate:api:dev` or parent-directory dependency;
-- the Vercel adapter retries only positively identified GitHub rate-limit responses within its bounded eligibility window while ordinary API authorization failures remain terminal;
+- the eligibility adapter rejects red, cancelled, stale, missing and duplicate gates;
+- frontend production has no `generate:api:dev` dependency and no remote-OpenAPI dependency;
 - all privileged production workflows use the shared `workslip-production` lock and an allowlisted protected `prod`/`live` environment;
-- manual new-tenant deployment remains exact-main, records the reviewed data-manifest hash as evidence, and cannot change Vercel traffic;
+- manual new-tenant deployment remains exact-main, records the reviewed data-manifest hash as evidence, and cannot move the production domain;
 - backend deployment revalidates before mutation and cannot fall back to ancestor semantics;
 - the repository-protection source requires `CI Gate` (the retired `Feature change guard` and `Contributor Quality Gate` are no longer required), no bypass actors and strict status checks; and
 - retired legacy workflow entrypoints do not reappear.
+
+`tools/release/verify-production-eligibility.test.mjs` covers the first invariant. It is not currently wired into any workflow, and no workflow is named `Production delivery · Self-test`; treat that as an open gap rather than as existing coverage.
 
 ## Releases and tags
 

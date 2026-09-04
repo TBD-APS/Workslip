@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Caching.Memory;
 using Workslip.Application.Common;
@@ -24,15 +23,11 @@ public static class CacheEndpoints
 
     private static IResult GetStatus(
         HttpContext httpContext,
-        ICacheDiagnostics cacheDiagnostics,
-        IConfiguration configuration)
+        ICacheDiagnostics cacheDiagnostics)
     {
         HttpCacheHeaders.SetNoStore(httpContext);
 
-        var vercelConfigured = HasVercelConfiguration(configuration);
-        return Results.Ok(new CacheStatusResponse(
-            cacheDiagnostics.GetSnapshot(),
-            vercelConfigured));
+        return Results.Ok(new CacheStatusResponse(cacheDiagnostics.GetSnapshot()));
     }
 
     private static async Task<IResult> ClearCachesAsync(
@@ -40,13 +35,14 @@ public static class CacheEndpoints
         HybridCache hybridCache,
         IMemoryCache memoryCache,
         ICacheDiagnostics cacheDiagnostics,
-        IConfiguration configuration,
-        IHttpClientFactory httpClientFactory,
-        ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
         HttpCacheHeaders.SetNoStore(httpContext);
 
+        // The clear covers every cache this process owns. The frontend is served
+        // by nginx inside the app container with no shared cache in front of it,
+        // so no remote invalidation call is part of this operation; the remaining
+        // browser-side layers are cleared by the caller.
         await hybridCache.RemoveByTagAsync("all", cancellationToken);
 
         if (memoryCache is MemoryCache concrete)
@@ -57,75 +53,15 @@ public static class CacheEndpoints
         cacheDiagnostics.RecordGlobalClear();
         var snapshot = cacheDiagnostics.GetSnapshot();
 
-        var vercelProjectId = configuration["Vercel:ProjectId"];
-        var vercelToken = configuration["Vercel:Token"];
-        var vercelConfigured = !string.IsNullOrWhiteSpace(vercelProjectId)
-            && !string.IsNullOrWhiteSpace(vercelToken);
-        var vercelCleared = false;
-        string? warning = null;
-
-        if (vercelConfigured)
-        {
-            var logger = loggerFactory.CreateLogger("CacheAdministration");
-
-            try
-            {
-                var httpClient = httpClientFactory.CreateClient("vercel-cache");
-                using var request = new HttpRequestMessage(
-                    HttpMethod.Post,
-                    $"https://api.vercel.com/v1/edge-cache/invalidate-by-tags?projectIdOrName={Uri.EscapeDataString(vercelProjectId!)}")
-                {
-                    Content = JsonContent.Create(new { tags = new[] { "all" }, target = "production" })
-                };
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", vercelToken!);
-
-                using var response = await httpClient.SendAsync(request, cancellationToken);
-                vercelCleared = response.IsSuccessStatusCode;
-
-                if (!vercelCleared)
-                {
-                    warning = $"Vercel cache purge failed with status {(int)response.StatusCode}.";
-                    logger.LogWarning(
-                        "Vercel cache purge failed with status {StatusCode}.",
-                        (int)response.StatusCode);
-                }
-            }
-            catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
-            {
-                warning = "Vercel cache purge timed out.";
-                logger.LogWarning(exception, "Vercel cache purge timed out after local caches were cleared.");
-            }
-            catch (HttpRequestException exception)
-            {
-                warning = "Vercel cache purge could not be reached.";
-                logger.LogWarning(exception, "Vercel cache purge failed after local caches were cleared.");
-            }
-        }
-
-        var message = warning is null
-            ? "All caches cleared."
-            : $"Local caches cleared. {warning}";
-
         return Results.Ok(new CacheClearResponse(
-            message,
-            snapshot.LastClearedAt ?? DateTimeOffset.UtcNow,
-            vercelConfigured,
-            vercelCleared,
-            warning));
+            "All caches cleared.",
+            snapshot.LastClearedAt ?? DateTimeOffset.UtcNow));
     }
-
-    private static bool HasVercelConfiguration(IConfiguration configuration) =>
-        !string.IsNullOrWhiteSpace(configuration["Vercel:ProjectId"])
-        && !string.IsNullOrWhiteSpace(configuration["Vercel:Token"]);
 }
 
 public sealed record CacheStatusResponse(
-    CacheDiagnosticsSnapshot Backend,
-    bool VercelConfigured);
+    CacheDiagnosticsSnapshot Backend);
 
 public sealed record CacheClearResponse(
     string Message,
-    DateTimeOffset ClearedAt,
-    bool VercelConfigured,
-    bool VercelCleared,
-    string? Warning);
+    DateTimeOffset ClearedAt);
