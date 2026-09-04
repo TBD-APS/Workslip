@@ -1,9 +1,10 @@
 name: Linear Release Sync
 
+# Linear release management is a Business-plan feature. Keep this workflow
+# available for manual use once the workspace plan supports releases, but do
+# not run it automatically on pushes to main where it would fail every time.
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
