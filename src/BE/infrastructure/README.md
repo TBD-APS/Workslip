@@ -268,6 +268,223 @@ There is no alert on email delivery failure. The diagnostic stream above is the 
 
 These streams exist to be reported on, not only alerted on. Everything above lands in the `logAnal-<company>-<env>` workspace and is queryable from day one, which is what a later dashboard will be built from — cost per tenant, email delivery rate, storage growth, database headroom. Keep that in mind before narrowing what is collected: an alert only needs the threshold, a dashboard needs the history behind it.
 
+## Distributed cache (Redis) — supported by the API, not provisioned in Azure
+
+The API can use Redis as the shared second level behind `HybridCache`, and it is
+built to run with or without one. This section is what an operator needs in order
+to provision it. **Nothing here has been provisioned.** No `Microsoft.Cache`
+resource exists in any template in this directory, and no environment sets the
+configuration key, so every deployed replica currently caches in its own memory.
+
+The decision and its trade-offs are recorded in
+[ADR 0019](../../../Docs/architecture/adr/0019-single-cache-abstraction-with-optional-distributed-second-level.md).
+What an operator sees at runtime is in
+[Cache diagnostics](../../../Docs/operations/CACHE_DIAGNOSTICS.md).
+
+### What the application already expects
+
+`Configuration/ServiceConfiguration.cs` reads one key:
+
+```text
+Azure:Redis:ConnectionString
+```
+
+When it is absent, startup logs `[STARTUP 06.1] Configure Redis distributed cache
+(HybridCache L2) - SKIPPED (not configured)` and the API runs L1-only: nothing
+distributed is registered, no startup failure, no Redis credential in the
+environment, and every replica caches independently. That is the state of every
+deployed environment today. When it is present, the same phase logs `- OK` with
+the endpoint count and the key prefix. A value that cannot be parsed is logged
+and dropped; it does not fail startup. Nothing else in the application has to
+change to turn the cache on.
+
+### What provisioning a cache does and does not buy
+
+**It buys shared reference data and shared job lists.** Those regions are
+reconstructible from SQL, several replicas otherwise each load them
+independently, and a value a few minutes old is a display concern. The clearest
+win is a cold start: this app scales from zero, so a new replica currently reads
+reference data from the database on its first request, and with a cache
+configured it reads the shared row instead — within that row's own lifetime,
+which for these regions is the library's 5-minute default.
+
+**It does not change anything about authentication or authorization.** Cached
+claims are process-local in both configurations, by design and not by omission:
+ADR 0019 decision 3 keeps a user's id, organization and role out of the shared
+tier because a shared claims cache needs an invalidation that cannot be
+overtaken, and the caching package has no backplane to build one on. Two attempts
+to build that guarantee inside the cache were reproducibly defeated. So:
+
+- a role change is bounded the same way with a cache and without one — immediate
+  on the replica that served it, and up to the claims lifetime (one minute) behind
+  on the others, which then re-resolve from the database;
+- there is **no immediate cross-replica revocation**, and provisioning a cache
+  will not create one. That needs a backplane or a shorter authentication token
+  lifetime;
+- no authorization data is in this store, so a compromised, wiped or
+  snapshot-restored cache cannot change who is authorized as what.
+
+Do not provision a cache expecting the role-change window to move. It will not.
+Provision it for cold-start cost and cross-replica coherence of the benign
+regions, or not at all.
+
+### What is already in place
+
+| Piece | Where | State |
+|---|---|---|
+| Configuration transport | `Azure__AppConfiguration__Endpoint` env var set by `aca/app.bicep`, read in `Configuration/InfrastructureConfiguration.cs` | Exists |
+| Secret transport | App Configuration Key Vault references, resolved by `ConfigureKeyVault` at startup | Exists |
+| Runtime identity permissions | `aca/runtimeDataAccess.bicep` grants `App Configuration Data Reader` on `appcs-mrsoftwarev2-live` and `Key Vault Secrets User` on `kv-mrsoftwarev2-live` | Exists — **no new role assignment is needed** for a connection-string-based cache |
+| The cache resource | — | **Missing.** This is the whole of the work. |
+
+### The tier decision is a cost decision and needs an owner
+
+An Azure cache is a recurring monthly charge that starts the moment the resource
+exists and does not stop when the app scales to zero. Do not add one to a
+template without an owner accepting the bill. Read current prices for
+`swedencentral` from the Azure pricing calculator at the time of the decision
+rather than from any number written here, and re-check it against the ceiling in
+`budgets.bicep` (`-BudgetMonthlyAmount`, default `800` in the subscription's
+billing currency) — the documented lean baseline of roughly 534/month was
+measured without a cache.
+
+The axes that actually decide the tier, in the order they matter for this
+workload:
+
+1. **Replication and SLA.** A single-node cache has no SLA and is lost on
+   maintenance. Nothing in this store is authoritative and nothing in it is
+   authorization data, so losing it is a latency event and not a correctness one:
+   the API degrades to L1 and re-reads from SQL. A single node is therefore
+   survivable. What it costs is a restart of every cache in the system, which on
+   a scale-to-zero app lands as a burst of database reads.
+2. **Memory.** Reference data, job lists and job reports. The smallest size in
+   any tier is more than this workload needs today; size for growth, not for the
+   current footprint.
+3. **Persistence.** Not wanted, and cheap to decline. Everything in this cache is
+   reconstructible from SQL by design and no code path may assume otherwise
+   (ADR 0019, decision 6), so persistence buys nothing at all — there is no
+   scenario in which restoring this cache is better than letting it refill. Pay
+   for durability where the data is authoritative, which is the database.
+4. **Network isolation.** See the constraint below — this one is not free to
+   choose.
+
+### The network constraint, before anything else
+
+The Container Apps environment in `aca/foundation.bicep` is **not**
+VNet-integrated, and `aca/app.bicep` already documents the consequence for SQL:
+consumption Container Apps have no stable outbound IP, which is why the SQL
+firewall rule is the "allow Azure services" `0.0.0.0` rule rather than a pinned
+address.
+
+A cache reached over a private endpoint, or one restricted by IP firewall rules,
+is therefore **not reachable from the current topology**. The combinations that
+work today are a public endpoint with TLS required and access-key or Entra
+authentication. Anything stronger requires a VNet-integrated environment first,
+which is a larger change to `foundation.bicep`, a workload profile decision, and
+its own cost.
+
+Authentication is the second half of that choice. The registration in
+`ServiceConfiguration.cs` calls `ConfigurationOptions.Parse` on the configured
+string, so what it consumes today is an ordinary StackExchange.Redis connection
+string with an access key. Provisioning a cache that only accepts Entra
+data-plane tokens is a legitimate choice, but it is a code change as well as an
+infrastructure change — plan them together rather than discovering it at deploy
+time.
+
+### Provisioning and wiring, step by step
+
+1. **Declare the resource in `aca/foundation.bicep`, not `aca/app.bicep`.** The
+   cache must outlive a revision: `app.bicep` is redeployed on every release, and
+   `foundation.bicep` is where the other shared live-app resources (registry,
+   managed environment, identities) already live. Keep it in
+   `rg-mrsoftwarev2-live`, in `swedencentral`, with TLS-only access, minimum TLS
+   1.2 and public network access enabled per the constraint above.
+2. **Add the new output.** `foundation.bicep` must emit whatever the workflow
+   needs to construct the connection string; the deploy workflow reads foundation
+   outputs in its `Resolve foundation outputs` step. Do not output the access key
+   as a deployment output — deployment outputs are readable from the deployment
+   history by anyone with reader access on the resource group.
+3. **Write the secret into Key Vault, not into a template parameter.** Follow the
+   pattern in `keyvaultConfig.bicep`: a `Microsoft.KeyVault/vaults/secrets`
+   resource named with `--` separators.
+
+   ```text
+   Key Vault secret:        Azure--Redis--ConnectionString
+   App Configuration key:   Azure:Redis:ConnectionString   (Key Vault reference)
+   ```
+
+   `dynamicConfig.bicep` is the model for the App Configuration side. The runtime
+   identity already holds both roles needed to read them.
+4. **Do not put the connection string in `aca/app.bicep` as a plain env var.**
+   `Azure__Sql__ConnectionString` is set that way and is safe because it is
+   passwordless — it carries a managed-identity client id and no credential. A
+   Redis connection string carries an access key, and a plain container env var is
+   readable by anyone who can run `az containerapp show`. If a container-level
+   secret is preferred over App Configuration, use a Container Apps secret with a
+   `keyVaultUrl` + `identity` reference, never an inline `value`.
+5. **Update `.github/workflows/aca-live-deploy.yml` in three places.**
+   - `Validate live-app Bicep` iterates a hard-coded file list
+     (`foundation.bicep runtimeDataAccess.bicep app.bicep`). Any new template file
+     must be added there or it is never validated.
+   - `Reconcile live-app foundation` needs the new parameters.
+   - `Resolve foundation outputs` needs the new outputs if a later step consumes
+     them.
+6. **Expect to need a new revision.** `InfrastructureConfiguration.cs` loads App
+   Configuration once at startup and registers no refresh, so an API already
+   running will not notice a newly added key. The next `aca-live-deploy.yml` run
+   creates a new revision and picks it up; outside a release, restart the
+   Container App.
+7. **Decide the same question for demo.** `infrastructure/demo/` is a separate
+   Container Apps stack with its own foundation and app templates. It is not
+   covered by any of the above, and a demo environment must never share a cache
+   instance with live — the key prefix isolates keys, not blast radius or cost.
+
+### Verifying it took effect
+
+1. Container App log stream contains `[STARTUP 06.1] Configure Redis distributed
+   cache (HybridCache L2) - OK` with a non-zero endpoint count and the expected
+   key prefix. `SKIPPED (not configured)` means the key never reached the process.
+2. `Azure:Redis:ConnectionString` resolves in App Configuration as a versionless
+   Key Vault reference, and the value is not visible in
+   `az containerapp show --name ca-workslip-live-app`.
+3. The cache resource shows connected clients and a non-zero hit count under load
+   from more than one replica.
+4. `GET /api/superadmin/cache/status` reports `distributed.state` as `Reachable`,
+   and the `reference-data` region with tier `LocalAndDistributed` and clear scope
+   `ProcessAndDistributedTier`. That region is the check that the shared tier is
+   actually in the read path. The `authenticated-users` region reports tier
+   `LocalOnly` and clear scope `ProcessOnly` even with a cache configured and
+   reachable. That is correct, not a misconfiguration, and it is the second
+   confirmation that claims stay out of the shared tier — alongside step 5. See
+   [Cache diagnostics](../../../Docs/operations/CACHE_DIAGNOSTICS.md).
+5. **No key in the cache matches `*auth:user:*`.** This is the authoritative
+   check that cached claims never reach a shared store, and the one to keep in a
+   runbook. Run it after load from more than one replica; anything it returns
+   means authorization data is being published to the shared tier, which ADR 0019
+   decision 3 forbids.
+6. Stopping the cache does not stop the API: `/health` stays 200 and authenticated
+   requests keep succeeding. This is the property ADR 0019 decision 6 requires,
+   and it is worth proving once on the day it is provisioned rather than during an
+   incident. Two shapes are worth timing separately, because they cost different
+   amounts: killing the cache under a running API leaves requests in the
+   milliseconds, while a *replica that has never connected* pays the connect
+   timeout on its first cache-touching request — sub-half-second when the
+   endpoint refuses the connection outright (measured 0.362 s), up to ~6.4 s when
+   it black-holes and both the read and the write wait out the two-second
+   `ConnectTimeout` with `ConnectRetry=3` — and is back to milliseconds
+   immediately after. That second shape
+   is what a restart or a scale-out during a cache outage looks like. It lands on
+   the first request that reads a cached region, not on the authentication, which
+   does not touch this cache.
+
+### Turning it off
+
+Remove the `Azure:Redis:ConnectionString` key from App Configuration (or disable
+the Key Vault secret) and restart the Container App. The API returns to L1-only
+behaviour with no code change and no rollback of the image, and no authorization
+behaviour changes with it. Delete the Azure resource separately once the rollback
+is confirmed, because that is what stops the charge.
+
 ## Required post-deployment verification
 
 A successful script exit is not sufficient release evidence. Verify:

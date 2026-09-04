@@ -7,6 +7,7 @@
 | Frontend | http://localhost:5270 | Vite dev server, hot reload |
 | API | http://localhost:5262 | `dotnet watch`, hot reload |
 | SQL Server | `localhost,1433` | sa / `WorkslipLocal123!` (matches `appsettings.Local.json`) |
+| Redis | `localhost:6379` | `HybridCache` L2; ephemeral, no password, no persistence |
 | Seq | http://localhost:5341 | structured log viewer |
 
 ## Cleaner startup
@@ -27,6 +28,7 @@ Equivalent raw command: `docker compose up -d --wait --quiet-pull --progress pla
 ## How it fits together
 
 - `db` runs SQL Server 2022 with a persistent `sql-data` volume.
+- `redis` runs Redis 8 with persistence switched off (`--save "" --appendonly no`) and no named volume, so `docker compose down` leaves nothing behind. The `api` service sets `Azure__Redis__ConnectionString=redis:6379`, which turns on `HybridCache`'s shared second level locally. Delete that one line from `docker-compose.yml` to run the API the way it runs in an environment with no Redis configured; the container can stay up, it is the configuration key that decides. See [Cache diagnostics](CACHE_DIAGNOSTICS.md) for what changes when it is on.
 - `api` starts after `db` is healthy and reuses the existing Development startup path: on a fresh database it creates the schema from the EF model, baselines the migration ledger, seeds synthetic development data, and applies any pending `src/BE/infrastructure/database/migrations/*.sql` — the same behavior as running the backend natively against a fresh local SQL.
 - The startup's local-SQL safety guard only trusts provably-local hosts (`localhost`, `127.0.0.1`, …). The compose service host `db` is opted in explicitly via `WORKSLIP_ADDITIONAL_LOCAL_SQL_HOSTS=db`; the guard stays closed everywhere that variable is not set.
 - API source is volume-mounted at the repo-mirrored path `/src/BE/WorkslipApi`; `bin`/`obj` are shadowed with container-local volumes so host and container build artifacts never mix.
@@ -72,7 +74,7 @@ The phone and development machine must be on the same trusted Wi-Fi/LAN. The API
 
 ```bash
 docker compose up            # start everything (first run: image pulls + npm ci + restore)
-docker compose up -d db seq  # only infrastructure, run api/fe natively as before
+docker compose up -d db redis seq  # only infrastructure, run api/fe natively as before
 docker compose down          # stop; data volumes survive
 docker compose down -v       # stop and wipe DB/node_modules/nuget volumes
 ```
@@ -94,5 +96,7 @@ The compose `db` starts empty; the API seeds it on first startup. Data from the 
 - First `up` is slow: SQL image pull, full `npm ci`, full NuGet restore.
 - `dotnet watch` and Vite use polling file watchers in containers; large rebuilds are slower than native.
 - The SA password is a local-only credential and is intentionally committed; never reuse it outside compose.
+- The local Redis has no password and is published on `localhost:6379`. That is acceptable only because it is bound to the development machine and holds nothing that is not rebuildable from the local database. Do not point a local API at a shared or remote Redis, and do not copy this service definition into anything that is deployed.
+- The Windows native path (`tools/dev/start.ps1`, LocalDB) does not start Redis, so a native Windows run is L1-only unless `docker compose up -d redis` is started alongside it and `Azure__Redis__ConnectionString=localhost:6379` is set for the backend process.
 - On Apple Silicon the SQL Server image runs under amd64 emulation (Rosetta); expect slower DB startup.
 - Local phone access can still be blocked by host firewall/VPN/network isolation. The bootstrap checks the LAN URL from the host and prints a focused warning if localhost works but the LAN URL does not.
