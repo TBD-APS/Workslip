@@ -4,8 +4,13 @@
  * Workslip.Api | v1
  * OpenAPI spec version: 1.0.0
  */
+import type { CacheClearScope } from './cacheClearScope';
 import type { CacheDiagnosticsSnapshot } from './cacheDiagnosticsSnapshot';
+import type { DistributedCacheSnapshot } from './distributedCacheSnapshot';
 
 export interface CacheStatusResponse {
   backend: CacheDiagnosticsSnapshot;
+  distributed: DistributedCacheSnapshot;
+  clearScope: CacheClearScope;
+  clearReachesEveryReplica: boolean;
 }

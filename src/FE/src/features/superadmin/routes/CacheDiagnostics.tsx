@@ -9,6 +9,7 @@ import {
   Database,
   HardDrive,
   Layers3,
+  Network,
   RefreshCw,
   RotateCcw,
   Server,
@@ -16,11 +17,20 @@ import {
   Wifi,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import {
+  CacheClearScope,
+  CacheTier,
+  DistributedCacheState,
+  type DistributedCacheSnapshot,
+} from '../../../api/generated/models';
 import { notify } from '../../../lib/toast';
 import {
   cacheStatusQueryKey,
   clearCaches,
+  describeDistributedFailure,
   getCacheStatus,
+  type CacheClearResponse,
+  type CacheStatusResponse,
 } from '../cacheApi';
 import {
   PushRuntimeDiagnostics,
@@ -184,10 +194,81 @@ function formatHitRate(hits: number, misses: number): string {
   return rate === null ? 'Ingen trafik' : `${rate.toFixed(1)} %`;
 }
 
-function getRegionDetail(type: string): string {
-  return type === 'HybridCache'
-    ? 'Proceslokal L1-cache med tag-baseret invalidation'
-    : 'Proceslokal identitetsopslag-cache med absolut udløb';
+function getRegionDetail(tier: CacheTier): string {
+  return tier === CacheTier.LocalAndDistributed
+    ? 'Proceslokal L1 foran delt L2 — hver replika har fortsat sin egen L1'
+    : 'Kun proceslokal — hver replika har sin egen kopi';
+}
+
+function formatTier(tier: CacheTier): string {
+  return tier === CacheTier.LocalAndDistributed ? 'L1 + L2' : 'Kun L1';
+}
+
+function formatClearScope(scope: CacheClearScope): string {
+  return scope === CacheClearScope.ProcessAndDistributedTier
+    ? 'Denne proces + delt L2'
+    : 'Kun denne proces';
+}
+
+function describeDistributedTier(distributed: DistributedCacheSnapshot | undefined): string {
+  if (!distributed || distributed.state === DistributedCacheState.NotConfigured) {
+    return 'Ikke konfigureret';
+  }
+  return distributed.state === DistributedCacheState.Unreachable
+    ? 'Utilgængelig'
+    : distributed.provider ?? 'Tilsluttet';
+}
+
+/**
+ * En rydning rammer den proces, der besvarer kaldet, og — hvis en delt cache er
+ * konfigureret *og* svarer — det delte niveau. Den rammer aldrig de øvrige
+ * replikaers proceslokale L1, så skærmen må ikke fremstille den som en global
+ * rydning. `clearScope` følger nu tilgængelighed og ikke konfiguration, så en
+ * registreret men død delt cache giver `ProcessOnly`; her siges det højt, så
+ * operatøren kan se hvorfor rækkevidden er smallere end topologien.
+ */
+function describeClearReach(status: CacheStatusResponse | undefined): string {
+  if (status?.clearReachesEveryReplica) {
+    return 'Rydning rammer alle replikaer';
+  }
+
+  if (status?.clearScope === CacheClearScope.ProcessAndDistributedTier) {
+    // WidestClearScope is the widest scope any single region gets, not the scope
+    // of the clear as a whole — the per-region column below is authoritative.
+    return 'Rydning rammer højst denne API-proces og det delte niveau (se pr. region)';
+  }
+
+  return status?.distributed.state === DistributedCacheState.Unreachable
+    ? 'Rydning rammer kun denne API-proces — det delte niveau svarer ikke'
+    : 'Rydning rammer kun denne API-proces';
+}
+
+function describeClearOutcome(result: CacheClearResponse): string {
+  const instance = result.instanceId.slice(0, 8);
+
+  if (result.reachedEveryReplica) {
+    return `Cachelagene er ryddet i hele deployment. Kaldet blev besvaret af API-instans ${instance}.`;
+  }
+
+  if (!result.distributed.configured) {
+    return `Cachelagene i API-instans ${instance} er ryddet. Der er ingen delt cache`
+      + ' konfigureret, så hver anden replika beholder sin egen kopi, indtil den udløber.';
+  }
+
+  if (!result.distributedTierCleared) {
+    return `Cachelagene i API-instans ${instance} er ryddet, men det delte niveau kunne`
+      + ' ikke markeres som ugyldigt og leverer fortsat sit gemte indhold.';
+  }
+
+  // Tidligere sluttede sætningen "indtil de udløber eller replikaen genstarter",
+  // hvilket antydede en konvergens, der ikke sker: markeringen sletter ikke de
+  // delte payloads, og en replika, der allerede har læst tagget, har husket
+  // tidsstemplet for hele processens levetid — så den genindlæser den gamle
+  // payload, når dens egen kopi udløber. Kun en genstart konvergerer den.
+  return `Cachelagene i API-instans ${instance} er ryddet, og det delte niveau er markeret`
+    + ' som ugyldigt, så processer, der starter herefter, kasserer det. Markeringen sletter'
+    + ' ikke de delte payloads, så en replika, der allerede kører, leverer fortsat sin egen'
+    + ' kopi og kan genindlæse den delte, når kopien udløber. Kun en genstart konvergerer den.';
 }
 
 function isCacheStatusQuery(queryKey: readonly unknown[]): boolean {
@@ -235,7 +316,7 @@ export function CacheDiagnostics() {
 
   const clearMutation = useMutation({
     mutationFn: clearCaches,
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       queryClient.removeQueries({
         predicate: (query) => !isCacheStatusQuery(query.queryKey),
       });
@@ -245,7 +326,13 @@ export function CacheDiagnostics() {
         await Promise.all(names.map((name) => window.caches.delete(name)));
       }
 
-      notify.success('Frontend- og backendcaches er ryddet.');
+      // Rydningen dækker denne browser og den API-proces, der besvarede kaldet.
+      // Beskeden må ikke antyde mere end det — se panelet under handlingerne.
+      if (result.distributed.configured && !result.distributedTierCleared) {
+        notify.warning('Denne browser og API-instansen er ryddet, men det delte niveau blev ikke markeret.');
+      } else {
+        notify.success('Denne browser og den betjenende API-instans er ryddet.');
+      }
 
       await Promise.all([
         statusQuery.refetch(),
@@ -275,9 +362,16 @@ export function CacheDiagnostics() {
     ? Math.min((browserDiagnostics.storageUsage / browserDiagnostics.storageQuota) * 100, 100)
     : null;
 
+  const distributed = statusQuery.data?.distributed;
+  const distributedUnreachable = distributed?.state === DistributedCacheState.Unreachable;
+  // Aldrig `distributed.error` direkte: feltet er et lukket vokabular fra backend,
+  // og skærmen må hverken vise engelsk driftstekst eller — hvis en fremtidig
+  // ændring skulle slippe provider-tekst igennem — cachens adresse.
+  const distributedFailure = describeDistributedFailure(distributed?.error);
+
   const health = statusQuery.isError
     ? 'critical'
-    : totals.failures > 0
+    : totals.failures > 0 || distributedUnreachable
       ? 'warning'
       : statusQuery.isLoading
         ? 'loading'
@@ -286,7 +380,7 @@ export function CacheDiagnostics() {
   const healthLabel = health === 'critical'
     ? 'Backend utilgængelig'
     : health === 'warning'
-      ? 'Fejl registreret'
+      ? distributedUnreachable ? 'Delt cache utilgængelig' : 'Fejl registreret'
       : health === 'loading'
         ? 'Indlæser telemetry'
         : 'Cachelag online';
@@ -322,8 +416,9 @@ export function CacheDiagnostics() {
           <div className="cache-diagnostics-heading">
             <h1>Cache command center</h1>
             <p>
-              Live metadata fra klient, API-proces og browserens cachelag. Ingen payloads,
-              identiteter eller komplette cache keys forlader deres sikkerhedsgrænse.
+              Live metadata fra klient, API-proces, det delte cacheniveau og browserens
+              cachelag. Ingen payloads, identiteter eller komplette cache keys forlader
+              deres sikkerhedsgrænse.
             </p>
           </div>
 
@@ -357,7 +452,7 @@ export function CacheDiagnostics() {
             disabled={clearMutation.isPending}
           >
             <RotateCcw size={16} aria-hidden="true" />
-            {clearMutation.isPending ? 'Rydder cachelag...' : 'Ryd alle cachelag'}
+            {clearMutation.isPending ? 'Rydder cachelag...' : 'Ryd cachelag'}
           </button>
         </div>
 
@@ -370,8 +465,14 @@ export function CacheDiagnostics() {
           <span className="cache-diagnostics-layer-connector" aria-hidden="true" />
           <div>
             <Cpu size={17} aria-hidden="true" />
-            <span>API process</span>
-            <strong>Hybrid + Memory</strong>
+            <span>API process (L1)</span>
+            <strong>Proceslokal</strong>
+          </div>
+          <span className="cache-diagnostics-layer-connector" aria-hidden="true" />
+          <div>
+            <Network size={17} aria-hidden="true" />
+            <span>Delt cache (L2)</span>
+            <strong>{describeDistributedTier(distributed)}</strong>
           </div>
           <span className="cache-diagnostics-layer-connector" aria-hidden="true" />
           <div>
@@ -397,6 +498,39 @@ export function CacheDiagnostics() {
           <div>
             <strong>Browsermetadata er delvist utilgængelig</strong>
             <span>{browserError}</span>
+          </div>
+        </div>
+      )}
+      {distributedUnreachable && (
+        <div className="cache-diagnostics-alert cache-diagnostics-alert--warning" role="alert">
+          <AlertTriangle size={18} aria-hidden="true" />
+          <div>
+            <strong>Det delte cacheniveau svarer ikke</strong>
+            <span>
+              {distributed?.provider ?? 'Den delte cache'} er konfigureret, men svarede ikke
+              på et opslag. API'en kører videre på sit proceslokale niveau og henter data fra
+              kilden. En rydning rammer kun denne API-proces, indtil niveauet svarer igen.
+              {distributedFailure ? ` Årsag: ${distributedFailure}` : ''}
+              {distributed?.checkedAt ? ` Kontrolleret ${formatDate(distributed.checkedAt)}.` : ''}
+            </span>
+          </div>
+        </div>
+      )}
+      {clearMutation.data && (
+        <div
+          className={`cache-diagnostics-alert ${
+            clearMutation.data.reachedEveryReplica ? '' : 'cache-diagnostics-alert--warning'
+          }`}
+          role="status"
+        >
+          <AlertTriangle size={18} aria-hidden="true" />
+          <div>
+            <strong>
+              {clearMutation.data.reachedEveryReplica
+                ? 'Rydningen dækkede hele deployment'
+                : 'Rydningen dækkede ikke hele deployment'}
+            </strong>
+            <span>{describeClearOutcome(clearMutation.data)}</span>
           </div>
         </div>
       )}
@@ -449,11 +583,15 @@ export function CacheDiagnostics() {
             <span className="cache-diagnostics-section-eyebrow">API process telemetry</span>
             <h2>Backend cache regions</h2>
             <p>
-              Proceslokale tællere fra de konkrete cache consumers. Metrics nulstilles ved App Service recycle;
-              Application Insights bevarer historikken.
+              Proceslokale tællere fra de konkrete cache consumers. Metrics nulstilles, når
+              API-processen genstarter; Application Insights bevarer historikken.
             </p>
           </div>
           <div className="cache-diagnostics-meta-cluster">
+            <span className="cache-diagnostics-chip">
+              <AlertTriangle size={13} aria-hidden="true" />
+              {describeClearReach(statusQuery.data)}
+            </span>
             <span className="cache-diagnostics-chip">
               <RefreshCw size={13} aria-hidden="true" />
               Sidst ryddet {formatDate(statusQuery.data?.backend.lastClearedAt)}
@@ -467,6 +605,7 @@ export function CacheDiagnostics() {
               <tr>
                 <th>Region</th>
                 <th>Cachetype</th>
+                <th>Rydning rammer</th>
                 <th>TTL</th>
                 <th>Hit-rate</th>
                 <th>Hits</th>
@@ -487,11 +626,24 @@ export function CacheDiagnostics() {
                       <span className={`cache-diagnostics-region-dot ${region.failures > 0 ? 'is-error' : 'is-healthy'}`} aria-hidden="true" />
                       <div>
                         <strong>{region.name}</strong>
-                        <small>{getRegionDetail(region.type)}</small>
+                        <small title={getRegionDetail(region.tier)}>{getRegionDetail(region.tier)}</small>
                       </div>
                     </div>
                   </td>
-                  <td><span className="cache-diagnostics-type-badge">{region.type}</span></td>
+                  <td>
+                    <span className="cache-diagnostics-type-badge">{region.type}</span>
+                    {' '}
+                    <span className="cache-diagnostics-type-badge">{formatTier(region.tier)}</span>
+                  </td>
+                  <td>
+                    <span
+                      className={`cache-diagnostics-state-badge ${
+                        region.clearScope === CacheClearScope.ProcessAndDistributedTier ? 'is-fresh' : 'is-stale'
+                      }`}
+                    >
+                      {formatClearScope(region.clearScope)}
+                    </span>
+                  </td>
                   <td>{formatTtl(region.ttlSeconds)}</td>
                   <td><strong>{formatHitRate(region.hits, region.misses)}</strong></td>
                   <td>{region.hits}</td>
@@ -506,7 +658,7 @@ export function CacheDiagnostics() {
               ))}
               {!statusQuery.isLoading && (statusQuery.data?.backend.regions.length ?? 0) === 0 && (
                 <tr>
-                  <td colSpan={12}>
+                  <td colSpan={13}>
                     <div className="cache-diagnostics-empty">
                       <Database size={22} aria-hidden="true" />
                       <span>Ingen cache regions er registreret i denne API-proces.</span>

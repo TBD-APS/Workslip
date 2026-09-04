@@ -132,6 +132,38 @@ This design deliberately keeps GitHub as the authenticated control plane and the
 
 `-CheckOnly` must not create a LocalDB instance, install dependencies, seed data or start application processes. If the LocalDB instance is missing it reports that the normal bootstrap must create it.
 
+## Distributed cache in local development
+
+The API caches through `HybridCache`. Whether that cache has a shared second
+level is decided by one configuration key, `Azure:Redis:ConnectionString`:
+
+- **Not set** — `HybridCache` runs in-process only. Startup logs
+  `[STARTUP 06.1] Configure Redis distributed cache (HybridCache L2) - SKIPPED
+  (not configured)`. This is what the Windows native bootstrap does, and it is
+  also what every deployed environment does today, so it is the honest default
+  for local work.
+- **Set** — the same phase logs `- OK` with the endpoint count and key prefix,
+  and cache entries are shared with anything else pointed at that Redis. The
+  Docker Compose stack sets it for you
+  (`Azure__Redis__ConnectionString=redis:6379`), which is the only supported way
+  to get it locally.
+
+Use the Compose stack when the thing being tested is cache behaviour across
+processes — a job-list or reference-data entry surviving an API restart, or the
+Superadmin clear's shared-tier marker (`__MSFT_HCT__all`) appearing while the
+payload rows stay. A claims invalidation reaching a second replica is *not* one
+of them: claims never enter the shared tier, and there is no cross-replica
+revocation to observe (ADR 0019 decision 4). See
+[Local full stack with Docker Compose](local-docker-compose.md) and
+[Cache diagnostics](CACHE_DIAGNOSTICS.md).
+
+Never point a local backend at a shared, staging or production Redis. That store
+holds job lists and reference data for real tenants, and a local process
+configured against it would both read those rows and overwrite them with its own.
+Cached authentication claims are *not* in that store — `*auth:user:*` returns
+nothing, and a key matching it would be a bug rather than a cache state — so the
+reason to stay off a deployed cache is tenant data, not claims.
+
 ## Local-only safety boundary
 
 Normal Development startup is local-only:
@@ -143,6 +175,7 @@ Normal Development startup is local-only:
 - Azure App Configuration, Entra identity provisioning, ACS email and production credentials are not prerequisites for the normal local login/read path;
 - the canonical Vite process uses same-origin API traffic rather than inheriting a machine-specific browser API target;
 - `-Mobile` broadens only the Vite listener to the LAN; the backend and LocalDB remain loopback/local-only behind the Vite API proxy;
+- no distributed cache is a prerequisite: `Azure:Redis:ConnectionString` is unset on the native path, and the Compose stack's Redis is an unauthenticated container bound to the development machine;
 - the remote mobile workflow executes on the local Windows runner and does not add a public application ingress path.
 
 The explicit platform Superadmin bootstrap remains a separate operator workflow described in the backend README. Do not broaden its remote-SQL exception into normal local development.

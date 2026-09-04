@@ -1,5 +1,5 @@
 # Local full-stack dev environment: docker compose up
-# Frontend http://localhost:5270 · API http://localhost:5262 · SQL localhost,1433 · Seq http://localhost:5341
+# Frontend http://localhost:5270 · API http://localhost:5262 · SQL localhost,1433 · Redis localhost:6379 · Seq http://localhost:5341
 # Details: Docs/operations/local-docker-compose.md
 services:
 
@@ -32,11 +32,50 @@ services:
       retries: 20
       start_period: 20s
 
+  redis:
+    image: redis:8-alpine
+    container_name: workslip-redis
+    ports:
+      - "6379:6379"
+    # Deliberately ephemeral. Redis runs with no save points and no append-only
+    # file (--save "" --appendonly no) and the service has no volume. What that
+    # guarantees is exactly one thing, and it is about disk: the server never
+    # writes the dataset out on its own, so it loads nothing at startup.
+    # Verified - SET a key, `docker restart`, and the keyspace is empty with /data
+    # still empty. `docker compose down` + `up`, `docker compose restart redis`
+    # and a host reboot therefore each start Redis empty. Everything cached here
+    # is a rebuildable copy of SQL, so there is nothing to lose either way.
+    #
+    # What it does NOT give you is a cache scoped to an API build. This container
+    # outlives `dotnet watch` rebuilds, so within one compose session serialized
+    # payloads written by an earlier build - and tag-invalidation markers, which
+    # carry a 1000-day TTL - are still there for the new code to read. After
+    # changing a cached type, or when chasing a stale invalidation, reset it
+    # explicitly: `docker exec -it workslip-redis redis-cli FLUSHALL`, or
+    # `docker compose restart redis`.
+    #
+    # One case defeats both of those resets. An explicit SAVE or BGSAVE writes
+    # /data/dump.rdb into this container's own writable layer, and with no volume
+    # that file is removed by `docker compose down` but survives
+    # `docker compose restart redis` and is loaded at the next start. FLUSHALL
+    # empties the keyspace without deleting it, so a flush followed by a restart
+    # brings the old dataset back (verified). If a snapshot has ever been forced,
+    # `docker compose down` is the reset that holds.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
   api:
     image: mcr.microsoft.com/dotnet/sdk:10.0
     container_name: workslip-api
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     # Mirror the repo layout so startup's ../infrastructure/database/migrations
     # lookup (relative to the API content root) resolves inside the container.
@@ -63,6 +102,17 @@ services:
       - Workslip__SeedDevelopmentData=true
       - Workslip__SeedDevelopmentEntraIdentities=false
       - Azure__Sql__ConnectionString=Server=db,1433;Initial Catalog=WorkslipLocal;User Id=sa;Password=WorkslipLocal123!;Encrypt=True;TrustServerCertificate=True;Connection Timeout=30;
+      # Turns HybridCache's L2 on locally so multi-replica behaviour is reproducible
+      # here: reference data, job lists and job reports then come from the shared
+      # tier. Remove this line to run the API the way every deployed environment
+      # runs today, L1 only.
+      #
+      # Cached authentication claims are process-local either way. They are
+      # deliberately never written to the shared tier (ADR 0019 decision 3), so
+      # this line changes nothing about authorization or about how long a role
+      # change takes to reach another replica. `redis-cli --scan --pattern
+      # '*auth:user:*'` must stay empty.
+      - Azure__Redis__ConnectionString=redis:6379
       # Startup bootstraps/migrates the local DB itself, but its safety guard only
       # trusts provably-local hosts; "db" is opted in explicitly (see
       # LocalDevelopmentDatabaseMigrationRunner.IsLocalDataSource).

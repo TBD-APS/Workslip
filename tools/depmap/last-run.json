@@ -7,15 +7,15 @@
       },
       "Api/Configuration": {
         "files": 16,
-        "loc": 1833
+        "loc": 2148
       },
       "Api/Endpoints": {
         "files": 25,
-        "loc": 2530
+        "loc": 2597
       },
       "Api/Helpers": {
         "files": 6,
-        "loc": 650
+        "loc": 970
       },
       "Api/Middleware": {
         "files": 1,
@@ -42,8 +42,8 @@
         "loc": 263
       },
       "Application/Common": {
-        "files": 3,
-        "loc": 167
+        "files": 4,
+        "loc": 468
       },
       "Application/Conversations": {
         "files": 3,
@@ -79,7 +79,7 @@
       },
       "Application/Jobs": {
         "files": 32,
-        "loc": 3835
+        "loc": 4016
       },
       "Application/LeaderAnalysis": {
         "files": 3,
@@ -122,8 +122,8 @@
         "loc": 10
       },
       "Infrastructure/Diagnostics": {
-        "files": 2,
-        "loc": 998
+        "files": 3,
+        "loc": 1397
       },
       "Infrastructure/Invitations": {
         "files": 1,
@@ -174,7 +174,7 @@
       "Api/(root) -> Application/(root)": 1,
       "Api/(root) -> Application/Auth": 1,
       "Api/Configuration -> Api/Endpoints": 2,
-      "Api/Configuration -> Api/Helpers": 1,
+      "Api/Configuration -> Api/Helpers": 2,
       "Api/Configuration -> Api/Middleware": 1,
       "Api/Configuration -> Api/Services": 1,
       "Api/Configuration -> Api/Telemetry": 2,
@@ -183,6 +183,7 @@
       "Api/Configuration -> Application/Common": 1,
       "Api/Configuration -> Application/Operations": 1,
       "Api/Configuration -> Infrastructure/(root)": 2,
+      "Api/Configuration -> Infrastructure/Diagnostics": 1,
       "Api/Configuration -> Infrastructure/Schema": 5,
       "Api/Endpoints -> Api/Configuration": 2,
       "Api/Endpoints -> Api/Helpers": 18,
@@ -207,12 +208,14 @@
       "Api/Endpoints -> Application/Users": 5,
       "Api/Endpoints -> Application/Worksheets": 1,
       "Api/Endpoints -> Domain/Domain": 2,
+      "Api/Endpoints -> Infrastructure/Diagnostics": 1,
       "Api/Endpoints -> Infrastructure/Schema": 2,
       "Api/Helpers -> Api/Services": 1,
       "Api/Helpers -> Application/Auth": 3,
-      "Api/Helpers -> Application/Common": 1,
+      "Api/Helpers -> Application/Common": 2,
       "Api/Helpers -> Application/Users": 1,
       "Api/Helpers -> Domain/Domain": 1,
+      "Api/Helpers -> Infrastructure/Diagnostics": 2,
       "Api/Services -> Api/Endpoints": 1,
       "Api/Services -> Application/(root)": 1,
       "Api/Services -> Application/Customers": 1,
@@ -307,6 +310,7 @@
       "Infrastructure/(root) -> Infrastructure/Schema": 1,
       "Infrastructure/(root) -> Infrastructure/Storage": 1,
       "Infrastructure/(root) -> Infrastructure/Transactions": 1,
+      "Infrastructure/Diagnostics -> Application/Common": 1,
       "Infrastructure/Diagnostics -> Application/Diagnostics": 1,
       "Infrastructure/Invitations -> Application/Invitations": 1,
       "Infrastructure/Jobs -> Application/Images": 1,
@@ -363,7 +367,7 @@
       {
         "name": "Jobs",
         "files": 32,
-        "loc": 3835,
+        "loc": 4016,
         "fanIn": 5,
         "fanOut": 3,
         "inRefs": 7,
@@ -432,8 +436,8 @@
       },
       {
         "name": "Common",
-        "files": 3,
-        "loc": 167,
+        "files": 4,
+        "loc": 468,
         "fanIn": 2,
         "fanOut": 0,
         "inRefs": 2,
@@ -541,16 +545,16 @@
         "loc": 1078
       },
       {
+        "file": "src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs",
+        "loc": 1031
+      },
+      {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Schema/AuditPolicies.cs",
         "loc": 926
       },
       {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Diagnostics/ApplicationInsightsErrorDiagnosticsService.cs",
         "loc": 879
-      },
-      {
-        "file": "src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs",
-        "loc": 850
       },
       {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/JobReportPdfService.cs",
@@ -573,6 +577,10 @@
         "loc": 548
       },
       {
+        "file": "src/BE/WorkslipApi/Helpers/UserClaimsTransformation.cs",
+        "loc": 488
+      },
+      {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/SqlJobConversationRepository.cs",
         "loc": 471
       },
@@ -587,10 +595,6 @@
       {
         "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfWorksheetRepository.cs",
         "loc": 447
-      },
-      {
-        "file": "src/BE/WorkslipApi/Workslip.Infrastructure/Mappers/JobReportMapper.cs",
-        "loc": 438
       }
     ]
   },
@@ -627,8 +631,8 @@
       {
         "name": "superadmin",
         "files": 16,
-        "loc": 3383,
-        "sharedRefs": 10,
+        "loc": 3602,
+        "sharedRefs": 12,
         "crossRefs": 1
       },
       {
@@ -720,6 +724,10 @@
         "loc": 907
       },
       {
+        "file": "src/FE/src/features/superadmin/routes/CacheDiagnostics.tsx",
+        "loc": 804
+      },
+      {
         "file": "src/FE/src/features/jobs/components/JobConversationDrawer.tsx",
         "loc": 751
       },
@@ -730,10 +738,6 @@
       {
         "file": "src/FE/src/features/jobs/routes/AdminCompletedJobReport.tsx",
         "loc": 671
-      },
-      {
-        "file": "src/FE/src/features/superadmin/routes/CacheDiagnostics.tsx",
-        "loc": 652
       },
       {
         "file": "src/FE/src/components/common/NotificationsDrawer.tsx",

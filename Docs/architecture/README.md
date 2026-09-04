@@ -52,6 +52,7 @@ Do not create a page merely to fill the list. Add it only when it reduces redisc
 - [`adr/0016-generic-job-evidence-checklist-module.md`](adr/0016-generic-job-evidence-checklist-module.md) — carve VVS "installations/KLS" into a trade-agnostic Job Evidence / Checklist module; Workslip owns the engine, builder, packs and content, MR SAAS'y owns only entitlement and price.
 - [`adr/0017-ai-retrieval-belongs-to-mr-saasy-agent-runtime.md`](adr/0017-ai-retrieval-belongs-to-mr-saasy-agent-runtime.md) — retrieval (RAG) and model/provider routing, including Cerebras, live in the MR SAAS'y agent runtime; Workslip requests provider-neutral operations and keeps the trusted/untrusted context split.
 - [`adr/0018-frontend-served-by-nginx-in-azure-container-apps.md`](adr/0018-frontend-served-by-nginx-in-azure-container-apps.md) — frontend production is an nginx container built from `src/FE/Dockerfile` and released with the API into Azure Container Apps; supersedes the Vercel frontend-hosting portion of ADR 0005 and the cache-purge boundary in ADR 0001 decision 8.
+- [`adr/0019-single-cache-abstraction-with-optional-distributed-second-level.md`](adr/0019-single-cache-abstraction-with-optional-distributed-second-level.md) — the application caches through one `HybridCache` abstraction with an optional distributed L2; authentication claims are cached per process only and never written to the shared tier; the deployment works with or without Redis configured, and no cache resource is provisioned by that decision.
 
 ## Superseded decisions
 
