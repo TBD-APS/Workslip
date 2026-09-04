@@ -11,14 +11,14 @@ Coupling = fan-in + fan-out between `Workslip.Application.*` modules. File refs 
 | Module | Files | LOC | Fan-in | Fan-out | Inbound file refs | Outbound file refs | Coupling |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Auth | 5 | 263 | 11 | 1 | 25 | 2 | **12** |
-| Jobs | 32 | 3835 | 5 | 3 | 7 | 18 | **8** |
+| Jobs | 32 | 4016 | 5 | 3 | 7 | 18 | **8** |
 | Users | 14 | 1673 | 4 | 2 | 8 | 4 | **6** |
 | Conversations | 3 | 742 | 0 | 4 | 0 | 4 | **4** |
 | Images | 4 | 455 | 1 | 3 | 1 | 3 | **4** |
 | Invitations | 6 | 726 | 0 | 3 | 0 | 7 | **3** |
 | Notifications | 8 | 486 | 2 | 1 | 4 | 1 | **3** |
 | Worksheets | 5 | 515 | 1 | 2 | 6 | 4 | **3** |
-| Common | 3 | 167 | 2 | 0 | 2 | 0 | **2** |
+| Common | 4 | 468 | 2 | 0 | 2 | 0 | **2** |
 | Customers | 7 | 562 | 0 | 2 | 0 | 2 | **2** |
 | Documents | 9 | 745 | 1 | 1 | 1 | 2 | **2** |
 | Integrations | 6 | 321 | 1 | 1 | 2 | 1 | **2** |
@@ -110,6 +110,7 @@ Coupling = fan-in + fan-out between `Workslip.Application.*` modules. File refs 
 | Infra:(root) -> App:Operations | 1 |
 | Infra:(root) -> App:Organizations | 1 |
 | Infra:(root) -> App:Users | 1 |
+| Infra:Diagnostics -> App:Common | 1 |
 | Infra:Diagnostics -> App:Diagnostics | 1 |
 | Infra:Invitations -> App:Invitations | 1 |
 | Infra:Jobs -> App:Images | 1 |
@@ -135,7 +136,7 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 | jobs | 54 | 10236 | **2** | 193 |
 | leader-analysis | 3 | 876 | **2** | 5 |
 | overview | 2 | 466 | **1** | 10 |
-| superadmin | 16 | 3383 | **1** | 10 |
+| superadmin | 16 | 3602 | **1** | 12 |
 | users | 8 | 1262 | **1** | 32 |
 | auditor | 1 | 483 | 0 | 17 |
 | auth | 11 | 1510 | 0 | 20 |
@@ -166,19 +167,19 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 | --- | --- |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Schema/SqlDbContext.cs` | 1485 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs` | 1078 |
+| `src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs` | 1031 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Schema/AuditPolicies.cs` | 926 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Diagnostics/ApplicationInsightsErrorDiagnosticsService.cs` | 879 |
-| `src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs` | 850 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/JobReportPdfService.cs` | 682 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Seeding/DatabaseSeeder.cs` | 625 |
 | `src/BE/WorkslipApi/Workslip.Application/Conversations/JobConversationService.cs` | 587 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/SqlInventoryRepository.cs` | 575 |
 | `src/BE/WorkslipApi/Workslip.Application/Invitations/InvitationService.cs` | 548 |
+| `src/BE/WorkslipApi/Helpers/UserClaimsTransformation.cs` | 488 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/SqlJobConversationRepository.cs` | 471 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Seeding/PlatformIdentityBootstrapper.cs` | 453 |
 | `src/BE/WorkslipApi/Workslip.Application/Users/SuperAdminUserService.cs` | 449 |
 | `src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfWorksheetRepository.cs` | 447 |
-| `src/BE/WorkslipApi/Workslip.Infrastructure/Mappers/JobReportMapper.cs` | 438 |
 
 ### Frontend
 
@@ -186,10 +187,10 @@ Cross-feature imports are boundary violations; shared refs (`lib/`, `hooks/`, `p
 | --- | --- |
 | `src/FE/src/features/jobs/hooks/useJobDetails.ts` | 945 |
 | `src/FE/src/features/worksheets/routes/MyWorksheets.tsx` | 907 |
+| `src/FE/src/features/superadmin/routes/CacheDiagnostics.tsx` | 804 |
 | `src/FE/src/features/jobs/components/JobConversationDrawer.tsx` | 751 |
 | `src/FE/src/features/jobs/routes/CompletedJobReport.tsx` | 704 |
 | `src/FE/src/features/jobs/routes/AdminCompletedJobReport.tsx` | 671 |
-| `src/FE/src/features/superadmin/routes/CacheDiagnostics.tsx` | 652 |
 | `src/FE/src/components/common/NotificationsDrawer.tsx` | 563 |
 | `src/FE/src/features/leader-analysis/routes/Lederanalyse.tsx` | 543 |
 | `src/FE/src/features/docs/DocsPage.tsx` | 537 |
