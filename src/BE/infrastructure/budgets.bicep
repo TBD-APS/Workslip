@@ -11,6 +11,22 @@ param actionGroupId string
 @minValue(1)
 param monthlyAmount int = 800
 
+/*
+  This budget and the Log Analytics daily ingestion cap in main.bicep are coupled,
+  and nothing enforces the link, so it is written down here.
+
+  The headroom between the ~534 baseline and this 800 ceiling is roughly 266. The
+  ingestion cap sets how much of that telemetry can claim: at 5 GB/day it is up to
+  ~150 GB/month billable, against ~30 GB/month under the 1 GB cap it replaced. At
+  any plausible per-GB rate the increase can consume most of the headroom, so the
+  old cap was doing double duty as a cost control and no longer is.
+
+  Neither number is wrong. They are just no longer independent. Before raising
+  either, check actual ingestion against the cap and actual spend against this
+  amount; a cap is a ceiling, not a forecast, and the two are only a problem
+  together.
+*/
+
 @description('First day of the month the budget starts measuring from. Azure requires the first of a month for a monthly budget. Defaulted here rather than computed inside the template because utcNow() is only valid in a parameter default.')
 param startDate string = utcNow('yyyy-MM-01')
 
