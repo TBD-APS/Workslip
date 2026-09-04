@@ -193,9 +193,19 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
     sku: {
       name: 'PerGB2018'
     }
+    // This workspace is the telemetry boundary (ADR 0018): the platform reads
+    // Workslip's telemetry here rather than receiving a delivery. A reached
+    // daily cap stops ingestion until the next day and the gap cannot be
+    // backfilled, so the cap has to leave headroom for the full signal, not
+    // just for the cheapest month. 5 GB/day is a deliberate starting point,
+    // not a free-tier figure — sustained at the cap it is roughly 150 GB/month
+    // and billable. Review it against actual ingestion before raising it again.
     workspaceCapping: {
-      dailyQuotaGb: 1 // <-- Mindst mulige loft i Azure. Langt under de 5 GB gratis om måneden.
+      dailyQuotaGb: 5
     }
+    // Stated rather than inherited. This is the hard limit on how far back any
+    // consumer can query, so it belongs in the template where it can be seen.
+    retentionInDays: 30
     publicNetworkAccessForIngestion: 'Enabled'
     publicNetworkAccessForQuery: 'Enabled'
   }

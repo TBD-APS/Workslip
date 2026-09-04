@@ -26,15 +26,41 @@ The correct seam already exists and is already wired. The API emits through `Mic
 
 4. **Workslip's only obligation is to emit well.** Stable role names per service and environment, a tenant/organization dimension so a consumer can slice per customer, correlation identifiers through the chain, consistent severity, and no personal data in log messages. Emitting correctly is a product responsibility; consuming is not.
 
-## Preconditions that are not met today
+## Preconditions
 
-The seam works. The configuration around it does not yet support "Azure holds all the data", and each of these fails quietly rather than loudly.
+The seam works. Three things around it did not, and each failed quietly rather
+than loudly. All three are addressed in the same change that recorded this
+decision.
 
-**The workspace caps ingestion at 1 GB per day.** `main.bicep` sets `workspaceCapping.dailyQuotaGb: 1`, commented as the lowest cap Azure allows. When a daily cap is reached, Log Analytics stops ingesting until the next day. A consumer would see telemetry simply end mid-afternoon, with no error anywhere, and the gap is unrecoverable — data not ingested is not stored late. Raising or removing the cap is a deliberate cost decision and is not made here.
+**Ingestion cap.** `main.bicep` capped the production workspace at
+`dailyQuotaGb: 1`, commented as the lowest cap Azure allows. A reached daily cap
+stops ingestion until the next day, so a consumer would have seen telemetry end
+mid-afternoon with no error anywhere, and the gap is unrecoverable — data not
+ingested is not stored late. The cap is now 5 GB/day. That is a deliberate
+starting point rather than a free-tier figure: sustained at the cap it is roughly
+150 GB/month and billable. Review it against actual ingestion before raising it
+again, and prefer raising it to removing it, since an uncapped workspace has no
+brake at all.
 
-**Production retention is implicit.** The production workspace sets no `retentionInDays`, so it takes the Azure default of 30 days; the demo workspace sets 30 explicitly. Whatever the right number is, production retention should be stated rather than inherited, because it is the hard limit on how far back any consumer can look.
+**Retention.** The production workspace set no `retentionInDays` and inherited
+the Azure default, while the demo workspace stated its own. It is now stated
+explicitly as 30 days. The number is unchanged; what changed is that it is
+visible in the template, because it is the hard limit on how far back any
+consumer can query and should not be discovered by experiment.
 
-**Telemetry carries no tenant dimension.** `CorrelationTelemetryInitializer` sets `CorrelationId` and nothing else. A consumer can follow one request chain but cannot answer "which customer is affected" without joining against data it does not have. A platform control centre for a multi-tenant product needs that dimension at the source.
+**Tenant dimension.** `CorrelationTelemetryInitializer` set only `CorrelationId`,
+so a consumer could follow one request chain but could not answer which customer
+was affected. It now also emits `OrganizationId`, read from the same
+`organizationId` claim `CurrentUserContext` uses, as a global property so it
+lands on traces, dependencies and exceptions rather than only on requests.
+
+Two details of that are deliberate. The dimension is the organization and not the
+user: it identifies a tenant rather than a person, so it does not turn every
+trace into personal data. And only a well-formed identifier is emitted, so a
+malformed claim cannot inject arbitrary text into a dimension the platform groups
+by. The claim name is duplicated rather than shared with `CurrentUserContext`
+because this initializer is a singleton and `ICurrentUserContext` is scoped;
+injecting the scoped service would be a captive dependency.
 
 ## Consequences
 
@@ -42,4 +68,5 @@ The seam works. The configuration around it does not yet support "Azure holds al
 - Onboarding a second product is the same mechanism against another workspace, not another bespoke bridge.
 - Workslip's telemetry code stays correct whether or not anyone is reading it, and a consumer outage is invisible to the product.
 - A consumer that stores Workslip logs becomes a processor of whatever those logs contain. Keeping personal data out of log messages is therefore a boundary condition, not hygiene; see the [compliance baseline](../../compliance/GDPR_AI_ACT_BASELINE.md).
-- The three preconditions above are real work with a cost and a compliance conversation attached. Until the daily cap in particular is addressed, the decision holds but the guarantee does not.
+- Telemetry now costs more than it did. The old 1 GB/day cap kept spend near zero by discarding signal; a cap that leaves room for the full signal means the workspace can bill for it. That is the trade this decision makes, and the daily cap is the control for it.
+- Nothing here grants the consumer anything. The role assignment on the workspace, and the Lighthouse delegation if the consumer sits in another tenant, are separate steps outside this repository. Until they exist, Workslip emits correctly and no one is reading.
