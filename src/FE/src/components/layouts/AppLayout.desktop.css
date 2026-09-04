@@ -139,6 +139,8 @@
     --desktop-nav-rail-width: 13.5rem;
     --desktop-nav-rail-collapsed-width: 4.75rem;
     --desktop-nav-rail-current-width: var(--desktop-nav-rail-width);
+    /* The rail is vertical here: the window bottom carries no chrome to clear. */
+    --app-bottom-chrome: 0.5rem;
   }
 
   .app-shell:has(.desktop-rail-toggle-input:checked) {
@@ -186,9 +188,13 @@
     max-width: calc(100% - var(--desktop-nav-rail-current-width));
   }
 
-  .app-content {
-    padding-bottom: 2rem;
-  }
+  /* No .app-content padding-bottom override here on purpose. The reserve is
+     owned by AppLayout.shell.css's --app-bottom-chrome + --bottom-nav-extra
+     formula, and this band already sets --app-bottom-chrome above (0.5rem, the
+     rail being vertical). A literal here would both overshoot
+     .step-nav-anchor's offset — the sticky wizard bar would rest lower at full
+     scroll than where it pins mid-scroll — and break the docs shell's negative
+     bottom margin, which cancels the same formula. */
 
   .bottom-nav {
     top: 0;

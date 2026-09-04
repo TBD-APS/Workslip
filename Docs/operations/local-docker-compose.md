@@ -9,6 +9,66 @@
 | SQL Server | `localhost,1433` | sa / `WorkslipLocal123!` (matches `appsettings.Local.json`) |
 | Seq | http://localhost:5341 | structured log viewer |
 
+## Saassy-style demo commands
+
+Workslip exposes the same everyday local command contract as MR SAAS'y.
+
+On macOS/Linux:
+
+```bash
+make demo         # start Workslip locally
+make demo-status  # show status
+make demo-logs    # follow logs
+make demo-down    # stop; persistent volumes survive
+```
+
+On macOS, `make demo` opens OrbStack when it is installed, waits for the `orbstack` Docker context, switches to it non-destructively, validates the Compose model, starts the full stack and waits until both the API and frontend are reachable. It never resets OrbStack and never deletes Docker volumes automatically. Linux uses the current Docker-compatible engine.
+
+On Windows, `scripts/demo.ps1` provides the same commands natively in PowerShell. It first uses any already-running Docker-compatible engine that provides Compose v2. If the Docker daemon is unavailable and Docker Desktop is installed, it starts Docker Desktop automatically and waits for the engine before starting Workslip. Docker Desktop with its WSL 2 backend is the recommended Windows runtime.
+
+When startup succeeds it prints copyable endpoint variables:
+
+```text
+WORKSLIP_URL=http://127.0.0.1:5270
+WORKSLIP_API_URL=http://127.0.0.1:5262
+WORKSLIP_SEQ_URL=http://127.0.0.1:5341
+```
+
+The older `make up`, `make ps`, `make logs` and `make down` targets remain supported.
+
+### Global `workslip` command
+
+Install the repository-aware command once.
+
+macOS/Linux:
+
+```bash
+make install-global
+```
+
+This installs `workslip` in `~/.local/bin`. If that directory is not already on `PATH`, the installer prints the one-line `export PATH=...` command to add to the shell configuration.
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-global.ps1
+```
+
+This installs a `workslip.cmd` shim in `%LOCALAPPDATA%\Workslip\bin` and adds that directory to the current user's `PATH`. Open a new terminal once after installation.
+
+After that the command contract is the same on macOS, Windows and Linux, from any directory:
+
+```text
+workslip          # start
+workslip status   # status
+workslip logs     # logs
+workslip down     # stop, keep data
+```
+
+The global command records the repository path. Re-run the installer if the repository is moved. On Windows uninstall with `powershell -ExecutionPolicy Bypass -File .\scripts\install-global.ps1 -Uninstall`; on macOS/Linux use `make uninstall-global`.
+
+The destructive local reset stays explicit as `make down-hard` from the repository; it is intentionally not exposed through the global shortcut.
+
 ## Cleaner startup
 
 On the **first** start Compose waits ~1 minute for SQL Server to report healthy before it creates the API (which `depends_on` the db healthcheck). During that wait some terminals redraw the progress line repeatedly, printing many identical `[+] up 6/7... Created` lines. This is expected waiting, not an error — the stack finishes once the db is healthy (subsequent starts are faster because the SQL volume is already initialized).
@@ -39,6 +99,8 @@ Equivalent raw command: `docker compose up -d --wait --quiet-pull --progress pla
 
 - Windows keeps using the native LocalDB/bootstrap flow in `tools/dev/start.ps1`.
 - macOS/Linux uses the Docker Compose full stack in `tools/dev/start-docker.ps1`.
+
+The global `workslip` command is deliberately different from that development split: it always runs the self-contained Docker Compose stack, using OrbStack on macOS when available and a Docker-compatible Windows engine on Windows.
 
 Run the current checked-out branch:
 
