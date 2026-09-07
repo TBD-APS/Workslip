@@ -103,6 +103,42 @@ public sealed class JobLifecycleServiceTests
         Assert.Null(jobViews.LastMarkedView);
     }
 
+    [Fact]
+    public async Task ChangeStatusAsync_WithdrawFromReview_ReturnsToDraftWithoutSubmitReadinessOrReviewSideEffects()
+    {
+        var organizationId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        // The job is deliberately not submit-ready (no installation types, no report date):
+        // a withdraw must not rerun submit-readiness, so this still has to succeed.
+        var repository = new RecordingLifecycleJobRepository(CreateJob(jobId, organizationId, JobStatus.InReview));
+        var referenceData = new CountingReferenceDataRepository();
+        var worksheets = new EmptyWorksheetRepository();
+        var jobViews = new RecordingJobViewRepository();
+
+        using var services = CreateCacheServices();
+        // Assignment repository and notification service are null: any review/rejection/
+        // completion side effect on this path would throw instead of silently passing.
+        var service = CreateService(
+            repository,
+            jobViews,
+            referenceData,
+            worksheets,
+            services.GetRequiredService<HybridCache>(),
+            new TestCurrentUserContext(actorId, organizationId, Roles.User));
+
+        var result = await service.ChangeStatusAsync(
+            jobId,
+            new ChangeJobStatusRequest(JobStatus.Draft),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(JobStatus.Draft, result.Value.Status);
+        Assert.Equal(JobStatus.Draft, repository.LastTargetStatus);
+        Assert.Equal(1, referenceData.GetCalls);
+        Assert.Null(jobViews.LastMarkedView);
+    }
+
     private static JobLifecycleService CreateService(
         IJobRepository repository,
         IJobViewRepository jobViews,
