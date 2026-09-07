@@ -426,6 +426,13 @@ async function verifyWithdrawFromReviewLifecycle() {
     );
 
     // Back in the wizard: correct and resubmit through the normal Draft -> InReview path.
+    // A complete draft opens on the worksheets step by design (useJobDetails auto-redirect),
+    // so walk back to the first step through the stable step indicator before correcting.
+    const detailsStep = userHarness.session.page.locator('#job-step-0');
+    await detailsStep.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    if ((await detailsStep.getAttribute('aria-current')) !== 'step') {
+      await detailsStep.click();
+    }
     await contractHelpers.waitForWizardStep(userHarness.session.page, 'Sagsdetaljer');
     const commentTrigger = userHarness.session.page.locator('#job-technical-observations-trigger');
     await commentTrigger.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
