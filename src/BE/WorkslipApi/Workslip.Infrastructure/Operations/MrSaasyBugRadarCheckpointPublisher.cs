@@ -174,7 +174,9 @@ public sealed class MrSaasyBugRadarCheckpointPublisher(
     private static bool TryGetBaseUri(string value, out Uri baseUri)
     {
         if (Uri.TryCreate(value?.Trim(), UriKind.Absolute, out var candidate) &&
-            string.Equals(candidate.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            (string.Equals(candidate.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+             (string.Equals(candidate.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
+              IsLoopbackHost(candidate.Host))))
         {
             baseUri = new Uri(candidate.AbsoluteUri.EndsWith("/", StringComparison.Ordinal)
                 ? candidate.AbsoluteUri
@@ -185,6 +187,12 @@ public sealed class MrSaasyBugRadarCheckpointPublisher(
         baseUri = null!;
         return false;
     }
+
+    private static bool IsLoopbackHost(string host) =>
+        string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(host, "127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(host, "host.docker.internal", StringComparison.OrdinalIgnoreCase) ||
+        host == "::1";
 
     private sealed record MrSaasyActivityCheckpoint(
         string Id,

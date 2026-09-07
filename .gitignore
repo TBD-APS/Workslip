@@ -122,3 +122,6 @@ nul
 # Git worktrees
 .worktrees/
 .codex/worktrees/
+
+# Local MR SAASy Bug Radar bridge (demo only) — carries a local activity token, never commit.
+docker-compose.override.yml
