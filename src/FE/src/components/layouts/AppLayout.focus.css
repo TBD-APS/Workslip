@@ -20,6 +20,12 @@
  * the wizard action bar never covers the control a user is typing into.
  */
 @media (max-width: 767px) {
+  /* A phone has no fixed bottom bar to clear — the nav is an off-canvas drawer —
+     so a sticky bar inside the shell only has to sit clear of the home indicator. */
+  .app-shell {
+    --app-bottom-chrome: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  }
+
   /* Content spans the full viewport — no rail gutter. */
   .app-header,
   .organization-session-banner,
@@ -167,18 +173,39 @@
   .logo-header {
     min-width: 0;
   }
+}
 
-  /*
-   * The wizard action bar (.step-nav-anchor) is still a bottom bar that can sit over
-   * an editable field. Hide it while an editor is focused so a tap that started with
-   * the keyboard open lands on the intended control instead of a nav action.
-   */
+/*
+ * The wizard action bar (.step-nav-anchor) is still a bottom bar that can sit over
+ * an editable field. Blank it while an editor is focused so a tap that started with
+ * the keyboard open lands on the intended control instead of a nav action.
+ *
+ * Gated on a touch pointer, not on viewport width: a software keyboard is what makes
+ * this necessary. At 768px+ an iPad has one, and a desktop user at 200-400% reflow
+ * zoom reports a narrow viewport but has no keyboard stealing the bottom of the
+ * screen — blanking their action bar on every focus would strand them.
+ *
+ * Accepted trade-off: CSS cannot see whether a software keyboard is actually open,
+ * and a touch tablet driven by a hardware keyboard reports the same `hover: none`
+ * and `pointer: coarse`. It therefore fades the bar on field focus even though
+ * nothing is covering the bottom of that screen. That is the milder of the two
+ * errors — the bar stays in the focus order and returns the moment focus leaves the
+ * field, whereas a width gate strands the reflow-zoom user with no recovery at all.
+ * Revisit only with a real visual-viewport signal, not another breakpoint guess.
+ *
+ * opacity + pointer-events, never visibility: `visibility: hidden` drops Tilbage and
+ * Næste out of sequential focus navigation, so an iPad with an attached keyboard
+ * could not Tab to Næste at all while a field was focused. This keeps the bar in the
+ * focus order, and since the rule is conditioned on an editor holding focus, Tabbing
+ * into the bar stops it matching and the bar fades straight back in — the pointer is
+ * what has to be blocked here, not the keyboard.
+ */
+@media (hover: none) and (pointer: coarse) {
   .app-shell:has(
     input:not([type='button']):not([type='checkbox']):not([type='color']):not([type='file']):not([type='hidden']):not([type='image']):not([type='radio']):not([type='range']):not([type='reset']):not([type='submit']):not([inputmode='none']):not([readonly]):not([disabled]):focus,
     textarea:not([readonly]):not([disabled]):focus,
     [contenteditable]:not([contenteditable='false']):focus
   ) .step-nav-anchor {
-    visibility: hidden;
     opacity: 0;
     pointer-events: none;
   }

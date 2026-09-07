@@ -87,6 +87,19 @@ html body:has(.app-shell) .step-dot.completed {
   border-color: color-mix(in srgb, var(--color-primary) 40%, var(--border));
 }
 
+/* A step whose own data is valid but which sits behind an unresolved blocker
+   reads as locked, not as progress. The tick is withheld upstream by
+   `index < currentStep`, not overridden here. Full-strength muted text, so the
+   label and the icon stay legible instead of stacking opacity down to a 2:1
+   contrast ratio. */
+html body:has(.app-shell) .step-dot.blocked {
+  color: var(--text-muted);
+  background: var(--surface);
+  border-style: dashed;
+  border-color: var(--border);
+  box-shadow: none;
+}
+
 html body:has(.app-shell) .step-dot.active svg,
 html body:has(.app-shell) .step-dot.completed svg {
   color: currentColor;

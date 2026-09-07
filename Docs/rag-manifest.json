@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "product": "workslip",
+  "source": "workslip-docs",
+  "tenant": "platform",
+  "canonicalRoot": "Docs",
+  "excludedRoots": ["docs", "_bmad-output"],
+  "defaultVisibility": "internal",
+  "include": [
+    "Docs/**/*.md",
+    "README.md"
+  ],
+  "exclude": [
+    "Docs/agents/agent-docs.html",
+    "Docs/**/historical/**",
+    "docs/**",
+    "_bmad-output/**"
+  ],
+  "metadataRequiredPrefixes": [
+    "Docs/product",
+    "Docs/capabilities",
+    "Docs/workflows"
+  ],
+  "kindRules": [
+    { "glob": "Docs/product/**/*.md", "kind": "product" },
+    { "glob": "Docs/capabilities/**/*.md", "kind": "capability" },
+    { "glob": "Docs/workflows/**/*.md", "kind": "workflow" },
+    { "glob": "Docs/architecture/adr/**/*.md", "kind": "decision" },
+    { "glob": "Docs/architecture/**/*.md", "kind": "architecture" },
+    { "glob": "Docs/api/**/*.md", "kind": "api" },
+    { "glob": "Docs/operations/**/*.md", "kind": "runbook" },
+    { "glob": "Docs/compliance/**/*.md", "kind": "compliance" },
+    { "glob": "Docs/strategy/**/*.md", "kind": "strategy" }
+  ],
+  "htmlProjection": {
+    "mode": "generated",
+    "indexGeneratedHtml": false,
+    "generator": "tools/docs/build_agent_docs_html.py"
+  }
+}

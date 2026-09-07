@@ -2,8 +2,71 @@
   bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem) !important;
 }
 
+/*
+ * Toast vs. the wizard action bar. Both are bottom-centred and sonner's stack
+ * carries a nine-digit z-index, so a toast parked at the default offset covers
+ * Tilbage/Næste for its whole lifetime — including the validation toast that
+ * explains why Næste was blocked.
+ *
+ * .step-nav-anchor offsets itself by --app-bottom-chrome + --bottom-nav-extra +
+ * 0.25rem, but --app-bottom-chrome is declared on .app-shell and this toaster is
+ * a body-level portal (rendered from AppProvider), so it cannot inherit it.
+ * Mirror it from the global tokens in base.css on exactly the breakpoints that
+ * override it — AppLayout.shell.css (base), AppLayout.focus.css (≤767px, where
+ * the nav is an off-canvas drawer) and AppLayout.desktop.css (≥1120px, where the
+ * nav is a vertical rail). Those three --app-bottom-chrome declarations and the
+ * three --toaster-bottom-chrome declarations below are one-to-one: they have to
+ * move together.
+ */
+:root {
+  --toaster-bottom-chrome: var(--bottom-nav-height);
+}
+
 @media (max-width: 767px) {
-  [data-sonner-toaster][data-y-position="bottom"] {
-    bottom: calc(var(--bottom-nav-height) + 0.75rem) !important;
+  :root {
+    --toaster-bottom-chrome: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (min-width: 1120px) {
+  :root {
+    --toaster-bottom-chrome: 0.5rem;
+  }
+}
+
+/*
+ * Gated on the bar being on screen, not on width: the wizard is the only screen
+ * that renders one, so toasts everywhere else — and toasts while the bar is
+ * scroll-hidden or deferred to an open dropdown (.is-hidden) — keep the default
+ * offset instead of floating above empty space.
+ *
+ * 6.5rem clears the whole anchor, not just the bar: .step-nav is ~63px (2 x
+ * 0.75rem padding plus a ~39px button row) and JobDetails always passes a
+ * statusSlot, whose Gemmer.../Gemt chip adds ~35px (0.5rem gap plus a ~27px
+ * chip) above it whenever a save is in flight. Clearing the taller state in both
+ * cases only ever parks the toast higher, so it cannot re-cover a control.
+ * sonner writes the offset inline, hence !important.
+ */
+body:has(.step-nav-anchor:not(.is-hidden)) [data-sonner-toaster][data-y-position="bottom"] {
+  bottom: calc(var(--toaster-bottom-chrome) + var(--bottom-nav-extra) + 0.25rem + 6.5rem) !important;
+}
+
+/*
+ * The other way the bar leaves the screen: on a touch device AppLayout.focus.css
+ * fades it out (opacity + pointer-events, so no .is-hidden class) while a text
+ * editor holds focus. Drop the toast back to the default offset for exactly that
+ * state — the editor list is a verbatim copy of that rule's, so the two cannot
+ * disagree about when the bar is gone, and the touch-pointer gate keeps a
+ * focused desktop field from lowering a toast onto a visible bar. Written as one
+ * flat :has() with the .app-shell scope repeated per branch, because :has()
+ * cannot be nested inside :has().
+ */
+@media (hover: none) and (pointer: coarse) {
+  body:has(
+    .app-shell input:not([type='button']):not([type='checkbox']):not([type='color']):not([type='file']):not([type='hidden']):not([type='image']):not([type='radio']):not([type='range']):not([type='reset']):not([type='submit']):not([inputmode='none']):not([readonly]):not([disabled]):focus,
+    .app-shell textarea:not([readonly]):not([disabled]):focus,
+    .app-shell [contenteditable]:not([contenteditable='false']):focus
+  ) [data-sonner-toaster][data-y-position="bottom"] {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem) !important;
   }
 }

@@ -154,33 +154,49 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
     details.assignmentStatus,
     details.linksStatus,
   ]);
-  const completedSteps = [0, 1, 2, 3, 4].map(
-    (step) => getJobStepValidationIssues(validationContext, step).length === 0,
-  );
+  const stepIssues = JOB_STEPS.map((_, step) => getJobStepValidationIssues(validationContext, step));
+  const completedSteps = stepIssues.map((list) => list.length === 0);
+  // ONE range decides reachability: exactly the steps a click on `step` has to
+  // walk. A backward move - and the step you are standing on - always lands, so
+  // nothing at or behind `currentStep` is ever locked. The dot's styling, its
+  // Danish aria-label/title and the bounce all read this one function, so they
+  // can never name a different step than the click lands on.
+  const findBlockingIssue = (step: number): JobValidationIssue | undefined =>
+    step > details.currentStep
+      ? stepIssues.slice(details.currentStep, step).find((list) => list.length > 0)?.[0]
+      : undefined;
+  const blockedReasons = JOB_STEPS.map((_, index) => findBlockingIssue(index)?.message);
 
   const goToValidationIssue = (validationIssue: JobValidationIssue, announce = true) => {
     if (announce) {
       notify.error(validationIssue.message, { id: 'job-actionable-validation' });
     }
 
-    details.setCurrentStep(validationIssue.step);
+    details.jumpToStep(validationIssue.step);
     window.requestAnimationFrame(() => {
       focusValidationTarget(validationIssue.targetId);
     });
   };
 
+  // Every ordinary step move parks focus on the new step's content region, so a
+  // keyboard user is not left behind the action bar they just pressed. A refused
+  // move - same step, or a validation refusal - moves nothing, so it must not
+  // pull focus off the pressed control onto a region still naming the old step.
+  const goToStep = (step: number) => {
+    if (!details.navigateToStep(step)) return;
+    window.requestAnimationFrame(() => {
+      document.getElementById('job-step-content')?.focus({ preventScroll: true });
+    });
+  };
+
   const handleStepChange = (nextStep: number) => {
-    if (nextStep > details.currentStep) {
-      for (let step = details.currentStep; step < nextStep; step += 1) {
-        const blockingIssue = getJobStepValidationIssues(validationContext, step)[0];
-        if (blockingIssue) {
-          goToValidationIssue(blockingIssue);
-          return;
-        }
-      }
+    const blockingIssue = findBlockingIssue(nextStep);
+    if (blockingIssue) {
+      goToValidationIssue(blockingIssue);
+      return;
     }
 
-    details.navigateToStep(nextStep);
+    goToStep(nextStep);
   };
 
   const canSubmitForReview =
@@ -218,6 +234,7 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
         currentStep={details.currentStep}
         onStepChange={handleStepChange}
         completedSteps={completedSteps}
+        blockedReasons={blockedReasons}
       />
 
       {details.job.status === JobStatus.Rejected && (
@@ -226,7 +243,13 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
         </StatusBanner>
       )}
 
-      <div className="job-details-content">
+      <div
+        id="job-step-content"
+        className="job-details-content"
+        tabIndex={-1}
+        role="region"
+        aria-label={`Trin ${details.currentStep + 1} af ${JOB_STEPS.length}: ${JOB_STEPS[details.currentStep].label}`}
+      >
         {details.currentStep === 0 && (
           <JobOverviewStep details={details} />
         )}
@@ -300,14 +323,15 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
       <StepNavigation
         currentStep={details.currentStep}
         isLastStep={isLastStep}
+        backLabel={details.currentStep === 0 ? 'Til oversigten' : 'Tilbage'}
         onBack={() => {
           if (details.currentStep === 0) {
             handleBack();
           } else {
-            details.navigateToStep(details.currentStep - 1);
+            goToStep(details.currentStep - 1);
           }
         }}
-        onNext={() => details.navigateToStep(details.currentStep + 1)}
+        onNext={() => goToStep(details.currentStep + 1)}
         onNextBlocked={currentStepIssue ? () => goToValidationIssue(currentStepIssue) : undefined}
         blockedNextLabel={currentStepIssue?.actionLabel}
         disableNext={disableNext}

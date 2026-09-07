@@ -36,7 +36,7 @@ describe('ActionableValidationSummary', () => {
     render(<ActionableValidationSummary issues={issues} onAction={vi.fn()} />);
 
     expect(screen.getByText('2 ting skal rettes')).toBeInTheDocument();
-    expect(screen.getByText('Trin 1 · Stamdata')).toBeInTheDocument();
+    expect(screen.getByText('Trin 1 · Sagsdetaljer')).toBeInTheDocument();
     expect(screen.getByText('Kundenavn mangler.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /udfyld kundenavn/i })).toBeInTheDocument();
     expect(screen.getByText('Trin 4 · Timesedler')).toBeInTheDocument();

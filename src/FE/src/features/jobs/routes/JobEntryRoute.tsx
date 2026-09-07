@@ -119,5 +119,8 @@ export function JobEntryRoute() {
 
   // The completed-job overview is the single read/decision surface for every report-mode
   // state and every viewer. Editing continues through the wizard (JobDetail).
-  return reportMode ? <AdminCompletedJobReport /> : <JobDetail />;
+  // Keyed on the job id: /app/job/:id renders the same element for every id, so a
+  // job -> job navigation would otherwise re-render instead of remount and carry the
+  // previous case's wizard step, auto-redirect latch and step dots across.
+  return reportMode ? <AdminCompletedJobReport key={id} /> : <JobDetail key={id} />;
 }

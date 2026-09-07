@@ -1,18 +1,51 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Workslip.Application.Integrations;
 
-public class MockAccountingProvider : IAccountingProvider
+public sealed class MockAccountingProvider : IAccountingOperationsProvider
 {
     public string ProviderId => "mock";
     public string DisplayName => "Mock Accounting (Dev)";
 
+    public bool IsConfigured(string tenantId) => true;
     public Task<bool> TestConnectionAsync(string tenantId) => Task.FromResult(true);
+
+    public Task<IReadOnlyList<ExternalAccountingCustomer>> GetCustomersAsync(string tenantId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<ExternalAccountingCustomer>>(Array.Empty<ExternalAccountingCustomer>());
+
+    public Task<ExternalAccountingCustomer> UpsertCustomerAsync(
+        string tenantId,
+        ExternalAccountingCustomer customer,
+        CancellationToken cancellationToken)
+    {
+        var number = string.IsNullOrWhiteSpace(customer.ExternalCustomerNumber)
+            ? Math.Abs(HashCode.Combine(tenantId, customer.Name, customer.Email)).ToString()
+            : customer.ExternalCustomerNumber;
+        return Task.FromResult(customer with { ExternalCustomerNumber = number });
+    }
+
+    public Task<AccountingInvoiceState> CreateDraftInvoiceAsync(
+        string tenantId,
+        AccountingDraftInvoiceRequest request,
+        CancellationToken cancellationToken)
+    {
+        var draftNumber = Math.Abs(HashCode.Combine(tenantId, request.JobId)) % 900000 + 100000;
+        var amount = request.Lines.Sum(line => line.Quantity * line.UnitNetPrice);
+        return Task.FromResult(new AccountingInvoiceState(
+            draftNumber,
+            null,
+            "Draft",
+            request.ExternalReference,
+            $"https://economics.mock/invoices/drafts/{draftNumber}",
+            amount,
+            null,
+            request.Date.AddDays(14)));
+    }
+
+    public Task<AccountingInvoiceState?> FindInvoiceByReferenceAsync(
+        string tenantId,
+        string externalReference,
+        CancellationToken cancellationToken) => Task.FromResult<AccountingInvoiceState?>(null);
 
     public Task<IEnumerable<AccountingDocument>> GetDocumentsForUserAsync(
         string tenantId,
@@ -20,39 +53,24 @@ public class MockAccountingProvider : IAccountingProvider
         string startDate,
         string endDate)
     {
-        // Create a deterministic set of documents based on userId to simulate real data.
-        var random = new Random(userId.GetHashCode());
-        var docs = new List<AccountingDocument>();
-
-        var docCount = random.Next(0, 6);
-        for (var i = 0; i < docCount; i++)
-        {
-            var isInvoice = random.Next(0, 2) == 0;
-            var type = isInvoice ? "Invoice" : "Receipt";
-            var prefix = isInvoice ? "FAK" : "BIL";
-            var amount = (decimal)(random.NextDouble() * 5000 + 100);
-
-            docs.Add(new AccountingDocument(
-                $"doc-{userId}-{i}",
-                $"{prefix}-{random.Next(1000, 9999)}",
-                type,
-                Math.Round(amount, 2),
-                $"{startDate.Substring(0, 7)}-{random.Next(1, 28):D2}",
-                isInvoice ? (random.Next(0, 3) == 0 ? "Overdue" : "Paid") : "Pending",
-                $"https://economics.mock/doc/{random.Next(1000, 9999)}"));
-        }
-
-        return Task.FromResult<IEnumerable<AccountingDocument>>(
-            docs.OrderByDescending(document => document.Date).ToArray());
+        var random = new Random(HashCode.Combine(tenantId, userId));
+        var docs = Enumerable.Range(0, random.Next(0, 4))
+            .Select(index => new AccountingDocument(
+                $"doc-{index}",
+                $"BIL-{random.Next(1000, 9999)}",
+                "Receipt",
+                random.Next(100, 5000),
+                $"{startDate[..Math.Min(7, startDate.Length)]}-{random.Next(1, 28):D2}",
+                "Pending",
+                $"https://economics.mock/doc/{index}"))
+            .ToArray();
+        return Task.FromResult<IEnumerable<AccountingDocument>>(docs);
     }
 
-    public Task<Stream> GetDocumentStreamAsync(string tenantId, string documentId)
+    public Task<Stream?> GetDocumentStreamAsync(string tenantId, string documentId)
     {
-        Stream stream = new MemoryStream(
-            Encoding.UTF8.GetBytes($"Mock accounting document {documentId}"),
-            writable: false);
-
-        return Task.FromResult(stream);
+        Stream stream = new MemoryStream(Encoding.UTF8.GetBytes($"Mock accounting document {documentId}"), writable: false);
+        return Task.FromResult<Stream?>(stream);
     }
 
     public Task<bool> SyncHoursAsync(string tenantId, object hoursData) => Task.FromResult(true);

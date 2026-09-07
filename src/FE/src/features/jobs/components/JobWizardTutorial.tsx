@@ -146,24 +146,6 @@ export function JobWizardTutorial({ currentStep }: JobWizardTutorialProps) {
             <p className="job-wizard-tutorial-tip">{guide.tip}</p>
           </div>
 
-          <div className="job-wizard-tutorial-progress" aria-label="Sagens trin">
-            {JOB_STEPS.map((wizardStep, index) => {
-              const isActive = index === stepIndex;
-              const isPast = index < stepIndex;
-              return (
-                <span
-                  key={wizardStep.label}
-                  className={`job-wizard-tutorial-progress-step${isActive ? ' is-active' : ''}${isPast ? ' is-past' : ''}`}
-                  aria-current={isActive ? 'step' : undefined}
-                  aria-label={isActive ? `${wizardStep.label} - du er her` : wizardStep.label}
-                  title={wizardStep.label}
-                >
-                  <span className="job-wizard-tutorial-progress-dot" aria-hidden="true" />
-                </span>
-              );
-            })}
-          </div>
-
           <p className="job-wizard-tutorial-footer">
             Brug Tilbage, hvis du vil ændre noget, du allerede har udfyldt. Tryk Næste, når du er klar til at gå videre.
           </p>

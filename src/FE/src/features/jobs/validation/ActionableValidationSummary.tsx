@@ -1,5 +1,6 @@
 import { AlertCircle, ArrowRight } from 'lucide-react';
 import type { JobValidationIssue } from './jobValidation';
+import { JOB_STEPS } from '../components/steps/jobSteps';
 import '../../../components/common/ActivityFeed.css';
 import '../../../components/common/NotificationsDrawer.css';
 import './ActionableValidationSummary.css';
@@ -10,15 +11,6 @@ type ActionableValidationSummaryProps = {
   id?: string;
   title?: string;
 };
-
-const STEP_LABELS = [
-  'Stamdata',
-  'Anlægstyper',
-  'Kontrolpunkter',
-  'Timesedler',
-  'Afslutning',
-  'Attestering',
-] as const;
 
 export function ActionableValidationSummary({
   issues,
@@ -51,7 +43,7 @@ export function ActionableValidationSummary({
               </div>
               <div className="activity-meta">
                 <span className="activity-meta-item">
-                  Trin {issue.step + 1} · {STEP_LABELS[issue.step] ?? 'Sagen'}
+                  Trin {issue.step + 1} · {JOB_STEPS[issue.step]?.label ?? 'Sagen'}
                 </span>
               </div>
               <div className="activity-actions">
