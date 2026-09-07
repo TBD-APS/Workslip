@@ -214,6 +214,23 @@ async function reopenJobViaUi(session, jobId, reopenReason = 'Playwright: genåb
   await dialog.waitFor({ state: 'hidden', timeout: UI_TIMEOUT }).catch(() => {});
 }
 
+// Withdraw is the submitter's own action: it uses stable ids because the same control
+// is offered to assignees and reviewers alike and the copy may change.
+async function withdrawJobFromReviewViaUi(session, jobId) {
+  await session.page.goto(`${APP_URL}/app/completed/${jobId}`, { waitUntil: 'domcontentloaded' });
+  await session.page.locator('#admin-case-information-title').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  const withdraw = session.page.locator('#job-report-withdraw-review');
+  await withdraw.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await withdraw.click();
+  const confirm = session.page.locator('#job-report-withdraw-review-confirm');
+  await confirm.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await confirm.click();
+  const job = await waitForPersistedJobStatus(session, jobId, ['Draft', 'Aktiv']);
+  // A withdrawn job is a Draft again and must land the user back in the editing wizard.
+  await session.page.waitForURL((url) => url.pathname === `/app/job/${jobId}`, { timeout: UI_TIMEOUT });
+  return job;
+}
+
 async function createCustomerViaUi(session) {
   return session.step('create customer through UI', async () => {
     await session.page.goto(`${APP_URL}/app/customers/new`, { waitUntil: 'domcontentloaded' });
@@ -393,6 +410,7 @@ async function addWorksheetViaUi(session, user, hours) {
     approveJobViaUi,
     rejectJobViaUi,
     reopenJobViaUi,
+    withdrawJobFromReviewViaUi,
     createCustomerViaUi,
     createCustomerFixtureViaApi,
     createMinimalJobFixtureViaApi,

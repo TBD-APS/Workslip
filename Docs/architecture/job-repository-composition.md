@@ -24,9 +24,9 @@ IJobRepository -> BillingAwareJobRepository -> EfJobRepository
 WOR-112 locks the current product lifecycle to the five persisted `JobStatus` values. Inventory, demo, analytics and onboarding code must consume this model rather than invent parallel statuses.
 
 ```text
-Draft
-  | submit (submit-ready)
-  v
+Draft <------------------- withdraw --------------------+
+  | submit (submit-ready)                                |
+  v                                                      |
 InReview -------------------- approve --------------------> Approved
   |                                                         |
   | reject(reason)                                          | reopen(reason)
@@ -42,7 +42,7 @@ Reopened ----------------- resubmit ------------------------+
 - `Rejected` means a reviewer rejected the submitted job and returned it for correction. The persisted submitter is preferred when the job is reassigned. A corrected job returns directly to `InReview`.
 - `Reopened` means an already approved job was explicitly reopened by an Admin/Superadmin for correction. It remains distinct from a never-submitted draft and returns directly to `InReview` after correction.
 - `Approved` is the accepted review outcome. Reopening is the only supported transition out of it.
-- `Draft` is the initial editable state. There is no supported transition back to `Draft` after submission.
+- `Draft` is the initial editable state. The only way back into `Draft` is **withdraw**: a job that is still `InReview` can be pulled back by the submitting assignee or a reviewer so it can be corrected and resubmitted. `Approved`, `Rejected` and `Reopened` never return to `Draft`.
 - `InReview` is the submitted/review state. Submit-readiness is checked when entering this state, not when a reviewer later accepts or rejects the already-submitted snapshot.
 
 There is deliberately **no `Cancelled` job status**. Administrative delete/restore is a separate lifecycle exposed through separate endpoints and repository operations; it must not be represented as an undocumented status transition.
@@ -54,12 +54,13 @@ There is deliberately **no `Cancelled` job status**. Administrative delete/resto
 | `Draft` | `InReview` | User, Admin, Superadmin | Required | No | Persist submitter; queue review notifications |
 | `Rejected` | `InReview` | User, Admin, Superadmin | Required | No | Persist current resubmitter; clear correction reason; queue review notifications |
 | `Reopened` | `InReview` | User, Admin, Superadmin | Required | No | Persist current resubmitter; clear correction reason; queue review notifications |
+| `InReview` | `Draft` | User, Admin, Superadmin | **Not rerun** | No | Withdraw from review; keep the first `SubmittedAt`; no notifications; job is editable again and resubmits through the normal `Draft` → `InReview` path |
 | `InReview` | `Approved` | Admin, Superadmin | **Not rerun** | No | Queue completion notifications; mark completed view |
 | `InReview` | `Rejected` | Admin, Superadmin | **Not rerun** | Required | Persist rejection reason; prefer persisted submitter for reassignment; queue denial notification |
 | `Approved` | `Reopened` | Admin, Superadmin | **Not rerun** | Required | Persist reopen/correction reason; make job editable again |
 | same status | same status | Role authorized for that target | No new lifecycle work | Existing request rules still apply | Idempotent: no repeated lifecycle side effects |
 
-All other source/target pairs are conflicts. A User targeting `Approved`, `Rejected` or `Reopened` is forbidden. Auditor/unknown roles cannot mutate lifecycle state. Inaccessible jobs remain not-found so transition handling does not weaken tenant/assignment scoping.
+All other source/target pairs are conflicts, including every other transition into `Draft`. A User targeting `Approved`, `Rejected` or `Reopened` is forbidden. Auditor/unknown roles cannot mutate lifecycle state. Inaccessible jobs remain not-found so transition handling does not weaken tenant/assignment scoping.
 
 The persisted `RejectionNote` field is a legacy physical name. At the lifecycle boundary it is the current **correction reason** for both `Rejected` and `Reopened`; entering `InReview` or `Approved` clears it. A schema rename is not required to express the product rule and is intentionally not coupled to WOR-112.
 
