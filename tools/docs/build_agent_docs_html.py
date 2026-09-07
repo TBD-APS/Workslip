@@ -41,7 +41,6 @@ DOCUMENTS = (
     ("src/FE/AGENTS.md", "directory"),
     ("src/BE/WorkslipApi/AGENTS.md", "directory"),
     ("src/BE/infrastructure/AGENTS.md", "directory"),
-    ("platform/mr-saasy-control-plane/AGENTS.md", "directory"),
     ("Docs/agents/AGENT_HANDBOOK.md", "handbook"),
     ("Docs/agents/CONTROL_CENTER_OPERATING_MODEL.md", "handbook"),
 )
