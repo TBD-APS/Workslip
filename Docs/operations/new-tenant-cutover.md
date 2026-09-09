@@ -301,6 +301,54 @@ Before approval, record:
 After the proxy changes, verify browser → Vercel → new API → copied SQL/blob data
 → response. A public health check alone is insufficient.
 
+## ACA runtime cutover: what still gates it
+
+The Container Apps move is a second traffic cutover and has not happened. Two
+things about it are easy to get wrong, so they are recorded here rather than
+left to be rediscovered during the window.
+
+### The CNAME change is the cutover, and it is unguarded
+
+`app.mrsoftware.dk` is the customer-facing production domain.
+`aca-live-cutover.yml` in `prepare` mode only *prints* the CNAME and TXT records;
+publishing them happens by hand at the DNS provider, outside the workflow and
+outside every guard in it. The moment the CNAME moves, live traffic moves.
+
+Azure cannot validate the custom domain until that record already exists, so
+there is an unavoidable window where the production domain resolves to a
+Container App that has not yet accepted the hostname and has no managed TLS
+certificate. Arrivals in that window get a certificate error or a 404.
+
+Publish the CNAME and dispatch `bind` inside one maintenance window, with a
+named operator and a rollback commander, and revert the CNAME if `bind` fails.
+The workflow's `prepare` summary carries the same sequence.
+
+### The automated gate is liveness, not acceptance
+
+Both `bind` and `retire` gate on `tools/release/post-deploy-smoke.sh`, which
+checks three things: `/` = 200, `/health` = 200, `/api/auth/me` = 401.
+
+That proves the app boots, serves the SPA, and rejects anonymous API calls. It
+does **not** prove authenticated sign-in, database reads, tenant isolation, blob
+reads, or ACS delivery — the evidence this runbook requires above before traffic
+moves. The smoke script is a liveness check that happens to be the only
+automated gate on the mutation; it is not this runbook's acceptance bar, and
+passing it is not evidence that the ACA runtime is ready for customers.
+
+Produce the acceptance evidence separately, by hand, against the Container App's
+own FQDN before publishing the CNAME. It cannot currently be automated:
+authenticated release testing is blocked pending isolated staging and approved
+test auth, per [synthetic test identities](synthetic-test-identities.md).
+
+### Retirement ordering
+
+`retire` stops `api-mrsoftwarev2-live`, the App Service the Vercel proxy rewrites
+`/api/*` to. Once the CNAME moves, `app.mrsoftware.dk` is served by the Container
+App and that Vercel path carries no customer traffic, so stopping it is safe in
+that order — but only in that order. Before retiring, confirm in Vercel that no
+other domain, alias or preview deployment still routes to the App Service; that
+configuration is not in this repository and cannot be checked from it.
+
 ## Rollback boundary
 
 > **We are past the simple-rollback point.** `db-mrsoftwarev2-live` has been
