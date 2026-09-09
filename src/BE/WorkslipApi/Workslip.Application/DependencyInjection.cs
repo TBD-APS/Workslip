@@ -44,6 +44,7 @@ public static IServiceCollection AddWorkslipApplication(this IServiceCollection 
     services.AddScoped<ISuperadminEntraService>(serviceProvider =>
         serviceProvider.GetRequiredService<UserEntraService>());
     services.AddScoped<IAuthService, AuthService>();
+    services.AddScoped<IRefreshSessionService, RefreshSessionService>();
     services.AddScoped<IInvitationService, InvitationService>();
     services.AddScoped<IInvitationStatusService, InvitationStatusService>();
     services.AddScoped<IWorksheetService, WorksheetService>();
