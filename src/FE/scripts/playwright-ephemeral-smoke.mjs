@@ -115,6 +115,23 @@ async function verifyAuthenticatedBootstrapReloadAndLogout() {
     assert.ok(storedSession.authToken, 'Authenticated bootstrap must persist the bearer token.');
     assert.equal(storedSession.userEmail?.toLowerCase(), bootstrapSession.user.email.toLowerCase(), 'Authenticated bootstrap must persist the user email hint.');
 
+    await page.evaluate(() => localStorage.setItem('authToken', 'expired-access-token'));
+    const refreshResponse = page.waitForResponse((response) =>
+      response.request().method() === 'POST'
+        && new URL(response.url()).pathname === '/api/auth/refresh',
+    { timeout: UI_TIMEOUT });
+    const recoveredMeResponse = page.waitForResponse((response) =>
+      response.request().method() === 'GET'
+        && new URL(response.url()).pathname === '/api/auth/me'
+        && response.status() === 200,
+    { timeout: UI_TIMEOUT });
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+    assert.equal((await refreshResponse).status(), 200, 'Expired access token must be renewed through the HttpOnly refresh session.');
+    await recoveredMeResponse;
+    await page.locator('#app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    const rotatedAccessToken = await page.evaluate(() => localStorage.getItem('authToken'));
+    assert.ok(rotatedAccessToken && rotatedAccessToken !== 'expired-access-token', 'Refresh must replace the rejected access token.');
+
     const reloadMeResponse = page.waitForResponse((response) =>
       response.request().method() === 'GET'
         && new URL(response.url()).pathname === '/api/auth/me',
@@ -138,7 +155,12 @@ async function verifyAuthenticatedBootstrapReloadAndLogout() {
     const logoutButton = page.locator('#logout-button');
     await logoutButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     assert.equal(await logoutButton.getAttribute('role'), 'menuitem', 'Logout control must retain menuitem semantics.');
+    const logoutResponse = page.waitForResponse((response) =>
+      response.request().method() === 'POST'
+        && new URL(response.url()).pathname === '/api/auth/logout',
+    { timeout: UI_TIMEOUT });
     await logoutButton.click();
+    assert.equal((await logoutResponse).status(), 204, 'Explicit logout must revoke the server-side session.');
     await page.waitForURL((url) => url.pathname === '/login', {
       waitUntil: 'domcontentloaded',
       timeout: UI_TIMEOUT,
@@ -150,6 +172,10 @@ async function verifyAuthenticatedBootstrapReloadAndLogout() {
     }));
     assert.equal(loggedOutStorage.authToken, null, 'Explicit logout must clear the bearer token.');
     assert.equal(loggedOutStorage.userEmail, null, 'Explicit logout must clear the stored user email.');
+    const refreshAfterLogout = await context.request.post(`${API_URL}/api/auth/refresh`, {
+      headers: { Origin: APP_URL },
+    });
+    assert.equal(refreshAfterLogout.status(), 401, 'Logged-out refresh session must not mint another access token.');
     session.assertNoPageErrors();
   } finally {
     await context.close();
@@ -157,14 +183,15 @@ async function verifyAuthenticatedBootstrapReloadAndLogout() {
 }
 
 async function observeAuthenticatedShell(context) {
-  await context.addInitScript(({ observationKey }) => {
-    if (sessionStorage.getItem(observationKey) === null) {
-      sessionStorage.setItem(observationKey, '0');
+  await context.addInitScript(({ observationKey, appOrigin }) => {
+    if (window.location.origin !== appOrigin) return;
+    if (localStorage.getItem(observationKey) === null) {
+      localStorage.setItem(observationKey, '0');
     }
 
     const markIfAuthenticatedShellExists = () => {
       if (document.querySelector('.app-shell')) {
-        sessionStorage.setItem(observationKey, '1');
+        localStorage.setItem(observationKey, '1');
       }
     };
 
@@ -179,26 +206,16 @@ async function observeAuthenticatedShell(context) {
     } else {
       window.addEventListener('DOMContentLoaded', startObserver, { once: true });
     }
-  }, { observationKey: APP_SHELL_OBSERVED_KEY });
+  }, { observationKey: APP_SHELL_OBSERVED_KEY, appOrigin: new URL(APP_URL).origin });
 }
 
 async function assertProtectedShellNeverRendered(page, message) {
-  const deadline = Date.now() + UI_TIMEOUT;
-  while (true) {
-    try {
-      const observed = await page.evaluate((observationKey) => sessionStorage.getItem(observationKey), APP_SHELL_OBSERVED_KEY);
-      assert.equal(observed, '0', message);
-      return;
-    } catch (error) {
-      const navigationRace = String(error?.message || error).includes('Execution context was destroyed');
-      if (!navigationRace || Date.now() >= deadline) {
-        throw error;
-      }
-      await page.waitForLoadState('domcontentloaded', {
-        timeout: Math.max(1, deadline - Date.now()),
-      }).catch(() => {});
-    }
-  }
+  const storage = await waitForOriginLocalStorage(
+    page.context(),
+    new URL(APP_URL).origin,
+    (values) => values[APP_SHELL_OBSERVED_KEY] !== undefined,
+  );
+  assert.equal(storage[APP_SHELL_OBSERVED_KEY], '0', message);
 }
 
 async function readOriginLocalStorage(context, origin) {

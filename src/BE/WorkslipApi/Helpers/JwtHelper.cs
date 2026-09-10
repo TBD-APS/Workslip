@@ -30,8 +30,7 @@ public static class JwtHelper
             ResolveOrganizationSessionExpiryMinutes(configuration),
             [
                 new Claim(HomeOrganizationIdClaim, homeOrganizationId.ToString()),
-                new Claim(DelegatedOrganizationSessionClaim, bool.TrueString.ToLowerInvariant()),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
+                new Claim(DelegatedOrganizationSessionClaim, bool.TrueString.ToLowerInvariant())
             ]);
 
     private static AuthTokenResponse GenerateTokenCore(
@@ -50,7 +49,8 @@ public static class JwtHelper
             new(ClaimTypes.Email, user.Email),
             new(ClaimTypes.Name, user.DisplayName),
             new("organizationId", user.OrganizationId.ToString()),
-            new(ClaimTypes.Role, user.Role)
+            new(ClaimTypes.Role, user.Role),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
         };
         claims.AddRange(additionalClaims);
 

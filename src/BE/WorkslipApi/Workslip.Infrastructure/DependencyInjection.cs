@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Workslip.Application;
+using Workslip.Application.Auth;
 using Workslip.Application.Common;
 using Workslip.Application.Conversations;
 using Workslip.Application.Customers;
@@ -98,6 +99,7 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
         services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();
+        services.AddScoped<IRefreshSessionRepository, EfRefreshSessionRepository>();
         services.AddScoped<ISuperAdminUserRepository, EfSuperAdminUserRepository>();
         services.AddScoped<SqlUserBillingRepository>();
         services.AddScoped<IUserBillingRepository, HistorySafeUserBillingRepository>();
@@ -183,6 +185,7 @@ public static class DependencyInjection
             services.AddHostedService<PushNotificationWorker>();
             services.AddHostedService<PowerBiWorksheetExportWorker>();
             services.AddHostedService<MrSaasyBugRadarPublisherWorker>();
+            services.AddHostedService<RefreshSessionCleanupService>();
         }
 
         services.AddOptions<VapidOptions>()

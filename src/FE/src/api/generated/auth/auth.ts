@@ -430,6 +430,118 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPostApiAuthEntraLoginMutationOptions(options), queryClient);
     }
+    export const postApiAuthRefresh = (
+
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
+
+
+      return customAxiosInstance<AuthTokenResponse>(
+      {url: `/api/auth/refresh`, method: 'POST', signal
+    },
+      options);
+    }
+
+
+
+
+export const getPostApiAuthRefreshMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAuthRefresh>>, TError,void, TContext>, request?: SecondParameter<typeof customAxiosInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof postApiAuthRefresh>>, TError,void, TContext> => {
+
+const mutationKey = ['postApiAuthRefresh'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiAuthRefresh>>, void> = () => {
+
+
+          return  postApiAuthRefresh(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiAuthRefreshMutationResult = NonNullable<Awaited<ReturnType<typeof postApiAuthRefresh>>>
+
+    export type PostApiAuthRefreshMutationError = void
+
+    export const usePostApiAuthRefresh = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAuthRefresh>>, TError,void, TContext>, request?: SecondParameter<typeof customAxiosInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiAuthRefresh>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getPostApiAuthRefreshMutationOptions(options), queryClient);
+    }
+    export const postApiAuthLogout = (
+
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
+
+
+      return customAxiosInstance<void>(
+      {url: `/api/auth/logout`, method: 'POST', signal
+    },
+      options);
+    }
+
+
+
+
+export const getPostApiAuthLogoutMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAuthLogout>>, TError,void, TContext>, request?: SecondParameter<typeof customAxiosInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof postApiAuthLogout>>, TError,void, TContext> => {
+
+const mutationKey = ['postApiAuthLogout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiAuthLogout>>, void> = () => {
+
+
+          return  postApiAuthLogout(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiAuthLogoutMutationResult = NonNullable<Awaited<ReturnType<typeof postApiAuthLogout>>>
+
+    export type PostApiAuthLogoutMutationError = void
+
+    export const usePostApiAuthLogout = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiAuthLogout>>, TError,void, TContext>, request?: SecondParameter<typeof customAxiosInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiAuthLogout>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getPostApiAuthLogoutMutationOptions(options), queryClient);
+    }
     export const getApiAuthInvites = (
 
  options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal

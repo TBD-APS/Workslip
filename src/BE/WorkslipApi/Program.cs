@@ -37,10 +37,12 @@ try
                                      ?? new[]
                                      {
                                          "https://app.mrsoftware.dk",
-                                         "http://localhost:5270"
+                                         "http://localhost:5270",
+                                         "http://127.0.0.1:5270"
                                      };
 
                 policy.WithOrigins(allowedOrigins)
+                      .AllowCredentials()
                       .AllowAnyMethod()
                       .AllowAnyHeader();
             });

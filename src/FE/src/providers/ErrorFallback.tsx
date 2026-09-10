@@ -22,9 +22,10 @@ export function ErrorFallback({ error, resetErrorBoundary }: { error: unknown; r
   };
 
   const handleLogout = () => {
-    logout();
-    // Keep logout usable even if the router/error-boundary state itself is broken.
-    window.location.replace(LOGIN_PATH);
+    void logout().finally(() => {
+      // Keep logout usable even if the router/error-boundary state itself is broken.
+      window.location.replace(LOGIN_PATH);
+    });
   };
 
   return (
