@@ -64,6 +64,23 @@ async function exerciseAdmin(contextOptions, label) {
   await page.locator('#overview-power-bi-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await page.locator('#leader-analysis-kpi-active').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
+  const yearAnalytics = page.locator('#overview-year-analytics');
+  await yearAnalytics.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  const yearSelect = page.locator('#overview-year-select');
+  await yearSelect.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  assert.equal(await yearSelect.inputValue(), String(new Date().getFullYear()), `${label} yearly analytics must default to the current year.`);
+  await page.locator('#overview-year-chart').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await page.locator('#overview-year-table').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  assert.match(await yearAnalytics.textContent() ?? '', /Sager i året/i, `${label} yearly analytics must show the year total.`);
+  assert.match(await yearAnalytics.textContent() ?? '', /Afviste pr\. godkendt/i, `${label} yearly analytics must show rejection frequency.`);
+
+  if (label === 'admin-mobile') {
+    const viewport = page.viewportSize();
+    assert.ok(viewport && viewport.width <= 430, `${label} must run at a phone-sized viewport.`);
+    const yearBodyWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    assert.ok(yearBodyWidth <= viewport.width + 2, `${label} yearly analytics must not introduce horizontal page overflow.`);
+  }
+
   await page.locator('#overview-analytics-tab-employees').click();
   const employeePanel = page.locator('#overview-analytics-panel-employees');
   await employeePanel.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
@@ -113,9 +130,6 @@ async function exerciseAdmin(contextOptions, label) {
       );
     }
   } else {
-    // Wait on the Timer page's stable container rather than networkidle (which
-    // flakes when background polling keeps the connection busy) before asserting
-    // that Power BI is absent.
     await page.locator('#timer-page').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     assert.equal(await page.locator('#timer-power-bi-report').count(), 0, `${label} must hide unconfigured Power BI from the product UI.`);
     assert.equal(await page.locator('#timer-power-bi-frame').count(), 0, `${label} must not render an unconfigured Power BI iframe.`);
@@ -159,8 +173,6 @@ async function exerciseNormalUser() {
   });
   assert.ok(navigation?.ok(), `Normal-user Overview returned HTTP ${navigation?.status() ?? 'unknown'}.`);
   await page.locator('#recent-jobs-heading').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  // The Overview heading above is the authoritative "page rendered" signal;
-  // asserting absence after it is reliable without a networkidle wait.
   assert.equal(await page.locator('#admin-power-bi-job-status').count(), 0, 'Normal user must not render the Admin analytics dashboard.');
   assert.equal(await page.locator('#favorite-customers-heading').count(), 0, 'Normal user must not render Admin favorite customers.');
   assert.equal(await page.locator('#recent-documents-heading').count(), 0, 'Normal user must not render Admin latest documents.');
