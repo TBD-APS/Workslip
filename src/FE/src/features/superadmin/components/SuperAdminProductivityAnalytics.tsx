@@ -16,6 +16,7 @@ import {
   type SuperAdminCaseFlowOrganizationSummary,
 } from '../api';
 import type { Organization } from '../types';
+import './SuperAdminProductivityAnalytics.css';
 
 type Props = {
   organizations: Organization[];
