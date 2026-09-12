@@ -18,11 +18,13 @@ public static class ProductivityAnalyticsEndpoints
         userGroup.MapPost("/case-create-duration", RecordCaseCreationDurationAsync)
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status400BadRequest)
-            .Produces(StatusCodes.Status403Forbidden);
+            .Produces(StatusCodes.Status403Forbidden)
+            .ExcludeFromDescription();
 
         var superAdminGroup = app.MapSuperAdminGroup("/api/superadmin/analytics", "superadmin-analytics");
         superAdminGroup.MapGet("/case-flow", GetCaseFlowAnalyticsAsync)
-            .Produces<SuperAdminCaseFlowAnalyticsResponse>();
+            .Produces<SuperAdminCaseFlowAnalyticsResponse>()
+            .ExcludeFromDescription();
 
         return app;
     }
