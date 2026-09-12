@@ -66,7 +66,9 @@ async function exerciseAdmin(contextOptions, label) {
 
   const yearAnalytics = page.locator('#overview-year-analytics');
   await yearAnalytics.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-  await page.locator('#overview-year-select').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  const yearSelect = page.locator('#overview-year-select');
+  await yearSelect.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  assert.equal(await yearSelect.inputValue(), String(new Date().getFullYear()), `${label} yearly analytics must default to the current year.`);
   await page.locator('#overview-year-chart').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await page.locator('#overview-year-table').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   assert.match(await yearAnalytics.textContent() ?? '', /Sager i året/i, `${label} yearly analytics must show the year total.`);
