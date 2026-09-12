@@ -18,7 +18,7 @@ import { validateEmail, validatePhoneNumber } from '../../../components/forms/va
 import type { CreateJobRequest } from '../../../api/generated/models';
 import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
 import type { JobForm, WorksheetDraft } from '../types';
-import { recordCaseCreationDuration } from '../productivityAnalytics';
+import { getProductivityTimestampMs, recordCaseCreationDuration } from '../productivityAnalytics';
 import { useCustomerSnapshot, hasSnapshotData, trimSnapshot } from './useCustomerSnapshot';
 
 type CreateJobRequestWithSnapshot = CreateJobRequest & {
@@ -48,8 +48,14 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
   const [linksStatus, setLinksStatus] = useTimedStatus();
   const [assignmentStatus, setAssignmentStatus] = useTimedStatus();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const createFlowStartedAtRef = useRef(Date.now());
+  const createFlowStartedAtRef = useRef<number | null>(null);
   const creationDurationSecondsRef = useRef<number | null>(null);
+
+  const markCreateFlowStarted = useCallback(() => {
+    if (createFlowStartedAtRef.current === null) {
+      createFlowStartedAtRef.current = getProductivityTimestampMs();
+    }
+  }, []);
 
   const createMutation = usePostApiJobs({
     mutation: {
@@ -73,7 +79,7 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
             // the sample size shown in Superadmin.
           });
           creationDurationSecondsRef.current = null;
-          createFlowStartedAtRef.current = Date.now();
+          createFlowStartedAtRef.current = null;
         }
 
         // Atomic linking is part of the current create contract. Keep a single-job
@@ -130,7 +136,20 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
     request: { skipGlobalErrorToast: true },
   });
 
-  const { selectCustomer, updateEditSnapshot } = useCustomerSnapshot(setForm);
+  const {
+    selectCustomer: selectCustomerSnapshot,
+    updateEditSnapshot: updateEditSnapshotValue,
+  } = useCustomerSnapshot(setForm);
+
+  const selectCustomer = (...args: Parameters<typeof selectCustomerSnapshot>) => {
+    markCreateFlowStarted();
+    selectCustomerSnapshot(...args);
+  };
+
+  const updateEditSnapshot = (...args: Parameters<typeof updateEditSnapshotValue>) => {
+    markCreateFlowStarted();
+    updateEditSnapshotValue(...args);
+  };
 
   const clearFieldError = useCallback((field: string) => {
     setFieldErrors((prev) => {
@@ -142,6 +161,7 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
   }, []);
 
   const createNewCustomer = () => {
+    markCreateFlowStarted();
     setForm((prev) => ({
       ...prev,
       customerId: null,
@@ -152,24 +172,29 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
   };
 
   const updateCreateCustomer = (value: boolean) => {
+    markCreateFlowStarted();
     setForm((prev) => ({ ...prev, createCustomer: value }));
   };
 
   const updateDestinationAddress = (value: string) => {
+    markCreateFlowStarted();
     setForm((prev) => ({ ...prev, destinationAddress: value }));
     clearFieldError('destinationAddress');
   };
 
   const updateDestinationZipCode = (value: string) => {
+    markCreateFlowStarted();
     setForm((prev) => ({ ...prev, destinationZipCode: value }));
     clearFieldError('destinationZipCode');
   };
 
   const updateDestinationCity = (value: string) => {
+    markCreateFlowStarted();
     setForm((prev) => ({ ...prev, destinationCity: value }));
   };
 
   const updateJobType = (value: 'KLS' | 'Diverse') => {
+    markCreateFlowStarted();
     setForm((prev) => ({ ...prev, jobType: value }));
     if (value === 'Diverse') {
       setFieldErrors((prev) => {
@@ -183,23 +208,28 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
   };
 
   const updateTimesheets = (timesheets: WorksheetDraft[]) => {
+    markCreateFlowStarted();
     setForm((prev) => ({ ...prev, timesheets }));
   };
 
   const updateTaskDescription = (value: string) => {
+    markCreateFlowStarted();
     setForm((prev) => ({ ...prev, taskDescription: value }));
   };
 
   const updateCustomerObservations = (value: string) => {
+    markCreateFlowStarted();
     setForm((prev) => ({ ...prev, customerObservations: value }));
   };
 
   const updateTechnicalObservations = (value: string) => {
+    markCreateFlowStarted();
     setForm((prev) => ({ ...prev, technicalObservations: value }));
   };
 
   const updateSnapshotField = useCallback(
     (field: keyof CustomerSnapshotData, value: string) => {
+      markCreateFlowStarted();
       setForm((prev) => ({
         ...prev,
         customerSnapshot: {
@@ -211,16 +241,18 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
       const fieldKey = field === 'name' ? 'customerName' : field;
       clearFieldError(fieldKey);
     },
-    [clearFieldError],
+    [clearFieldError, markCreateFlowStarted],
   );
 
   const updateLinkedJobs = (jobIds: string[]) => {
+    markCreateFlowStarted();
     setLinkedJobIds(jobIds);
     setLinksStatus('idle');
   };
 
   const updateAssignedUsers = (userIds: string[]) => {
     if (!isAdmin) return;
+    markCreateFlowStarted();
     setAssignedUserIdsDraft(userIds);
     if (userIds.length < 2) setDuplicatePerAssignedUser(false);
     setAssignmentStatus('idle');
@@ -228,14 +260,17 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
 
   const updateDuplicatePerAssignedUser = (value: boolean) => {
     if (!isAdmin || assignedUserIds.length < 2) return;
+    markCreateFlowStarted();
     setDuplicatePerAssignedUser(value);
   };
 
   const updateWorkCategories = (categoryIds: string[]) => {
+    markCreateFlowStarted();
     setForm((prev) => ({ ...prev, work: { ...prev.work, categoryIds } }));
   };
 
   const updateWorkKind = (workKind: string) => {
+    markCreateFlowStarted();
     const selectedWorkKind = referenceData?.workKinds.find((kind) => kind.normalizedLabel === workKind);
     setForm((prev) => ({
       ...prev,
@@ -248,6 +283,7 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
   };
 
   const updateCustomWorkKind = (customWorkKind: string) => {
+    markCreateFlowStarted();
     setForm((prev) => ({ ...prev, work: { ...prev.work, customWorkKind } }));
   };
 
@@ -321,9 +357,11 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
         : {}),
     };
 
+    const finishedAt = getProductivityTimestampMs();
+    const startedAt = createFlowStartedAtRef.current ?? finishedAt;
     creationDurationSecondsRef.current = Math.max(
       1,
-      Math.round((Date.now() - createFlowStartedAtRef.current) / 1000),
+      Math.round((finishedAt - startedAt) / 1000),
     );
     setIsSaving(true);
     createMutation.mutate({ data: request });
@@ -334,6 +372,7 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
   };
 
   const saveWithTimesheets = (timesheets: WorksheetDraft[]) => {
+    markCreateFlowStarted();
     const nextForm = { ...form, timesheets };
     setForm(nextForm);
     saveForm(nextForm);
@@ -352,7 +391,7 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
     setLinksStatus('idle');
     setAssignmentStatus('idle');
     creationDurationSecondsRef.current = null;
-    createFlowStartedAtRef.current = Date.now();
+    createFlowStartedAtRef.current = null;
   };
 
   return {
