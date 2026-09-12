@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 import { notify } from '../../../lib/toast';
@@ -18,6 +18,7 @@ import { validateEmail, validatePhoneNumber } from '../../../components/forms/va
 import type { CreateJobRequest } from '../../../api/generated/models';
 import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
 import type { JobForm, WorksheetDraft } from '../types';
+import { recordCaseCreationDuration } from '../productivityAnalytics';
 import { useCustomerSnapshot, hasSnapshotData, trimSnapshot } from './useCustomerSnapshot';
 
 type CreateJobRequestWithSnapshot = CreateJobRequest & {
@@ -47,6 +48,9 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
   const [linksStatus, setLinksStatus] = useTimedStatus();
   const [assignmentStatus, setAssignmentStatus] = useTimedStatus();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const createFlowStartedAtRef = useRef(Date.now());
+  const creationDurationSecondsRef = useRef<number | null>(null);
+
   const createMutation = usePostApiJobs({
     mutation: {
       onSuccess: (response) => {
@@ -61,6 +65,16 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
           ? rolloutCompatibleResponse.createdJobIds
           : [jobId];
         const promises: Promise<unknown>[] = [];
+
+        if (isAdmin && creationDurationSecondsRef.current !== null) {
+          const durationSeconds = creationDurationSecondsRef.current;
+          void recordCaseCreationDuration(createdJobIds, durationSeconds).catch(() => {
+            // Analytics must never block the job flow. Missing telemetry simply lowers
+            // the sample size shown in Superadmin.
+          });
+          creationDurationSecondsRef.current = null;
+          createFlowStartedAtRef.current = Date.now();
+        }
 
         // Atomic linking is part of the current create contract. Keep a single-job
         // fallback only for a short frontend-before-backend deployment skew.
@@ -307,6 +321,10 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
         : {}),
     };
 
+    creationDurationSecondsRef.current = Math.max(
+      1,
+      Math.round((Date.now() - createFlowStartedAtRef.current) / 1000),
+    );
     setIsSaving(true);
     createMutation.mutate({ data: request });
   };
@@ -333,6 +351,8 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
     setIsSaving(false);
     setLinksStatus('idle');
     setAssignmentStatus('idle');
+    creationDurationSecondsRef.current = null;
+    createFlowStartedAtRef.current = Date.now();
   };
 
   return {
