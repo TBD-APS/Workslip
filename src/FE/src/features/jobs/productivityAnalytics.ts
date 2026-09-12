@@ -1,5 +1,9 @@
 import { apiClient } from '../../lib/axios';
 
+export function getProductivityTimestampMs(): number {
+  return Date.now();
+}
+
 export async function recordCaseCreationDuration(jobIds: string[], durationSeconds: number): Promise<void> {
   if (jobIds.length === 0 || !Number.isFinite(durationSeconds) || durationSeconds < 1) return;
 
