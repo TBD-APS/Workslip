@@ -53,14 +53,25 @@ export async function seedLocalBrowserSession(context, {
   appUrl,
   apiUrl,
   email,
-  fetchImpl = fetch,
 }) {
-  requireLoopbackOrigin(appUrl, 'WORKSLIP_PLAYWRIGHT_APP_URL');
-  const session = await issueLocalDevelopmentToken({ apiUrl, email, fetchImpl });
+  const appOrigin = requireLoopbackOrigin(appUrl, 'WORKSLIP_PLAYWRIGHT_APP_URL');
+  const apiOrigin = requireLoopbackOrigin(apiUrl, 'WORKSLIP_PLAYWRIGHT_API_URL');
+  const normalizedEmail = String(email ?? '').trim().toLowerCase();
+  const response = await context.request.post(`${apiOrigin}/api/dev/token`, {
+    headers: { Origin: appOrigin, Accept: 'application/json' },
+    data: { email: normalizedEmail },
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok() || typeof payload?.token !== 'string' || !payload.token || !payload?.user?.email) {
+    throw new Error(`Development browser session request failed with HTTP ${response.status()}.`);
+  }
+  const session = { token: payload.token, user: payload.user, apiOrigin };
 
   await context.addInitScript(({ token, userEmail }) => {
+    if (sessionStorage.getItem('__workslip_playwright_auth_seeded') === '1') return;
     localStorage.setItem('authToken', token);
     localStorage.setItem('userEmail', userEmail);
+    sessionStorage.setItem('__workslip_playwright_auth_seeded', '1');
   }, {
     token: session.token,
     userEmail: session.user.email,

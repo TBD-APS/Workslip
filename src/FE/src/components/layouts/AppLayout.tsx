@@ -134,15 +134,15 @@ export const AppLayout = () => {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     clearOrganizationSession();
-    logout();
+    await logout();
     navigate('/login', { replace: true });
   };
 
   const handleExitOrganizationSession = () => {
     if (!restoreHomeOrganizationSession()) {
-      handleLogout();
+      void handleLogout();
       return;
     }
 

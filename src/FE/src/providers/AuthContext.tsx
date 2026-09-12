@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading: false,
       login,
       establishSession,
-      logout: clearStoredSession,
+      logout: async () => clearStoredSession(),
       clearLocalSession: clearStoredSession,
       updateUser: () => undefined,
       meQuery: publicMeQuery,

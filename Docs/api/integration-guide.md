@@ -17,6 +17,8 @@ The repository release policy controls published API reference tooling outside l
 
 Use the authentication flow appropriate to the integration/runtime contract. Current browser/user flows include Microsoft/Entra login and Workslip token exchange. Local development may expose development-only shortcuts; an isolated staging environment must use its approved normal test-authentication path.
 
+Browser login also establishes an HttpOnly refresh cookie. The browser client sends credentials and, after an access-token `401`, calls `POST /api/auth/refresh` once, stores the returned access JWT and retries the original request. Refresh and `POST /api/auth/logout` require an `Origin` that exactly matches a configured frontend origin. Non-browser integrations should continue to use their approved bearer-token acquisition contract; the cookie endpoint is not a general machine-to-machine credential flow.
+
 For repeatable isolated API testing, a pre-issued token can be supplied to the Postman runner through its supported environment variable rather than embedding credentials in files or commands committed to the repository.
 
 ## Run the executable suite
@@ -49,10 +51,10 @@ For an idempotent mutation, use one stable idempotency key for one logical reque
 ## Failure handling
 
 - `400` — correct request/validation errors.
-- `401` — re-authenticate; do not retry indefinitely.
+- `401` — the browser may attempt one refresh-and-retry cycle; otherwise re-authenticate and do not retry indefinitely.
 - `403` — authenticated identity lacks permission.
 - `404` — treat as unavailable in the caller's scope; do not infer cross-tenant ownership.
-- `409` — inspect the stable error code and resolve the business/idempotency conflict.
+- `409` — inspect the stable error code and resolve the business/idempotency conflict. `refresh_race` permits one short, bounded refresh retry.
 - `428` — supply the required idempotency key.
 - `429` — back off according to the endpoint/client policy.
 - `500` — preserve correlation context; retry only when the operation is known to be retry-safe.

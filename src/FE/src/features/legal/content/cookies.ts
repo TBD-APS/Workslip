@@ -2,12 +2,12 @@ import type { LegalContent } from './types';
 
 export const cookiesContent: LegalContent = {
   title: 'Cookie- og lagringspolitik',
-  lastUpdated: '23. juli 2026',
+  lastUpdated: '10. september 2026',
   sections: [
     {
       heading: 'Hvad er cookies',
       content: [
-        'Workslip-frontend’en bruger ikke cookies til at gemme login. Login-tokenet gemmes i localStorage. Det er ikke en cookie og har ikke HttpOnly-beskyttelse.',
+        'Workslip gemmer et kortlivet adgangstoken i localStorage og bruger en nødvendig, HttpOnly-beskyttet sessionscookie til automatisk og sikker fornyelse. Sessionscookiens indhold kan ikke læses af frontend-kode.',
         'sessionStorage bruges til midlertidige værdier som søgning, sortering, paginering og scrollposition. Temaindstilling gemmes i localStorage.',
       ],
     },
@@ -15,7 +15,8 @@ export const cookiesContent: LegalContent = {
       heading: 'Cookies vi bruger',
       content: [
         'Workslip bruger følgende lagringsteknologier:',
-        '• localStorage — authToken, userEmail, tema og en kortvarig reauth-markør',
+        '• nødvendig sessionscookie — roterende login-session med en absolut levetid på højst 14 dage',
+        '• localStorage — kortlivet authToken, userEmail, tema og en kortvarig reauth-markør',
         '• sessionStorage — søgning, sortering, paginering og scrollpositioner',
       ],
     },
@@ -30,7 +31,7 @@ export const cookiesContent: LegalContent = {
     {
       heading: 'Sådan styrer du cookies',
       content: [
-        'Du kan slette localStorage og sessionStorage via browserens webstedsdata eller logge ud. Sletning af authToken logger dig ud.',
+        'Du kan slette cookies, localStorage og sessionStorage via browserens webstedsdata eller logge ud. Logout tilbagekalder også den serverbaserede session.',
         'Blokering af lagring kan forhindre login, PWA-funktioner, tema, scrollpositioner eller andre dele af brugeroplevelsen i at fungere.',
       ],
     },

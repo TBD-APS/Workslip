@@ -44,6 +44,10 @@ public static IServiceCollection AddWorkslipApplication(this IServiceCollection 
     services.AddScoped<ISuperadminEntraService>(serviceProvider =>
         serviceProvider.GetRequiredService<UserEntraService>());
     services.AddScoped<IAuthService, AuthService>();
+    services.AddSingleton(new RefreshSessionPolicy(
+        AbsoluteLifetime: TimeSpan.FromDays(14),
+        ConcurrentRefreshGrace: TimeSpan.FromSeconds(30),
+        CleanupRetention: TimeSpan.FromDays(7)));
     services.AddScoped<IRefreshSessionService, RefreshSessionService>();
     services.AddScoped<IInvitationService, InvitationService>();
     services.AddScoped<IInvitationStatusService, InvitationStatusService>();
