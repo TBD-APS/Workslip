@@ -72,7 +72,9 @@ public static class ProductivityAnalyticsEndpoints
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
             ReportId = null,
-            ActorId = userId,
+            ActorId = string.Equals(currentUser.Role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase)
+                ? null
+                : userId,
             EventType = CaseCreationDurationEventType,
             Summary = $"Sag oprettet via Workslip på {request.DurationSeconds} sek.",
             BeforeJson = null,
@@ -97,7 +99,7 @@ public static class ProductivityAnalyticsEndpoints
     {
         var windowDays = Math.Clamp(days ?? 90, 7, 365);
         var generatedAt = DateTimeOffset.UtcNow;
-        var from = generatedAt.AddDays(-windowDays);
+        var windowStart = generatedAt.AddDays(-windowDays);
 
         var organizationsQuery = dbContext.Organizations.AsNoTracking();
         if (organizationId.HasValue)
@@ -119,7 +121,7 @@ public static class ProductivityAnalyticsEndpoints
 
         var jobsQuery = dbContext.JobReports
             .AsNoTracking()
-            .Where(job => !job.IsSoftDeleted && job.CreatedAt >= from);
+            .Where(job => !job.IsSoftDeleted && job.CreatedAt >= windowStart);
         if (organizationId.HasValue)
         {
             jobsQuery = jobsQuery.Where(job => job.OrganizationId == organizationId.Value);
@@ -139,7 +141,7 @@ public static class ProductivityAnalyticsEndpoints
         var assignments = await (
             from assignment in dbContext.JobAssignments.AsNoTracking()
             join job in dbContext.JobReports.AsNoTracking() on assignment.ReportId equals job.Id
-            where !job.IsSoftDeleted && job.CreatedAt >= from
+            where !job.IsSoftDeleted && job.CreatedAt >= windowStart
             where !organizationId.HasValue || job.OrganizationId == organizationId.Value
             select new AssignmentProjection(assignment.ReportId, assignment.UserId)
         ).ToListAsync(cancellationToken);
@@ -147,7 +149,7 @@ public static class ProductivityAnalyticsEndpoints
         var views = await (
             from view in dbContext.JobViews.AsNoTracking()
             join job in dbContext.JobReports.AsNoTracking() on view.JobId equals job.Id
-            where !job.IsSoftDeleted && job.CreatedAt >= from
+            where !job.IsSoftDeleted && job.CreatedAt >= windowStart
             where !organizationId.HasValue || job.OrganizationId == organizationId.Value
             where view.ViewType == JobViewTypes.New
             select new ViewProjection(view.JobId, view.UserId, view.ViewedAt)
@@ -156,7 +158,7 @@ public static class ProductivityAnalyticsEndpoints
         var jobIdSet = jobs.Select(job => job.Id).ToHashSet();
         var lifecycleEventsQuery = dbContext.JobEvents
             .AsNoTracking()
-            .Where(evt => evt.ReportId != null && evt.CreatedAt >= from && evt.AfterJson != null);
+            .Where(evt => evt.ReportId != null && evt.CreatedAt >= windowStart && evt.AfterJson != null);
         if (organizationId.HasValue)
         {
             lifecycleEventsQuery = lifecycleEventsQuery.Where(evt => evt.OrganizationId == organizationId.Value);
@@ -174,7 +176,7 @@ public static class ProductivityAnalyticsEndpoints
 
         var creationEventsQuery = dbContext.JobEvents
             .AsNoTracking()
-            .Where(evt => evt.EventType == CaseCreationDurationEventType && evt.CreatedAt >= from && evt.AfterJson != null);
+            .Where(evt => evt.EventType == CaseCreationDurationEventType && evt.CreatedAt >= windowStart && evt.AfterJson != null);
         if (organizationId.HasValue)
         {
             creationEventsQuery = creationEventsQuery.Where(evt => evt.OrganizationId == organizationId.Value);
@@ -267,7 +269,7 @@ public static class ProductivityAnalyticsEndpoints
 
         return Results.Ok(new SuperAdminCaseFlowAnalyticsResponse(
             windowDays,
-            from,
+            windowStart,
             generatedAt,
             totals,
             organizationSummaries));
