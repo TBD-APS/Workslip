@@ -17,6 +17,7 @@ import {
 } from '../api';
 import { AdminInviteForm } from '../components/AdminInviteForm';
 import { OrganizationCreateForm } from '../components/OrganizationCreateForm';
+import { SuperAdminProductivityAnalytics } from '../components/SuperAdminProductivityAnalytics';
 import { SuperAdminUsersPanel } from '../components/SuperAdminUsersPanel';
 import { DiagnosticsSupportCopyButton } from '../diagnostics/DiagnosticsSupportCopyButton';
 import {
@@ -214,6 +215,8 @@ export function SuperAdmin() {
           <strong>{activeOrganizationSession?.name ?? 'Superadmin-hjemmeorganisation'}</strong>
         </div>
       </div>
+
+      <SuperAdminProductivityAnalytics organizations={organizations} />
 
       <SuperAdminUsersPanel />
 
