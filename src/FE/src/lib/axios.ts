@@ -19,6 +19,8 @@ declare module 'axios' {
     telemetryAction?: string;
     telemetryStartedAt?: number;
     idempotencyKey?: string;
+    skipAuthRefresh?: boolean;
+    _authRetry?: boolean;
   }
 }
 import qs from 'qs';
@@ -55,6 +57,7 @@ const getRequestBearerToken = (config: InternalAxiosRequestConfig | undefined): 
 
 export const apiClient = axios.create({
   baseURL: apiUrl,
+  withCredentials: true,
   paramsSerializer: {
     serialize: (params) =>
       qs.stringify(params, {
@@ -62,6 +65,51 @@ export const apiClient = axios.create({
       }),
   },
 });
+
+interface RefreshedSession {
+  token: string;
+  user: { email: string };
+}
+
+let refreshPromise: Promise<string> | null = null;
+
+const waitForConcurrentRotation = () => new Promise((resolve) => window.setTimeout(resolve, 250));
+
+async function refreshAccessToken(): Promise<string> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const session = await apiClient.post<unknown, RefreshedSession>('/api/auth/refresh', undefined, {
+          skipAuthRefresh: true,
+          skipGlobalErrorToast: true,
+        });
+        AuthStorage.setItem(AUTH_TOKEN_KEY, session.token);
+        clearReauthInFlight();
+        return session.token;
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 409 && attempt === 0) {
+          await waitForConcurrentRotation();
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error('Session refresh did not complete');
+  })().finally(() => {
+    refreshPromise = null;
+  });
+
+  return refreshPromise;
+}
+
+export async function revokeServerSession(): Promise<void> {
+  await apiClient.post('/api/auth/logout', undefined, {
+    skipAuthRefresh: true,
+    skipGlobalErrorToast: true,
+  });
+}
 
 const mutatingMethods = new Set(['post', 'put', 'patch', 'delete']);
 const inFlightKeys = new Set<string>();
@@ -139,7 +187,7 @@ apiClient.interceptors.response.use(
     }
     return response.data;
   },
-  (error) => {
+  async (error) => {
     if (error.config) releaseKey(error.config);
     if (error.config && mutatingMethods.has(error.config.method ?? 'get')) {
       trackApiDependency({
@@ -182,7 +230,9 @@ apiClient.interceptors.response.use(
       const shouldHandleSessionExpiry = isMeEndpoint || (!isAuthApi && !isAuthRoute);
 
       if (isStaleUnauthorizedResponse) {
-        return Promise.reject(error);
+        error.config._authRetry = true;
+        error.config.headers.Authorization = `Bearer ${activeToken}`;
+        return apiClient.request(error.config);
       }
 
       if (
@@ -202,6 +252,18 @@ apiClient.interceptors.response.use(
       // on the startup recovery screen. Preserve the last verified user email as
       // a reauth login hint; explicit logout/local-session cleanup still removes it.
       // Timeouts and 5xx responses remain recoverable without deleting a potentially valid session.
+      if (shouldHandleSessionExpiry && !error.config?.skipAuthRefresh && !error.config?._authRetry) {
+        try {
+          const refreshedToken = await refreshAccessToken();
+          error.config._authRetry = true;
+          error.config.headers.Authorization = `Bearer ${refreshedToken}`;
+          return apiClient.request(error.config);
+        } catch {
+          // The cookie is absent, expired, revoked, or unsafe to use. Continue
+          // into the established interactive reauthentication flow below.
+        }
+      }
+
       if (shouldHandleSessionExpiry) {
         AuthStorage.removeItem(AUTH_TOKEN_KEY);
 

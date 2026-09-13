@@ -14,9 +14,65 @@ import type {
   UpdateSuperAdminUserInput,
 } from './types';
 
+export type SuperAdminCaseFlowSummary = {
+  organizationId: string;
+  caseCount: number;
+  approvedCount: number;
+  rejectedCaseCount: number;
+  rejectionEventCount: number;
+  approvalRate: number | null;
+  firstPassApprovalRate: number | null;
+  rejectionsPerApprovedCase: number | null;
+  medianCaseCreationSeconds: number | null;
+  p90CaseCreationSeconds: number | null;
+  creationSampleSize: number;
+  medianCreationToFirstOpenHours: number | null;
+  p90CreationToFirstOpenHours: number | null;
+  firstOpenSampleSize: number;
+  startedWithin24HoursRate: number | null;
+  medianEmployeeFillMinutes: number | null;
+  p90EmployeeFillMinutes: number | null;
+  employeeFillSampleSize: number;
+  medianCreationToApprovalDays: number | null;
+  p90CreationToApprovalDays: number | null;
+  cycleSampleSize: number;
+  completedWithinOneDayRate: number | null;
+  medianSubmitToApprovalHours: number | null;
+  p90SubmitToApprovalHours: number | null;
+  reviewSampleSize: number;
+  approvedPer30Days: number;
+};
+
+export type SuperAdminCaseFlowOrganizationSummary = {
+  organizationId: string;
+  organizationName: string;
+  caseCount: number;
+  approvedCount: number;
+  rejectedCaseCount: number;
+  medianCaseCreationSeconds: number | null;
+  medianCreationToFirstOpenHours: number | null;
+  medianEmployeeFillMinutes: number | null;
+  medianCreationToApprovalDays: number | null;
+  firstPassApprovalRate: number | null;
+  completedWithinOneDayRate: number | null;
+  creationSampleSize: number;
+  employeeFillSampleSize: number;
+  cycleSampleSize: number;
+};
+
+export type SuperAdminCaseFlowAnalytics = {
+  windowDays: number;
+  from: string;
+  generatedAt: string;
+  totals: SuperAdminCaseFlowSummary;
+  organizations: SuperAdminCaseFlowOrganizationSummary[];
+};
+
 export const superadminOrganizationQueryKey = ['superadmin', 'organizations'] as const;
 export const superadminUserQueryKey = ['superadmin', 'users'] as const;
 export const superadminUserOptionsQueryKey = ['superadmin', 'users', 'options'] as const;
+export const superadminCaseFlowAnalyticsQueryKey = (days: number, organizationId?: string) =>
+  ['superadmin', 'analytics', 'case-flow', days, organizationId || 'all'] as const;
 const organizationsPath = '/api/organizations';
 const usersPath = '/api/superadmin/users';
 
@@ -52,6 +108,19 @@ export async function inviteOrganizationAdmin(input: InviteOrganizationAdminInpu
   }, {
     skipGlobalErrorToast: true,
   }) as unknown as OrganizationAdmin;
+}
+
+export async function getSuperadminCaseFlowAnalytics(input: {
+  days: number;
+  organizationId?: string;
+}): Promise<SuperAdminCaseFlowAnalytics> {
+  return await apiClient.get('/api/superadmin/analytics/case-flow', {
+    params: {
+      days: input.days,
+      organizationId: input.organizationId || undefined,
+    },
+    skipGlobalErrorToast: true,
+  }) as unknown as SuperAdminCaseFlowAnalytics;
 }
 
 export async function getSuperadminUsers(input: {

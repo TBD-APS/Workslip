@@ -59,14 +59,16 @@ public sealed class RefreshSessionService(
             if (current.UsedAt is not null)
             {
                 var insideGrace = now - current.UsedAt.Value <= policy.ConcurrentRefreshGrace;
-                if (insideGrace
-                    && current.GraceReuseAt is null
-                    && await sessions.TryClaimConcurrentRefreshGraceAsync(
-                        current.Id,
-                        current.ConcurrencyStamp,
-                        now,
-                        cancellationToken))
+                if (insideGrace)
                 {
+                    if (current.GraceReuseAt is null)
+                    {
+                        await sessions.TryClaimConcurrentRefreshGraceAsync(
+                            current.Id,
+                            current.ConcurrencyStamp,
+                            now,
+                            cancellationToken);
+                    }
                     logger.LogInformation("Concurrent refresh race recovered inside the bounded grace window.");
                     return Result<RefreshSessionGrant>.Conflict("refresh_race");
                 }

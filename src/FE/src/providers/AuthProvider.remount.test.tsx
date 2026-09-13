@@ -28,7 +28,7 @@ vi.mock('./AuthenticatedAppProvider', () => ({
         isLoading: false,
         login,
         establishSession,
-        logout: clearSession,
+        logout: async () => clearSession(),
         clearLocalSession: clearSession,
         updateUser: () => undefined,
         meQuery: { isPending: false, isError: false, refetch: async () => null, data: null },

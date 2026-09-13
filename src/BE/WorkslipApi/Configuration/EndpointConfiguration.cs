@@ -39,6 +39,7 @@ public static class EndpointConfiguration
         app.MapAccountingIntegrationEndpoints();
         app.MapReferenceDataEndpoints();
         app.MapPushNotificationEndpoints();
+        app.MapProductivityAnalyticsEndpoints();
         app.MapCacheEndpoints();
         app.MapDiagnosticsEndpoints();
         app.MapControlCenterEndpoints();

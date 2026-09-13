@@ -43,6 +43,11 @@ public sealed class SchemaModelContractTests
                 "Id", "OrganizationId", "FilialId", "Email", "DisplayName", "EntraId", "EntraEmail",
                 "Phone", "Role", "UserKind", "CreatedAt", "UpdatedAt",
             },
+            ["RefreshSessions"] = new[]
+            {
+                "Id", "FamilyId", "UserId", "OrganizationId", "TokenHash", "CreatedAt", "ExpiresAt",
+                "UsedAt", "GraceReuseAt", "RevokedAt", "ConcurrencyStamp",
+            },
             ["Customers"] = new[]
             {
                 "Id", "OrganizationId", "CustomerNumber", "Name", "Address", "ZipCode", "City",
@@ -140,6 +145,7 @@ public sealed class SchemaModelContractTests
             ("KnowledgeDocumentAttachments", "wor455"),
             ("JobConversationMessages", "wor551"),
             ("JobConversationReads", "wor551"),
+            ("RefreshSessions", "wor467"),
         };
 
     [Fact]

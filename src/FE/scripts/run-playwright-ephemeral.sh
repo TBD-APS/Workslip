@@ -13,6 +13,7 @@ FRONTEND_LOG="${RUNNER_TEMP:-/tmp}/workslip-playwright-frontend.log"
 SCENARIO_TIMEOUT_SECONDS="${WORKSLIP_PLAYWRIGHT_SCENARIO_TIMEOUT_SECONDS:-180}"
 BACKEND_PID=""
 FRONTEND_PID=""
+TIMEOUT_COMMAND=""
 
 cleanup() {
   if [[ -n "${FRONTEND_PID}" ]]; then
@@ -27,12 +28,18 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for command in docker dotnet node npm curl openssl timeout; do
+for command in docker dotnet node npm curl openssl; do
   if ! command -v "${command}" >/dev/null 2>&1; then
     echo "ERROR: Required command '${command}' is unavailable." >&2
     exit 70
   fi
 done
+
+if command -v timeout >/dev/null 2>&1; then
+  TIMEOUT_COMMAND="timeout"
+elif command -v gtimeout >/dev/null 2>&1; then
+  TIMEOUT_COMMAND="gtimeout"
+fi
 
 if ! [[ "${SCENARIO_TIMEOUT_SECONDS}" =~ ^[1-9][0-9]*$ ]]; then
   echo "ERROR: WORKSLIP_PLAYWRIGHT_SCENARIO_TIMEOUT_SECONDS must be a positive integer." >&2
@@ -44,7 +51,11 @@ run_scenario() {
   local script="$2"
   echo "[playwright] running ${label} (hard timeout ${SCENARIO_TIMEOUT_SECONDS}s)"
   set +e
-  timeout --foreground --signal=TERM --kill-after=10s "${SCENARIO_TIMEOUT_SECONDS}s" node "${script}"
+  if [[ -n "${TIMEOUT_COMMAND}" ]]; then
+    "${TIMEOUT_COMMAND}" --foreground --signal=TERM --kill-after=10s "${SCENARIO_TIMEOUT_SECONDS}s" node "${script}"
+  else
+    node "${script}"
+  fi
   local status=$?
   set -e
   if [[ "${status}" -eq 124 || "${status}" -eq 137 ]]; then
@@ -189,6 +200,10 @@ export WORKSLIP_SYNTHETIC_ADMIN_EMAIL="${WORKSLIP_PLAYWRIGHT_ADMIN_EMAIL}"
 export WORKSLIP_SYNTHETIC_USER_EMAIL="${WORKSLIP_PLAYWRIGHT_USER_EMAIL}"
 
 run_scenario 'authenticated smoke' scripts/playwright-ephemeral-smoke.mjs
+if [[ "${WORKSLIP_PLAYWRIGHT_FOCUSED_ONLY:-false}" == "true" ]]; then
+  echo "Focused authenticated Playwright scenario completed successfully."
+  exit 0
+fi
 run_scenario 'auth brand and login transition evidence' scripts/playwright-auth-brand.mjs
 run_scenario 'PDF performance evidence' scripts/playwright-pdf-performance.mjs
 run_scenario 'job image gallery evidence' scripts/playwright-job-images.mjs

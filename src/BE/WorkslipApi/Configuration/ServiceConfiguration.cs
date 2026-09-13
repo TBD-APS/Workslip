@@ -95,6 +95,17 @@ public static class ServiceConfiguration
                     Window = TimeSpan.FromMinutes(1)
                 });
             });
+
+            options.AddPolicy("auth-session", httpContext =>
+            {
+                var partitionKey = httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+                return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 30,
+                    QueueLimit = 0,
+                    Window = TimeSpan.FromMinutes(1)
+                });
+            });
         });
 
         builder.Services.AddSingleton<IJobReportPdfService, JobReportPdfService>();

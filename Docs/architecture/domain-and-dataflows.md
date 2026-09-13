@@ -15,6 +15,10 @@ Current tenant-scoped relationships include users, customers, jobs, assignments,
 
 Superadmin access does not remove ordinary tenant filtering from repositories. Cross-organization operational work uses the explicit delegated-organization session flow so existing services continue to operate with one effective organization context.
 
+## Authentication session lifecycle
+
+Interactive login creates a 14-day, server-owned refresh-session family. Only a SHA-256 token hash is persisted; the opaque token is carried in an HttpOnly cookie and is rotated on every refresh. Access JWT expiry therefore does not by itself force Entra reauthentication. Rotation is one-use, bounded concurrent reuse is recoverable, later reuse revokes the family, and explicit logout revokes the family server-side. Refresh eligibility requires the exact user and organization to still exist. See ADR 0018.
+
 ## User audiences
 
 `Role` and `UserKind` are separate concerns. `Role` controls authorization; `UserKind` identifies which user audience an identity belongs to.

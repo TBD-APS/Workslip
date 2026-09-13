@@ -52,6 +52,7 @@ Do not create a page merely to fill the list. Add it only when it reduces redisc
 - [`adr/0015-workslip-module-access-consumer-contract.md`](adr/0015-workslip-module-access-consumer-contract.md) — how Workslip consumes per-tenant module entitlement and gates capabilities (server `IWorkslipModuleAccess`, frontend `FeatureGate`, product-owned adapter boundary).
 - [`adr/0016-generic-job-evidence-checklist-module.md`](adr/0016-generic-job-evidence-checklist-module.md) — carve VVS "installations/KLS" into a trade-agnostic Job Evidence / Checklist module; Workslip owns the engine, builder, packs and content, MR SAAS'y owns only entitlement and price.
 - [`adr/0017-ai-retrieval-belongs-to-mr-saasy-agent-runtime.md`](adr/0017-ai-retrieval-belongs-to-mr-saasy-agent-runtime.md) — retrieval (RAG) and model/provider routing, including Cerebras, live in the MR SAAS'y agent runtime; Workslip requests provider-neutral operations and keeps the trusted/untrusted context split.
+- [`adr/0018-rotating-refresh-sessions.md`](adr/0018-rotating-refresh-sessions.md) — rotating server-owned refresh sessions and bounded reuse recovery.
 
 ## Superseded decisions
 
