@@ -121,9 +121,12 @@ public static class ProductivityAnalyticsEndpoints
 
         var allowedOrganizationIds = organizations.Select(org => org.Id).ToHashSet();
 
+        // JobReports is the source of truth for the current case inventory and historic timestamps.
+        // Existing jobs therefore produce useful analytics immediately; no synthetic backfill is used.
         var jobsQuery = dbContext.JobReports
             .AsNoTracking()
             .Where(job => !job.IsSoftDeleted && job.CreatedAt >= windowStart);
+
         if (organizationId.HasValue)
         {
             jobsQuery = jobsQuery.Where(job => job.OrganizationId == organizationId.Value);
@@ -158,9 +161,11 @@ public static class ProductivityAnalyticsEndpoints
         ).ToListAsync(cancellationToken);
 
         var jobIdSet = jobs.Select(job => job.Id).ToHashSet();
+
         var lifecycleEventsQuery = dbContext.JobEvents
             .AsNoTracking()
-            .Where(evt => evt.ReportId != null && evt.CreatedAt >= windowStart && evt.AfterJson != null);
+            .Where(evt => evt.ReportId != null && evt.CreatedAt >= windowStart);
+
         if (organizationId.HasValue)
         {
             lifecycleEventsQuery = lifecycleEventsQuery.Where(evt => evt.OrganizationId == organizationId.Value);
@@ -170,7 +175,8 @@ public static class ProductivityAnalyticsEndpoints
             .Select(evt => new LifecycleEventProjection(
                 evt.OrganizationId,
                 evt.ReportId,
-                evt.AfterJson!,
+                evt.BeforeJson,
+                evt.AfterJson,
                 evt.CreatedAt))
             .ToListAsync(cancellationToken))
             .Where(evt => evt.ReportId.HasValue && jobIdSet.Contains(evt.ReportId.Value))
@@ -178,7 +184,10 @@ public static class ProductivityAnalyticsEndpoints
 
         var creationEventsQuery = dbContext.JobEvents
             .AsNoTracking()
-            .Where(evt => evt.EventType == CaseCreationDurationEventType && evt.CreatedAt >= windowStart && evt.AfterJson != null);
+            .Where(evt => evt.EventType == CaseCreationDurationEventType
+                && evt.CreatedAt >= windowStart
+                && evt.AfterJson != null);
+
         if (organizationId.HasValue)
         {
             creationEventsQuery = creationEventsQuery.Where(evt => evt.OrganizationId == organizationId.Value);
@@ -214,8 +223,12 @@ public static class ProductivityAnalyticsEndpoints
         }
 
         var statusesByJob = lifecycleEvents
-            .Select(evt => new ParsedStatusEvent(evt.ReportId!.Value, ReadStatus(evt.AfterJson), evt.CreatedAt))
-            .Where(evt => evt.Status is not null)
+            .Select(evt => new ParsedStatusEvent(
+                evt.ReportId!.Value,
+                ReadStatus(evt.BeforeJson),
+                ReadStatus(evt.AfterJson),
+                evt.CreatedAt))
+            .Where(evt => evt.BeforeStatus is not null || evt.AfterStatus is not null)
             .GroupBy(evt => evt.JobId)
             .ToDictionary(group => group.Key, group => group.OrderBy(evt => evt.CreatedAt).ToList());
 
@@ -228,6 +241,7 @@ public static class ProductivityAnalyticsEndpoints
                 group => group.Select(metric => (double)metric.DurationSeconds!.Value).ToList());
 
         var organizationNames = organizations.ToDictionary(org => org.Id, org => org.Name);
+
         var organizationSummaries = organizations
             .Select(org => BuildSummary(
                 jobs.Where(job => job.OrganizationId == org.Id).ToList(),
@@ -240,15 +254,18 @@ public static class ProductivityAnalyticsEndpoints
                 summary.OrganizationId,
                 organizationNames.GetValueOrDefault(summary.OrganizationId) ?? "Ukendt organisation",
                 summary.CaseCount,
+                summary.SubmittedCount,
                 summary.ApprovedCount,
                 summary.RejectedCaseCount,
                 summary.MedianCaseCreationSeconds,
                 summary.MedianCreationToFirstOpenHours,
+                summary.MedianCreationToSubmissionHours,
                 summary.MedianEmployeeFillMinutes,
                 summary.MedianCreationToApprovalDays,
                 summary.FirstPassApprovalRate,
-                summary.CompletedWithinOneDayRate,
+                summary.SubmittedWithin24HoursRate,
                 summary.CreationSampleSize,
+                summary.CreationToSubmissionSampleSize,
                 summary.EmployeeFillSampleSize,
                 summary.CycleSampleSize))
             .OrderByDescending(summary => summary.CaseCount)
@@ -287,9 +304,12 @@ public static class ProductivityAnalyticsEndpoints
         Guid? forcedOrganizationId = null)
     {
         var firstOpenHours = new List<double>();
+        var creationToSubmissionHours = new List<double>();
         var employeeFillMinutes = new List<double>();
         var cycleDays = new List<double>();
         var reviewHours = new List<double>();
+
+        var submittedCount = 0;
         var rejectionEventCount = 0;
         var rejectedCases = 0;
         var approvedCount = 0;
@@ -298,27 +318,38 @@ public static class ProductivityAnalyticsEndpoints
         foreach (var job in jobs)
         {
             firstAssignedViewByJob.TryGetValue(job.Id, out var firstAssignedView);
+
             if (firstAssignedView != default && firstAssignedView >= job.CreatedAt)
             {
                 firstOpenHours.Add((firstAssignedView - job.CreatedAt).TotalHours);
             }
 
             var events = statusesByJob.GetValueOrDefault(job.Id) ?? [];
-            var rejectionCountForJob = events.Count(evt => string.Equals(evt.Status, JobStatus.Rejected.ToString(), StringComparison.OrdinalIgnoreCase));
-            if (rejectionCountForJob == 0 && string.Equals(job.Status, JobStatus.Rejected.ToString(), StringComparison.OrdinalIgnoreCase))
+
+            var rejectionCountForJob = events.Count(evt =>
+                string.Equals(evt.AfterStatus, JobStatus.Rejected.ToString(), StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(evt.BeforeStatus, JobStatus.Rejected.ToString(), StringComparison.OrdinalIgnoreCase));
+
+            if (rejectionCountForJob == 0
+                && string.Equals(job.Status, JobStatus.Rejected.ToString(), StringComparison.OrdinalIgnoreCase))
             {
                 rejectionCountForJob = 1;
             }
 
             rejectionEventCount += rejectionCountForJob;
+
             if (rejectionCountForJob > 0)
             {
                 rejectedCases++;
             }
 
-            if (job.SubmittedAt is DateTimeOffset submittedAt)
+            if (job.SubmittedAt is DateTimeOffset submittedAt && submittedAt >= job.CreatedAt)
             {
+                submittedCount++;
+                creationToSubmissionHours.Add((submittedAt - job.CreatedAt).TotalHours);
+
                 DateTimeOffset? employeeStart = null;
+
                 if (job.SubmittedByUserId is Guid submittedBy
                     && firstViewByJobAndUser.TryGetValue((job.Id, submittedBy), out var submitterView))
                 {
@@ -329,7 +360,9 @@ public static class ProductivityAnalyticsEndpoints
                     employeeStart = firstAssignedView;
                 }
 
-                if (employeeStart.HasValue && submittedAt >= employeeStart.Value)
+                if (employeeStart.HasValue
+                    && submittedAt >= employeeStart.Value
+                    && employeeStart.Value >= job.CreatedAt)
                 {
                     employeeFillMinutes.Add((submittedAt - employeeStart.Value).TotalMinutes);
                 }
@@ -341,13 +374,14 @@ public static class ProductivityAnalyticsEndpoints
             }
 
             approvedCount++;
+
             if (rejectionCountForJob == 0)
             {
                 firstPassApprovedCount++;
             }
 
             var approvalTime = events
-                .Where(evt => string.Equals(evt.Status, JobStatus.Approved.ToString(), StringComparison.OrdinalIgnoreCase))
+                .Where(evt => string.Equals(evt.AfterStatus, JobStatus.Approved.ToString(), StringComparison.OrdinalIgnoreCase))
                 .Select(evt => (DateTimeOffset?)evt.CreatedAt)
                 .LastOrDefault() ?? job.UpdatedAt;
 
@@ -362,14 +396,18 @@ public static class ProductivityAnalyticsEndpoints
             }
         }
 
-        var currentlyRejectedCount = jobs.Count(job => string.Equals(job.Status, JobStatus.Rejected.ToString(), StringComparison.OrdinalIgnoreCase));
+        var currentlyRejectedCount = jobs.Count(job =>
+            string.Equals(job.Status, JobStatus.Rejected.ToString(), StringComparison.OrdinalIgnoreCase));
+
         var decidedCurrentCount = approvedCount + currentlyRejectedCount;
+
         var organizationId = forcedOrganizationId
             ?? jobs.Select(job => job.OrganizationId).FirstOrDefault();
 
         return new SuperAdminCaseFlowSummary(
             organizationId,
             jobs.Count,
+            submittedCount,
             approvedCount,
             rejectedCases,
             rejectionEventCount,
@@ -382,14 +420,24 @@ public static class ProductivityAnalyticsEndpoints
             Percentile(firstOpenHours, 0.50),
             Percentile(firstOpenHours, 0.90),
             firstOpenHours.Count,
-            firstOpenHours.Count > 0 ? (double)firstOpenHours.Count(value => value <= 24) / firstOpenHours.Count : null,
+            firstOpenHours.Count > 0
+                ? (double)firstOpenHours.Count(value => value <= 24) / firstOpenHours.Count
+                : null,
+            Percentile(creationToSubmissionHours, 0.50),
+            Percentile(creationToSubmissionHours, 0.90),
+            creationToSubmissionHours.Count,
+            creationToSubmissionHours.Count > 0
+                ? (double)creationToSubmissionHours.Count(value => value <= 24) / creationToSubmissionHours.Count
+                : null,
             Percentile(employeeFillMinutes, 0.50),
             Percentile(employeeFillMinutes, 0.90),
             employeeFillMinutes.Count,
             Percentile(cycleDays, 0.50),
             Percentile(cycleDays, 0.90),
             cycleDays.Count,
-            cycleDays.Count > 0 ? (double)cycleDays.Count(value => value <= 1) / cycleDays.Count : null,
+            cycleDays.Count > 0
+                ? (double)cycleDays.Count(value => value <= 1) / cycleDays.Count
+                : null,
             Percentile(reviewHours, 0.50),
             Percentile(reviewHours, 0.90),
             reviewHours.Count,
@@ -408,11 +456,17 @@ public static class ProductivityAnalyticsEndpoints
         return ordered[index];
     }
 
-    private static string? ReadStatus(string json)
+    private static string? ReadStatus(string? json)
     {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
         try
         {
             using var document = JsonDocument.Parse(json);
+
             foreach (var property in document.RootElement.EnumerateObject())
             {
                 if (string.Equals(property.Name, "status", StringComparison.OrdinalIgnoreCase)
@@ -424,7 +478,7 @@ public static class ProductivityAnalyticsEndpoints
         }
         catch (JsonException)
         {
-            // Ignore malformed historic telemetry and keep the dashboard available.
+            // Historic audit rows may contain malformed JSON; skip only that event.
         }
 
         return null;
@@ -435,11 +489,15 @@ public static class ProductivityAnalyticsEndpoints
         try
         {
             using var document = JsonDocument.Parse(json);
-            if (document.RootElement.TryGetProperty("durationSeconds", out var duration)
-                && duration.TryGetInt32(out var value)
-                && value is >= 1 and <= 86_400)
+
+            foreach (var property in document.RootElement.EnumerateObject())
             {
-                return value;
+                if (string.Equals(property.Name, "durationSeconds", StringComparison.OrdinalIgnoreCase)
+                    && property.Value.TryGetInt32(out var value)
+                    && value is >= 1 and <= 86_400)
+                {
+                    return value;
+                }
             }
         }
         catch (JsonException)
@@ -451,12 +509,28 @@ public static class ProductivityAnalyticsEndpoints
     }
 
     private sealed record OrganizationProjection(Guid Id, string Name);
-    private sealed record JobProjection(Guid Id, Guid OrganizationId, string Status, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, DateTimeOffset? SubmittedAt, Guid? SubmittedByUserId);
+    private sealed record JobProjection(
+        Guid Id,
+        Guid OrganizationId,
+        string Status,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset UpdatedAt,
+        DateTimeOffset? SubmittedAt,
+        Guid? SubmittedByUserId);
     private sealed record AssignmentProjection(Guid JobId, Guid UserId);
     private sealed record ViewProjection(Guid JobId, Guid UserId, DateTimeOffset ViewedAt);
-    private sealed record LifecycleEventProjection(Guid OrganizationId, Guid? ReportId, string AfterJson, DateTimeOffset CreatedAt);
+    private sealed record LifecycleEventProjection(
+        Guid OrganizationId,
+        Guid? ReportId,
+        string? BeforeJson,
+        string? AfterJson,
+        DateTimeOffset CreatedAt);
     private sealed record CreationMetricProjection(Guid OrganizationId, string AfterJson, DateTimeOffset CreatedAt);
-    private sealed record ParsedStatusEvent(Guid JobId, string? Status, DateTimeOffset CreatedAt);
+    private sealed record ParsedStatusEvent(
+        Guid JobId,
+        string? BeforeStatus,
+        string? AfterStatus,
+        DateTimeOffset CreatedAt);
     private sealed record ParsedCreationMetric(Guid OrganizationId, int? DurationSeconds);
 }
 
@@ -472,6 +546,7 @@ public sealed record SuperAdminCaseFlowAnalyticsResponse(
 public sealed record SuperAdminCaseFlowSummary(
     Guid OrganizationId,
     int CaseCount,
+    int SubmittedCount,
     int ApprovedCount,
     int RejectedCaseCount,
     int RejectionEventCount,
@@ -485,6 +560,10 @@ public sealed record SuperAdminCaseFlowSummary(
     double? P90CreationToFirstOpenHours,
     int FirstOpenSampleSize,
     double? StartedWithin24HoursRate,
+    double? MedianCreationToSubmissionHours,
+    double? P90CreationToSubmissionHours,
+    int CreationToSubmissionSampleSize,
+    double? SubmittedWithin24HoursRate,
     double? MedianEmployeeFillMinutes,
     double? P90EmployeeFillMinutes,
     int EmployeeFillSampleSize,
@@ -501,14 +580,17 @@ public sealed record SuperAdminCaseFlowOrganizationSummary(
     Guid OrganizationId,
     string OrganizationName,
     int CaseCount,
+    int SubmittedCount,
     int ApprovedCount,
     int RejectedCaseCount,
     double? MedianCaseCreationSeconds,
     double? MedianCreationToFirstOpenHours,
+    double? MedianCreationToSubmissionHours,
     double? MedianEmployeeFillMinutes,
     double? MedianCreationToApprovalDays,
     double? FirstPassApprovalRate,
-    double? CompletedWithinOneDayRate,
+    double? SubmittedWithin24HoursRate,
     int CreationSampleSize,
+    int CreationToSubmissionSampleSize,
     int EmployeeFillSampleSize,
     int CycleSampleSize);
