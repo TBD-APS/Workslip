@@ -17,6 +17,7 @@ import type {
 export type SuperAdminCaseFlowSummary = {
   organizationId: string;
   caseCount: number;
+  submittedCount: number;
   approvedCount: number;
   rejectedCaseCount: number;
   rejectionEventCount: number;
@@ -30,6 +31,10 @@ export type SuperAdminCaseFlowSummary = {
   p90CreationToFirstOpenHours: number | null;
   firstOpenSampleSize: number;
   startedWithin24HoursRate: number | null;
+  medianCreationToSubmissionHours: number | null;
+  p90CreationToSubmissionHours: number | null;
+  creationToSubmissionSampleSize: number;
+  submittedWithin24HoursRate: number | null;
   medianEmployeeFillMinutes: number | null;
   p90EmployeeFillMinutes: number | null;
   employeeFillSampleSize: number;
@@ -47,15 +52,18 @@ export type SuperAdminCaseFlowOrganizationSummary = {
   organizationId: string;
   organizationName: string;
   caseCount: number;
+  submittedCount: number;
   approvedCount: number;
   rejectedCaseCount: number;
   medianCaseCreationSeconds: number | null;
   medianCreationToFirstOpenHours: number | null;
+  medianCreationToSubmissionHours: number | null;
   medianEmployeeFillMinutes: number | null;
   medianCreationToApprovalDays: number | null;
   firstPassApprovalRate: number | null;
-  completedWithinOneDayRate: number | null;
+  submittedWithin24HoursRate: number | null;
   creationSampleSize: number;
+  creationToSubmissionSampleSize: number;
   employeeFillSampleSize: number;
   cycleSampleSize: number;
 };
