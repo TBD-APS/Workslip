@@ -86,6 +86,78 @@ public sealed class JobRejectionNotificationTests
         Assert.Equal(assignedUserId, Assert.Single(notifications.Denied).UserId);
     }
 
+    [Fact]
+    public async Task RejectingJob_SucceedsWhenNotificationQueueFailsAfterPersistence()
+    {
+        var organizationId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var submitterId = Guid.NewGuid();
+        var repository = new RejectionJobRepository(
+            CreateJob(organizationId, JobStatus.InReview, [new AssignedUserResponse(adminId, "Admin")]),
+            submitterId);
+        var assignments = new RecordingAssignmentRepository(
+            organizationId,
+            new AssignedUserResponse(submitterId, "Montør"));
+        var notifications = new RecordingNotificationService(throwOnDenied: true);
+
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddHybridCache();
+        using var services = serviceCollection.BuildServiceProvider();
+        var service = CreateService(
+            repository,
+            assignments,
+            notifications,
+            services.GetRequiredService<HybridCache>(),
+            new TestCurrentUserContext(adminId, organizationId, Roles.Admin));
+
+        var result = await service.ChangeStatusAsync(
+            repository.Job.Id,
+            new ChangeJobStatusRequest(JobStatus.Rejected, "Ret dokumentationen"),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(JobStatus.Rejected, repository.Job.Status);
+        Assert.Equal("Ret dokumentationen", repository.Job.RejectionNote);
+        Assert.Equal([submitterId], assignments.LastAssignedUserIds);
+        Assert.Empty(notifications.Denied);
+    }
+
+    [Fact]
+    public async Task RetryingPersistedRejection_ReconcilesSubmitterAssignmentAndQueuesRecoveryNotification()
+    {
+        var organizationId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var submitterId = Guid.NewGuid();
+        var submitter = new AssignedUserResponse(submitterId, "Montør");
+        var repository = new RejectionJobRepository(
+            CreateJob(organizationId, JobStatus.Rejected, [new AssignedUserResponse(adminId, "Admin")]),
+            submitterId);
+        var assignments = new RecordingAssignmentRepository(organizationId, submitter, repository);
+        var notifications = new RecordingNotificationService();
+
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddHybridCache();
+        using var services = serviceCollection.BuildServiceProvider();
+        var service = CreateService(
+            repository,
+            assignments,
+            notifications,
+            services.GetRequiredService<HybridCache>(),
+            new TestCurrentUserContext(adminId, organizationId, Roles.Admin));
+
+        var result = await service.ChangeStatusAsync(
+            repository.Job.Id,
+            new ChangeJobStatusRequest(JobStatus.Rejected, "Ret dokumentationen"),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal([submitterId], assignments.LastAssignedUserIds);
+        Assert.Equal(submitterId, Assert.Single(repository.Job.AssignedUsers).Id);
+        var denied = Assert.Single(notifications.Denied);
+        Assert.Equal(submitterId, denied.UserId);
+        Assert.Equal("Ret dokumentationen", denied.RejectionNote);
+    }
+
     private static JobService CreateService(
         IJobRepository repository,
         IAssignmentRepository assignments,
@@ -171,10 +243,14 @@ public sealed class JobRejectionNotificationTests
             string? rejectionNote,
             CancellationToken cancellationToken)
         {
+            var changed = Job.Status != nextStatus;
             Job = Job with { Status = nextStatus, RejectionNote = rejectionNote };
             return Task.FromResult<JobTransitionResult?>(
-                new JobTransitionResult(Job, true, submittedByUserId));
+                new JobTransitionResult(Job, changed, submittedByUserId));
         }
+
+        public void SetAssignedUsers(IReadOnlyList<AssignedUserResponse> assignedUsers) =>
+            Job = Job with { AssignedUsers = assignedUsers };
 
         public Task<IReadOnlyList<JobHistoryResponse>?> GetEventsAsync(
             Guid id,
@@ -197,7 +273,8 @@ public sealed class JobRejectionNotificationTests
 
     private sealed class RecordingAssignmentRepository(
         Guid organizationId,
-        AssignedUserResponse? submitter) : IAssignmentRepository
+        AssignedUserResponse? submitter,
+        RejectionJobRepository? jobRepository = null) : IAssignmentRepository
     {
         public IReadOnlyList<Guid>? LastAssignedUserIds { get; private set; }
 
@@ -205,6 +282,10 @@ public sealed class JobRejectionNotificationTests
         {
             Assert.Equal(organizationId, requestedOrganizationId);
             LastAssignedUserIds = userIds.ToArray();
+            if (jobRepository is not null && submitter is not null && userIds.Contains(submitter.Id))
+            {
+                jobRepository.SetAssignedUsers([submitter]);
+            }
             return Task.CompletedTask;
         }
 
@@ -253,12 +334,17 @@ public sealed class JobRejectionNotificationTests
         public Task<IReadOnlyList<MyWorksheetEntryResponse>> GetAllWorksheetsAsync(Guid organizationId, DateOnly monthStart, DateOnly monthEnd, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
-    private sealed class RecordingNotificationService : INotificationService
+    private sealed class RecordingNotificationService(bool throwOnDenied = false) : INotificationService
     {
         public List<DeniedCall> Denied { get; } = [];
 
         public Task QueueJobDeniedAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, string? rejectionNote, CancellationToken cancellationToken)
         {
+            if (throwOnDenied)
+            {
+                throw new InvalidOperationException("notification queue unavailable");
+            }
+
             Denied.Add(new DeniedCall(userId, recipientName, rejectionNote));
             return Task.CompletedTask;
         }
