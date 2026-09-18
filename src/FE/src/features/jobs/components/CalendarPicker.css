@@ -4,13 +4,14 @@
 }
 
 .calendar-picker-grid {
+  align-items: center;
   min-width: 0;
+  overflow: hidden;
 }
 
 .calendar-picker-day {
-  width: 100%;
-  min-width: 0;
   min-height: 44px;
+  line-height: 1;
 }
 
 /* A chosen date is selection state, so it uses the central petrol token. */
@@ -36,13 +37,13 @@
   outline-offset: 2px;
 }
 
-@media (max-width: 639px) {
+@media (max-width: 899px) {
   .calendar-picker-popover {
     position: relative;
     top: auto;
     left: auto;
-    width: 100%;
-    max-width: 100%;
+    width: min(22rem, calc(100vw - 4rem));
+    max-width: none;
     margin-top: 0.4rem;
   }
 }

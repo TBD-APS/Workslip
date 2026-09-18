@@ -338,6 +338,48 @@ async function addWorksheetViaUi(session, user, hours) {
     }
   }
 
+  const datePickerTrigger = page.locator('#worksheet-add-form-date-picker-trigger');
+  await datePickerTrigger.click();
+  const datePicker = page.locator('#worksheet-add-form-date-picker-popover');
+  await datePicker.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  const calendarGeometry = await datePicker.evaluate((popover) => {
+    const weekdays = Array.from(popover.querySelectorAll('.calendar-picker-weekdays > span'));
+    const days = Array.from(popover.querySelectorAll('.calendar-picker-day'));
+    const grid = popover.querySelector('.calendar-picker-grid');
+    if (!(grid instanceof HTMLElement) || weekdays.length !== 7 || days.length === 0) {
+      throw new Error('Calendar grid did not expose seven weekday columns and visible dates.');
+    }
+
+    const weekdayCenters = weekdays.map((weekday) => {
+      const box = weekday.getBoundingClientRect();
+      return box.left + box.width / 2;
+    });
+    const deltas = days.map((day) => {
+      const column = Number(day.getAttribute('data-calendar-column'));
+      const box = day.getBoundingClientRect();
+      return Math.abs((box.left + box.width / 2) - weekdayCenters[column]);
+    });
+    const popoverBox = popover.getBoundingClientRect();
+
+    return {
+      maxColumnDelta: Math.max(...deltas),
+      gridOverflow: grid.scrollWidth - grid.clientWidth,
+      popoverLeft: popoverBox.left,
+      popoverRight: popoverBox.right,
+      viewportWidth: window.innerWidth,
+    };
+  });
+  if (calendarGeometry.maxColumnDelta > 0.75) {
+    throw new Error(`Calendar dates are offset from weekday columns by ${calendarGeometry.maxColumnDelta}px.`);
+  }
+  if (calendarGeometry.gridOverflow > 1) {
+    throw new Error(`Calendar grid overflows horizontally by ${calendarGeometry.gridOverflow}px.`);
+  }
+  if (calendarGeometry.popoverLeft < -1 || calendarGeometry.popoverRight > calendarGeometry.viewportWidth + 1) {
+    throw new Error('Calendar popover extends beyond the viewport.');
+  }
+  await page.keyboard.press('Escape');
+
   const hoursInput = page.locator('#worksheet-add-hours');
   await hoursInput.fill(hours);
   const submit = page.locator('#worksheet-add-submit');
