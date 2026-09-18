@@ -6,7 +6,7 @@ import urllib.request
 
 MARKER = '<!-- ai-delivery-state:v1 -->'
 VALID_STATES = {'IN_PROGRESS', 'READY', 'BLOCKED', 'FAILED', 'UNKNOWN'}
-PREFERRED_MODELS = ('kimi-k2.6', 'kimi-k2.5', 'kimi-k2', 'kimi-k1.5')
+PREFERRED_MODELS = ('kimi-k3', 'kimi-k2.7', 'kimi-k2.7-code', 'kimi-k2.6', 'kimi-k2.5', 'kimi-k2', 'kimi-k1.5')
 MAX_PATCH_CHARS = 50000
 
 REPO = os.environ['GITHUB_REPOSITORY']
@@ -153,11 +153,14 @@ def evaluate(context):
             {'role': 'system', 'content': system},
             {'role': 'user', 'content': json.dumps(context, ensure_ascii=False)},
         ],
-        'thinking': {'type': 'disabled'},
         'response_format': {'type': 'json_object'},
         'max_completion_tokens': 1800,
         'stream': False,
     }
+    if model.startswith('kimi-k3'):
+        # Kimi K3 always uses preserved thinking and rejects the legacy
+        # `thinking: disabled` payload used by older K2 models.
+        payload['reasoning_effort'] = 'low'
     api = request_json(
         MOONSHOT_BASE_URL + '/chat/completions',
         method='POST',
@@ -239,7 +242,8 @@ def main():
     try:
         result, model = evaluate(context)
     except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError, KeyError, json.JSONDecodeError) as exc:
-        result, model = default_result(f'AI completion evaluator failed safely: {type(exc).__name__}.'), 'unavailable'
+        status = f' HTTP {exc.code}' if isinstance(exc, urllib.error.HTTPError) else ''
+        result, model = default_result(f'AI completion evaluator failed safely: {type(exc).__name__}{status}.'), 'unavailable'
     print(json.dumps({'context_head': context['head_sha'], 'result': result, 'model': model}, ensure_ascii=False))
     upsert_comment(render(result, context, model))
 
