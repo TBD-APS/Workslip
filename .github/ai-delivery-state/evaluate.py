@@ -6,8 +6,8 @@ import urllib.request
 
 MARKER = '<!-- ai-delivery-state:v1 -->'
 VALID_STATES = {'IN_PROGRESS', 'READY', 'BLOCKED', 'FAILED', 'UNKNOWN'}
-PREFERRED_MODELS = ('kimi-k3', 'kimi-k2.7', 'kimi-k2.7-code', 'kimi-k2.6', 'kimi-k2.5', 'kimi-k2', 'kimi-k1.5')
-MAX_PATCH_CHARS = 50000
+PREFERRED_MODELS = ('kimi-k2.7-code', 'kimi-k3', 'kimi-k2.7-code-highspeed', 'kimi-k2.6')
+MAX_PATCH_CHARS = 20000
 
 REPO = os.environ['GITHUB_REPOSITORY']
 PR_NUMBER = int(os.environ['PR_NUMBER'])
@@ -50,19 +50,18 @@ def list_all(path):
         page += 1
 
 
-def select_kimi_model():
+def select_kimi_models():
     if not KIMI_API_KEY:
-        return None
+        return []
     models = request_json(
         MOONSHOT_BASE_URL + '/models',
         token=KIMI_API_KEY,
         headers={'Accept': 'application/json'},
     )
     available = [item.get('id', '') for item in models.get('data', []) if item.get('id', '').lower().startswith('kimi-')]
-    for preferred in PREFERRED_MODELS:
-        if preferred in available:
-            return preferred
-    return sorted(available, reverse=True)[0] if available else None
+    ordered = [model for model in PREFERRED_MODELS if model in available]
+    ordered.extend(model for model in sorted(available, reverse=True) if model not in ordered)
+    return ordered
 
 
 def compact_checks(head_sha):
@@ -129,8 +128,8 @@ def default_result(reason):
 
 
 def evaluate(context):
-    model = select_kimi_model()
-    if not model:
+    models = select_kimi_models()
+    if not models:
         return default_result('AI completion evaluator is unavailable or not configured.'), 'unavailable'
 
     system = (
@@ -147,28 +146,40 @@ def evaluate(context):
         'Return JSON only with keys state, finished, confidence, summary, remaining_work, blockers. '
         'state must be IN_PROGRESS, READY, BLOCKED, FAILED, or UNKNOWN. remaining_work and blockers must be arrays of concise strings.'
     )
-    payload = {
-        'model': model,
-        'messages': [
-            {'role': 'system', 'content': system},
-            {'role': 'user', 'content': json.dumps(context, ensure_ascii=False)},
-        ],
-        'response_format': {'type': 'json_object'},
-        'max_completion_tokens': 1800,
-        'stream': False,
-    }
-    if model.startswith('kimi-k3'):
-        # Kimi K3 always uses preserved thinking and rejects the legacy
-        # `thinking: disabled` payload used by older K2 models.
-        payload['reasoning_effort'] = 'low'
-    api = request_json(
-        MOONSHOT_BASE_URL + '/chat/completions',
-        method='POST',
-        token=KIMI_API_KEY,
-        data=payload,
-        headers={'Accept': 'application/json'},
-        timeout=180,
-    )
+    api = None
+    model = None
+    last_error = None
+    for candidate in models:
+        payload = {
+            'model': candidate,
+            'messages': [
+                {'role': 'system', 'content': system},
+                {'role': 'user', 'content': json.dumps(context, ensure_ascii=False)},
+            ],
+            'response_format': {'type': 'json_object'},
+            'max_completion_tokens': 800,
+            'stream': False,
+        }
+        if candidate.startswith('kimi-k3'):
+            payload['reasoning_effort'] = 'low'
+        try:
+            api = request_json(
+                MOONSHOT_BASE_URL + '/chat/completions',
+                method='POST',
+                token=KIMI_API_KEY,
+                data=payload,
+                headers={'Accept': 'application/json'},
+                timeout=180,
+            )
+            model = candidate
+            break
+        except urllib.error.HTTPError as exc:
+            last_error = exc
+            if exc.code not in {400, 404, 429}:
+                raise
+
+    if api is None or model is None:
+        raise last_error or RuntimeError('No Kimi model accepted the evaluation request.')
     result = json.loads(api['choices'][0]['message']['content'])
     state = str(result.get('state', 'UNKNOWN')).upper()
     if state not in VALID_STATES:
