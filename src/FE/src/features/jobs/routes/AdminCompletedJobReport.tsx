@@ -576,7 +576,13 @@ export function AdminCompletedJobReport() {
           onGoToJobList={() => navigate('/app', { replace: true })}
           onGoToJob={() => {
             setCompletedAction(null);
-            navigate(`/app/completed/${job.id}`, { replace: true });
+            // A reopened case is editable again. Its primary exit must therefore
+            // enter the wizard, which also exposes the worksheet and case-delete
+            // flow once dependent worksheets have been removed.
+            navigate(
+              completedAction === 'reopen' ? `/app/job/${job.id}` : `/app/completed/${job.id}`,
+              { replace: true, state: { from } },
+            );
           }}
         />
       )}
