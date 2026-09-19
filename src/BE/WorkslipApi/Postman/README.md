@@ -52,6 +52,18 @@ bash src/BE/WorkslipApi/Postman/run-hosted-integration.sh
 
 It requires Docker, .NET, Node.js, `curl` and `openssl`, all supplied by the GitHub-hosted job after its setup steps.
 
+### Approved-case correction regression
+
+The hosted runner also executes `job_correction.postman_collection.json` with synthetic Admin/User identities. It creates a Diverse case to isolate lifecycle routing from KLS form validation, submits it as the employee, reassigns it to the reviewer, approves and reopens it, then reads back the employee assignment and correction notification. It also checks that a repeated reopen does not duplicate the notification and that resubmission followed by rejection still notifies the employee.
+
+Run only this flow against a fresh, automatically cleaned-up local SQL/API environment:
+
+```bash
+WORKSLIP_POSTMAN_FOCUSED_CORRECTION_ONLY=true bash src/BE/WorkslipApi/Postman/run-hosted-integration.sh
+```
+
+This proves persisted in-app notification history, not delivery to a physical push device.
+
 ## Controlled external/local run
 
 `run-integration-tests.sh` can still execute the general collection against an explicitly supplied localhost or isolated staging target:
