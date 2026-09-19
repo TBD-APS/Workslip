@@ -3322,7 +3322,7 @@
   z-index: 25;
   top: calc(100% + 0.4rem);
   left: 0;
-  width: min(19rem, calc(100vw - 3rem));
+  width: min(22rem, calc(100vw - 3rem));
   padding: 0.75rem;
   background: var(--surface-modal);
   border: none;
@@ -3343,8 +3343,9 @@
 .calendar-picker-weekdays,
 .calendar-picker-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0.25rem;
+  width: 100%;
 }
 
 .calendar-picker-weekdays {
@@ -3354,8 +3355,22 @@
   text-align: center;
 }
 
+.calendar-picker-weekdays > span,
+.calendar-picker-grid > span {
+  box-sizing: border-box;
+  display: grid;
+  min-width: 0;
+  place-items: center;
+}
+
 .calendar-picker-day {
+  box-sizing: border-box;
+  display: grid;
+  width: 100%;
+  min-width: 0;
   min-height: 2rem;
+  padding: 0;
+  place-items: center;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -6116,4 +6131,3 @@
 .toast-shake.toast-shake-alt [data-content] {
   animation: toast-shake-b 0.4s ease;
 }
-

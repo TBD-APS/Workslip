@@ -226,6 +226,53 @@ export function AdminCompletedJobReport() {
       }
       setCompletedAction(finished);
     } catch {
+      // The status endpoint can fail after the database transition has committed
+      // (for example while routing a rejected case back to its submitter). Always
+      // reconcile with server state before telling the admin that nothing happened.
+      try {
+        const recovered = await jobQuery.refetch();
+        if (recovered.data?.status === targetStatus) {
+          let recoveredJob = recovered.data;
+
+          if (targetStatus === JobStatus.Rejected) {
+            try {
+              // Same-status rejection calls are intentionally idempotent in the
+              // backend and repair a submitter reassignment that failed after the
+              // original status commit.
+              recoveredJob = await statusMutation.mutateAsync({
+                id: job.id,
+                data: { status: targetStatus, rejectionNote: note },
+              });
+            } catch {
+              queryClient.setQueryData(getGetApiJobsIdQueryKey(job.id), recovered.data);
+              await queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
+              notify.error(
+                `Sagen ${formatReportNumber(job)} er afvist, men kunne ikke sendes tilbage til medarbejderen. Prøv afvisningen igen fra sagen.`,
+              );
+              setConfirmAction(null);
+              return;
+            }
+          }
+
+          queryClient.setQueryData(getGetApiJobsIdQueryKey(job.id), recoveredJob);
+          await queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
+          const finished = confirmAction;
+          setConfirmAction(null);
+
+          if (finished === 'withdraw') {
+            notify.success(`Sagen ${formatReportNumber(job)} er trukket tilbage og kan redigeres.`);
+            navigate(`/app/job/${job.id}`, { replace: true, state: { from } });
+            return;
+          }
+
+          setCompletedAction(finished);
+          return;
+        }
+      } catch {
+        // If reconciliation itself fails, preserve the established user-facing
+        // error below. The next normal query refresh will still reconcile state.
+      }
+
       const message = confirmAction === 'undo-reject'
         ? 'Kunne ikke fortryde afvisningen. Prøv igen.'
         : confirmAction === 'withdraw'

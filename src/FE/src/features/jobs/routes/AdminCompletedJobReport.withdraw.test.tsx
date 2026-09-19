@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   status: 'InReview',
   assignedUsers: [{ id: 'user-1', displayName: 'Bruger Et' }] as { id: string; displayName: string }[],
   mutateAsync: vi.fn(),
+  refetch: vi.fn(),
   notifySuccess: vi.fn(),
   notifyError: vi.fn(),
 }));
@@ -33,7 +34,7 @@ vi.mock('../../../api/generated/jobs/jobs', () => ({
     },
     isLoading: false,
     isError: false,
-    refetch: vi.fn(),
+    refetch: mocks.refetch,
   }),
   useGetApiJobsIdHistory: () => ({ data: [] }),
   usePostApiJobsIdStatus: () => ({ isPending: false, mutateAsync: mocks.mutateAsync }),
@@ -91,6 +92,7 @@ describe('AdminCompletedJobReport withdraw from review', () => {
     mocks.status = 'InReview';
     mocks.assignedUsers = [{ id: 'user-1', displayName: 'Bruger Et' }];
     mocks.mutateAsync.mockReset();
+    mocks.refetch.mockReset();
     mocks.notifySuccess.mockReset();
     mocks.notifyError.mockReset();
   });
@@ -112,6 +114,33 @@ describe('AdminCompletedJobReport withdraw from review', () => {
     expect(mocks.mutateAsync).toHaveBeenCalledWith({ id: 'job-1', data: { status: 'Draft', rejectionNote: null } });
     expect(await screen.findByText('editor:/app/job/job-1:from=/app/timer')).toBeInTheDocument();
     expect(mocks.notifySuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it('recovers a rejection that was persisted before post-commit routing failed', async () => {
+    mocks.isAdmin = true;
+    mocks.mutateAsync
+      .mockRejectedValueOnce(new Error('post-commit routing failure'))
+      .mockResolvedValueOnce({ id: 'job-1', status: 'Rejected' });
+    mocks.refetch.mockResolvedValue({ data: { id: 'job-1', status: 'Rejected' } });
+    renderReport();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Afvis' }));
+    fireEvent.change(screen.getByLabelText('Begrundelse for afvisning'), {
+      target: { value: 'Mangler dokumentation' },
+    });
+    const rejectButtons = screen.getAllByRole('button', { name: 'Afvis' });
+    await act(async () => {
+      fireEvent.click(rejectButtons[rejectButtons.length - 1]);
+    });
+
+    expect(mocks.refetch).toHaveBeenCalledTimes(1);
+    expect(mocks.mutateAsync).toHaveBeenCalledTimes(2);
+    expect(mocks.mutateAsync).toHaveBeenNthCalledWith(2, {
+      id: 'job-1',
+      data: { status: 'Rejected', rejectionNote: 'Mangler dokumentation' },
+    });
+    expect(mocks.notifyError).not.toHaveBeenCalled();
+    expect(await screen.findByRole('heading', { name: 'Sagen er afvist' })).toBeInTheDocument();
   });
 
   it('offers withdraw to admins even when they are not assigned', () => {

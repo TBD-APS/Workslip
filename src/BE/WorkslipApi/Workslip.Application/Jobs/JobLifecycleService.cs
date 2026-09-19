@@ -12,8 +12,8 @@ namespace Workslip.Application.Jobs;
 
 /// <summary>
 /// Coordinates job status changes after the product-facing authorization boundary.
-/// Persistence, cache invalidation and notification ordering intentionally match the
-/// previous JobService behavior; durability/outbox semantics are outside this seam.
+/// Persistence remains the lifecycle source of truth. Post-commit cache and notification
+/// failures must not make an already-persisted status transition look unsuccessful to the caller.
 /// </summary>
 public sealed class JobLifecycleService(
     IJobRepository jobRepository,
@@ -109,26 +109,54 @@ public sealed class JobLifecycleService(
         }
 
         var report = transition.Report;
+        RejectedRoutingResult? rejectedRouting = null;
+        if (targetStatus == JobStatus.Rejected)
+        {
+            rejectedRouting = await RouteRejectedJobAsync(
+                transition,
+                report,
+                organizationId.Value,
+                actorId.Value,
+                cancellationToken);
+            report = rejectedRouting.Report;
+        }
+
+        var address = report.DestinationAddress ?? report.Customer?.Address ?? "Ingen adresse angivet";
+        var reportNumber = report.ReportNumber ?? "Uden nummer";
+
         if (!transition.Changed)
         {
+            // A previous rejection attempt can have persisted the status before the
+            // submitter reassignment completed. Same-status retries therefore repair
+            // that routing instead of becoming a no-op.
+            if (rejectedRouting is { RoutingChanged: true } recoveredRouting)
+            {
+                await TryInvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
+                await QueueRejectedNotificationsBestEffortAsync(
+                    recoveredRouting.Recipients,
+                    report,
+                    reportNumber,
+                    address,
+                    rejectionNote ?? report.RejectionNote,
+                    actorId.Value,
+                    cancellationToken);
+            }
+
             logger.LogInformation(
-                "Duplicate job transition ignored. JobId: {JobId}. TargetStatus: {TargetStatus}. ActorId: {ActorId}.",
+                "Duplicate job transition ignored after lifecycle reconciliation. JobId: {JobId}. TargetStatus: {TargetStatus}. ActorId: {ActorId}.",
                 report.Id,
                 targetStatus,
                 actorId);
             return await ToSummaryResultAsync(report, cancellationToken);
         }
 
-        await InvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
+        await TryInvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
         logger.LogInformation(
             "Job transitioned. JobId: {JobId}. OrganizationId: {OrganizationId}. TargetStatus: {TargetStatus}. ActorId: {ActorId}.",
             report.Id,
             report.OrganizationId,
             targetStatus,
             actorId);
-
-        var address = report.DestinationAddress ?? report.Customer?.Address ?? "Ingen adresse angivet";
-        var reportNumber = report.ReportNumber ?? "Uden nummer";
 
         if (targetStatus == JobStatus.InReview)
         {
@@ -157,70 +185,20 @@ public sealed class JobLifecycleService(
                 report.Id,
                 queuedNotificationCount);
         }
-        else if (targetStatus == JobStatus.Rejected)
+        else if (targetStatus == JobStatus.Rejected && rejectedRouting is { } routing)
         {
-            IReadOnlyList<AssignedUserResponse> recipients = [];
-
-            if (transition.SubmittedByUserId is Guid submitterId)
-            {
-                recipients = await assignmentRepository.GetAssignedUsersByIdsAsync(
-                    organizationId.Value,
-                    [submitterId],
-                    cancellationToken);
-
-                if (recipients.Count == 1)
-                {
-                    await assignmentRepository.AssignAsync(
-                        report.Id,
-                        organizationId.Value,
-                        [submitterId],
-                        actorId,
-                        cancellationToken);
-                    report = await jobRepository.GetSingleJobAsync(
-                        id,
-                        organizationId.Value,
-                        cancellationToken) ?? report;
-                    logger.LogInformation(
-                        "Job reassigned to persisted submitter on rejection. JobId: {JobId}. SubmitterId: {SubmitterId}.",
-                        id,
-                        submitterId);
-                }
-                else
-                {
-                    logger.LogWarning(
-                        "Persisted submitter was not found in the job organization. JobId: {JobId}. SubmitterId: {SubmitterId}. OrganizationId: {OrganizationId}.",
-                        id,
-                        submitterId,
-                        organizationId.Value);
-                }
-            }
-
-            if (recipients.Count == 0)
-            {
-                recipients = report.AssignedUsers
-                    .Where(user => user.Id != actorId)
-                    .DistinctBy(user => user.Id)
-                    .ToArray();
-                logger.LogWarning(
-                    "Rejected job has no valid persisted submitter. Falling back to current assignees. JobId: {JobId}. RecipientCount: {RecipientCount}.",
-                    id,
-                    recipients.Count);
-            }
-
-            foreach (var recipient in recipients)
-            {
-                if (recipient.Id == actorId)
-                    continue;
-
-                await notificationService.QueueJobDeniedAsync(
-                    recipient.Id,
-                    recipient.DisplayName,
-                    report.Id,
-                    reportNumber,
-                    address,
-                    rejectionNote,
-                    cancellationToken);
-            }
+            // Reassignment is part of correction routing and must succeed. Notification
+            // queueing is post-commit delivery work and is deliberately best-effort:
+            // a queue outage must not turn a persisted rejection into a false API failure.
+            await TryInvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
+            await QueueRejectedNotificationsBestEffortAsync(
+                routing.Recipients,
+                report,
+                reportNumber,
+                address,
+                rejectionNote,
+                actorId.Value,
+                cancellationToken);
         }
         else if (targetStatus == JobStatus.Approved)
         {
@@ -248,6 +226,111 @@ public sealed class JobLifecycleService(
         return await ToSummaryResultAsync(report, cancellationToken);
     }
 
+    private async Task<RejectedRoutingResult> RouteRejectedJobAsync(
+        JobTransitionResult transition,
+        JobReportResponse report,
+        Guid organizationId,
+        Guid actorId,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<AssignedUserResponse> recipients = [];
+        var routingChanged = false;
+
+        if (transition.SubmittedByUserId is Guid submitterId)
+        {
+            recipients = await assignmentRepository.GetAssignedUsersByIdsAsync(
+                organizationId,
+                [submitterId],
+                cancellationToken);
+
+            if (recipients.Count == 1)
+            {
+                var wasAlreadyRouted =
+                    report.AssignedUsers.Count == 1 &&
+                    report.AssignedUsers[0].Id == submitterId;
+
+                await assignmentRepository.AssignAsync(
+                    report.Id,
+                    organizationId,
+                    [submitterId],
+                    actorId,
+                    cancellationToken);
+
+                report = await jobRepository.GetSingleJobAsync(
+                    report.Id,
+                    organizationId,
+                    cancellationToken) ?? report;
+                routingChanged = !wasAlreadyRouted;
+
+                logger.LogInformation(
+                    "Job routed to persisted submitter on rejection. JobId: {JobId}. SubmitterId: {SubmitterId}. RoutingChanged: {RoutingChanged}.",
+                    report.Id,
+                    submitterId,
+                    routingChanged);
+            }
+            else
+            {
+                logger.LogWarning(
+                    "Persisted submitter was not found in the job organization. JobId: {JobId}. SubmitterId: {SubmitterId}. OrganizationId: {OrganizationId}.",
+                    report.Id,
+                    submitterId,
+                    organizationId);
+            }
+        }
+
+        if (recipients.Count == 0)
+        {
+            recipients = report.AssignedUsers
+                .Where(user => user.Id != actorId)
+                .DistinctBy(user => user.Id)
+                .ToArray();
+            logger.LogWarning(
+                "Rejected job has no valid persisted submitter. Falling back to current assignees. JobId: {JobId}. RecipientCount: {RecipientCount}.",
+                report.Id,
+                recipients.Count);
+        }
+
+        return new RejectedRoutingResult(report, recipients, routingChanged);
+    }
+
+    private async Task QueueRejectedNotificationsBestEffortAsync(
+        IReadOnlyList<AssignedUserResponse> recipients,
+        JobReportResponse report,
+        string reportNumber,
+        string address,
+        string? rejectionNote,
+        Guid actorId,
+        CancellationToken cancellationToken)
+    {
+        foreach (var recipient in recipients)
+        {
+            if (recipient.Id == actorId)
+                continue;
+
+            try
+            {
+                await notificationService.QueueJobDeniedAsync(
+                    recipient.Id,
+                    recipient.DisplayName,
+                    report.Id,
+                    reportNumber,
+                    address,
+                    rejectionNote,
+                    cancellationToken);
+            }
+            catch (Exception exception) when (
+                exception is not OperationCanceledException ||
+                !cancellationToken.IsCancellationRequested)
+            {
+                logger.LogError(
+                    exception,
+                    "Job rejection persisted but rejection notification could not be queued. JobId: {JobId}. RecipientId: {RecipientId}.",
+                    report.Id,
+                    recipient.Id);
+            }
+        }
+    }
+
     private async Task<Result<JobReportSummaryResponse>> ToSummaryResultAsync(
         JobReportResponse report,
         CancellationToken cancellationToken)
@@ -262,14 +345,32 @@ public sealed class JobLifecycleService(
             JobReportSummaryMapper.ToSummary(report, referenceData!, worksheets, currentUser));
     }
 
-    private async Task InvalidateJobCachesAsync(
+    private async Task TryInvalidateJobCachesAsync(
         Guid id,
         Guid organizationId,
         CancellationToken cancellationToken)
     {
-        await cache.RemoveByTagAsync(JobListTag(organizationId), cancellationToken);
-        await cache.RemoveByTagAsync(JobReportTag(id, organizationId), cancellationToken);
+        try
+        {
+            await cache.RemoveByTagAsync(JobListTag(organizationId), cancellationToken);
+            await cache.RemoveByTagAsync(JobReportTag(id, organizationId), cancellationToken);
+        }
+        catch (Exception exception) when (
+            exception is not OperationCanceledException ||
+            !cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(
+                exception,
+                "Job transition persisted but cache invalidation failed. JobId: {JobId}. OrganizationId: {OrganizationId}.",
+                id,
+                organizationId);
+        }
     }
+
+    private sealed record RejectedRoutingResult(
+        JobReportResponse Report,
+        IReadOnlyList<AssignedUserResponse> Recipients,
+        bool RoutingChanged);
 
     private static List<ValidationError> MapValidationErrors(ValidationResult result) =>
         result.Errors
