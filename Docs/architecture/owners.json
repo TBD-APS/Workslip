@@ -59,21 +59,6 @@
         "tenant-isolation"
       ],
       "summary": "Workslip backend/API implementation and server-side authorization boundary."
-    },
-    "agent.runtime": {
-      "path": "platform/mr-saasy-control-plane",
-      "instructions": "platform/mr-saasy-control-plane/AGENTS.md",
-      "intents": [
-        "agent-runtime",
-        "agent-routing",
-        "ai-provider",
-        "model-routing",
-        "agent-orchestration",
-        "documentation-agent",
-        "documentation-steward",
-        "documentation-automation"
-      ],
-      "summary": "Provider-neutral MR SAAS'y agent/control-plane runtime boundary."
     }
   }
 }
