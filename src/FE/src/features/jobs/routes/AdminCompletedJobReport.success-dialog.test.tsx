@@ -4,7 +4,10 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminCompletedJobReport } from './AdminCompletedJobReport';
 
-const mocks = vi.hoisted(() => ({ mutateAsync: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  mutateAsync: vi.fn(),
+  status: 'InReview',
+}));
 
 vi.mock('../../../api/generated/jobs/jobs', () => ({
   getGetApiJobsIdQueryKey: (id: string) => ['job', id],
@@ -12,7 +15,7 @@ vi.mock('../../../api/generated/jobs/jobs', () => ({
   useGetApiJobsId: () => ({
     data: {
       id: 'job-1',
-      status: 'InReview',
+      status: mocks.status,
       jobType: 'KLS',
       destinationAddress: 'Testvej 1',
       customerSnapshot: { name: 'Testkunde', address: null },
@@ -59,7 +62,11 @@ vi.mock('../components/ControlPointOverview', () => ({
 }));
 vi.mock('../../images/JobImagesSection', () => ({ JobImagesSection: () => null }));
 
-async function approveAndOpenSuccessDialog() {
+function CaseEditorProbe() {
+  return <h1>Rediger sag</h1>;
+}
+
+async function renderAndOpenSuccessDialog(action: 'approve' | 'reopen') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
   render(
@@ -67,20 +74,26 @@ async function approveAndOpenSuccessDialog() {
       <MemoryRouter initialEntries={['/app/completed/job-1']}>
         <Routes>
           <Route path="/app/completed/:id" element={<AdminCompletedJobReport />} />
+          <Route path="/app/job/:id" element={<CaseEditorProbe />} />
           <Route path="/app" element={<h1>Forside</h1>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
 
-  fireEvent.click(screen.getByRole('button', { name: 'Godkend' }));
+  fireEvent.click(screen.getByRole('button', { name: action === 'approve' ? 'Godkend' : 'Genåbn sag' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Bekræft handling' }));
 
-  return screen.findByRole('dialog', { name: 'Sagen er godkendt' });
+  return screen.findByRole('dialog', { name: action === 'approve' ? 'Sagen er godkendt' : 'Sagen er genåbnet' });
+}
+
+async function approveAndOpenSuccessDialog() {
+  return renderAndOpenSuccessDialog('approve');
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.status = 'InReview';
   mocks.mutateAsync.mockResolvedValue({ id: 'job-1', status: 'Approved' });
 });
 
@@ -115,5 +128,16 @@ describe('AdminCompletedJobReport action success dialog', () => {
     fireEvent.keyDown(document, { key: 'Tab' });
 
     expect(dialog.contains(document.activeElement)).toBe(true);
+  });
+
+  it('opens a reopened case in the editor so its correction and deletion flow is available', async () => {
+    mocks.status = 'Approved';
+    mocks.mutateAsync.mockResolvedValue({ id: 'job-1', status: 'Reopened' });
+
+    await renderAndOpenSuccessDialog('reopen');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Til sagen' }));
+
+    expect(await screen.findByRole('heading', { name: 'Rediger sag' })).toBeInTheDocument();
   });
 });
