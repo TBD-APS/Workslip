@@ -109,16 +109,18 @@ public sealed class JobLifecycleService(
         }
 
         var report = transition.Report;
-        RejectedRoutingResult? rejectedRouting = null;
-        if (targetStatus == JobStatus.Rejected)
+        CorrectionRoutingResult? correctionRouting = null;
+        // Returning an approved job for correction uses Reopened, but needs the same
+        // submitter assignment and correction notification as a rejection.
+        if (targetStatus is JobStatus.Rejected or JobStatus.Reopened)
         {
-            rejectedRouting = await RouteRejectedJobAsync(
+            correctionRouting = await RouteJobForCorrectionAsync(
                 transition,
                 report,
                 organizationId.Value,
                 actorId.Value,
                 cancellationToken);
-            report = rejectedRouting.Report;
+            report = correctionRouting.Report;
         }
 
         var address = report.DestinationAddress ?? report.Customer?.Address ?? "Ingen adresse angivet";
@@ -126,13 +128,13 @@ public sealed class JobLifecycleService(
 
         if (!transition.Changed)
         {
-            // A previous rejection attempt can have persisted the status before the
+            // A previous correction attempt can have persisted the status before the
             // submitter reassignment completed. Same-status retries therefore repair
             // that routing instead of becoming a no-op.
-            if (rejectedRouting is { RoutingChanged: true } recoveredRouting)
+            if (correctionRouting is { RoutingChanged: true } recoveredRouting)
             {
                 await TryInvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
-                await QueueRejectedNotificationsBestEffortAsync(
+                await QueueCorrectionNotificationsBestEffortAsync(
                     recoveredRouting.Recipients,
                     report,
                     reportNumber,
@@ -185,13 +187,13 @@ public sealed class JobLifecycleService(
                 report.Id,
                 queuedNotificationCount);
         }
-        else if (targetStatus == JobStatus.Rejected && rejectedRouting is { } routing)
+        else if (correctionRouting is { } routing)
         {
             // Reassignment is part of correction routing and must succeed. Notification
             // queueing is post-commit delivery work and is deliberately best-effort:
             // a queue outage must not turn a persisted rejection into a false API failure.
             await TryInvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
-            await QueueRejectedNotificationsBestEffortAsync(
+            await QueueCorrectionNotificationsBestEffortAsync(
                 routing.Recipients,
                 report,
                 reportNumber,
@@ -226,7 +228,7 @@ public sealed class JobLifecycleService(
         return await ToSummaryResultAsync(report, cancellationToken);
     }
 
-    private async Task<RejectedRoutingResult> RouteRejectedJobAsync(
+    private async Task<CorrectionRoutingResult> RouteJobForCorrectionAsync(
         JobTransitionResult transition,
         JobReportResponse report,
         Guid organizationId,
@@ -263,7 +265,7 @@ public sealed class JobLifecycleService(
                 routingChanged = !wasAlreadyRouted;
 
                 logger.LogInformation(
-                    "Job routed to persisted submitter on rejection. JobId: {JobId}. SubmitterId: {SubmitterId}. RoutingChanged: {RoutingChanged}.",
+                    "Job routed to persisted submitter for correction. JobId: {JobId}. SubmitterId: {SubmitterId}. RoutingChanged: {RoutingChanged}.",
                     report.Id,
                     submitterId,
                     routingChanged);
@@ -285,15 +287,15 @@ public sealed class JobLifecycleService(
                 .DistinctBy(user => user.Id)
                 .ToArray();
             logger.LogWarning(
-                "Rejected job has no valid persisted submitter. Falling back to current assignees. JobId: {JobId}. RecipientCount: {RecipientCount}.",
+                "Job returned for correction has no valid persisted submitter. Falling back to current assignees. JobId: {JobId}. RecipientCount: {RecipientCount}.",
                 report.Id,
                 recipients.Count);
         }
 
-        return new RejectedRoutingResult(report, recipients, routingChanged);
+        return new CorrectionRoutingResult(report, recipients, routingChanged);
     }
 
-    private async Task QueueRejectedNotificationsBestEffortAsync(
+    private async Task QueueCorrectionNotificationsBestEffortAsync(
         IReadOnlyList<AssignedUserResponse> recipients,
         JobReportResponse report,
         string reportNumber,
@@ -324,7 +326,7 @@ public sealed class JobLifecycleService(
             {
                 logger.LogError(
                     exception,
-                    "Job rejection persisted but rejection notification could not be queued. JobId: {JobId}. RecipientId: {RecipientId}.",
+                    "Job correction status persisted but correction notification could not be queued. JobId: {JobId}. RecipientId: {RecipientId}.",
                     report.Id,
                     recipient.Id);
             }
@@ -367,7 +369,7 @@ public sealed class JobLifecycleService(
         }
     }
 
-    private sealed record RejectedRoutingResult(
+    private sealed record CorrectionRoutingResult(
         JobReportResponse Report,
         IReadOnlyList<AssignedUserResponse> Recipients,
         bool RoutingChanged);
