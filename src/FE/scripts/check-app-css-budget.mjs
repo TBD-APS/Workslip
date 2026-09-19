@@ -2,7 +2,11 @@ import { readFile } from 'node:fs/promises';
 import process from 'node:process';
 
 const APP_CSS_PATH = new URL('../src/App.css', import.meta.url);
-const MAX_APP_CSS_BYTES = 117_000;
+// Ratchet, not a target: App.css is a legacy monolith being migrated away from,
+// so this ceiling only ever moves down. Lower it to the measured size in the same
+// change whenever a deletion reclaims bytes; never raise it to make room for new
+// styling — that styling belongs in its owning feature/layout stylesheet.
+const MAX_APP_CSS_BYTES = 103_767;
 
 const source = await readFile(APP_CSS_PATH);
 

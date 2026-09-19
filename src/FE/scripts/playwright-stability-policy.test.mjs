@@ -70,28 +70,32 @@ test('blocks directly awaited API response helpers', () => {
   assert.ok(findings.some((finding) => finding.rule === 'passive-api-response-wait'));
 });
 
+// The scenario names in these three cases are fixtures, not a policy about any
+// one scenario: the rule is that every run_scenario line in the runner must
+// resolve to a script that exists, which is what a scenario deleted from the
+// checkout but left behind in the runner trips over.
 test('flags runner scenarios that have no script file on disk', () => {
   const runner = `
 run_scenario 'authenticated smoke' scripts/playwright-ephemeral-smoke.mjs
-run_scenario 'help wizard' scripts/playwright-help-wizard.mjs
+run_scenario 'retired scenario' scripts/playwright-retired-scenario.mjs
 `;
   const missing = findMissingRunnerScenarios(runner, ['playwright-ephemeral-smoke.mjs']);
-  assert.deepEqual(missing, ['playwright-help-wizard.mjs']);
+  assert.deepEqual(missing, ['playwright-retired-scenario.mjs']);
 });
 
 test('detects a missing scenario whose script path is on a continued line', () => {
   const runner = `
 run_scenario 'authenticated smoke' \\
-  scripts/playwright-help-wizard.mjs
+  scripts/playwright-retired-scenario.mjs
 `;
   const missing = findMissingRunnerScenarios(runner, ['playwright-ephemeral-smoke.mjs']);
-  assert.deepEqual(missing, ['playwright-help-wizard.mjs']);
+  assert.deepEqual(missing, ['playwright-retired-scenario.mjs']);
 });
 
 test('accepts a runner whose scenarios all resolve to files', () => {
   const runner = `run_scenario 'authenticated smoke' scripts/playwright-ephemeral-smoke.mjs`;
   assert.deepEqual(
-    findMissingRunnerScenarios(runner, ['playwright-ephemeral-smoke.mjs', 'playwright-help-wizard.mjs']),
+    findMissingRunnerScenarios(runner, ['playwright-ephemeral-smoke.mjs', 'playwright-retired-scenario.mjs']),
     [],
   );
 });

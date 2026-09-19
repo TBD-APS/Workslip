@@ -7,10 +7,7 @@ Visual QA adds deterministic screenshot evidence to the existing Playwright brow
 
 ## Current proof of concept
 
-The proof of concept was built against `#help-wizard` on desktop (1280px) and
-mobile (390px). That element has since been removed with the help-wizard
-feature, so the pilot needs a new subject element before it can be run again.
-The technique is unchanged and is described here against the original subject:
+No element is wired to the check today: the pilot's only scenario targeted the help wizard, which has been removed. The steps below describe how that scenario ran, on desktop (1280px) and mobile (390px):
 
 1. Playwright records the element bounding box and viewport.
 2. It captures a normal screenshot.

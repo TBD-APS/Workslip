@@ -59,21 +59,6 @@
   gap: 0.75rem;
 }
 
-.app-header-user {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.4rem 0.65rem;
-  border-radius: var(--radius-pill);
-  background: var(--surface-raised);
-  color: var(--text-muted);
-  font-size: var(--fs-sm);
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .app-header-settings {
   position: relative;
   flex-shrink: 0;
@@ -141,7 +126,29 @@
   }
 }
 
-/* Bottom Navigation */
+/* Bottom Navigation — the mobile-first bottom bar.
+ *
+ * This block used to end with `transform: none !important; transition: none
+ * !important`. That clamp was removed, and the removal has two consequences a
+ * reader should not have to rediscover from a diff:
+ *
+ * 1. Intended, and the reason for the removal: AppLayout.focus.css's phone
+ *    drawer (max-width: 767px) now declares its `transform`/`transition`
+ *    plainly. It previously had to repeat `!important` on four declarations
+ *    just to get out from under this one.
+ * 2. Newly enabled: AppLayout.desktop.css's `.bottom-nav { transition: width
+ *    160ms ease }` inside @media (min-width: 1120px) was silently suppressed by
+ *    the clamp and now applies, so collapsing or expanding the desktop rail
+ *    eases its width over 160ms instead of snapping. That is what desktop.css
+ *    asked for; it just never got it while this clamp was here.
+ *
+ * Reduced-motion users are unaffected: desktop.css's
+ * @media (prefers-reduced-motion: reduce) group lists .bottom-nav, and
+ * farvelab-theme.css clamps `transition-duration` to 0.01ms !important.
+ *
+ * Do not reintroduce !important here. This file owns the bar's base geometry;
+ * per-breakpoint motion belongs to the breakpoint's own stylesheet.
+ */
 .bottom-nav {
   position: fixed;
   bottom: 0;
@@ -157,8 +164,6 @@
   padding-top: 10px;
   padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
   z-index: 100;
-  transform: none !important;
-  transition: none !important;
 }
 
 .nav-item {

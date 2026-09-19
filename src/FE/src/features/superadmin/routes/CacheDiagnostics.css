@@ -565,16 +565,6 @@
   font-size: 0.7rem;
 }
 
-.cache-diagnostics-chip.is-success {
-  border-color: color-mix(in srgb, var(--cache-green) 34%, var(--border));
-  background: color-mix(in srgb, var(--cache-green) 8%, var(--surface));
-  color: var(--cache-green);
-}
-
-.cache-diagnostics-chip.is-muted {
-  opacity: 0.75;
-}
-
 .cache-diagnostics-table-wrap {
   position: relative;
   z-index: 1;

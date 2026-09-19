@@ -48,7 +48,10 @@ html body:has(.app-shell) :is(.overview-recent-row, .data-table tbody tr):focus-
  * needs the marine foreground there. Destructive and selected controls keep a
  * white foreground where their semantic background requires it. */
 html body:has(.app-shell) :is(.btn-danger, .status-filter-btn.selected) {
-  color: #ffffff;
+  /* Same #ffffff, read from the token layer this file's own header defers to.
+     workslip-brand.css declares --on-primary: #ffffff in both themes, so the
+     computed value is unchanged. */
+  color: var(--on-primary);
 }
 
 html body:has(.app-shell) :is(.btn-primary, .btn-danger, .fab-create) {

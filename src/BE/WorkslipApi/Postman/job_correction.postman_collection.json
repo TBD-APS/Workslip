@@ -1,0 +1,568 @@
+{
+  "info": {
+    "name": "Workslip approved case correction",
+    "description": "Synthetic Development-only flow: employee submission, reviewer reassignment, approval, reopening, persisted employee assignment and notification, retry, resubmit and rejection. Diverse isolates lifecycle routing from KLS form validation.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5262",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "correctionJobId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Employee creates a synthetic correction case",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{userToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "correction-{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/jobs",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"jobType\": \"Diverse\", \"destinationAddress\": \"Synthetic correction fixture\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 response', () => pm.response.to.have.status(200));",
+              "pm.collectionVariables.set('correctionJobId', pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Employee submits the case",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{userToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "correction-{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/jobs/{{correctionJobId}}/status",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"status\": \"InReview\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 response', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Admin takes over the assignment",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "correction-{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/jobs/{{correctionJobId}}/assign",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"userIds\": [\"a1a1a1a1-da5b-4cc4-bbeb-07b40cab806f\"]}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 response', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Admin approves the case",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "correction-{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/jobs/{{correctionJobId}}/status",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"status\": \"Approved\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 response', () => pm.response.to.have.status(200));",
+              "pm.test('case is approved', () => pm.expect(pm.response.json().status).to.eql('Approved'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Admin returns the approved case for correction",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "correction-{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/jobs/{{correctionJobId}}/status",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"status\": \"Reopened\", \"rejectionNote\": \"Synthetic correction required\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 response', () => pm.response.to.have.status(200));",
+              "const job = pm.response.json();",
+              "pm.test('case is reopened', () => pm.expect(job.status).to.eql('Reopened'));",
+              "pm.test('returned to employee submitter', () => pm.expect(job.assignedUsers.map(u => u.id.toLowerCase())).to.eql(['b2b2b2b2-da5b-4cc4-bbeb-07b40cab806f']));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Employee reads persisted correction and assignment",
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{userToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [],
+        "url": "{{baseUrl}}/api/jobs/{{correctionJobId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 response', () => pm.response.to.have.status(200));",
+              "const job = pm.response.json();",
+              "pm.test('correction reason persisted', () => pm.expect(job.rejectionNote).to.eql('Synthetic correction required'));",
+              "pm.test('reopened status persisted', () => pm.expect(job.status).to.eql('Reopened'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Returned case appears in employee assignments",
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{userToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [],
+        "url": "{{baseUrl}}/api/jobs/my-assigned"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 response', () => pm.response.to.have.status(200));",
+              "pm.test('case is assigned to employee', () => pm.expect(pm.response.json().some(j => j.id === pm.collectionVariables.get('correctionJobId'))).to.eql(true));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Employee receives correction notification with reason",
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{userToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [],
+        "url": "{{baseUrl}}/api/notifications/?limit=100"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 response', () => pm.response.to.have.status(200));",
+              "const matching = pm.response.json().filter(n => n.jobId === pm.collectionVariables.get('correctionJobId') && n.body.includes('Synthetic correction required'));",
+              "pm.test('exactly one correction notification persisted', () => pm.expect(matching).to.have.length(1));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 Repeated reopen is idempotent",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "correction-{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/jobs/{{correctionJobId}}/status",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"status\": \"Reopened\", \"rejectionNote\": \"Synthetic correction required\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 response', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 Repeated reopen does not duplicate correction notification",
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{userToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [],
+        "url": "{{baseUrl}}/api/notifications/?limit=100"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 response', () => pm.response.to.have.status(200));",
+              "const matching = pm.response.json().filter(n => n.jobId === pm.collectionVariables.get('correctionJobId') && n.body.includes('Synthetic correction required'));",
+              "pm.test('exactly one correction notification persisted', () => pm.expect(matching).to.have.length(1));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 Employee resubmits the corrected case",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{userToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "correction-{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/jobs/{{correctionJobId}}/status",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"status\": \"InReview\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 response', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 Admin rejects the resubmitted case",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "correction-{{$guid}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/jobs/{{correctionJobId}}/status",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"status\": \"Rejected\", \"rejectionNote\": \"Synthetic second correction\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 response', () => pm.response.to.have.status(200));",
+              "pm.test('case is rejected', () => pm.expect(pm.response.json().status).to.eql('Rejected'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 Employee receives a new rejection notification",
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{userToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [],
+        "url": "{{baseUrl}}/api/notifications/?limit=100"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 response', () => pm.response.to.have.status(200));",
+              "const matching = pm.response.json().filter(n => n.jobId === pm.collectionVariables.get('correctionJobId') && n.body.includes('Synthetic second correction'));",
+              "pm.test('second correction notification persisted', () => pm.expect(matching).to.have.length(1));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -48,7 +48,7 @@ The GitHub Pages fallback remains available through the repository Pages URL, bu
 1. Capture the current DNS records and TTL values before modification.
 2. Configure the apex records for `mrsoftware.dk` using GitHub's current Pages addresses.
 3. Configure `www.mrsoftware.dk` as a CNAME to the GitHub Pages hostname shown for the account.
-4. Point `app.mrsoftware.dk` to the production Vercel deployment.
+4. Point `app.mrsoftware.dk` at the production Container App. Do not hand-write these records: dispatch `aca-live-cutover.yml` from `main` in mode `prepare`, which prints the required `CNAME app` → Container App FQDN and `TXT asuid.app` → `customDomainVerificationId` values, then create them and run the same workflow in mode `bind` with confirmation `CUTOVER` to add the hostname and bind the managed certificate. Full procedure: [new-tenant cutover runbook](new-tenant-cutover.md).
 5. Keep `demo.mrsoftware.dk` separate from production hosting and data if an integrated demo is launched.
 6. Validate DNS from more than one resolver.
 7. Verify HTTPS and canonical redirects for both apex and `www`.
@@ -67,7 +67,12 @@ The marketing site and production application are separate deployments:
 - `/demo/` may only be a client-only walkthrough with bundled, fictional data; it must not use credentials, browser persistence, production data or integrations.
 - `demo.mrsoftware.dk`, if launched, remains a separately deployed integrated demo with its own security gates.
 
-Any OAuth redirect URI, logout URI, CORS origin, CSP source or external-service callback that previously referenced a temporary Vercel hostname must be reviewed before domain cutover. Temporary hostnames may remain only where they are intentionally retained as rollback paths.
+Any OAuth redirect URI, logout URI, CORS origin, CSP source or external-service callback that references a retired temporary hosting hostname must be reviewed and removed. Two places in this repository declare such values, and editing the template is not the same as reconciling the live resource:
+
+- `src/BE/infrastructure/deploy-entra.ps1` sets `spa.redirectUris` on the `Workslip App` registration through a Graph `PATCH`, which replaces the whole array. The next `deploy-entra.ps1` run therefore removes any URI dropped from that list. Preview with `-WhatIf` before running it against a live tenant.
+- `src/BE/infrastructure/staticConfig.bicep` writes `Cors:AllowedOrigins:<n>` into App Configuration. Removing an entry from the template does **not** delete the existing key-value; that needs an explicit `az appconfig kv delete`.
+
+Retain a hostname only where it is intentionally kept as a rollback path, and record why.
 
 ## Validation checklist
 

@@ -11,7 +11,7 @@ test('accepts only loopback origins', () => {
 test('rejects remote and disguised loopback targets', () => {
   for (const value of [
     'https://app.mrsoftware.dk',
-    'https://workslip-v2-0.vercel.app',
+    'https://api-mrsoftwarev2-live.azurewebsites.net',
     'http://127.0.0.1.evil.example:5262',
     'http://localhost.evil.example:5262',
     'file:///tmp/workslip',

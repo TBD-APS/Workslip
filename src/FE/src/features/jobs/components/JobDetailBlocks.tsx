@@ -442,7 +442,7 @@ function CustomerSearchDropdown({ selectedId, onSelect, onCreateNew }: CustomerS
       id: c.id ?? '',
       label: c.name ?? '',
       description: c.address ?? undefined,
-      icon: c.isFavorite ? <Heart size={14} className="favorite-customer-icon" fill="#ef4444" /> : undefined,
+      icon: c.isFavorite ? <Heart size={14} className="favorite-customer-icon" fill="currentColor" /> : undefined,
     }));
 
     if (!isSearching) {

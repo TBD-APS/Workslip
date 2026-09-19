@@ -1,6 +1,6 @@
 # ADR 0001: Managed-identity runtime and explicit secret lifecycle
 
-**Status:** Accepted; database-DDL portion superseded by ADR 0006  
+**Status:** Accepted; database-DDL portion superseded by ADR 0006, frontend cache-purge portion superseded by ADR 0018  
 **Date:** 2026-07-27  
 **Owner:** Workslip architecture owner  
 **Linear:** WOR-190
@@ -30,6 +30,8 @@ Multiple overlapping wrapper scripts also made it unclear which deployment comma
 11. Every supported Azure infrastructure deployment selects the verified `mrsoftware.dk` ACS email domain, provisions `noreply`, and writes `noreply@mrsoftware.dk` to App Configuration. The deployment entry points expose no activation parameter. The Azure-managed domain remains linked only as an emergency rollback resource.
 
 The original rollout temporarily left schema-management rights on the API runtime identity while schema mutation still happened at startup. **ADR 0006 supersedes that transitional part of this decision:** production schema migrations are now deployment-time work performed by a dedicated migration identity, and the ordinary API runtime identity must not be a member of `db_ddladmin`.
+
+**ADR 0018 supersedes decision 8 and the matching rejected alternative:** there is no external frontend cache-purge credential to keep outside the boundary. The frontend is served by nginx from inside the Container App revision, so a deployment replaces the served assets and no purge call exists. The outcome decision 8 protected — an Azure infrastructure deployment never depends on a frontend-hosting token — still holds, and now holds because no such token exists rather than because it was deliberately excluded.
 
 ## Required Graph permissions
 

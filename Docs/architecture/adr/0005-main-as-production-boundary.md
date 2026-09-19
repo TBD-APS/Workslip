@@ -1,9 +1,19 @@
 # ADR 0005: Use `main` as the production boundary
 
-**Status:** Accepted  
+**Status:** Accepted; frontend-hosting portion superseded by ADR 0018  
 **Date:** 2026-08-08  
 **Last amended:** 2026-08-22
 **Decision owners:** Workslip maintainers
+
+> **Supersession note (ADR 0018):** `main` as the single production boundary and
+> the exact-SHA/green-gate contract remain in force and are unchanged. What is
+> superseded is the frontend *hosting mechanism* this ADR reasoned about:
+> Workslip's frontend is no longer built by an external Git-integrated hosting
+> platform, so the platform-specific Root Directory constraint, the second
+> `src/FE/scripts/vercel-production-eligibility.mjs` adapter and the
+> "deployment record may exist while CI is pending" behaviour no longer apply.
+> The context and consequences below are retained as the record of why the
+> two-adapter design was chosen at the time.
 
 ## Context
 
@@ -59,6 +69,14 @@ The pull-request `CI Gate` owns deterministic repository validation before merge
 Code scanning has one owner: GitHub CodeQL Default setup. The normal CI workflow must not add an advanced CodeQL configuration while Default setup is enabled. Whether code-scanning results block merge is repository security/ruleset configuration, not a second CI implementation.
 
 ### Frontend production
+
+> **Superseded by ADR 0018.** This subsection describes the Vercel-hosted
+> frontend. Frontend production is now a container image built from
+> `src/FE/Dockerfile` and deployed to Azure Container Apps by
+> `.github/workflows/aca-live-deploy.yml`, which calls the single Actions
+> eligibility adapter. The gate this subsection required is therefore still
+> enforced; only the platform that enforces it has changed. The two-adapter
+> decision above is reduced to one adapter.
 
 Vercel Git integration remains the frontend hosting mechanism and receives `main` Git changes, but the production build itself is gated.
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getGetApiJobsQueryKey, usePostApiJobsIdStatus } from '../../../api/generated/jobs/jobs';
 import { useJobCreate } from '../hooks/useJobCreate';
@@ -122,19 +122,33 @@ const SimpleJobCreate = () => {
         onChange={setLocalWorksheets}
       />
 
-      <div className="step-nav">
-        <button className="step-nav-btn step-nav-btn-back" type="button" onClick={() => navigate(-1)}>
-          Tilbage
-        </button>
-        <button
-          className="step-nav-btn step-nav-btn-next step-nav-btn-next--wide"
-          type="button"
-          onClick={handleSave}
-          disabled={create.isSaving || !canCreateJob}
-        >
-          {create.isSaving ? <Loader2 className="animate-spin" size={18} aria-hidden="true" /> : null}
-          <span>{create.isSaving ? 'Gemmer...' : 'Opret job'}</span>
-        </button>
+      {/* Same floating bar as the wizard's. Route-specific ids on purpose —
+          job-step-back/job-step-done stay unambiguous for the Playwright contract.
+
+          `--page-action` keeps .step-nav-anchor's sticky offset and the toast
+          clearance ThemedToaster.css keys off it, but opts out of the wizard's
+          touch focus-fade in
+          AppLayout.focus.css. The wizard's bar floats over a scrolling step, so
+          blanking it while an editor holds focus is correct there. This bar is the
+          end of the page, and the fade would hide "Opret job" for as long as any
+          field on the form is focused. Same reasoning as JobCreate.tsx. */}
+      <div className="step-nav-anchor step-nav-anchor--page-action">
+        <div className="step-nav">
+          <button id="simple-job-create-back" className="step-nav-btn step-nav-btn-back" type="button" onClick={() => navigate(-1)}>
+            <ChevronLeft size={18} aria-hidden="true" />
+            <span>Tilbage</span>
+          </button>
+          <button
+            id="simple-job-create-submit"
+            className="step-nav-btn step-nav-btn-next step-nav-btn-next--wide"
+            type="button"
+            onClick={handleSave}
+            disabled={create.isSaving || !canCreateJob}
+          >
+            {create.isSaving ? <Loader2 className="animate-spin" size={18} aria-hidden="true" /> : null}
+            <span>{create.isSaving ? 'Gemmer...' : 'Opret job'}</span>
+          </button>
+        </div>
       </div>
 
       {createdJobId && (

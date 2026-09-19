@@ -15,18 +15,21 @@ namespace Workslip.Tests.Jobs;
 
 public sealed class JobRejectionNotificationTests
 {
-    [Fact]
-    public async Task RejectingJob_ReassignsAndNotifiesPersistedSubmitter_WithoutReadingHistory()
+    [Theory]
+    [InlineData(JobStatus.InReview, JobStatus.Rejected)]
+    [InlineData(JobStatus.Approved, JobStatus.Reopened)]
+    public async Task ReturningJobForCorrection_ReassignsAndNotifiesPersistedSubmitter_WithoutReadingHistory(
+        JobStatus initialStatus, JobStatus targetStatus)
     {
         var organizationId = Guid.NewGuid();
         var adminId = Guid.NewGuid();
         var submitterId = Guid.NewGuid();
         var repository = new RejectionJobRepository(
-            CreateJob(organizationId, JobStatus.InReview, [new AssignedUserResponse(adminId, "Admin")]),
+            CreateJob(organizationId, initialStatus, [new AssignedUserResponse(adminId, "Admin")]),
             submitterId);
         var assignments = new RecordingAssignmentRepository(
             organizationId,
-            new AssignedUserResponse(submitterId, "Montør"));
+            new AssignedUserResponse(submitterId, "Montør"), repository);
         var notifications = new RecordingNotificationService();
 
         var serviceCollection = new ServiceCollection();
@@ -41,11 +44,13 @@ public sealed class JobRejectionNotificationTests
 
         var result = await service.ChangeStatusAsync(
             repository.Job.Id,
-            new ChangeJobStatusRequest(JobStatus.Rejected, "Ret dokumentationen"),
+            new ChangeJobStatusRequest(targetStatus, "Ret dokumentationen"),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(0, repository.GetEventsCalls);
+        Assert.Equal(targetStatus, result.Value.Status);
+        Assert.Equal(submitterId, Assert.Single(result.Value.AssignedUsers).Id);
         Assert.Equal([submitterId], assignments.LastAssignedUserIds);
         var denied = Assert.Single(notifications.Denied);
         Assert.Equal(submitterId, denied.UserId);
@@ -53,14 +58,17 @@ public sealed class JobRejectionNotificationTests
         Assert.Equal("Ret dokumentationen", denied.RejectionNote);
     }
 
-    [Fact]
-    public async Task RejectingLegacyJob_UsesBoundedCurrentAssigneeFallback()
+    [Theory]
+    [InlineData(JobStatus.InReview, JobStatus.Rejected)]
+    [InlineData(JobStatus.Approved, JobStatus.Reopened)]
+    public async Task ReturningLegacyJobForCorrection_UsesBoundedCurrentAssigneeFallback(
+        JobStatus initialStatus, JobStatus targetStatus)
     {
         var organizationId = Guid.NewGuid();
         var adminId = Guid.NewGuid();
         var assignedUserId = Guid.NewGuid();
         var repository = new RejectionJobRepository(
-            CreateJob(organizationId, JobStatus.InReview, [new AssignedUserResponse(assignedUserId, "Montør")]),
+            CreateJob(organizationId, initialStatus, [new AssignedUserResponse(assignedUserId, "Montør")]),
             submittedByUserId: null);
         var assignments = new RecordingAssignmentRepository(organizationId, submitter: null);
         var notifications = new RecordingNotificationService();
@@ -77,7 +85,7 @@ public sealed class JobRejectionNotificationTests
 
         var result = await service.ChangeStatusAsync(
             repository.Job.Id,
-            new ChangeJobStatusRequest(JobStatus.Rejected),
+            new ChangeJobStatusRequest(targetStatus),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -86,18 +94,21 @@ public sealed class JobRejectionNotificationTests
         Assert.Equal(assignedUserId, Assert.Single(notifications.Denied).UserId);
     }
 
-    [Fact]
-    public async Task RejectingJob_SucceedsWhenNotificationQueueFailsAfterPersistence()
+    [Theory]
+    [InlineData(JobStatus.InReview, JobStatus.Rejected)]
+    [InlineData(JobStatus.Approved, JobStatus.Reopened)]
+    public async Task ReturningJobForCorrection_SucceedsWhenNotificationQueueFailsAfterPersistence(
+        JobStatus initialStatus, JobStatus targetStatus)
     {
         var organizationId = Guid.NewGuid();
         var adminId = Guid.NewGuid();
         var submitterId = Guid.NewGuid();
         var repository = new RejectionJobRepository(
-            CreateJob(organizationId, JobStatus.InReview, [new AssignedUserResponse(adminId, "Admin")]),
+            CreateJob(organizationId, initialStatus, [new AssignedUserResponse(adminId, "Admin")]),
             submitterId);
         var assignments = new RecordingAssignmentRepository(
             organizationId,
-            new AssignedUserResponse(submitterId, "Montør"));
+            new AssignedUserResponse(submitterId, "Montør"), repository);
         var notifications = new RecordingNotificationService(throwOnDenied: true);
 
         var serviceCollection = new ServiceCollection();
@@ -112,25 +123,28 @@ public sealed class JobRejectionNotificationTests
 
         var result = await service.ChangeStatusAsync(
             repository.Job.Id,
-            new ChangeJobStatusRequest(JobStatus.Rejected, "Ret dokumentationen"),
+            new ChangeJobStatusRequest(targetStatus, "Ret dokumentationen"),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(JobStatus.Rejected, repository.Job.Status);
+        Assert.Equal(targetStatus, repository.Job.Status);
         Assert.Equal("Ret dokumentationen", repository.Job.RejectionNote);
         Assert.Equal([submitterId], assignments.LastAssignedUserIds);
         Assert.Empty(notifications.Denied);
     }
 
-    [Fact]
-    public async Task RetryingPersistedRejection_ReconcilesSubmitterAssignmentAndQueuesRecoveryNotification()
+    [Theory]
+    [InlineData(JobStatus.Rejected)]
+    [InlineData(JobStatus.Reopened)]
+    public async Task RetryingPersistedCorrection_ReconcilesSubmitterAssignmentAndQueuesRecoveryNotification(
+        JobStatus targetStatus)
     {
         var organizationId = Guid.NewGuid();
         var adminId = Guid.NewGuid();
         var submitterId = Guid.NewGuid();
         var submitter = new AssignedUserResponse(submitterId, "Montør");
         var repository = new RejectionJobRepository(
-            CreateJob(organizationId, JobStatus.Rejected, [new AssignedUserResponse(adminId, "Admin")]),
+            CreateJob(organizationId, targetStatus, [new AssignedUserResponse(adminId, "Admin")]),
             submitterId);
         var assignments = new RecordingAssignmentRepository(organizationId, submitter, repository);
         var notifications = new RecordingNotificationService();
@@ -147,7 +161,7 @@ public sealed class JobRejectionNotificationTests
 
         var result = await service.ChangeStatusAsync(
             repository.Job.Id,
-            new ChangeJobStatusRequest(JobStatus.Rejected, "Ret dokumentationen"),
+            new ChangeJobStatusRequest(targetStatus, "Ret dokumentationen"),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -156,6 +170,14 @@ public sealed class JobRejectionNotificationTests
         var denied = Assert.Single(notifications.Denied);
         Assert.Equal(submitterId, denied.UserId);
         Assert.Equal("Ret dokumentationen", denied.RejectionNote);
+
+        var retry = await service.ChangeStatusAsync(
+            repository.Job.Id,
+            new ChangeJobStatusRequest(targetStatus, "Ret dokumentationen"),
+            CancellationToken.None);
+
+        Assert.True(retry.IsSuccess);
+        Assert.Single(notifications.Denied);
     }
 
     private static JobService CreateService(

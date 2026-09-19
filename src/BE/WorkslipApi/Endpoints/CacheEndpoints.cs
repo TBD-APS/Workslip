@@ -1,7 +1,9 @@
-using System.Net.Http.Headers;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Caching.Memory;
 using Workslip.Application.Common;
+using Workslip.Infrastructure.Diagnostics;
 
 namespace Workslip.Api.Endpoints;
 
@@ -14,7 +16,7 @@ public static class CacheEndpoints
             .Produces<CacheClearResponse>();
 
         var superAdminGroup = app.MapSuperAdminGroup("/api/superadmin/cache", "cache");
-        superAdminGroup.MapGet("/status", GetStatus)
+        superAdminGroup.MapGet("/status", GetStatusAsync)
             .Produces<CacheStatusResponse>();
         superAdminGroup.MapPost("/clear", ClearCachesAsync)
             .Produces<CacheClearResponse>();
@@ -22,17 +24,32 @@ public static class CacheEndpoints
         return app;
     }
 
-    private static IResult GetStatus(
+    private static async Task<IResult> GetStatusAsync(
         HttpContext httpContext,
         ICacheDiagnostics cacheDiagnostics,
-        IConfiguration configuration)
+        // [FromServices] rather than inferred: a collection-typed parameter is the
+        // one shape where minimal-API binding could plausibly read it from the body.
+        [FromServices] IReadOnlyList<CacheRegionDefinition> cacheRegions,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
     {
         HttpCacheHeaders.SetNoStore(httpContext);
 
-        var vercelConfigured = HasVercelConfiguration(configuration);
+        // Resolved from the request container rather than declared as a parameter:
+        // the distributed cache is configured-or-not, and the diagnostics must work
+        // in both shapes without a registration of its own.
+        var distributed = await DistributedCacheProbe.ProbeAsync(
+            httpContext.RequestServices.GetService<IDistributedCache>(),
+            timeProvider,
+            cancellationToken);
+
+        var snapshot = CacheReach.Describe(cacheDiagnostics.GetSnapshot(), distributed, cacheRegions);
+
         return Results.Ok(new CacheStatusResponse(
-            cacheDiagnostics.GetSnapshot(),
-            vercelConfigured));
+            snapshot,
+            distributed,
+            CacheReach.WidestClearScope(snapshot),
+            CacheReach.ClearReachesEveryReplica));
     }
 
     private static async Task<IResult> ClearCachesAsync(
@@ -40,92 +57,78 @@ public static class CacheEndpoints
         HybridCache hybridCache,
         IMemoryCache memoryCache,
         ICacheDiagnostics cacheDiagnostics,
-        IConfiguration configuration,
-        IHttpClientFactory httpClientFactory,
+        [FromServices] IReadOnlyList<CacheRegionDefinition> cacheRegions,
+        TimeProvider timeProvider,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
         HttpCacheHeaders.SetNoStore(httpContext);
 
-        await hybridCache.RemoveByTagAsync("all", cancellationToken);
+        var distributedCache = httpContext.RequestServices.GetService<IDistributedCache>();
+        Exception? distributedFailure = null;
 
+        // RemoveByTagAsync invalidates the tag in this process first and only then
+        // writes the shared marker, and it rethrows when that write fails. The local
+        // clear therefore survives an unreachable L2, so a cache outage must not turn
+        // an administrative clear into a 500: it degrades to a process-local clear
+        // that says so. A failure with no distributed cache configured is a genuine
+        // local fault and still surfaces.
+        try
+        {
+            await hybridCache.RemoveByTagAsync(CacheTagNames.All, cancellationToken);
+        }
+        catch (Exception exception) when (distributedCache is not null && exception is not OperationCanceledException)
+        {
+            distributedFailure = exception;
+
+            // The category, never the exception: RemoveByTagAsync fails on the write of
+            // the shared marker, and the provider message that comes back names both the
+            // endpoint and the marker key - measured, with an unreachable Redis:
+            // "No connection is active/available to service this operation:
+            //  HMSET workslip:development:__MSFT_HCT__all; UnableToConnect on 127.0.0.1:1/…".
+            loggerFactory
+                .CreateLogger("CacheAdministration")
+                .LogWarning(
+                    "Distributed cache tier could not be marked invalid; the local caches were cleared anyway. Cache failure: {CacheFailure}.",
+                    DistributedCacheProbe.DescribeFailureForLog(exception));
+        }
+
+        // HybridCache's L1 is the registered IMemoryCache, so this also drops the
+        // hybrid entries this process holds, plus the regions that use IMemoryCache
+        // directly and carry no tags at all.
         if (memoryCache is MemoryCache concrete)
         {
             concrete.Compact(1.0);
         }
 
         cacheDiagnostics.RecordGlobalClear();
-        var snapshot = cacheDiagnostics.GetSnapshot();
 
-        var vercelProjectId = configuration["Vercel:ProjectId"];
-        var vercelToken = configuration["Vercel:Token"];
-        var vercelConfigured = !string.IsNullOrWhiteSpace(vercelProjectId)
-            && !string.IsNullOrWhiteSpace(vercelToken);
-        var vercelCleared = false;
-        string? warning = null;
-
-        if (vercelConfigured)
-        {
-            var logger = loggerFactory.CreateLogger("CacheAdministration");
-
-            try
-            {
-                var httpClient = httpClientFactory.CreateClient("vercel-cache");
-                using var request = new HttpRequestMessage(
-                    HttpMethod.Post,
-                    $"https://api.vercel.com/v1/edge-cache/invalidate-by-tags?projectIdOrName={Uri.EscapeDataString(vercelProjectId!)}")
-                {
-                    Content = JsonContent.Create(new { tags = new[] { "all" }, target = "production" })
-                };
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", vercelToken!);
-
-                using var response = await httpClient.SendAsync(request, cancellationToken);
-                vercelCleared = response.IsSuccessStatusCode;
-
-                if (!vercelCleared)
-                {
-                    warning = $"Vercel cache purge failed with status {(int)response.StatusCode}.";
-                    logger.LogWarning(
-                        "Vercel cache purge failed with status {StatusCode}.",
-                        (int)response.StatusCode);
-                }
-            }
-            catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
-            {
-                warning = "Vercel cache purge timed out.";
-                logger.LogWarning(exception, "Vercel cache purge timed out after local caches were cleared.");
-            }
-            catch (HttpRequestException exception)
-            {
-                warning = "Vercel cache purge could not be reached.";
-                logger.LogWarning(exception, "Vercel cache purge failed after local caches were cleared.");
-            }
-        }
-
-        var message = warning is null
-            ? "All caches cleared."
-            : $"Local caches cleared. {warning}";
+        var distributed = DistributedCacheProbe.FromOutcome(distributedCache, distributedFailure, timeProvider);
+        var snapshot = CacheReach.Describe(cacheDiagnostics.GetSnapshot(), distributed, cacheRegions);
+        var distributedTierCleared = distributedCache is not null && distributedFailure is null;
 
         return Results.Ok(new CacheClearResponse(
-            message,
-            snapshot.LastClearedAt ?? DateTimeOffset.UtcNow,
-            vercelConfigured,
-            vercelCleared,
-            warning));
+            CacheReach.DescribeClear(snapshot.InstanceId, distributed, distributedTierCleared),
+            snapshot.LastClearedAt ?? timeProvider.GetUtcNow(),
+            snapshot.InstanceId,
+            CacheReach.WidestClearScope(snapshot),
+            CacheReach.ClearReachesEveryReplica,
+            distributedTierCleared,
+            distributed));
     }
-
-    private static bool HasVercelConfiguration(IConfiguration configuration) =>
-        !string.IsNullOrWhiteSpace(configuration["Vercel:ProjectId"])
-        && !string.IsNullOrWhiteSpace(configuration["Vercel:Token"]);
 }
 
 public sealed record CacheStatusResponse(
     CacheDiagnosticsSnapshot Backend,
-    bool VercelConfigured);
+    DistributedCacheSnapshot Distributed,
+    CacheClearScope ClearScope,
+    bool ClearReachesEveryReplica);
 
 public sealed record CacheClearResponse(
     string Message,
     DateTimeOffset ClearedAt,
-    bool VercelConfigured,
-    bool VercelCleared,
-    string? Warning);
+    string InstanceId,
+    CacheClearScope Scope,
+    bool ReachedEveryReplica,
+    bool DistributedTierCleared,
+    DistributedCacheSnapshot Distributed);

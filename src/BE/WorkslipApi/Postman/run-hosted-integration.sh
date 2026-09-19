@@ -144,6 +144,20 @@ if [[ "${WORKSLIP_POSTMAN_FOCUSED_REFRESH_ONLY:-false}" == "true" ]]; then
   exit 0
 fi
 
+echo "Running approved-case correction routing against synthetic role identities."
+npx --yes newman run "${SCRIPT_DIR}/job_correction.postman_collection.json" \
+  --env-var "baseUrl=${API_URL}" \
+  --env-var "adminToken=${admin_token}" \
+  --env-var "userToken=${user_token}" \
+  --reporters cli \
+  --timeout-request 30000 \
+  --bail
+
+if [[ "${WORKSLIP_POSTMAN_FOCUSED_CORRECTION_ONLY:-false}" == "true" ]]; then
+  echo "Focused correction-routing Postman contract completed successfully."
+  exit 0
+fi
+
 echo "Running focused Auditor-scope Postman regression against synthetic role identities."
 npx --yes newman run "${SCRIPT_DIR}/auditor_scope.postman_collection.json" \
   --env-var "baseUrl=${API_URL}" \

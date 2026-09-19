@@ -2,6 +2,7 @@ import { CheckCircle2, Clock, EyeOff, FileText, Info, ListChecks, Send, ShieldCh
 import { CollapsibleSection } from '../../../../components/forms/CollapsibleSection';
 import { triggerCompletionCelebration } from '../../../../lib/completionCelebration';
 import { JobStatus } from '../../../../api/generated/models/jobStatus';
+import type { JobReportSummaryViewModel } from '../../../../api/generated/models/jobReportSummaryViewModel';
 import type { useJobDetails } from '../../hooks/useJobDetails';
 import { formatNumber, formatUnit, parseNullableNumber, capitalize } from '../../../../lib/formatUtils';
 import { WorksheetDetailList } from '../WorksheetDetailList';
@@ -20,7 +21,7 @@ type JobAttestationStepProps = {
   confirmed: boolean;
   onConfirmedChange: (confirmed: boolean) => void;
   onValidationAction: (issue: JobValidationIssue) => void;
-  onSubmitted: () => void;
+  onSubmitted: (reportNumber: string) => void;
 };
 
 type SummaryItemViewModel = { label: string; value: string };
@@ -114,9 +115,12 @@ export function JobAttestationStep({
       const saved = await details.saveAllChanges();
       if (!saved) return;
 
-      await details.submitJob();
+      // The server assigns the sag number on the transition to InReview, so the
+      // response - not the cached job, which is still the pre-submit draft - is the
+      // only place the confirmation screen can read a number that actually exists.
+      const result: JobReportSummaryViewModel | void = await details.submitJob();
       triggerCompletionCelebration();
-      onSubmitted();
+      onSubmitted(result?.reportNumber ?? job.reportNumber ?? '');
     } catch {
       return;
     }

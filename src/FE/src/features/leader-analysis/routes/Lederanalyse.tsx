@@ -105,7 +105,7 @@ export function Lederanalyse() {
                   borderRadius: '999px',
                   background: 'var(--bg)',
                   border: '1px solid var(--border)',
-                  color: 'var(--muted)',
+                  color: 'var(--text-muted)',
                 }}
               >
                 {economicsQuery.data.providerDisplayName}
@@ -149,7 +149,7 @@ export function Lederanalyse() {
             <div style={{ borderTop: '1px solid var(--border)', padding: '0' }}>
               <div style={{ padding: '0.9rem 1rem 0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <strong style={{ fontSize: '13px' }}>Seneste bilag fra {economicsQuery.data.providerDisplayName}</strong>
-                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{economicsQuery.data.recentDocuments.length} vist</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{economicsQuery.data.recentDocuments.length} vist</span>
               </div>
               {economicsQuery.data.recentDocuments.length === 0 ? (
                 <div className="leader-analysis-empty">Ingen bilag i perioden — skift til Mock eller e-conomic (demo) i Superadmin.</div>
@@ -162,7 +162,7 @@ export function Lederanalyse() {
                         <div><small>{doc.type === 'Invoice' ? 'Faktura' : 'Bilag'} · {doc.date} · {doc.status}</small></div>
                       </div>
                       <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(doc.amount)}</strong>
-                      <small style={{ color: 'var(--muted)' }}>{doc.type}</small>
+                      <small style={{ color: 'var(--text-muted)' }}>{doc.type}</small>
                       <a
                         id={`leader-economics-open-${doc.documentId}`}
                         href={doc.externalLink}
@@ -177,8 +177,8 @@ export function Lederanalyse() {
                   ))}
                 </div>
               )}
-              <div style={{ padding: '0.6rem 1rem 1rem', fontSize: '12px', color: 'var(--muted)' }}>
-                Viser bilag via valgt regnskabsudbyder. Skift udbyder: <button type="button" onClick={() => navigate('/superadmin')} style={{ background: 'none', border: 0, color: 'var(--brand)', cursor: 'pointer', textDecoration: 'underline', padding: 0, font: 'inherit' }}>Superadmin → Regnskabsintegration</button>. Demo e-conomic bruger <code>X-AgreementGrantToken: demo</code>.
+              <div style={{ padding: '0.6rem 1rem 1rem', fontSize: '12px', color: 'var(--text-muted)' }}>
+                Viser bilag via valgt regnskabsudbyder. Skift udbyder: <button type="button" onClick={() => navigate('/superadmin')} style={{ background: 'none', border: 0, color: 'var(--color-info)', cursor: 'pointer', textDecoration: 'underline', padding: 0, font: 'inherit' }}>Superadmin → Regnskabsintegration</button>. Demo e-conomic bruger <code>X-AgreementGrantToken: demo</code>.
               </div>
             </div>
           </>
@@ -378,7 +378,7 @@ function LeaderBemandingPanel() {
             <div style={{ display: 'grid', gap: '6px', marginTop: '8px' }}>
               {top.length ? top.map(p => (
                 <div key={p.userId} className="leader-metric-row" style={{ padding: '6px 0' }}><span className="leader-metric-row__label">{p.employee}</span><strong className="leader-metric-row__value">{p.hours.toFixed(1)} t</strong></div>
-              )) : <span style={{ color: 'var(--muted)', fontSize: '13px' }}>Ingen timer registreret.</span>}
+              )) : <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Ingen timer registreret.</span>}
             </div>
           </div>
         </>
@@ -428,6 +428,8 @@ function LeaderSagsokonomiPanel({ summary, isLoading }: { summary: { totalCount:
   );
 }
 
+const SLA_TONE = { overdue: 'red', warning: 'amber' } as const;
+
 function LeaderSlaPanel() {
   const navigate = useNavigate();
   const query = useQuery({
@@ -465,7 +467,9 @@ function LeaderSlaPanel() {
         <div className="leader-analysis-empty">Ingen sager til gennemsyn — ingen SLA-risiko.</div>
       ) : (
         <div className="leader-analysis-recent-list" style={{ borderTop: '1px solid var(--border)' }}>
-          {rows.map(job => (
+          {rows.map(job => {
+            const tone = SLA_TONE[job.sla as keyof typeof SLA_TONE] ?? 'green';
+            return (
             <div key={job.id} className="leader-analysis-recent-row" style={{ gridTemplateColumns: 'minmax(0,1fr) auto auto' }}>
               <div>
                 <strong>{job.reportNumber ? `SAG-${job.reportNumber}` : job.id.slice(0, 8)}</strong>
@@ -473,15 +477,16 @@ function LeaderSlaPanel() {
               </div>
               <span style={{
                 fontSize: '11px', fontWeight: 700, padding: '4px 8px', borderRadius: '999px',
-                background: job.sla === 'overdue' ? '#fde8e8' : job.sla === 'warning' ? '#fef7d0' : '#e6f4ea',
-                color: job.sla === 'overdue' ? '#b42318' : job.sla === 'warning' ? '#8a6a00' : '#1a7a3a',
-                border: `1px solid ${job.sla === 'overdue' ? '#f5c2c2' : job.sla === 'warning' ? '#f0e0a0' : '#c6e7cf'}`,
+                background: `var(--status-${tone}-bg)`,
+                color: `var(--status-${tone}-text)`,
+                border: `1px solid color-mix(in srgb, var(--status-${tone}-text) 38%, transparent)`,
               }}>
                 {job.sla === 'overdue' ? 'Overskredet' : job.sla === 'warning' ? 'Advarsel' : 'OK'}
               </span>
               <button type="button" className="btn btn-secondary" style={{ padding: '6px 10px', fontSize: '12px' }} onClick={() => navigate(`/app/completed/${job.id}`)}>Åbn</button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>
@@ -530,7 +535,7 @@ function LeaderExportPanel({ summary, economics }: { summary: { activeCount: num
         <button id="leader-analysis-export-pdf" type="button" className="btn btn-primary" onClick={handlePdf} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
           <ExternalLink size={16} aria-hidden="true" /> Eksportér PDF (Print)
         </button>
-        <span style={{ fontSize: '12px', color: 'var(--muted)', alignSelf: 'center' }}>CSV indeholder KPI’er + økonomi. PDF bruger browserens print-dialog.</span>
+        <span style={{ fontSize: '12px', color: 'var(--text-muted)', alignSelf: 'center' }}>CSV indeholder KPI’er + økonomi. PDF bruger browserens print-dialog.</span>
       </div>
     </section>
   );

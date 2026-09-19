@@ -4,6 +4,8 @@
  * Workslip.Api | v1
  * OpenAPI spec version: 1.0.0
  */
+import type { CacheClearScope } from './cacheClearScope';
+import type { CacheTier } from './cacheTier';
 
 export interface CacheRegionSnapshot {
   name: string;
@@ -26,4 +28,6 @@ export interface CacheRegionSnapshot {
   averageLoadDurationMs: number | string;
   /** @nullable */
   lastActivityAt: string | null;
+  tier: CacheTier;
+  clearScope: CacheClearScope;
 }
