@@ -44,6 +44,7 @@ internal static class LocalDevelopmentDatabasePreparation
         await DevelopmentDatabaseOnlySeeder.SeedAsync(
             db,
             scope.ServiceProvider.GetRequiredService<InstallationBaselineProvisioner>(),
+            DatabaseStartup.ResolveSyntheticSeedProfile(environment, configuration),
             cancellationToken);
     }
 }
