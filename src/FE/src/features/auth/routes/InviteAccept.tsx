@@ -158,7 +158,7 @@ export const InviteAccept = () => {
   const showDetailsForm = state.status === 'accepted' || state.status === 'error' || isWorking;
 
   return (
-    <div className="app-container invite-container">
+    <div className="app-container invite-container auth-shell">
       <div className="bg-glow-wrapper">
         <div className="bg-glow bg-glow-1" />
         <div className="bg-glow bg-glow-2" />

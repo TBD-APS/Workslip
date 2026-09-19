@@ -8,6 +8,7 @@ Current implementation is the technical source of truth. This area records durab
 
 ## Current architecture views
 
+- [`accounting-integration-boundary.md`](accounting-integration-boundary.md) — operational boundary between Workslip job economics and external accounting providers such as e-conomic.
 - [`domain-and-dataflows.md`](domain-and-dataflows.md) — tenant ownership and core data-integrity boundaries.
 - [`dependency-map.md`](dependency-map.md) — generated module coupling map; regenerate with `node tools/depmap/depmap.mjs`.
 - [`figma-design-environment.md`](figma-design-environment.md) — colour-token ownership, the Figma export contract and design-file layout.
@@ -53,6 +54,7 @@ Do not create a page merely to fill the list. Add it only when it reduces redisc
 - [`adr/0017-ai-retrieval-belongs-to-mr-saasy-agent-runtime.md`](adr/0017-ai-retrieval-belongs-to-mr-saasy-agent-runtime.md) — retrieval (RAG) and model/provider routing, including Cerebras, live in the MR SAAS'y agent runtime; Workslip requests provider-neutral operations and keeps the trusted/untrusted context split.
 - [`adr/0018-frontend-served-by-nginx-in-azure-container-apps.md`](adr/0018-frontend-served-by-nginx-in-azure-container-apps.md) — frontend production is an nginx container built from `src/FE/Dockerfile` and released with the API into Azure Container Apps; supersedes the Vercel frontend-hosting portion of ADR 0005 and the cache-purge boundary in ADR 0001 decision 8.
 - [`adr/0019-single-cache-abstraction-with-optional-distributed-second-level.md`](adr/0019-single-cache-abstraction-with-optional-distributed-second-level.md) — the application caches through one `HybridCache` abstraction with an optional distributed L2; authentication claims are cached per process only and never written to the shared tier; the deployment works with or without Redis configured, and no cache resource is provisioned by that decision.
+- [`adr/0018-rotating-refresh-sessions.md`](adr/0018-rotating-refresh-sessions.md) — rotating server-owned refresh sessions and bounded reuse recovery.
 
 ## Superseded decisions
 

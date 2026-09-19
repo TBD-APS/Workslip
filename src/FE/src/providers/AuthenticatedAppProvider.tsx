@@ -8,6 +8,7 @@ import {
 import { prefetchInitialJobList } from '../features/jobs/queries/jobListQuery';
 import { usePushNotifications } from '../features/users/hooks/usePushNotifications';
 import { queryClient } from '../lib/react-query';
+import { revokeServerSession } from '../lib/axios';
 import {
   AUTH_TRANSITION_ATTRIBUTE,
   type AuthContextType,
@@ -126,8 +127,12 @@ export function AuthenticatedSessionEffects({
     clearSession();
   }, [clearSession]);
 
-  const logout = useCallback(() => {
-    clearLocalSession();
+  const logout = useCallback(async () => {
+    try {
+      await revokeServerSession();
+    } finally {
+      clearLocalSession();
+    }
   }, [clearLocalSession]);
 
   const updateUser = useCallback(

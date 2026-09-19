@@ -141,6 +141,8 @@
     --desktop-nav-rail-width: 13.5rem;
     --desktop-nav-rail-collapsed-width: 4.75rem;
     --desktop-nav-rail-current-width: var(--desktop-nav-rail-width);
+    /* The rail is vertical here: the window bottom carries no chrome to clear. */
+    --app-bottom-chrome: 0.5rem;
   }
 
   :root:has(.app-shell .desktop-rail-toggle-input:checked) {

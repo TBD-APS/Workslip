@@ -185,7 +185,7 @@ jobs:
           az acr build \
             --registry '${{ steps.foundation.outputs.acr_name }}' \
             --image "workslip-demo-api:$GITHUB_SHA" \
-            --file src/BE/WorkslipApi/Dockerfile.demo \
+            --file src/BE/WorkslipApi/Dockerfile \
             .
 
       - name: Build immutable demo frontend image in ACR

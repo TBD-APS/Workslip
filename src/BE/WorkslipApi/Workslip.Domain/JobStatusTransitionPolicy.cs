@@ -37,11 +37,6 @@ public static class JobStatusTransitionPolicy
         JobStatus currentStatus,
         JobStatus targetStatus)
     {
-        if (targetStatus == JobStatus.Draft)
-        {
-            return false;
-        }
-
         if (currentStatus == targetStatus)
         {
             return true;
@@ -50,6 +45,10 @@ public static class JobStatusTransitionPolicy
         return (currentStatus, targetStatus) switch
         {
             (JobStatus.Draft, JobStatus.InReview) => true,
+            // Withdraw: the submitter (or a reviewer) pulls a submitted job back out of
+            // review so it can be corrected and resubmitted. Draft is otherwise never a
+            // target once a job has left it; Rejected/Reopened return directly to InReview.
+            (JobStatus.InReview, JobStatus.Draft) => true,
             (JobStatus.Rejected, JobStatus.InReview) => true,
             (JobStatus.Reopened, JobStatus.InReview) => true,
             (JobStatus.InReview, JobStatus.Approved) => true,

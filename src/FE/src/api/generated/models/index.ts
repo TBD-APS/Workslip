@@ -5,6 +5,8 @@
  * OpenAPI spec version: 1.0.0
  */
 
+export * from './accountingConnectionStatusResponse';
+export * from './accountingCustomerSyncResponse';
 export * from './accountingDocument';
 export * from './applicationEnvironmentKey';
 export * from './applicationEnvironmentRegistration';
@@ -110,7 +112,10 @@ export * from './inventoryScanResponse';
 export * from './inviteUserResult';
 export * from './inviteUsersRequest';
 export * from './inviteUsersResponse';
+export * from './jobAccountingDocumentResponse';
+export * from './jobAccountingInvoiceResponse';
 export * from './jobAuditorScopeResponse';
+export * from './jobBillableItemResponse';
 export * from './jobConversationResponse';
 export * from './jobDeleteErrorResponse';
 export * from './jobHistoryResponse';
@@ -125,6 +130,7 @@ export * from './jobStatus';
 export * from './jobWorkKindResponse';
 export * from './leaderEconomicsResponse';
 export * from './leaderEconomicsSummaryResponse';
+export * from './linkAccountingDocumentRequest';
 export * from './monthlyHoursPdfPreviewResponse';
 export * from './myWorksheetDayResponse';
 export * from './myWorksheetEntryResponse';
@@ -161,6 +167,7 @@ export * from './updateCustomerRequest';
 export * from './updateDocumentRequest';
 export * from './updateJobRequest';
 export * from './updateUserRequest';
+export * from './upsertJobBillableItemRequest';
 export * from './upsertOrganizationAdminRequest';
 export * from './upsertWorksheetRequest';
 export * from './userBillingRateResponse';

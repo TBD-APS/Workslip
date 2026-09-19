@@ -21,6 +21,7 @@ import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { ErrorState } from '../../../components/ErrorState';
 import { usePostApiAuthInvite } from '../../../api/generated/auth/auth';
 import { useDeleteApiAuthInvite, useGetApiAuthInvites, type InviteTokenResponse } from '../api';
+import { EconomicIntegrationCard } from './EconomicIntegrationCard';
 
 type InviteRole = 'User' | 'Auditor';
 
@@ -175,7 +176,7 @@ export const Settings = () => {
       <div className="page-container">
         <div className="page-header">
           <h2>Administrativt</h2>
-          <p className="subtitle">Administrer brugere og virksomhedsindstillinger</p>
+          <p className="subtitle">Administrer brugere, integrationer og virksomhedsindstillinger</p>
         </div>
 
         <div className="section-card">
@@ -340,6 +341,8 @@ export const Settings = () => {
             </div>
           )}
         </div>
+
+        <EconomicIntegrationCard />
 
         <div className="section-card" style={{ marginTop: '1rem' }}>
           <h3 className="section-card-title">

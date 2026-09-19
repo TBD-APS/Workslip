@@ -36,8 +36,10 @@ public static class EndpointConfiguration
         app.MapWorkSheetEndpoints();
         app.MapPowerBiOverviewEndpoints();
         app.MapLeaderAnalysisEndpoints();
+        app.MapAccountingIntegrationEndpoints();
         app.MapReferenceDataEndpoints();
         app.MapPushNotificationEndpoints();
+        app.MapProductivityAnalyticsEndpoints();
         app.MapCacheEndpoints();
         app.MapDiagnosticsEndpoints();
         app.MapControlCenterEndpoints();

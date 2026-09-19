@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Workslip.Application;
+using Workslip.Application.Auth;
 using Workslip.Application.Common;
 using Workslip.Application.Conversations;
 using Workslip.Application.Customers;
@@ -98,9 +99,14 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
         services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();
+        services.AddScoped<IRefreshSessionRepository, EfRefreshSessionRepository>();
         services.AddScoped<ISuperAdminUserRepository, EfSuperAdminUserRepository>();
         services.AddScoped<SqlUserBillingRepository>();
         services.AddScoped<IUserBillingRepository, HistorySafeUserBillingRepository>();
+        services.AddScoped<IAccountingSyncRepository, SqlAccountingSyncRepository>();
+        services.AddScoped<IEconomicConnectionStore, SqlEconomicConnectionStore>();
+        services.AddScoped<IEconomicConnectionService, EconomicConnectionService>();
+        services.AddScoped<IAccountingOperationsService, AccountingOperationsService>();
         services.AddScoped<IWorksheetRepository, EfWorksheetRepository>();
         services.AddSingleton<IMonthlyHoursPdfGenerator, MonthlyCostingPdfGenerator>();
         services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
@@ -165,8 +171,10 @@ public static class DependencyInjection
         services.AddScoped<IIntegrationEngine, IntegrationEngine>();
         services.AddScoped<IIntegrationProvider, MockAccountingProvider>();
         services.AddScoped<IAccountingProvider, MockAccountingProvider>();
-        services.AddScoped<IIntegrationProvider, EconomicsProvider>();
-        services.AddScoped<IAccountingProvider, EconomicsProvider>();
+        services.AddScoped<EconomicsProvider>();
+        services.AddScoped<IIntegrationProvider>(serviceProvider => serviceProvider.GetRequiredService<EconomicsProvider>());
+        services.AddScoped<IAccountingProvider>(serviceProvider => serviceProvider.GetRequiredService<EconomicsProvider>());
+        services.AddScoped<IEconomicConnectionVerifier>(serviceProvider => serviceProvider.GetRequiredService<EconomicsProvider>());
         services.AddScoped<IDocumentSyncService, DocumentSyncService>();
         services.AddScoped<ILeaderEconomicsService, LeaderEconomicsService>();
 
@@ -177,6 +185,7 @@ public static class DependencyInjection
             services.AddHostedService<PushNotificationWorker>();
             services.AddHostedService<PowerBiWorksheetExportWorker>();
             services.AddHostedService<MrSaasyBugRadarPublisherWorker>();
+            services.AddHostedService<RefreshSessionCleanupService>();
         }
 
         services.AddOptions<VapidOptions>()

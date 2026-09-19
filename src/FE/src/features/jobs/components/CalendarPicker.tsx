@@ -3,7 +3,15 @@ import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { fromDateIso, toDateIso, formatDate } from './worksheetUtils';
 import './CalendarPicker.css';
 
-export function CalendarPicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+type CalendarPickerProps = {
+  value: string;
+  idPrefix?: string;
+  onChange: (value: string) => void;
+};
+
+const WEEKDAYS = ['ma', 'ti', 'on', 'to', 'fr', 'lø', 'sø'];
+
+export function CalendarPicker({ value, idPrefix = 'worksheet-date-picker', onChange }: CalendarPickerProps) {
   const selectedDate = fromDateIso(value);
   const [isOpen, setIsOpen] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState(() => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
@@ -49,8 +57,9 @@ export function CalendarPicker({ value, onChange }: { value: string; onChange: (
 
   return (
     <div className="form-group calendar-picker-field" ref={pickerRef}>
-      <label className="form-label">Dato</label>
+      <label className="form-label" htmlFor={`${idPrefix}-trigger`}>Dato</label>
       <button
+        id={`${idPrefix}-trigger`}
         type="button"
         className="form-input calendar-picker-trigger"
         onClick={() => setIsOpen((open) => !open)}
@@ -62,7 +71,12 @@ export function CalendarPicker({ value, onChange }: { value: string; onChange: (
       </button>
 
       {isOpen && (
-        <div className="calendar-picker-popover" role="dialog" aria-label={`Vælg dato i ${monthLabel}`}>
+        <div
+          id={`${idPrefix}-popover`}
+          className="calendar-picker-popover"
+          role="dialog"
+          aria-label={`Vælg dato i ${monthLabel}`}
+        >
           <div className="calendar-picker-header">
             <button type="button" className="btn-icon" onClick={() => moveMonth(-1)} aria-label="Forrige måned">
               <ChevronLeft size={16} aria-hidden="true" />
@@ -73,20 +87,25 @@ export function CalendarPicker({ value, onChange }: { value: string; onChange: (
             </button>
           </div>
           <div className="calendar-picker-weekdays" aria-hidden="true">
-            {['ma', 'ti', 'on', 'to', 'fr', 'lø', 'sø'].map((day) => <span key={day}>{day}</span>)}
+            {WEEKDAYS.map((day, column) => (
+              <span id={`${idPrefix}-weekday-${column}`} key={day}>{day}</span>
+            ))}
           </div>
-          <div className="calendar-picker-grid">
+          <div id={`${idPrefix}-grid`} className="calendar-picker-grid">
             {days.map((day, index) => {
               if (!day) return <span key={`blank-${index}`} aria-hidden="true" />;
               const dayIso = toDateIso(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), day));
               const isSelected = dayIso === value;
+              const weekdayColumn = (startOffset + day - 1) % WEEKDAYS.length;
               return (
                 <button
+                  id={`${idPrefix}-day-${dayIso}`}
                   key={dayIso}
                   type="button"
                   className={isSelected ? 'calendar-picker-day selected' : 'calendar-picker-day'}
                   onClick={() => selectDay(day)}
                   aria-pressed={isSelected}
+                  data-calendar-column={weekdayColumn}
                 >
                   {day}
                 </button>

@@ -4,6 +4,7 @@ import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock, AssignmentBlock, 
 import { useCan } from '../../../../providers/permissions';
 import { CollapsibleSection } from '../../../../components/forms/CollapsibleSection';
 import { JobImagesSection } from '../../../images/JobImagesSection';
+import { JobAccountingPanel } from '../JobAccountingPanel';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -95,6 +96,9 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
       />
       {details.job?.id && (
         <JobImagesSection jobId={details.job.id} allowManage />
+      )}
+      {details.isAdmin && details.job?.id && (
+        <JobAccountingPanel jobId={details.job.id} jobStatus={String(details.job.status ?? '')} />
       )}
     </>
   );

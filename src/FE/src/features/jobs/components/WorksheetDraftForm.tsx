@@ -59,7 +59,11 @@ export function WorksheetDraftForm({
     >
       <h4>{title}</h4>
       <div className="worksheet-form-grid worksheet-form-grid-main">
-        <CalendarPicker value={draft.workDate} onChange={(workDate) => updateDraft({ workDate })} />
+        <CalendarPicker
+          idPrefix={`${formId ?? 'worksheet-form'}-date-picker`}
+          value={draft.workDate}
+          onChange={(workDate) => updateDraft({ workDate })}
+        />
 
         {canPickUser ? (
           <MultiSelectDropdown

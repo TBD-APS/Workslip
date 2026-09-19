@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { useModalAccessibility } from '../../../components/common/useModalAccessibility';
 
 type ConfirmActionDialogProps = {
-  action: 'approve' | 'reject' | 'undo-reject' | 'reopen';
+  action: 'approve' | 'reject' | 'undo-reject' | 'reopen' | 'withdraw';
   reportNumber: string;
   isPending: boolean;
   onConfirm: (reason?: string) => void;
@@ -24,14 +24,32 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
   const isApprove = action === 'approve';
   const isUndoReject = action === 'undo-reject';
   const isReopen = action === 'reopen';
+  const isWithdraw = action === 'withdraw';
   const requiresReason = action === 'reject' || isReopen;
-  const title = isApprove ? 'Godkend sag' : isUndoReject ? 'Fortryd afvisning' : isReopen ? 'Genåbn godkendt sag' : 'Afvis sag';
-  const pendingLabel = isApprove ? 'Godkender...' : isReopen ? 'Genåbner...' : 'Afviser...';
-  const actionLabel = isApprove ? 'Godkend' : isUndoReject ? 'Fortryd afvisning' : isReopen ? 'Genåbn sag' : 'Afvis';
+  const title = isApprove
+    ? 'Godkend sag'
+    : isUndoReject
+      ? 'Fortryd afvisning'
+      : isReopen
+        ? 'Genåbn godkendt sag'
+        : isWithdraw
+          ? 'Træk sag tilbage fra gennemsyn'
+          : 'Afvis sag';
+  const pendingLabel = isApprove ? 'Godkender...' : isReopen ? 'Genåbner...' : isWithdraw ? 'Trækker tilbage...' : 'Afviser...';
+  const actionLabel = isApprove
+    ? 'Godkend'
+    : isUndoReject
+      ? 'Fortryd afvisning'
+      : isReopen
+        ? 'Genåbn sag'
+        : isWithdraw
+          ? 'Træk tilbage'
+          : 'Afvis';
   const confirmButton = (
     <button
+      id={isWithdraw ? 'job-report-withdraw-review-confirm' : undefined}
       type="button"
-      className={isApprove ? 'btn btn-primary' : isReopen ? 'btn btn-secondary' : 'btn btn-danger'}
+      className={isApprove ? 'btn btn-primary' : isReopen || isWithdraw ? 'btn btn-secondary' : 'btn btn-danger'}
       onClick={() => onConfirm(reason)}
       disabled={isPending || (requiresReason && !reason.trim())}
     >
@@ -66,6 +84,10 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
         {isReopen ? (
           <p>
             Sagen <strong>{reportNumber}</strong> er godkendt og låst. Genåbning gør den redigerbar igen, og årsagen gemmes permanent i sagshistorikken.
+          </p>
+        ) : isWithdraw ? (
+          <p>
+            Sagen <strong>{reportNumber}</strong> trækkes tilbage fra gennemsyn, så du kan rette den og sende den til gennemsyn igen.
           </p>
         ) : (
           <p>
