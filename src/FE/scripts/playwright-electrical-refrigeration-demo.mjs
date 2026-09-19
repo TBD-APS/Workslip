@@ -40,6 +40,16 @@ async function run() {
 
     await page.goto(`${APP_URL}/app`, { waitUntil: 'domcontentloaded' });
     await page.getByRole('heading', { name: 'Opgaver', exact: true }).waitFor({ timeout: UI_TIMEOUT });
+    const referenceResponse = await context.request.get(`${API_URL}/api/reference-data`, {
+      headers: { Authorization: `Bearer ${session.token}` },
+    });
+    assert.equal(referenceResponse.ok(), true, `Referencedata returnerede HTTP ${referenceResponse.status()}.`);
+    const referenceData = await referenceResponse.json();
+    assert.deepEqual(
+      referenceData.installationTypes.map((installationType) => installationType.name).sort(),
+      ['EL', 'KØL'],
+      'Den isolerede browserdatabase skal eksponere EL/KØL-profilen.',
+    );
 
     await page.locator('#app-fab-create-job').click();
     const dialog = page.locator('#electrical-refrigeration-create-dialog');

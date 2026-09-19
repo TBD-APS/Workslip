@@ -8,7 +8,7 @@ import { useTheme } from '../../providers/ThemeProvider';
 import { CreateBottomSheet } from '../common/CreateBottomSheet';
 import { ElectricalRefrigerationCreateDialog } from '../../features/jobs/components/ElectricalRefrigerationCreateDialog';
 import { isElectricalRefrigerationProfile } from '../../features/jobs/electricalRefrigerationProfile';
-import { useGetApiReferenceData } from '../../api/generated/reference-data/reference-data';
+import { getApiReferenceData } from '../../api/generated/reference-data/reference-data';
 import { NotificationsDrawer } from '../common/NotificationsDrawer';
 import { QuickNavigator } from '../common/QuickNavigator';
 import {
@@ -153,17 +153,13 @@ export const AppLayout = () => {
     window.location.assign('/superadmin');
   };
 
-  const referenceDataQuery = useGetApiReferenceData({
-    query: {
-      enabled: canUseAppCommands
-        && canCreateJobs
-        && (location.pathname === '/app' || location.pathname === '/app/overblik'),
-    },
-  });
-
   const handleOpenJobCreate = async () => {
     try {
-      const referenceData = referenceDataQuery.data ?? (await referenceDataQuery.refetch()).data;
+      // Resolve the active organization's catalogue at click time. This avoids
+      // coupling the shared shell to a previously cached organization session
+      // while keeping the existing create sheet as the fallback for every
+      // non-EL/KØL organization.
+      const referenceData = await getApiReferenceData();
       if (isElectricalRefrigerationProfile(referenceData)) {
         setElectricalRefrigerationCreateOpen(true);
         return;
