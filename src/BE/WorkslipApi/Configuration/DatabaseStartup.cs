@@ -11,6 +11,8 @@ public static class DatabaseStartup
     public const string SeedDevelopmentDataKey = "Workslip:SeedDevelopmentData";
     public const string SeedDevelopmentEntraIdentitiesKey = "Workslip:SeedDevelopmentEntraIdentities";
     public const string ApplyLocalMigrationsKey = "Workslip:ApplyLocalMigrations";
+    public const string SyntheticSeedProfileKey = "Workslip:SyntheticSeedProfile";
+    public const string ElectricalRefrigerationSeedProfile = "ElectricalAndRefrigerationDemo";
     private const string SqlConnectionStringKey = "Azure:Sql:ConnectionString";
 
     public static bool IsOpenApiGeneration(IConfiguration configuration) =>
@@ -133,7 +135,27 @@ public static class DatabaseStartup
             "Seed development database (DB only)",
             () => DatabaseSeeder.Seed(
                 db,
-                scope.ServiceProvider.GetRequiredService<InstallationBaselineProvisioner>()));
+                scope.ServiceProvider.GetRequiredService<InstallationBaselineProvisioner>(),
+                ResolveSyntheticSeedProfile(environment, configuration)));
+    }
+
+    internal static SyntheticSeedProfile ResolveSyntheticSeedProfile(
+        IHostEnvironment? environment,
+        IConfiguration configuration)
+    {
+        if (environment?.IsEnvironment(DemoModeConfiguration.DemoEnvironmentName) == true)
+        {
+            return SyntheticSeedProfile.ElectricalAndRefrigerationDemo;
+        }
+
+        var explicitlySelectedProfile = configuration[SyntheticSeedProfileKey];
+        return environment?.IsDevelopment() == true
+               && string.Equals(
+                   explicitlySelectedProfile,
+                   ElectricalRefrigerationSeedProfile,
+                   StringComparison.OrdinalIgnoreCase)
+            ? SyntheticSeedProfile.ElectricalAndRefrigerationDemo
+            : SyntheticSeedProfile.Development;
     }
 
     private static async Task RunDatabasePhaseAsync(string step, string phase, Func<Task> action)

@@ -8,10 +8,19 @@ public sealed class InstallationBaselineProvisioner(SqlDbContext context)
     public async Task<ProvisionedInstallationBaseline> ProvisionAsync(
         Guid organizationId,
         CancellationToken cancellationToken = default)
+        => await ProvisionAsync(
+            organizationId,
+            InstallationChecklistPack.VvsKls,
+            cancellationToken);
+
+    public async Task<ProvisionedInstallationBaseline> ProvisionAsync(
+        Guid organizationId,
+        InstallationChecklistPack pack,
+        CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var seedFilePath = Path.Combine(AppContext.BaseDirectory, "Data.json");
+        var seedFilePath = Path.Combine(AppContext.BaseDirectory, SeedFileName(pack));
         var seedData = await LoadAsync(seedFilePath, cancellationToken);
 
         var controlCategories = CreateControlCategories(seedData, organizationId);
@@ -31,6 +40,13 @@ public sealed class InstallationBaselineProvisioner(SqlDbContext context)
 
         return new ProvisionedInstallationBaseline(definitions, mappings);
     }
+
+    private static string SeedFileName(InstallationChecklistPack pack) => pack switch
+    {
+        InstallationChecklistPack.VvsKls => "Data.json",
+        InstallationChecklistPack.ElectricalAndRefrigeration => "Data.electrical-refrigeration.json",
+        _ => throw new ArgumentOutOfRangeException(nameof(pack), pack, "Unknown installation checklist pack.")
+    };
 
     private static List<ControlCategoryRow> CreateControlCategories(
         InstallationControlPointSeedData seedData,
@@ -245,3 +261,9 @@ public sealed class ControlPointSeedItem
 }
 
 public sealed record SeededControlPoint(string Key, ControlPointRow Row);
+
+public enum InstallationChecklistPack
+{
+    VvsKls,
+    ElectricalAndRefrigeration
+}

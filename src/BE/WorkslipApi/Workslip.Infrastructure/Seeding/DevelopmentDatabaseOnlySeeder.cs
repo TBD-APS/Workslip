@@ -12,14 +12,21 @@ public static class DevelopmentDatabaseOnlySeeder
     internal const string LocalSuperadminEmail = "superadmin@17v3ygzs.mailosaur.net";
     private const string LocalSuperadminDisplayName = "Local Superadmin";
 
+    public static Task SeedAsync(
+        SqlDbContext db,
+        InstallationBaselineProvisioner installationBaselineProvisioner,
+        CancellationToken cancellationToken = default) =>
+        SeedAsync(db, installationBaselineProvisioner, SyntheticSeedProfile.Development, cancellationToken);
+
     public static async Task SeedAsync(
         SqlDbContext db,
         InstallationBaselineProvisioner installationBaselineProvisioner,
+        SyntheticSeedProfile profile,
         CancellationToken cancellationToken = default)
     {
         await EnsureLocalSuperadminAsync(db, cancellationToken);
         await EnsurePlatformOrganizationBaselineAsync(db, installationBaselineProvisioner, cancellationToken);
-        await DatabaseSeeder.Seed(db, installationBaselineProvisioner, cancellationToken);
+        await DatabaseSeeder.Seed(db, installationBaselineProvisioner, profile, cancellationToken);
         await DevelopmentTestUserAudienceReconciler.ReconcileAsync(db, cancellationToken);
     }
 

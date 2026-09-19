@@ -41,6 +41,66 @@ public sealed class DatabaseSeederTests
         Assert.NotEmpty(await context.JobReportInstallationControlPoints.AsNoTracking().ToListAsync());
         Assert.NotEmpty(await context.InstallationTypeDefinitions.AsNoTracking().ToListAsync());
         Assert.NotEmpty(await context.InstallationTypeDefinitionMappings.AsNoTracking().ToListAsync());
+        Assert.Equal(
+            "NP VVS Teknik ApS",
+            (await context.Organizations.AsNoTracking().SingleAsync()).Name);
+        Assert.DoesNotContain(
+            await context.InstallationTypeDefinitions.AsNoTracking().Select(definition => definition.Name).ToArrayAsync(),
+            name => name is "EL" or "KØL");
+    }
+
+    [Fact]
+    public async Task Seed_electricalAndRefrigerationDemo_IsolatedProfileHasCombinedFirstJob()
+    {
+        await using var context = CreateContext();
+
+        await DatabaseSeeder.Seed(
+            context,
+            new InstallationBaselineProvisioner(context),
+            SyntheticSeedProfile.ElectricalAndRefrigerationDemo);
+
+        var organization = await context.Organizations.AsNoTracking().SingleAsync();
+        Assert.Equal("JH El & Køl – Demo", organization.Name);
+        Assert.Equal("87654321", organization.Cvr);
+        Assert.Equal(
+            new[]
+            {
+                "Lars Holm|Admin",
+                "Mikkel Sørensen|User",
+                "Auditør Jakobsen|Auditor"
+            },
+            await context.Users
+                .AsNoTracking()
+                .OrderBy(user => user.Phone)
+                .Select(user => $"{user.DisplayName}|{user.Role}")
+                .ToArrayAsync());
+
+        Assert.Equal(
+            new[] { "EL", "KØL" },
+            await context.InstallationTypeDefinitions
+                .AsNoTracking()
+                .OrderBy(definition => definition.SortOrder)
+                .Select(definition => definition.Name)
+                .ToArrayAsync());
+
+        var firstJob = await context.JobReports
+            .AsNoTracking()
+            .OrderBy(job => job.ReportNumber)
+            .FirstAsync();
+        var selectedDisciplines = await (
+            from selection in context.JobReportInstallations.AsNoTracking()
+            join definition in context.InstallationTypeDefinitions.AsNoTracking()
+                on new { selection.OrganizationId, Id = selection.InstallationTypeDefinitionId }
+                equals new { definition.OrganizationId, definition.Id }
+            where selection.JobReportId == firstJob.Id
+            orderby selection.SortOrder
+            select definition.Name)
+            .ToArrayAsync();
+
+        Assert.Equal(new[] { "EL", "KØL" }, selectedDisciplines);
+        Assert.Equal(
+            "Udskift varmepumpe inkl. ny elforsyning og idriftsættelse",
+            firstJob.TaskDescription);
     }
 
     [Fact]

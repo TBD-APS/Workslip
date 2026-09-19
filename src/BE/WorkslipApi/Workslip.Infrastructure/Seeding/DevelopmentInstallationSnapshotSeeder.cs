@@ -9,7 +9,8 @@ internal static class DevelopmentInstallationSnapshotSeeder
         SqlDbContext context,
         IReadOnlyList<JobReportRow> jobReports,
         ProvisionedInstallationBaseline baseline,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool includeAllDefinitionsOnFirstJob = false)
     {
         var random = new Faker();
         var selectedInstallations = new List<JobReportInstallationRow>();
@@ -19,13 +20,16 @@ internal static class DevelopmentInstallationSnapshotSeeder
             .GroupBy(mapping => mapping.InstallationTypeDefinitionId)
             .ToDictionary(group => group.Key, group => group.ToArray());
 
-        foreach (var job in jobReports)
+        for (var jobIndex = 0; jobIndex < jobReports.Count; jobIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var selectedDefinitions = baseline.Definitions
-                .OrderBy(_ => random.Random.Int())
-                .Take(random.Random.Int(1, Math.Min(3, baseline.Definitions.Count)))
-                .ToArray();
+            var job = jobReports[jobIndex];
+            var selectedDefinitions = includeAllDefinitionsOnFirstJob && jobIndex == 0
+                ? baseline.Definitions.OrderBy(definition => definition.SortOrder).ToArray()
+                : baseline.Definitions
+                    .OrderBy(_ => random.Random.Int())
+                    .Take(random.Random.Int(1, Math.Min(3, baseline.Definitions.Count)))
+                    .ToArray();
             var installationSortOrder = 1;
 
             foreach (var definition in selectedDefinitions)

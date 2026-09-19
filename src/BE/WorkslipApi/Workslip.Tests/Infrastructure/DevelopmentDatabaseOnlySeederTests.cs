@@ -49,6 +49,34 @@ public sealed class DevelopmentDatabaseOnlySeederTests
             user => Assert.Equal(UserKinds.InternalTest, user.UserKind));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SeedAsync_FreshDatabaseHonorsSelectedProfileBeforeLaterSeeding(bool electrical)
+    {
+        await using var context = CreateContext();
+        var profile = electrical
+            ? SyntheticSeedProfile.ElectricalAndRefrigerationDemo
+            : SyntheticSeedProfile.Development;
+        var provisioner = new InstallationBaselineProvisioner(context);
+
+        await DevelopmentDatabaseOnlySeeder.SeedAsync(context, provisioner, profile);
+        // Startup invokes the regular seeder again after preparing the fresh database.
+        await DatabaseSeeder.Seed(context, provisioner, profile);
+
+        var employee = await context.Users.SingleAsync(user => user.Id == LegacyArneId);
+        var organization = await context.Organizations.SingleAsync(org => org.Id == employee.OrganizationId);
+        Assert.Equal(profile.OrganizationName, organization.Name);
+        Assert.Equal(electrical ? "Mikkel Sørensen" : "Arne Arnesen", employee.DisplayName);
+        var disciplines = await context.InstallationTypeDefinitions
+            .Where(definition => definition.OrganizationId == employee.OrganizationId)
+            .Select(definition => definition.Name)
+            .OrderBy(name => name)
+            .ToArrayAsync();
+        Assert.Equal(electrical ? ["EL", "KØL"] : new[] { "Afløb", "Gas", "Vand", "Varme", "Ventilation" }, disciplines);
+        Assert.Equal(4, await context.Users.CountAsync());
+    }
+
     [Fact]
     public async Task SeedAsync_WhenRepeated_DoesNotDuplicateLocalSuperadmin()
     {
