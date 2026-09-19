@@ -28,22 +28,22 @@ permalink: /pricing/
       <div class="pricing-builder-heading">
         <div>
           <h2 id="pricing-builder-title">Byg jeres løsning</h2>
-          <p>Vælg de moduler, I vil aktivere nu.</p>
+          <p>Workslip Core koster 119 kr./md. Ekstra moduler koster 99 kr. pr. modul.</p>
         </div>
         <a class="pricing-help-link" href="#pricing-how-it-works">Sådan virker det</a>
       </div>
 
       <div class="pricing-module-list" id="pricing-module-list">
-        <article class="pricing-module" data-module="job-flow" data-price="1000" data-label="Job flow">
+        <article class="pricing-module" data-module="job-flow" data-price="119" data-label="Workslip Core">
           <div class="pricing-module-main">
             <div class="pricing-module-icon pricing-module-icon-blue" aria-hidden="true">▣</div>
             <div class="pricing-module-copy">
               <span class="pricing-module-badge">Kerneflow</span>
-              <h3>Job flow</h3>
+              <h3>Workslip Core</h3>
               <p>Opret, planlæg og udfør jobs. Overblik over status, opgaver og kommunikation i marken.</p>
             </div>
             <div class="pricing-module-action">
-              <span class="pricing-module-price">1.000 kr./md.</span>
+              <span class="pricing-module-price">119 kr./md.</span>
               <label class="pricing-switch">
                 <span class="sr-only">Aktivér Job flow</span>
                 <input id="pricing-module-job-flow" type="checkbox" data-pricing-toggle>
@@ -61,16 +61,16 @@ permalink: /pricing/
           </details>
         </article>
 
-        <article class="pricing-module" data-module="time-economy" data-price="1235" data-label="Tid & jobøkonomi">
+        <article class="pricing-module" data-module="time-economy" data-price="99" data-label="Ekstra modul">
           <div class="pricing-module-main">
             <div class="pricing-module-icon pricing-module-icon-cyan" aria-hidden="true">◷</div>
             <div class="pricing-module-copy">
               <span class="pricing-module-badge">Tilvalg</span>
-              <h3>Tid &amp; jobøkonomi</h3>
+              <h3>Ekstra modul</h3>
               <p>Registrér tid, kørsel og materialer. Få overblik over dækningsbidrag og lønsomhed pr. job.</p>
             </div>
             <div class="pricing-module-action">
-              <span class="pricing-module-price">1.235 kr./md.</span>
+              <span class="pricing-module-price">99 kr./md.</span>
               <label class="pricing-switch">
                 <span class="sr-only">Aktivér Tid &amp; jobøkonomi</span>
                 <input id="pricing-module-time-economy" type="checkbox" data-pricing-toggle>
