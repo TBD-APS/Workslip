@@ -134,6 +134,77 @@ public sealed class DatabaseStartupTests
     }
 
     [Fact]
+    public async Task VerifyIfRequiredAsync_DemoEnvironment_SeedsElectricalAndRefrigerationProfileOnly()
+    {
+        var serviceCollection = new ServiceCollection();
+        var databaseName = Guid.NewGuid().ToString();
+        serviceCollection.AddDbContext<SqlDbContext>(options =>
+            options.UseInMemoryDatabase(databaseName));
+        serviceCollection.AddScoped<InstallationBaselineProvisioner>();
+        await using var services = serviceCollection.BuildServiceProvider();
+        var environment = new TestHostEnvironment
+        {
+            EnvironmentName = DemoModeConfiguration.DemoEnvironmentName
+        };
+
+        await DatabaseStartup.VerifyIfRequiredAsync(
+            services,
+            BuildConfiguration(generateOpenApiOnly: false, seedDevelopmentData: false),
+            seedDevelopmentData: true,
+            seedDevelopmentEntraIdentities: false,
+            environment);
+
+        await using var verificationScope = services.CreateAsyncScope();
+        var verificationContext = verificationScope.ServiceProvider.GetRequiredService<SqlDbContext>();
+        var organization = await verificationContext.Organizations.AsNoTracking().SingleAsync();
+        var installationTypes = await verificationContext.InstallationTypeDefinitions
+            .AsNoTracking()
+            .OrderBy(definition => definition.SortOrder)
+            .Select(definition => definition.Name)
+            .ToArrayAsync();
+
+        Assert.Equal("JH El & Køl – Demo", organization.Name);
+        Assert.Equal(new[] { "EL", "KØL" }, installationTypes);
+    }
+
+    [Fact]
+    public async Task VerifyIfRequiredAsync_DevelopmentExplicitDemoProfile_SeedsElectricalAndRefrigerationProfileOnly()
+    {
+        var serviceCollection = new ServiceCollection();
+        var databaseName = Guid.NewGuid().ToString();
+        serviceCollection.AddDbContext<SqlDbContext>(options =>
+            options.UseInMemoryDatabase(databaseName));
+        serviceCollection.AddScoped<InstallationBaselineProvisioner>();
+        await using var services = serviceCollection.BuildServiceProvider();
+        var environment = new TestHostEnvironment
+        {
+            EnvironmentName = Environments.Development
+        };
+
+        await DatabaseStartup.VerifyIfRequiredAsync(
+            services,
+            BuildConfiguration(
+                generateOpenApiOnly: false,
+                seedDevelopmentData: true,
+                syntheticSeedProfile: DatabaseStartup.ElectricalRefrigerationSeedProfile),
+            seedDevelopmentData: true,
+            seedDevelopmentEntraIdentities: false,
+            environment);
+
+        await using var verificationScope = services.CreateAsyncScope();
+        var verificationContext = verificationScope.ServiceProvider.GetRequiredService<SqlDbContext>();
+        var organization = await verificationContext.Organizations.AsNoTracking().SingleAsync();
+        var installationTypes = await verificationContext.InstallationTypeDefinitions
+            .AsNoTracking()
+            .OrderBy(definition => definition.SortOrder)
+            .Select(definition => definition.Name)
+            .ToArrayAsync();
+
+        Assert.Equal("JH El & Køl – Demo", organization.Name);
+        Assert.Equal(new[] { "EL", "KØL" }, installationTypes);
+    }
+
+    [Fact]
     public async Task VerifyIfRequiredAsync_EntraOptIn_ResolvesDevelopmentDatabaseSeeder()
     {
         var serviceCollection = new ServiceCollection();
@@ -228,13 +299,15 @@ public sealed class DatabaseStartupTests
     private static IConfiguration BuildConfiguration(
         bool generateOpenApiOnly,
         bool seedDevelopmentData = false,
-        bool seedDevelopmentEntraIdentities = false) =>
+        bool seedDevelopmentEntraIdentities = false,
+        string? syntheticSeedProfile = null) =>
         new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [DatabaseStartup.GenerateOpenApiOnlyKey] = generateOpenApiOnly.ToString(),
                 [DatabaseStartup.SeedDevelopmentDataKey] = seedDevelopmentData.ToString(),
-                [DatabaseStartup.SeedDevelopmentEntraIdentitiesKey] = seedDevelopmentEntraIdentities.ToString()
+                [DatabaseStartup.SeedDevelopmentEntraIdentitiesKey] = seedDevelopmentEntraIdentities.ToString(),
+                [DatabaseStartup.SyntheticSeedProfileKey] = syntheticSeedProfile
             })
             .Build();
 

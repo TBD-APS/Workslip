@@ -33,15 +33,48 @@ public static class DatabaseSeeder
             Roles.Auditor)
     ];
 
+    private static readonly DevelopmentUserDefinition[] ElectricalRefrigerationDemoUserDefinitions =
+    [
+        new(
+            new Guid("A1A1A1A1-DA5B-4CC4-BBEB-07B40CAB806F"),
+            "Lars Holm",
+            "admin@17v3ygzs.mailosaur.net",
+            "10000001",
+            Roles.Admin),
+        new(
+            new Guid("B2B2B2B2-DA5B-4CC4-BBEB-07B40CAB806F"),
+            "Mikkel Sørensen",
+            "user@17v3ygzs.mailosaur.net",
+            "10000002",
+            Roles.User),
+        new(
+            new Guid("C3C3C3C3-DA5B-4CC4-BBEB-07B40CAB806F"),
+            "Auditør Jakobsen",
+            "auditor@17v3ygzs.mailosaur.net",
+            "10000003",
+            Roles.Auditor)
+    ];
+
     public static async Task Seed(
         SqlDbContext db,
         InstallationBaselineProvisioner installationBaselineProvisioner,
+        CancellationToken cancellationToken = default)
+        => await Seed(
+            db,
+            installationBaselineProvisioner,
+            SyntheticSeedProfile.Development,
+            cancellationToken);
+
+    public static async Task Seed(
+        SqlDbContext db,
+        InstallationBaselineProvisioner installationBaselineProvisioner,
+        SyntheticSeedProfile profile,
         CancellationToken cancellationToken = default)
     {
         db.IsSeeding = true;
         try
         {
-            await SeedCore(db, installationBaselineProvisioner, cancellationToken);
+            await SeedCore(db, installationBaselineProvisioner, profile, cancellationToken);
         }
         finally
         {
@@ -52,6 +85,7 @@ public static class DatabaseSeeder
     private static async Task SeedCore(
         SqlDbContext db,
         InstallationBaselineProvisioner installationBaselineProvisioner,
+        SyntheticSeedProfile profile,
         CancellationToken cancellationToken)
     {
         await NormalizeExclusiveClosureFlagSelectionsAsync(db);
@@ -73,7 +107,7 @@ public static class DatabaseSeeder
 
         if (existingOrganization is not null)
         {
-            await ReconcileDevelopmentUsersAsync(db, existingOrganization.Id);
+            await ReconcileDevelopmentUsersAsync(db, existingOrganization.Id, profile);
             return;
         }
 
@@ -84,20 +118,14 @@ public static class DatabaseSeeder
 
         var organization = new Faker<OrganizationRow>()
             .RuleFor(x => x.Id, f => f.Random.Guid())
-            .RuleFor(x => x.Cvr, f => "37236497")
-            .RuleFor(x => x.Name, f => "NP VVS Teknik ApS")
+            .RuleFor(x => x.Cvr, _ => profile.Cvr)
+            .RuleFor(x => x.Name, _ => profile.OrganizationName)
             .RuleFor(x => x.CreatedAt, _ => now)
             .RuleFor(x => x.UpdatedAt, _ => now)
             .Generate();
 
 
-        var jobWorkKinds = new List<JobWorkKindRow>
-        {
-            new() { Id = Guid.NewGuid(), NormalizedLabel = "NewInstallation", Label = "Ny installation", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 1 },
-            new() { Id = Guid.NewGuid(), NormalizedLabel = "ChangeOfInstallation", Label = "Ændring af installation", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 2},
-            new() { Id = Guid.NewGuid(), NormalizedLabel = "RepairWork", Label = "Reparationsarbejde", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 3 },
-            new() { Id = Guid.NewGuid(), NormalizedLabel = "ServiceOther", Label = "Service/Andet", RequiresCustomWorkKind = true, IsActive = true, SortOrder = 4 }
-        };
+        var jobWorkKinds = CreateJobWorkKinds(profile);
 
         var jobClosureFlags = new List<JobClosureFlagRow>
         {
@@ -109,7 +137,7 @@ public static class DatabaseSeeder
 
         var customers = LoadCustomersFromCsv(organization.Id, now);
 
-        var users = CreateDevelopmentUsers(organization.Id, now);
+        var users = CreateDevelopmentUsers(organization.Id, now, profile);
 
         var statuses = new[] { JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected, JobStatus.Reopened };
 
@@ -138,9 +166,19 @@ public static class DatabaseSeeder
                     CustomerName = customer.Name,
                     CustomerPhone = customer.Phone,
                     ReportNumber = formattedReportNumber,
-                    Status = f.PickRandom(statuses).ToString(),
+                    Status = profile == SyntheticSeedProfile.ElectricalAndRefrigerationDemo && f.IndexFaker == 0
+                        ? JobStatus.InReview.ToString()
+                        : f.PickRandom(statuses).ToString(),
                     ReportDate = f.Date.Past(1).Date,
-                    TaskDescription = f.Lorem.Sentence(),
+                    TaskDescription = profile == SyntheticSeedProfile.ElectricalAndRefrigerationDemo
+                        ? f.IndexFaker switch
+                        {
+                            0 => "Udskift varmepumpe inkl. ny elforsyning og idriftsættelse",
+                            1 => "Slutverifikation af ny eltavle",
+                            2 => "Service, lækagekontrol og kølemiddeljournal",
+                            _ => f.Lorem.Sentence()
+                        }
+                        : f.Lorem.Sentence(),
                     WorkKindId = workKind.Id,
                     CustomWorkKind = workKind.RequiresCustomWorkKind
                         ? f.Commerce.Product()
@@ -355,12 +393,14 @@ public static class DatabaseSeeder
 
         var installationBaseline = await installationBaselineProvisioner.ProvisionAsync(
             organization.Id,
+            profile.ChecklistPack,
             cancellationToken);
         DevelopmentInstallationSnapshotSeeder.Stage(
             db,
             jobs,
             installationBaseline,
-            cancellationToken);
+            cancellationToken,
+            includeAllDefinitionsOnFirstJob: profile == SyntheticSeedProfile.ElectricalAndRefrigerationDemo);
 
         db.Organizations.Add(organization);
         await db.JobReports.AddRangeAsync(jobs, cancellationToken);
@@ -375,6 +415,30 @@ public static class DatabaseSeeder
         await db.Worksheets.AddRangeAsync(worksheets, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static List<JobWorkKindRow> CreateJobWorkKinds(SyntheticSeedProfile profile)
+    {
+        if (profile == SyntheticSeedProfile.ElectricalAndRefrigerationDemo)
+        {
+            return
+            [
+                new() { Id = Guid.NewGuid(), NormalizedLabel = "ElectricalInstallation", Label = "Elinstallation", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 1 },
+                new() { Id = Guid.NewGuid(), NormalizedLabel = "ElectricalService", Label = "Elservice og fejlfinding", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 2 },
+                new() { Id = Guid.NewGuid(), NormalizedLabel = "RefrigerationCommissioning", Label = "Idriftsættelse af køleanlæg", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 3 },
+                new() { Id = Guid.NewGuid(), NormalizedLabel = "RefrigerationService", Label = "Køleservice og lækagekontrol", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 4 },
+                new() { Id = Guid.NewGuid(), NormalizedLabel = "ElectricalAndRefrigeration", Label = "EL + KØL", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 5 },
+                new() { Id = Guid.NewGuid(), NormalizedLabel = "ServiceOther", Label = "Service/Andet", RequiresCustomWorkKind = true, IsActive = true, SortOrder = 6 }
+            ];
+        }
+
+        return
+        [
+            new() { Id = Guid.NewGuid(), NormalizedLabel = "NewInstallation", Label = "Ny installation", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 1 },
+            new() { Id = Guid.NewGuid(), NormalizedLabel = "ChangeOfInstallation", Label = "Ændring af installation", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 2},
+            new() { Id = Guid.NewGuid(), NormalizedLabel = "RepairWork", Label = "Reparationsarbejde", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 3 },
+            new() { Id = Guid.NewGuid(), NormalizedLabel = "ServiceOther", Label = "Service/Andet", RequiresCustomWorkKind = true, IsActive = true, SortOrder = 4 }
+        ];
     }
 
     private static void AddYearlyDemoWorksheets(
@@ -451,12 +515,16 @@ public static class DatabaseSeeder
 
     private static decimal QuarterHour(decimal hours) => Math.Round(hours * 4, MidpointRounding.AwayFromZero) / 4;
 
-    private static async Task ReconcileDevelopmentUsersAsync(SqlDbContext db, Guid organizationId)
+    private static async Task ReconcileDevelopmentUsersAsync(
+        SqlDbContext db,
+        Guid organizationId,
+        SyntheticSeedProfile profile)
     {
-        var developmentUserIds = DevelopmentUserDefinitions
+        var userDefinitions = GetUserDefinitions(profile);
+        var developmentUserIds = userDefinitions
             .Select(definition => definition.Id)
             .ToArray();
-        var developmentUserEmails = DevelopmentUserDefinitions
+        var developmentUserEmails = userDefinitions
             .Select(definition => definition.Email.ToLowerInvariant())
             .ToArray();
 
@@ -467,7 +535,7 @@ public static class DatabaseSeeder
             .Select(user => new { user.Id, user.Email })
             .ToListAsync();
 
-        var missingUsers = CreateDevelopmentUsers(organizationId, DateTimeOffset.UtcNow)
+        var missingUsers = CreateDevelopmentUsers(organizationId, DateTimeOffset.UtcNow, profile)
             .Where(candidate => existingIdentities.All(existing =>
                 existing.Id != candidate.Id &&
                 !string.Equals(existing.Email, candidate.Email, StringComparison.OrdinalIgnoreCase)))
@@ -482,8 +550,11 @@ public static class DatabaseSeeder
         await db.SaveChangesAsync();
     }
 
-    private static List<UserDataRow> CreateDevelopmentUsers(Guid organizationId, DateTimeOffset timestamp) =>
-        DevelopmentUserDefinitions
+    private static List<UserDataRow> CreateDevelopmentUsers(
+        Guid organizationId,
+        DateTimeOffset timestamp,
+        SyntheticSeedProfile profile) =>
+        GetUserDefinitions(profile)
             .Select(definition => new UserDataRow
             {
                 Id = definition.Id,
@@ -496,6 +567,11 @@ public static class DatabaseSeeder
                 UpdatedAt = timestamp
             })
             .ToList();
+
+    private static IReadOnlyList<DevelopmentUserDefinition> GetUserDefinitions(SyntheticSeedProfile profile) =>
+        profile == SyntheticSeedProfile.ElectricalAndRefrigerationDemo
+            ? ElectricalRefrigerationDemoUserDefinitions
+            : DevelopmentUserDefinitions;
 
     private static async Task NormalizeExclusiveClosureFlagSelectionsAsync(SqlDbContext db)
     {
@@ -621,4 +697,20 @@ public static class DatabaseSeeder
         string Email,
         string Phone,
         string Role);
+}
+
+public sealed record SyntheticSeedProfile(
+    string OrganizationName,
+    string Cvr,
+    InstallationChecklistPack ChecklistPack)
+{
+    public static readonly SyntheticSeedProfile Development = new(
+        "NP VVS Teknik ApS",
+        "37236497",
+        InstallationChecklistPack.VvsKls);
+
+    public static readonly SyntheticSeedProfile ElectricalAndRefrigerationDemo = new(
+        "JH El & Køl – Demo",
+        "87654321",
+        InstallationChecklistPack.ElectricalAndRefrigeration);
 }

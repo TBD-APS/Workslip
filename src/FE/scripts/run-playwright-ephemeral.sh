@@ -192,6 +192,7 @@ export WORKSLIP_PLAYWRIGHT_API_URL="${API_URL}"
 export WORKSLIP_PLAYWRIGHT_ADMIN_EMAIL='admin@17v3ygzs.mailosaur.net'
 export WORKSLIP_PLAYWRIGHT_USER_EMAIL='user@17v3ygzs.mailosaur.net'
 export WORKSLIP_PLAYWRIGHT_AUDITOR_EMAIL='auditor@17v3ygzs.mailosaur.net'
+export WORKSLIP_PLAYWRIGHT_EVIDENCE_DIR="${RUNNER_TEMP:-/tmp}/workslip-playwright-evidence"
 
 export WORKSLIP_ALLOW_LOCAL_DEV_TOKEN=true
 export WORKSLIP_LOCAL_APP_URL="${APP_URL}"
@@ -216,5 +217,40 @@ run_scenario 'duplicate assignment lifecycle evidence' scripts/playwright-duplic
 run_scenario 'global copyability evidence' scripts/playwright-copyability-lifecycle.mjs
 run_scenario 'shared state semantics evidence' scripts/playwright-shared-state-semantics.mjs
 run_scenario 'Admin Lederanalyse + Timer Power BI evidence' scripts/playwright-power-bi-leader-analysis.mjs
+
+echo "Restarting Development API with the isolated JH EL/KØL seed profile."
+kill "${BACKEND_PID}" >/dev/null 2>&1 || true
+wait "${BACKEND_PID}" >/dev/null 2>&1 || true
+BACKEND_PID=""
+export Azure__Sql__ConnectionString="Server=localhost,1433;Initial Catalog=WorkslipPlaywrightElectricalRefrigeration;User Id=sa;Password=${sql_password};Encrypt=false;TrustServerCertificate=true;MultipleActiveResultSets=true"
+export Workslip__SyntheticSeedProfile=ElectricalAndRefrigerationDemo
+nohup dotnet run \
+  --project "${API_PROJECT}" \
+  --no-launch-profile \
+  --no-restore \
+  >>"${BACKEND_LOG}" 2>&1 &
+BACKEND_PID=$!
+
+demo_api_ready=false
+for attempt in $(seq 1 120); do
+  if curl --fail --silent "${API_URL}/health" >/dev/null; then
+    demo_api_ready=true
+    break
+  fi
+  if ! kill -0 "${BACKEND_PID}" >/dev/null 2>&1; then
+    cat "${BACKEND_LOG}" >&2 || true
+    echo "ERROR: Workslip API exited before the JH EL/KØL profile became healthy." >&2
+    exit 76
+  fi
+  sleep 1
+done
+
+if [[ "${demo_api_ready}" != "true" ]]; then
+  cat "${BACKEND_LOG}" >&2 || true
+  echo "ERROR: Workslip API did not become healthy with the JH EL/KØL profile." >&2
+  exit 77
+fi
+
+run_scenario 'JH EL/KØL scoped create flow' scripts/playwright-electrical-refrigeration-demo.mjs
 
 echo "Authenticated ephemeral Playwright suite completed successfully."

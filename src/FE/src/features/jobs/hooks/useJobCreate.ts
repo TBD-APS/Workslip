@@ -13,7 +13,7 @@ import { useGetApiReferenceData } from '../../../api/generated/reference-data/re
 import { useAuth } from '../../../providers/useAuth';
 import { canReceiveJobAssignment, useIsAdmin } from '../../../providers/permissions';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
-import { emptyForm, isValidCreateForm } from '../utils';
+import { emptyForm, isValidCreateForm, toWorkRequest } from '../utils';
 import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
 import type { CreateJobRequest } from '../../../api/generated/models';
 import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
@@ -305,7 +305,7 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
     return errors;
   }
 
-  const saveForm = (targetForm: JobForm) => {
+  const saveForm = (targetForm: JobForm, includeWork = false) => {
     const errors = computeFieldErrors(targetForm);
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -338,7 +338,7 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
       assignedUserIds,
       duplicatePerAssignedUser: duplicatePerAssignedUser && assignedUserIds.length > 1,
       linkedJobIds,
-      work: null,
+      work: includeWork ? toWorkRequest(targetForm, referenceData) : null,
       observations: {
         reportDate: null,
         taskDescription: targetForm.taskDescription.trim() || null,
@@ -369,6 +369,13 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
 
   const save = () => {
     saveForm(form);
+  };
+
+  const saveWithWork = (overrides?: { technicalObservations?: string }) => {
+    saveForm({
+      ...form,
+      technicalObservations: overrides?.technicalObservations ?? form.technicalObservations,
+    }, true);
   };
 
   const saveWithTimesheets = (timesheets: WorksheetDraft[]) => {
@@ -428,6 +435,7 @@ export function useJobCreate(onCreated: (jobIds: string[]) => void, initialForm?
     updateCustomWorkKind,
     fieldErrors,
     save,
+    saveWithWork,
     saveWithTimesheets,
     reset,
   };

@@ -1,0 +1,206 @@
+{
+  "categories": [
+    {
+      "key": "forberedelse",
+      "label": "Forberedelse",
+      "sortOrder": 1
+    },
+    {
+      "key": "udfoerelse",
+      "label": "Udførelse",
+      "sortOrder": 2
+    },
+    {
+      "key": "maalinger",
+      "label": "Målinger og prøvning",
+      "sortOrder": 3
+    },
+    {
+      "key": "dokumentation",
+      "label": "Dokumentation og aflevering",
+      "sortOrder": 4
+    }
+  ],
+  "installationTypes": [
+    {
+      "key": "el",
+      "label": "EL",
+      "sortOrder": 1,
+      "categories": [
+        {
+          "categoryKey": "forberedelse",
+          "controlPoints": [
+            {
+              "key": "el-forberedelse-arbejdsomfang",
+              "label": "Arbejdsomfang og installation er identificeret",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "el-forberedelse-kompetence",
+              "label": "Udførende og kontrollant er registreret",
+              "sortOrder": 2,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "udfoerelse",
+          "controlPoints": [
+            {
+              "key": "el-udfoerelse-visuelt-eftersyn",
+              "label": "Visuelt eftersyn er gennemført",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "el-udfoerelse-maerkning",
+              "label": "Tavle, kredse og beskyttelsesudstyr er mærket",
+              "sortOrder": 2,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "maalinger",
+          "controlPoints": [
+            {
+              "key": "el-maalinger-beskyttelsesleder",
+              "label": "Kontinuitet i beskyttelsesleder er kontrolleret",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "el-maalinger-isolation",
+              "label": "Isolationsmodstand er målt",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "el-maalinger-rcd",
+              "label": "RCD/fejlstrømsafbryder er afprøvet",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "el-maalinger-polaritet-fasefoelge",
+              "label": "Polaritet og fasefølge er kontrolleret, hvor relevant",
+              "sortOrder": 4,
+              "isRequired": false
+            }
+          ]
+        },
+        {
+          "categoryKey": "dokumentation",
+          "controlPoints": [
+            {
+              "key": "el-dokumentation-resultat",
+              "label": "Resultatet af slutverifikationen er dokumenteret",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "el-dokumentation-maaleudstyr",
+              "label": "Anvendt måleudstyr er identificeret",
+              "sortOrder": 2,
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "koel",
+      "label": "KØL",
+      "sortOrder": 2,
+      "categories": [
+        {
+          "categoryKey": "forberedelse",
+          "controlPoints": [
+            {
+              "key": "koel-forberedelse-anlaegsdata",
+              "label": "Anlæg, serienummer og opstillingssted er identificeret",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "koel-forberedelse-koelemiddel",
+              "label": "Kølemiddeltype og fyldningsmængde er registreret",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "koel-forberedelse-certifikat",
+              "label": "Teknikerens relevante certifikat er kontrolleret",
+              "sortOrder": 3,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "udfoerelse",
+          "controlPoints": [
+            {
+              "key": "koel-udfoerelse-trykproevning",
+              "label": "Trykprøvning er gennemført og dokumenteret",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "koel-udfoerelse-taethed",
+              "label": "Tætheds-/lækagekontrol er gennemført",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "koel-udfoerelse-evakuering",
+              "label": "Evakuering og vakuumkontrol er gennemført",
+              "sortOrder": 3,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "maalinger",
+          "controlPoints": [
+            {
+              "key": "koel-maalinger-tryk-vakuum",
+              "label": "Tryk- og vakuumresultater er registreret",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "koel-maalinger-fyldning",
+              "label": "Påfyldt eller aftappet kølemiddelmængde er registreret",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "koel-maalinger-funktion",
+              "label": "Funktion, temperaturer og driftsforhold er kontrolleret",
+              "sortOrder": 3,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "dokumentation",
+          "controlPoints": [
+            {
+              "key": "koel-dokumentation-journal",
+              "label": "Kølemiddeljournal er opdateret",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "koel-dokumentation-idriftsaettelse",
+              "label": "Idriftsættelse eller servicerapport er afleveret",
+              "sortOrder": 2,
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

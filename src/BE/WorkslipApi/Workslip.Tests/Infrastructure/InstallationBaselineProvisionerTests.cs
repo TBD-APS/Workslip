@@ -53,6 +53,32 @@ public sealed class InstallationBaselineProvisionerTests
     }
 
     [Fact]
+    public async Task ProvisionAsync_ElectricalAndRefrigerationPack_StagesOnlySelectedDisciplines()
+    {
+        await using var context = CreateContext();
+        var organizationId = Guid.NewGuid();
+        var provisioner = new InstallationBaselineProvisioner(context);
+
+        var baseline = await provisioner.ProvisionAsync(
+            organizationId,
+            InstallationChecklistPack.ElectricalAndRefrigeration);
+
+        Assert.Equal(
+            new[] { "EL", "KØL" },
+            baseline.Definitions
+                .OrderBy(definition => definition.SortOrder)
+                .Select(definition => definition.Name)
+                .ToArray());
+        Assert.All(baseline.Definitions, definition => Assert.Equal(organizationId, definition.OrganizationId));
+        Assert.Contains(
+            baseline.Mappings,
+            mapping => mapping.ControlPoint.Name == "RCD/fejlstrømsafbryder er afprøvet");
+        Assert.Contains(
+            baseline.Mappings,
+            mapping => mapping.ControlPoint.Name == "Kølemiddeljournal er opdateret");
+    }
+
+    [Fact]
     public void AddWorkslipInfrastructure_ResolvesRepositoryAndProvisionerAsScopedServices()
     {
         var services = new ServiceCollection();

@@ -311,6 +311,13 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}
       - run: bash src/FE/scripts/run-playwright-ephemeral.sh
+      - if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-ui-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/workslip-playwright-evidence
+          if-no-files-found: ignore
+          retention-days: 7
       - if: ${{ failure() }}
         uses: actions/upload-artifact@v7
         with:

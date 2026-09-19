@@ -6,6 +6,9 @@ import { useEffect, useRef, useState } from 'react';
 import { DropdownProvider } from '../../providers/DropdownContext';
 import { useTheme } from '../../providers/ThemeProvider';
 import { CreateBottomSheet } from '../common/CreateBottomSheet';
+import { ElectricalRefrigerationCreateDialog } from '../../features/jobs/components/ElectricalRefrigerationCreateDialog';
+import { isElectricalRefrigerationProfile } from '../../features/jobs/electricalRefrigerationProfile';
+import { useGetApiReferenceData } from '../../api/generated/reference-data/reference-data';
 import { NotificationsDrawer } from '../common/NotificationsDrawer';
 import { QuickNavigator } from '../common/QuickNavigator';
 import {
@@ -66,6 +69,7 @@ export const AppLayout = () => {
 
   const { theme, toggle: toggleTheme } = useTheme();
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
+  const [electricalRefrigerationCreateOpen, setElectricalRefrigerationCreateOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [quickNavigatorOpen, setQuickNavigatorOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
@@ -147,6 +151,29 @@ export const AppLayout = () => {
     }
 
     window.location.assign('/superadmin');
+  };
+
+  const referenceDataQuery = useGetApiReferenceData({
+    query: {
+      enabled: canUseAppCommands
+        && canCreateJobs
+        && (location.pathname === '/app' || location.pathname === '/app/overblik'),
+    },
+  });
+
+  const handleOpenJobCreate = async () => {
+    try {
+      const referenceData = referenceDataQuery.data ?? (await referenceDataQuery.refetch()).data;
+      if (isElectricalRefrigerationProfile(referenceData)) {
+        setElectricalRefrigerationCreateOpen(true);
+        return;
+      }
+    } catch {
+      // The existing generic create sheet remains a safe recovery path when
+      // profile discovery is temporarily unavailable.
+    }
+
+    setCreateSheetOpen(true);
   };
 
   if (isSuperadmin && !organizationSession && location.pathname.startsWith('/app')) {
@@ -423,7 +450,7 @@ export const AppLayout = () => {
            <button
              id="app-fab-create-job"
              className="fab-create"
-             onClick={() => setCreateSheetOpen(true)}
+             onClick={() => void handleOpenJobCreate()}
              aria-label="Opret ny sag"
            >
              <PlusCircle size={22} />
@@ -439,6 +466,12 @@ export const AppLayout = () => {
         </Can>
       )}
       <CreateBottomSheet isOpen={createSheetOpen} onClose={() => setCreateSheetOpen(false)} />
+      {electricalRefrigerationCreateOpen && (
+        <ElectricalRefrigerationCreateDialog
+          isOpen
+          onClose={() => setElectricalRefrigerationCreateOpen(false)}
+        />
+      )}
       {canUseNotifications && (
         <NotificationsDrawer
           isOpen={notificationsOpen}
