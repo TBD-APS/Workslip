@@ -68,9 +68,24 @@ export const JobDetail = () => {
   return (
     <JobDetailsPage
       details={details}
-      onBack={() => navigate(-1)}
-      onDone={() => navigate(from)}
-      onGoToReport={(jobId) => navigate(`/app/completed/${jobId}`)}
+      onBack={() => {
+        // 'default' is React Router's key for the entry the app booted on, i.e.
+        // exactly the cold push-notification deep link into a single sag. There is
+        // nothing behind it to pop, so navigate(-1) dead-ends there and the user is
+        // trapped in the wizard. Every warm entry keeps navigate(-1): five call
+        // sites open /app/job/:id without a state.from, and sending those users to
+        // `from` would dump them on the job list instead of where they came from.
+        if (location.key === 'default') {
+          navigate(from, { replace: true });
+        } else {
+          navigate(-1);
+        }
+      }}
+      // Both exits replace the wizard entry rather than stacking on top of it. The
+      // sag behind them is gone - deleted, or moved on to the report - so leaving it
+      // in history is what let browser-back land on a dead-job error card.
+      onDone={() => navigate(from, { replace: true })}
+      onGoToReport={(jobId) => navigate(`/app/completed/${jobId}`, { replace: true, state: { from } })}
     />
   );
 };

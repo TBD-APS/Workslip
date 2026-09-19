@@ -21,16 +21,37 @@
 
 .time-month-controls {
   display: flex;
+  /* Ported from App.css together with its ≥768px counterpart below: this file
+     loads in the route's lazy chunk, i.e. after App.css, so owning only the
+     column here would have overridden App.css's surviving row rule and stacked
+     the controls on desktop. NOTE: the justify-content/flex-wrap below (and the
+     ≤760px override) were authored for a row and are inert while the stack is a
+     column — resolving that is a design decision, not a dedup. */
+  flex-direction: column;
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
 
+@media (min-width: 768px) {
+  .time-month-controls {
+    flex-direction: row;
+    align-items: center;
+    gap: 1rem;
+    margin-left: auto;
+  }
+}
+
 .time-month-switcher {
   display: grid;
   grid-template-columns: 2.5rem minmax(9rem, auto) 2.5rem;
   align-items: center;
+  /* Ported from App.css, which was the only owner of these three. capitalize is
+     load-bearing: formatMonthYear() returns Intl da-DK's lowercase "aug. 2026". */
+  gap: 0.55rem;
+  padding: 0.35rem;
+  text-transform: capitalize;
   min-height: 2.5rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -74,6 +95,14 @@
   font: inherit;
   font-size: var(--fs-sm);
   cursor: pointer;
+}
+
+/* Ported from App.css: at (0,2,0) this outranked the base rule above, so the
+   enabled 'Til nuværende måned' button has always been a filled primary. */
+.time-today-button:not(:disabled) {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary);
 }
 
 .time-today-button:disabled {
@@ -335,8 +364,8 @@
 }
 
 .admin-employee-doc-link {
-  color: var(--accent);
-  text-decoration: none;
+  color: var(--color-info);
+  text-decoration: underline;
   font-weight: 600;
 }
 
@@ -359,8 +388,8 @@
 
 .admin-employee-docs-header .badge {
   font-size: var(--fs-xs);
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--color-info) 15%, transparent);
+  color: var(--color-info);
   padding: 0.1rem 0.4rem;
   border-radius: 10px;
   font-weight: 600;

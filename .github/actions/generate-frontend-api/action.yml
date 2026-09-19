@@ -20,11 +20,12 @@ runs:
       working-directory: src/FE
       run: node scripts/generate-api-client.mjs --no-restore
 
-    # Vercel production deliberately does not call a remote dev/prod OpenAPI
-    # endpoint. The generated client committed in the release SHA must therefore
-    # already match the backend contract that CI just generated. Porcelain status
-    # catches added, removed and modified generated files; git diff alone misses
-    # an entirely untracked generated directory.
+    # The deployed frontend image (src/FE/Dockerfile) runs `npm run build`, which
+    # has no generation step and no access to a remote dev/prod OpenAPI endpoint.
+    # The generated client committed in the release SHA must therefore already
+    # match the backend contract that CI just generated. Porcelain status catches
+    # added, removed and modified generated files; git diff alone misses an
+    # entirely untracked generated directory.
     - name: Require generated client to be committed
       shell: bash
       run: |

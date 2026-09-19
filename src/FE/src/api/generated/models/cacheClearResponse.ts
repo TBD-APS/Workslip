@@ -4,12 +4,15 @@
  * Workslip.Api | v1
  * OpenAPI spec version: 1.0.0
  */
+import type { CacheClearScope } from './cacheClearScope';
+import type { DistributedCacheSnapshot } from './distributedCacheSnapshot';
 
 export interface CacheClearResponse {
   message: string;
   clearedAt: string;
-  vercelConfigured: boolean;
-  vercelCleared: boolean;
-  /** @nullable */
-  warning: string | null;
+  instanceId: string;
+  scope: CacheClearScope;
+  reachedEveryReplica: boolean;
+  distributedTierCleared: boolean;
+  distributed: DistributedCacheSnapshot;
 }

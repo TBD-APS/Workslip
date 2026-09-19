@@ -18,10 +18,13 @@ resource staticConfigValues 'Microsoft.AppConfiguration/configurationStores/keyV
   }
 ]
 
+// Removing an entry here does not delete the existing App Configuration
+// key-value: this deployment is incremental, so it only adds and updates. A
+// retired origin must also be deleted explicitly, e.g.
+//   az appconfig kv delete --name <store> --key 'Cors:AllowedOrigins:1' --yes
 var appConfigValues = {
   'Azure:Domain:BaseUrl': 'https://app.mrsoftware.dk'
   'Cors:AllowedOrigins:0': 'https://app.mrsoftware.dk'
-  'Cors:AllowedOrigins:1': 'https://workslip-v2-0.vercel.app'
 
   'Azure:AdOAuth:TenantId': az.tenant().tenantId
   'Azure:AdOAuth:Instance': az.environment().authentication.loginEndpoint

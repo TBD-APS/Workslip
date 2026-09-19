@@ -15,7 +15,7 @@ function hash(s: string) {
 }
 
 function BarChart({ data, x, y, color = '#d2542a' }: { data: Array<Record<string, string | number>>; x: string; y: string; color?: string }) {
-  if (!data.length) return <div style={{ color: 'var(--muted)', fontSize: '13px' }}>Ingen data</div>;
+  if (!data.length) return <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Ingen data</div>;
   const max = Math.max(1, ...data.map(d => Number(d[y] ?? 0)));
   return (
     <svg viewBox="0 0 400 220" role="img" aria-label="Søjlediagram" style={{ width: '100%', height: '220px', display: 'block' }}>
@@ -28,7 +28,7 @@ function BarChart({ data, x, y, color = '#d2542a' }: { data: Array<Record<string
         return (
           <g key={i}>
             <rect x={xPos} y={yPos} width={w} height={h} rx={6} fill={color} />
-            <text x={xPos + w / 2} y={195} textAnchor="middle" fontSize="10" fill="var(--muted)">{String(d[x]).slice(0, 10)}</text>
+            <text x={xPos + w / 2} y={195} textAnchor="middle" fontSize="10" fill="var(--text-muted)">{String(d[x]).slice(0, 10)}</text>
             <text x={xPos + w / 2} y={yPos - 6} textAnchor="middle" fontSize="11" fontWeight={700} fill="var(--text)">{v}</text>
           </g>
         );
@@ -39,7 +39,7 @@ function BarChart({ data, x, y, color = '#d2542a' }: { data: Array<Record<string
 }
 
 function DonutChart({ data, value, category }: { data: Array<Record<string, string | number>>; category: string; value: string }) {
-  if (!data.length) return <div style={{ color: 'var(--muted)', fontSize: '13px' }}>Ingen data</div>;
+  if (!data.length) return <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Ingen data</div>;
   const total = data.reduce((sum, item) => sum + Number(item[value] ?? 0), 0) || 1;
   const percentages = data.map(item => (Number(item[value] ?? 0) / total) * 100);
   const colors = ['#d2542a', '#2a7d8f', '#6a9e3f', '#8a6a00', '#6b6b6b'];
@@ -66,7 +66,7 @@ function DonutChart({ data, value, category }: { data: Array<Record<string, stri
         );
       })}
       <text x={100} y={100} textAnchor="middle" fontSize="22" fontWeight={750} fill="var(--text)">{total}</text>
-      <text x={100} y={118} textAnchor="middle" fontSize="10" fill="var(--muted)">I alt</text>
+      <text x={100} y={118} textAnchor="middle" fontSize="10" fill="var(--text-muted)">I alt</text>
     </svg>
   );
 }
@@ -79,7 +79,7 @@ function SimpleMap({ points }: { points: Array<{ id: string; label: string; lat:
   return (
     <svg viewBox="0 0 400 200" role="img" aria-label="Kort med sager" style={{ width: '100%', height: '200px', background: '#eef4f6', borderRadius: '12px', border: '1px solid var(--border)' }}>
       <rect x={0} y={0} width={400} height={200} rx={12} fill="#eef4f6" />
-      <text x={200} y={20} textAnchor="middle" fontSize="11" fill="var(--muted)">Demo-kort — geokodning hash omkring Aarhus (56.15, 10.21)</text>
+      <text x={200} y={20} textAnchor="middle" fontSize="11" fill="var(--text-muted)">Demo-kort — geokodning hash omkring Aarhus (56.15, 10.21)</text>
       {points.map(p => (
         <g key={p.id}>
           <circle cx={toX(p.lng)} cy={toY(p.lat)} r={6} fill="#d2542a" stroke="#fff" strokeWidth={2} />
@@ -204,7 +204,7 @@ export function LeaderVisualsPanel() {
               <option value="line">Linje</option>
             </select>
           </label>
-          <span style={{ fontSize: '12px', color: 'var(--muted)' }}>MCP: <code>workslip_create_chart {"{chartType, dataSource}"}</code> → Vega-Lite</span>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>MCP: <code>workslip_create_chart {"{chartType, dataSource}"}</code> → Vega-Lite</span>
         </div>
 
         <div id="visuals-chart" style={{ border: '1px solid var(--border)', borderRadius: '12px', padding: '12px', background: '#fff' }}>
@@ -223,14 +223,14 @@ export function LeaderVisualsPanel() {
               <option value="customers">Kunder</option>
             </select>
           </label>
-          <span style={{ fontSize: '12px', color: 'var(--muted)' }}>MCP: <code>workslip_create_map {"{source, limit}"}</code> → GeoJSON</span>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>MCP: <code>workslip_create_map {"{source, limit}"}</code> → GeoJSON</span>
         </div>
 
         <div id="visuals-map" style={{ border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
           <SimpleMap points={mapPoints} />
         </div>
 
-        <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'grid', gap: '4px' }}>
+        <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'grid', gap: '4px' }}>
           <span>Frontend renderer samme specs som MCP’en returnerer — skift til <code>vega-embed</code> / <code>react-leaflet</code> for fuld Vega/Leaflet.</span>
           <span>Prøv i MCP-klienten: <code>workslip_create_chart {"{chartType:\"bar\", dataSource:\"okonomi\"}"}</code> eller <code>workslip_create_map {"{source:\"jobs\", limit:20}"}</code></span>
         </div>
