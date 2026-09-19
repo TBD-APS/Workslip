@@ -153,14 +153,6 @@ public static class DependencyInjection
             client.DefaultRequestHeaders.UserAgent.ParseAdd("Workslip-ControlCenter/1.0");
         });
 
-        services.AddOptions<MrSaasyBugRadarOptions>()
-            .Configure<IConfiguration>((options, config) =>
-                config.GetSection(MrSaasyBugRadarOptions.SectionName).Bind(options));
-        services.AddHttpClient<MrSaasyBugRadarCheckpointPublisher>(client =>
-        {
-            client.Timeout = TimeSpan.FromSeconds(10);
-        });
-
         services.AddScoped<IEmailService, AcsEmailService>();
         services.AddSingleton<VapidKeyMaterial>();
         services.AddSingleton<IVapidPublicKeyProvider>(serviceProvider =>
@@ -184,7 +176,6 @@ public static class DependencyInjection
             services.AddHostedService<InviteEntraCleanupService>();
             services.AddHostedService<PushNotificationWorker>();
             services.AddHostedService<PowerBiWorksheetExportWorker>();
-            services.AddHostedService<MrSaasyBugRadarPublisherWorker>();
             services.AddHostedService<RefreshSessionCleanupService>();
         }
 

@@ -2,7 +2,7 @@
 
 **Status:** Active  
 **Owner:** Workslip maintainers  
-**Source of truth:** `DiagnosticsEndpoints`, `ApplicationInsightsErrorDiagnosticsService`, `MrSaasyBugRadarPublisherWorker`, `MrSaasyBugRadarCheckpointPublisher`, frontend telemetry bootstrap, Azure monitoring configuration, the Superadmin diagnostics UI and `supportSnapshot.ts`<br>
+**Source of truth:** `DiagnosticsEndpoints`, `ApplicationInsightsErrorDiagnosticsService`, frontend telemetry bootstrap, Azure monitoring configuration, the Superadmin diagnostics UI and `supportSnapshot.ts`<br>
 **Review cadence:** On telemetry, Azure RBAC, diagnostics contract, support-export or incident-process changes
 
 ## Purpose
@@ -44,27 +44,37 @@ The contract must not expose raw exception objects, stack traces, payloads, head
 
 Exact query tables, grouping logic, response-schema validation and retry behavior are implementation details owned by the diagnostics service and its focused tests. Change this document only when an operator/security invariant changes.
 
-## MR SAAS'y Bug Radar bridge
+## Diagnostics are pulled, not pushed
 
-The optional `ControlCenter:MrSaasyBugRadar` worker turns complete, current Workslip diagnostics snapshots into provider-neutral checkpoints for the MR SAAS'y Control Center. It is **disabled by default**. Enabling it is an operational activation step, not a consequence of deploying this code.
+Workslip does not send diagnostics anywhere. It exposes them and lets the
+consumer come and get them.
 
-The worker sends one idempotent `Failed` checkpoint per sanitized fingerprint and observed `LastSeenUtc`, grouped by a stable `workslip:bug:<fingerprint>` correlation identifier. It sends only the allowlisted diagnostics fields described above: sanitized error type/message, source/severity, normalized route/operation, occurrence/context counts and a link back to the Superadmin dashboard. It never forwards raw telemetry, stack traces, request data, headers, credentials or an Application Insights response body.
+`/api/admin/diagnostics` serves the full `ErrorDiagnosticsDashboard`, including
+the `ErrorDiagnosticsItem` list, behind Superadmin authorization and the
+`diagnostics-read` rate limit. A platform Control Center that wants Workslip's
+error picture polls that endpoint on its own schedule and owns its own retry,
+idempotency and storage.
 
-The bridge does not infer a fix from an empty, stale, unavailable or incomplete diagnostics snapshot. It publishes nothing in those states, so the MR SAAS'y sprint board cannot falsely show an exception as healed. A truncated complete snapshot may publish the available fingerprints but never resolves an absent one.
+This replaces the former `ControlCenter:MrSaasyBugRadar` worker, which pushed
+sanitized checkpoints outward to an MR SAAS'y activity endpoint. That worker,
+its options, its Cloudflare Access service binding and its `ActivityToken` are
+removed. Workslip no longer holds credentials for, or knows the address of, any
+platform service.
 
-### Activation boundary
+The direction matters beyond tidiness. Pushing meant Workslip carried the
+consumer's transport concerns — an outbound allowlist, a rotating token, a
+Cloudflare service identity, a retry interval, and a failure mode where a
+delivery outage looked like a Workslip fault. Pulling moves all of that to the
+consumer, and leaves Workslip with one thing to get right: an authorized,
+rate-limited read model that is correct whether or not anyone is reading it.
 
-Configure these values only in the approved deployment secret/configuration store; do not add them to tracked settings, diagnostics snapshots or logs:
-
-- `ControlCenter:MrSaasyBugRadar:Enabled=true`, `BaseUrl=https://app.mrsoftware.dk/`, `AgentId=workslip-bug-radar`, `Environment`, refresh interval and error limit in Workslip;
-- `ControlCenter:MrSaasyBugRadar:ActivityToken` in Workslip while MR SAAS'y requires legacy activity headers, paired with the MR SAAS'y `MR_SAASY_ACTIVITY_TOKEN` secret;
-- when Cloudflare Access service identities are enabled, a binding for the exact `workslip-bug-radar` agent with only the `ActivityCheckpoint` scope, plus Workslip's `CloudflareAccessClientId` and `CloudflareAccessClientSecret`. Keep the activity token while the receiving service is configured to require legacy headers as well.
-
-The receiving `/api/activity/checkpoints` endpoint remains responsible for authentication and idempotent persistence. A `401`, `403` or failed delivery is logged only as a transport outcome and retried on the next interval; the response body is never logged. Activate only after both sides' credentials and Cloudflare binding have been reviewed by their owners.
+Any deployment still carrying `ControlCenter:MrSaasyBugRadar:*` configuration
+should have it removed from the secret store; the code that read it is gone, so
+the values are inert but still secrets.
 
 ## Support snapshot
 
-The Superadmin UI can copy a versioned, allowlisted diagnostics snapshot to the clipboard after a validated response exists. The copy action does not itself transmit data to ChatGPT or another service; the separately configured MR SAAS'y bridge above sends only its defined sanitized checkpoint contract.
+The Superadmin UI can copy a versioned, allowlisted diagnostics snapshot to the clipboard after a validated response exists. The copy action does not itself transmit data to ChatGPT or another service. Workslip no longer transmits diagnostics anywhere; consumers pull them.
 
 The snapshot must preserve stale/partial/unavailable state and exclude unexpected runtime object properties by default. Clipboard failure must not fall back to persistent storage, download or network transmission.
 

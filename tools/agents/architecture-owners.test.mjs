@@ -19,10 +19,10 @@ test('date resolves to the shared frontend presentation owner', async () => {
   assert.equal(owner?.instructions, 'src/FE/src/lib/presentation/AGENTS.md');
 });
 
-test('model routing resolves to the Sassy agent runtime owner', async () => {
+test('external model routing has no in-repository runtime owner', async () => {
   const registry = await loadArchitectureOwners();
   const owner = resolveArchitectureOwner(registry, 'model-routing');
-  assert.equal(owner?.key, 'agent.runtime');
+  assert.equal(owner, null);
 });
 
 test('unknown intents fail closed instead of guessing', async () => {
