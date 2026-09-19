@@ -66,17 +66,15 @@ public sealed class JobStatusTransitionPolicyTests
             return JobStatusTransitionDecision.Forbidden;
         }
 
-        if (targetStatus == JobStatus.Draft)
-        {
-            return JobStatusTransitionDecision.Conflict;
-        }
-
         var allowedTransitions = new HashSet<(JobStatus Current, JobStatus Target)>
         {
             (JobStatus.Draft, JobStatus.InReview),
             (JobStatus.Rejected, JobStatus.InReview),
             (JobStatus.Reopened, JobStatus.InReview),
-            (JobStatus.InReview, JobStatus.InReview)
+            (JobStatus.InReview, JobStatus.InReview),
+            // Withdraw from review is available to the submitter and to reviewers.
+            (JobStatus.InReview, JobStatus.Draft),
+            (JobStatus.Draft, JobStatus.Draft)
         };
 
         if (isReviewer)

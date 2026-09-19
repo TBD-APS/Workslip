@@ -48,8 +48,8 @@ When documentation disagrees with implementation, fix the maintained documentati
 
 - Never push directly to `main`.
 - One Linear issue per implementation branch and pull request. Repository-governance-only changes explicitly requested by the repository owner may omit a Linear issue.
-- Branch: `rbj-<issue>-<description>`.
-- PR title: `RBJ-<issue>: <description>`.
+- Branch: `rbj--<issue>-<description>`. The double dash is load-bearing: the `Workslip active feature protection` ruleset in [`tools/release/configure-github-branch-rules.ps1`](tools/release/configure-github-branch-rules.ps1) matches `rbj--*`, so a branch named with a single dash gets no deletion or non-fast-forward protection at all.
+- PR title: `RBJ-<issue>: <description>`, unless the [pull request template](.github/pull_request_template.md) is being followed, which specifies `[Type] ISSUE-ID — Clear title`. These two conventions currently disagree and neither is enforced by CI; WOR-770 owns settling it. Until it does, match whichever the reviewer expects rather than assuming this line is authoritative.
 - Prefer small, cohesive PRs and squash merging.
 - **Prefer Git stacks by default for related, ordered or overlapping work.** Keep one cohesive issue per stack layer, create each child branch from the previous stack branch, and target the child PR at its parent branch while the stack is active.
 - Do not create multiple parallel PRs against `main` or a release branch when the changes belong to the same delivery sequence, touch shared implementation, or have an intended merge order. Extend the existing stack instead.

@@ -77,7 +77,7 @@
   border: 1px solid var(--border);
   border-radius: 24px;
   backdrop-filter: blur(20px);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-lg);
   text-align: center;
   z-index: 1;
 }

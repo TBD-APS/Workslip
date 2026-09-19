@@ -173,7 +173,14 @@ resource liveApp 'Microsoft.App/containerApps@2024-03-01' = {
         }
       ]
       scale: {
-        minReplicas: 0
+        // Keep one replica warm. This app serves the customer-facing production
+        // domain, and both containers share a replica: scaling to zero means the
+        // next visitor after an idle period waits for the .NET API to boot, open
+        // its SQL pool and acquire a managed-identity token before the first
+        // response. The App Service this replaces runs on F1 Free, where Always On
+        // cannot be enabled at all, so cold starts were unavoidable there; a warm
+        // replica here is the first chance to remove them rather than inherit them.
+        minReplicas: 1
         maxReplicas: 4
         rules: [
           {

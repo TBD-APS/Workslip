@@ -56,6 +56,9 @@ try {
   console.log('[playwright] lifecycle: fixture create -> user submit -> approve -> reopen -> correct -> resubmit -> approve.');
   await verifyReopenedLifecycle();
 
+  console.log('[playwright] lifecycle: fixture create -> user submit -> user withdraw -> correct -> resubmit -> approve.');
+  await verifyWithdrawFromReviewLifecycle();
+
   console.log('[playwright] critical job lifecycle flows passed.');
 } finally {
   await browser.close();
@@ -391,6 +394,74 @@ async function verifyReopenedLifecycle() {
     const historyText = JSON.stringify(history).toLowerCase();
     for (const expected of ['godkendt', 'genåbnet', 'til gennemsyn']) {
       assert.ok(historyText.includes(expected), `Job history must include status "${expected}" after reopen lifecycle.`);
+    }
+
+    adminHarness.assertCleanBrowser();
+    userHarness.assertCleanBrowser();
+  } finally {
+    await adminHarness.close();
+    await userHarness.close();
+  }
+}
+
+async function verifyWithdrawFromReviewLifecycle() {
+  const adminHarness = await createLifecycleSession({ email: ADMIN_EMAIL, role: 'Admin', suffix: 'withdraw-admin' });
+  const userHarness = await createLifecycleSession({ email: USER_EMAIL, role: 'User', suffix: 'withdraw-user' });
+
+  try {
+    const assignedUser = await resolveAssignedUser(adminHarness.session, USER_EMAIL);
+    const job = await createAssignedKlsJob(adminHarness.session, assignedUser);
+    await domain.completeAndSubmitKlsViaUi(userHarness.session, job);
+
+    const submitted = await userHarness.session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
+    contractHelpers.assertStatus(submitted, ['InReview']);
+
+    // The submitting User pulls the job back before any reviewer decision.
+    const withdrawn = await domain.withdrawJobFromReviewViaUi(userHarness.session, job.id);
+    contractHelpers.assertStatus(withdrawn, ['Draft', 'Aktiv']);
+    assert.equal(withdrawn.rejectionNote, null, 'A withdrawn job must not carry a correction reason.');
+    assert.ok(
+      (withdrawn.assignedUsers ?? []).some((candidate) => candidate.id === assignedUser.id),
+      'Withdrawn job must remain assigned to the executing User.',
+    );
+
+    // Back in the wizard: correct and resubmit through the normal Draft -> InReview path.
+    // A complete draft opens on the worksheets step by design (useJobDetails auto-redirect),
+    // so walk back to the first step through the stable step indicator before correcting.
+    const detailsStep = userHarness.session.page.locator('#job-step-0');
+    await detailsStep.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    if ((await detailsStep.getAttribute('aria-current')) !== 'step') {
+      await detailsStep.click();
+    }
+    await contractHelpers.waitForWizardStep(userHarness.session.page, 'Sagsdetaljer');
+    const commentTrigger = userHarness.session.page.locator('#job-technical-observations-trigger');
+    await commentTrigger.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    if ((await commentTrigger.getAttribute('aria-expanded')) !== 'true') {
+      await commentTrigger.click();
+    }
+    const technical = userHarness.session.page.locator('#job-technical-observations');
+    await technical.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await technical.fill(userHarness.session.data.correctedObservation);
+    const correctionSave = contractHelpers.waitForApiResponse(userHarness.session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
+    await domain.navigateToAttestation(userHarness.session, userHarness.session.referenceData);
+    await correctionSave;
+
+    await userHarness.session.page.locator('#job-attestation-confirmation').check();
+    const resubmittedResponse = contractHelpers.waitForApiResponse(userHarness.session.page, 'POST', `/api/jobs/${job.id}/status`, [200]);
+    await userHarness.session.page.locator('#job-attestation-submit').click();
+    await resubmittedResponse;
+
+    const resubmitted = await userHarness.session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
+    contractHelpers.assertStatus(resubmitted, ['InReview']);
+
+    await domain.approveJobViaUi(adminHarness.session, job.id);
+    const approved = await adminHarness.session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
+    contractHelpers.assertStatus(approved, ['Approved', 'Godkendt']);
+
+    const history = await adminHarness.session.apiExpect('GET', `/api/jobs/${job.id}/history`, undefined, [200]);
+    const historyText = JSON.stringify(history).toLowerCase();
+    for (const expected of ['til gennemsyn', 'godkendt']) {
+      assert.ok(historyText.includes(expected), `Job history must include status "${expected}" after withdraw lifecycle.`);
     }
 
     adminHarness.assertCleanBrowser();

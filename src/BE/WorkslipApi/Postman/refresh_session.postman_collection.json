@@ -1,0 +1,73 @@
+{
+  "info": {
+    "name": "Workslip refresh-session contract",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:5262" },
+    { "key": "frontendOrigin", "value": "http://localhost:5270" },
+    { "key": "email", "value": "admin@17v3ygzs.mailosaur.net" },
+    { "key": "firstAccessToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Development login establishes HttpOnly session",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Origin", "value": "{{frontendOrigin}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"email\":\"{{email}}\"}" },
+        "url": { "raw": "{{baseUrl}}/api/dev/token", "host": ["{{baseUrl}}"], "path": ["api", "dev", "token"] }
+      },
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('login succeeds', () => pm.response.to.have.status(200));",
+          "const json = pm.response.json();",
+          "pm.expect(json.token).to.be.a('string').and.not.empty;",
+          "pm.collectionVariables.set('firstAccessToken', json.token);",
+          "const cookie = (pm.response.headers.get('Set-Cookie') || '').toLowerCase();",
+          "pm.test('refresh cookie is HttpOnly and SameSite Strict', () => { pm.expect(cookie).to.include('httponly'); pm.expect(cookie).to.include('samesite=strict'); });"
+        ] }
+      }]
+    },
+    {
+      "name": "Refresh rotates session and access token",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Origin", "value": "{{frontendOrigin}}" }],
+        "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] }
+      },
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('refresh succeeds', () => pm.response.to.have.status(200));",
+          "const json = pm.response.json();",
+          "pm.expect(json.token).to.be.a('string').and.not.empty;",
+          "pm.expect(json.token).not.to.eql(pm.collectionVariables.get('firstAccessToken'));",
+          "pm.expect(json.refreshToken).to.eql(undefined);"
+        ] }
+      }]
+    },
+    {
+      "name": "Logout revokes server session",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Origin", "value": "{{frontendOrigin}}" }],
+        "url": { "raw": "{{baseUrl}}/api/auth/logout", "host": ["{{baseUrl}}"], "path": ["api", "auth", "logout"] }
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('logout succeeds', () => pm.response.to.have.status(204));"] } }]
+    },
+    {
+      "name": "Logged-out session cannot refresh",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Origin", "value": "{{frontendOrigin}}" }],
+        "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] }
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('refresh is rejected', () => pm.response.to.have.status(401));"] } }]
+    }
+  ]
+}

@@ -41,6 +41,22 @@ This is the coordination surface. Workslip cannot proceed past the seam until th
 - a Cerebras provider adapter behind the existing routing seam, with credentials held platform-side;
 - a thin GitHub entrypoint that Workslip can invoke without provider knowledge, per the convergence document's rule that a feature must not create a feature-specific workflow.
 
+## Relationship to the knowledge contract
+
+[`Docs/KNOWLEDGE_CONTRACT.md`](../../KNOWLEDGE_CONTRACT.md) is the other half of
+this boundary and does not conflict with it. That contract governs what Workslip
+*publishes* — how its documentation is structured, what metadata each chunk
+carries, and what the corpus guarantees to a consumer. This ADR governs where the
+*retriever* lives. Workslip owns the corpus; the agent runtime owns retrieval
+over it.
+
+One gap is worth naming because it spans both. The knowledge contract requires
+each selected chunk to preserve tenant, ACL and publication scope, which answers
+*who may see this*. Decision 4 above is a different question — *may this content
+influence instructions* — and access scope does not answer it: a document can be
+perfectly in-scope for a tenant and still be attacker-authored. Whichever side
+implements ranking must carry both.
+
 ## Consequences
 
 - The Cerebras work is unblocked on the platform side and needs no Workslip change to begin.

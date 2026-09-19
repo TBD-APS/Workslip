@@ -17,6 +17,7 @@ import {
   Pencil,
   RotateCcw,
   Timer,
+  Undo2,
   User,
   Users,
   X,
@@ -61,7 +62,7 @@ type JobEntryLocationState = {
   readOnly?: boolean;
 };
 
-type JobAction = 'approve' | 'reject' | 'undo-reject' | 'reopen';
+type JobAction = 'approve' | 'reject' | 'undo-reject' | 'reopen' | 'withdraw';
 
 type TimelineTone = 'danger' | 'warning' | 'success' | 'info' | 'neutral';
 
@@ -136,6 +137,11 @@ export function AdminCompletedJobReport() {
   // every other viewer gets the same overview but without the lifecycle controls.
   const canDecide = isAdmin && !readOnly;
   const canEdit = isAdmin && !readOnly && job.status !== JobStatus.Approved;
+  // Withdrawing a submitted job from review is available to the assignee who submitted it
+  // and to reviewers, so the case can be corrected and resubmitted. The backend enforces
+  // the actual role/scope decision; this only decides whether to offer the control.
+  const isAssignee = job.assignedUsers.some((assignedUser) => assignedUser.id === user?.id);
+  const canWithdraw = !readOnly && job.status === JobStatus.InReview && (isAdmin || isAssignee);
   // A "Diverse" case still under review has no installation/control-point/linked-case detail.
   const isDiverseInReview = job.jobType === 'Diverse' && job.status === JobStatus.InReview;
   const detailPairs = compactPairs([
@@ -195,6 +201,8 @@ export function AdminCompletedJobReport() {
     let note: string | null = null;
     if (confirmAction === 'undo-reject') {
       targetStatus = JobStatus.InReview;
+    } else if (confirmAction === 'withdraw') {
+      targetStatus = JobStatus.Draft;
     } else if (confirmAction === 'reopen') {
       targetStatus = JobStatus.Reopened;
       note = reason?.trim() || null;
@@ -209,10 +217,66 @@ export function AdminCompletedJobReport() {
       await queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
       const finished = confirmAction;
       setConfirmAction(null);
+      if (finished === 'withdraw') {
+        // A withdrawn job is a Draft again, and Drafts only live in the editing wizard.
+        // Go straight there so the user can correct and resubmit without a detour.
+        notify.success(`Sagen ${formatReportNumber(job)} er trukket tilbage og kan redigeres.`);
+        navigate(`/app/job/${job.id}`, { replace: true, state: { from } });
+        return;
+      }
       setCompletedAction(finished);
     } catch {
+      // The status endpoint can fail after the database transition has committed
+      // (for example while routing a rejected case back to its submitter). Always
+      // reconcile with server state before telling the admin that nothing happened.
+      try {
+        const recovered = await jobQuery.refetch();
+        if (recovered.data?.status === targetStatus) {
+          let recoveredJob = recovered.data;
+
+          if (targetStatus === JobStatus.Rejected) {
+            try {
+              // Same-status rejection calls are intentionally idempotent in the
+              // backend and repair a submitter reassignment that failed after the
+              // original status commit.
+              recoveredJob = await statusMutation.mutateAsync({
+                id: job.id,
+                data: { status: targetStatus, rejectionNote: note },
+              });
+            } catch {
+              queryClient.setQueryData(getGetApiJobsIdQueryKey(job.id), recovered.data);
+              await queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
+              notify.error(
+                `Sagen ${formatReportNumber(job)} er afvist, men kunne ikke sendes tilbage til medarbejderen. Prøv afvisningen igen fra sagen.`,
+              );
+              setConfirmAction(null);
+              return;
+            }
+          }
+
+          queryClient.setQueryData(getGetApiJobsIdQueryKey(job.id), recoveredJob);
+          await queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
+          const finished = confirmAction;
+          setConfirmAction(null);
+
+          if (finished === 'withdraw') {
+            notify.success(`Sagen ${formatReportNumber(job)} er trukket tilbage og kan redigeres.`);
+            navigate(`/app/job/${job.id}`, { replace: true, state: { from } });
+            return;
+          }
+
+          setCompletedAction(finished);
+          return;
+        }
+      } catch {
+        // If reconciliation itself fails, preserve the established user-facing
+        // error below. The next normal query refresh will still reconcile state.
+      }
+
       const message = confirmAction === 'undo-reject'
         ? 'Kunne ikke fortryde afvisningen. Prøv igen.'
+        : confirmAction === 'withdraw'
+          ? `Kunne ikke trække ${formatReportNumber(job)} tilbage. Prøv igen.`
         : confirmAction === 'reopen'
           ? `Kunne ikke genåbne ${formatReportNumber(job)}. Prøv igen.`
           : confirmAction === 'approve'
@@ -286,6 +350,18 @@ export function AdminCompletedJobReport() {
                   <span>Afvis</span>
                 </button>
               </>
+            )}
+            {canWithdraw && (
+              <button
+                id="job-report-withdraw-review"
+                type="button"
+                className="admin-case-reference-action"
+                onClick={() => setConfirmAction('withdraw')}
+                disabled={statusMutation.isPending}
+              >
+                <Undo2 size={23} aria-hidden="true" />
+                <span>Træk tilbage</span>
+              </button>
             )}
             {canDecide && job.status === JobStatus.Rejected && (
               <button

@@ -133,12 +133,30 @@ admin_token="$(get_dev_token 'admin@17v3ygzs.mailosaur.net')"
 user_token="$(get_dev_token 'user@17v3ygzs.mailosaur.net')"
 auditor_token="$(get_dev_token 'auditor@17v3ygzs.mailosaur.net')"
 
+if [[ "${WORKSLIP_POSTMAN_FOCUSED_REFRESH_ONLY:-false}" == "true" ]]; then
+  echo "Running focused refresh-session rotation and logout contract."
+  npx --yes newman run "${SCRIPT_DIR}/refresh_session.postman_collection.json" \
+    --env-var "baseUrl=${API_URL}" \
+    --reporters cli \
+    --timeout-request 30000 \
+    --bail
+  echo "Focused refresh-session Postman contract completed successfully."
+  exit 0
+fi
+
 echo "Running focused Auditor-scope Postman regression against synthetic role identities."
 npx --yes newman run "${SCRIPT_DIR}/auditor_scope.postman_collection.json" \
   --env-var "baseUrl=${API_URL}" \
   --env-var "adminToken=${admin_token}" \
   --env-var "userToken=${user_token}" \
   --env-var "auditorToken=${auditor_token}" \
+  --reporters cli \
+  --timeout-request 30000 \
+  --bail
+
+echo "Running refresh-session rotation and logout contract."
+npx --yes newman run "${SCRIPT_DIR}/refresh_session.postman_collection.json" \
+  --env-var "baseUrl=${API_URL}" \
   --reporters cli \
   --timeout-request 30000 \
   --bail

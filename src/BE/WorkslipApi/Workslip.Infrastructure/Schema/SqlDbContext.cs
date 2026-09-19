@@ -28,6 +28,8 @@ public sealed class SqlDbContext : DbContext
 
     public DbSet<UserDataRow> Users => Set<UserDataRow>();
 
+    public DbSet<RefreshSessionRow> RefreshSessions => Set<RefreshSessionRow>();
+
     public DbSet<CustomerRow> Customers => Set<CustomerRow>();
 
     public DbSet<JobWorkKindRow> JobWorkKinds => Set<JobWorkKindRow>();
@@ -88,6 +90,7 @@ public sealed class SqlDbContext : DbContext
         IdentityModelConfiguration.ConfigureOrganizations(modelBuilder);
 
         IdentityModelConfiguration.ConfigureUsers(modelBuilder);
+        ConfigureRefreshSessions(modelBuilder);
 
         ConfigureCustomers(modelBuilder);
 
@@ -130,6 +133,25 @@ public sealed class SqlDbContext : DbContext
         ConfigureNotificationDeliveryLog(modelBuilder);
         ConfigureJobViews(modelBuilder);
         ConfigureIdempotencyRecords(modelBuilder);
+    }
+
+    private static void ConfigureRefreshSessions(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<RefreshSessionRow>();
+        entity.ToTable("RefreshSessions");
+        entity.HasKey(x => x.Id);
+        entity.Property(x => x.TokenHash).HasColumnType("char(64)").IsRequired();
+        entity.Property(x => x.CreatedAt).HasColumnType("datetimeoffset");
+        entity.Property(x => x.ExpiresAt).HasColumnType("datetimeoffset");
+        entity.Property(x => x.UsedAt).HasColumnType("datetimeoffset");
+        entity.Property(x => x.GraceReuseAt).HasColumnType("datetimeoffset");
+        entity.Property(x => x.RevokedAt).HasColumnType("datetimeoffset");
+        entity.Property(x => x.ConcurrencyStamp).IsConcurrencyToken();
+        entity.HasIndex(x => x.TokenHash).IsUnique().HasDatabaseName("UX_RefreshSessions_TokenHash");
+        entity.HasIndex(x => new { x.FamilyId, x.ExpiresAt }).HasDatabaseName("IX_RefreshSessions_Family_Expires");
+        entity.HasIndex(x => new { x.OrganizationId, x.UserId }).HasDatabaseName("IX_RefreshSessions_Organization_User");
+        entity.HasOne<UserDataRow>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        entity.HasOne<OrganizationRow>().WithMany().HasForeignKey(x => x.OrganizationId).OnDelete(DeleteBehavior.Restrict);
     }
 
 

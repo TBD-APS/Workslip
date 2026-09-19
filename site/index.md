@@ -32,6 +32,40 @@ module_builder: true
 
 {% include module-builder.html %}
 
+<section class="section flow-demo-section" data-flow-demo>
+  <div class="container">
+    <div class="section-heading split-heading">
+      <div><p class="eyebrow">Workslip-flow</p><h2>Fra udført arbejde til godkendelse med færre klik.</h2></div>
+      <p>Se hvordan en VVS- eller håndværksvirksomhed kan samle arbejdet i ét flow. Skift mellem medarbejder og administrator og klik dig gennem demoen. Alle navne, adresser og tal er fiktive.</p>
+    </div>
+    <div class="flow-demo-role-tabs" role="tablist" aria-label="Vælg perspektiv">
+      <button type="button" class="is-active" data-flow-role="employee" aria-selected="true">Medarbejder</button>
+      <button type="button" data-flow-role="admin" aria-selected="false">Administrator</button>
+    </div>
+    <div class="flow-demo-shell">
+      <div class="flow-demo-copy">
+        <span class="flow-demo-badge" data-flow-badge>MEDARBEJDERFLOW</span>
+        <h3 data-flow-title>Udfyld arbejdet, mens du står på opgaven.</h3>
+        <p data-flow-description>Medarbejderen får ét tydeligt næste skridt ad gangen på mobilen. Det giver mindre papirarbejde og færre oplysninger, der skal genskabes senere.</p>
+        <div class="flow-demo-controls">
+          <button type="button" data-flow-prev aria-label="Forrige trin">←</button>
+          <strong><span data-flow-index>1</span> / <span data-flow-total>6</span></strong>
+          <button type="button" data-flow-next aria-label="Næste trin">→</button>
+        </div>
+        <p class="flow-demo-swipe-hint">Swipe på telefonen eller brug pilene.</p>
+      </div>
+      <div class="flow-demo-phone-wrap">
+        <div class="flow-demo-phone" data-flow-phone tabindex="0" aria-label="Interaktiv Workslip-demo">
+          <div class="flow-demo-phone-bar"><span>9:41</span><strong>Workslip</strong><span>●●●</span></div>
+          <div class="flow-demo-screen" data-flow-screen></div>
+        </div>
+      </div>
+    </div>
+    <div class="flow-demo-steps" data-flow-steps aria-label="Demoens trin"></div>
+    <p class="flow-demo-privacy">Demomiljø · 100 % fiktive data · ingen kunde- eller produktionsdata.</p>
+  </div>
+</section>
+
 <section class="section workflow-section">
   <div class="container">
     <div class="section-heading split-heading">

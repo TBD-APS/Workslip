@@ -1,5 +1,6 @@
 using Workslip.Application.Auth;
 using Workslip.Application.Users;
+using Workslip.Api.Helpers;
 
 namespace Workslip.Api.Endpoints;
 
@@ -15,7 +16,9 @@ public static class DevEndpoints
         group.MapPost("/token", async (
             DevTokenRequest request,
             IUserRepository users,
+            [Microsoft.AspNetCore.Mvc.FromServices] IRefreshSessionService sessions,
             IConfiguration configuration,
+            HttpContext context,
             CancellationToken cancellationToken) =>
         {
             var user = await users.GetByEmailAsync(request.Email, cancellationToken);
@@ -29,6 +32,9 @@ public static class DevEndpoints
                 user.DisplayName,
                 user.Role);
 
+            await sessions.RevokeAsync(RefreshSessionCookie.Read(context.Request), cancellationToken);
+            var grant = await sessions.StartAsync(authUser, cancellationToken);
+            RefreshSessionCookie.Write(context, grant.RefreshToken, grant.ExpiresAt);
             return Results.Ok(JwtHelper.GenerateToken(authUser, configuration));
         })
         .Produces<AuthTokenResponse>()

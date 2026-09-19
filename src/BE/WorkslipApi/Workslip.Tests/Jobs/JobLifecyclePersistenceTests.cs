@@ -63,6 +63,105 @@ public sealed class JobLifecyclePersistenceTests
         Assert.Equal(reason, persisted.RejectionNote);
     }
 
+    [Fact]
+    public async Task TransitionAsync_InReviewToDraft_WithdrawsSubmissionAndKeepsFirstSubmissionStamp()
+    {
+        var organizationId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var submittedAt = DateTimeOffset.UtcNow.AddHours(-1);
+
+        await using var context = CreateContext(organizationId, actorId);
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow
+        {
+            Id = organizationId,
+            Name = "TestOrg",
+            Cvr = "12345678"
+        });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = organizationId,
+            ReportNumber = "0043",
+            Status = JobStatus.InReview.ToString(),
+            JobType = JobType.KLS,
+            SubmittedAt = submittedAt,
+            SubmittedByUserId = actorId,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        var repository = CreateJobRepository(context, actorId, organizationId);
+
+        var transition = await repository.TransitionAsync(
+            jobId,
+            organizationId,
+            JobStatus.Draft,
+            actorId,
+            null,
+            CancellationToken.None);
+
+        Assert.NotNull(transition);
+        Assert.True(transition.Changed);
+        Assert.Equal(JobStatus.Draft, transition.Report.Status);
+        Assert.Null(transition.Report.RejectionNote);
+
+        var persisted = await context.JobReports
+            .AsNoTracking()
+            .SingleAsync(report => report.Id == jobId);
+        Assert.Equal(JobStatus.Draft.ToString(), persisted.Status);
+        Assert.Null(persisted.RejectionNote);
+        Assert.Equal(submittedAt, persisted.SubmittedAt);
+    }
+
+    [Theory]
+    [InlineData(JobStatus.Approved)]
+    [InlineData(JobStatus.Rejected)]
+    [InlineData(JobStatus.Reopened)]
+    public async Task TransitionAsync_ToDraft_IsRejectedAtPersistenceUnlessJobIsInReview(JobStatus currentStatus)
+    {
+        var organizationId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+
+        await using var context = CreateContext(organizationId, actorId);
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow
+        {
+            Id = organizationId,
+            Name = "TestOrg",
+            Cvr = "12345678"
+        });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = organizationId,
+            ReportNumber = "0044",
+            Status = currentStatus.ToString(),
+            JobType = JobType.KLS,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        var repository = CreateJobRepository(context, actorId, organizationId);
+
+        var exception = await Assert.ThrowsAsync<InvalidJobStatusTransitionException>(() => repository.TransitionAsync(
+            jobId,
+            organizationId,
+            JobStatus.Draft,
+            actorId,
+            null,
+            CancellationToken.None));
+
+        Assert.Equal(currentStatus, exception.CurrentStatus);
+        Assert.Equal(JobStatus.Draft, exception.TargetStatus);
+    }
+
     private static EfJobRepository CreateJobRepository(
         SqlDbContext context,
         Guid userId,
