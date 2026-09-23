@@ -754,7 +754,7 @@ function DayCell({
           const openEntry = () => onOpenJob(entry.jobId);
           return (
             <div
-              key={`${entry.jobId}-${entry.workDate}-${entry.customerName}`}
+              key={`${entry.jobId}-${getWorksheetEntryIdentity(entry)}-${entry.workDate}-${entry.customerName}`}
               className="time-entry-card"
               onClick={openEntry}
               onKeyDown={(event) => {
