@@ -36,16 +36,24 @@
   text-transform: capitalize;
 }
 
-.calendar-picker-weekdays,
-.calendar-picker-grid {
+/* Weekday labels and dates deliberately participate in one shared grid.
+   This prevents independent grid sizing from drifting column centers apart. */
+.calendar-picker-calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.25rem;
+  column-gap: 0.25rem;
+  row-gap: 0.35rem;
   width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.calendar-picker-weekdays,
+.calendar-picker-grid {
+  display: contents;
 }
 
 .calendar-picker-weekdays {
-  margin-bottom: 0.35rem;
   color: var(--text-muted);
   font-size: var(--fs-xs);
   text-align: center;
@@ -64,13 +72,14 @@
   display: grid;
   width: 100%;
   min-width: 0;
-  min-height: 2rem;
+  min-height: 44px;
   padding: 0;
   place-items: center;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text);
+  line-height: 1;
   cursor: pointer;
 }
 
@@ -83,17 +92,6 @@
 .calendar-picker-popover {
   box-sizing: border-box;
   max-width: calc(100vw - 2rem);
-}
-
-.calendar-picker-grid {
-  align-items: center;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.calendar-picker-day {
-  min-height: 44px;
-  line-height: 1;
 }
 
 /* A chosen date is selection state, so it uses the central petrol token. */
