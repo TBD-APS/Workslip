@@ -511,7 +511,7 @@ public static class ProductivityAnalyticsEndpoints
 
         var repeatValueOrganizationIds = completionsByOrganization
             .Where(pair => pair.Value
-                .Select(item => ActivationMetricSemantics.StartOfIsoWeek(item.CompletedAt))
+                .Select(item => ActivationMetricSemantics.StartOfIsoWeek(item.CompletedAt!.Value))
                 .Distinct()
                 .Take(2)
                 .Count() >= 2)
@@ -552,7 +552,7 @@ public static class ProductivityAnalyticsEndpoints
                 hasFirstCustomer ? firstCustomerAt : null,
                 hasFirstJob ? firstJobAt : null,
                 firstCompletedAt,
-                organizationCompletions.Count,
+                organizationCompletions.Length,
                 organizationCompletions.Count(item => item.CompletedAt >= windowStart && item.CompletedAt <= generatedAt),
                 repeatValueOrganizationIds.Contains(organization.Id),
                 activeOrganizationIds.Contains(organization.Id)));
