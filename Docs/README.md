@@ -54,6 +54,7 @@ Do not keep issue implementation plans, completed task specs or superseded runbo
 | Application Insights dashboard | [`operations/APPLICATION_INSIGHTS_ERROR_DASHBOARD.md`](operations/APPLICATION_INSIGHTS_ERROR_DASHBOARD.md) | Active |
 | Document/image storage recovery | [`operations/document-image-storage-recovery.md`](operations/document-image-storage-recovery.md) | Active |
 | Power BI worksheet report | [`operations/power-bi-worksheet-report.md`](operations/power-bi-worksheet-report.md) | Activation gated |
+| Power BI value analytics | [`operations/power-bi-value-analytics.md`](operations/power-bi-value-analytics.md) | Active |
 | Public site content | [`../site/README.md`](../site/README.md) | Active content surface |
 
 ## Writing rules that prevent drift
