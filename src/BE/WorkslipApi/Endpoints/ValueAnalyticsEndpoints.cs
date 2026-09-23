@@ -79,7 +79,7 @@ public static class ValueAnalyticsEndpoints
         var organizationIds = organizations.Select(org => org.Id).ToArray();
 
         var employees = organizationIds.Length == 0
-            ? []
+            ? new List<ValueEmployeeRow>()
             : await dbContext.Users
                 .AsNoTracking()
                 .Where(user =>
@@ -94,7 +94,7 @@ public static class ValueAnalyticsEndpoints
                 .ToListAsync(cancellationToken);
 
         var allJobs = organizationIds.Length == 0
-            ? []
+            ? new List<ValueJobProjection>()
             : await dbContext.JobReports
                 .AsNoTracking()
                 .Where(job => organizationIds.Contains(job.OrganizationId) && !job.IsSoftDeleted)
@@ -111,7 +111,7 @@ public static class ValueAnalyticsEndpoints
         var jobIds = allJobs.Select(job => job.Id).ToArray();
 
         var lifecycleRows = jobIds.Length == 0
-            ? []
+            ? new List<ValueLifecycleProjection>()
             : await dbContext.JobEvents
                 .AsNoTracking()
                 .Where(evt =>
@@ -162,7 +162,7 @@ public static class ValueAnalyticsEndpoints
         var includedJobIds = includedJobs.Select(job => job.Id).ToArray();
 
         var categories = includedJobIds.Length == 0
-            ? []
+            ? new List<ValueCategoryProjection>()
             : await (
                 from category in dbContext.JobReportInstallationCategories.AsNoTracking()
                 join installation in dbContext.JobReportInstallations.AsNoTracking()
@@ -177,7 +177,7 @@ public static class ValueAnalyticsEndpoints
                 .ToListAsync(cancellationToken);
 
         var controlPoints = includedJobIds.Length == 0
-            ? []
+            ? new List<ValueControlPointProjection>()
             : await (
                 from controlPoint in dbContext.JobReportInstallationControlPoints.AsNoTracking()
                 join category in dbContext.JobReportInstallationCategories.AsNoTracking()
@@ -259,7 +259,7 @@ public static class ValueAnalyticsEndpoints
                     completedAt.HasValue ? DateKey(completedAt.Value) : DateKey(job.CreatedAt),
                     result,
                     null,
-                    rejectionCount > 0));
+                    null));
             }
         }
 
@@ -385,7 +385,7 @@ public sealed record ValueControlPointResultRow(
     int DateKey,
     string Result,
     int? EvidenceCount,
-    bool WasCorrected);
+    bool? WasCorrected);
 
 public sealed record ValueSourceCoverage(
     string ProductValue,
