@@ -1,5 +1,8 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
+using Workslip.Application.Analytics;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
 using Workslip.Domain;
@@ -24,6 +27,11 @@ public static class ProductivityAnalyticsEndpoints
         var superAdminGroup = app.MapSuperAdminGroup("/api/superadmin/analytics", "superadmin-analytics");
         superAdminGroup.MapGet("/case-flow", GetCaseFlowAnalyticsAsync)
             .Produces<SuperAdminCaseFlowAnalyticsResponse>()
+            .ExcludeFromDescription();
+        superAdminGroup.MapGet("/activation-scoreboard", GetActivationScoreboardAsync)
+            .Produces<ActivationScoreboardResponse>()
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status409Conflict)
             .ExcludeFromDescription();
 
         return app;
@@ -294,6 +302,322 @@ public static class ProductivityAnalyticsEndpoints
             organizationSummaries));
     }
 
+    private static async Task<IResult> GetActivationScoreboardAsync(
+        int? days,
+        string? scope,
+        IConfiguration configuration,
+        IHostEnvironment environment,
+        SqlDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var windowDays = Math.Clamp(days ?? 90, 7, 365);
+        var generatedAt = DateTimeOffset.UtcNow;
+        var windowStart = generatedAt.AddDays(-windowDays);
+        var activeWindowStart = generatedAt.AddDays(-7);
+
+        var selectedScope = string.IsNullOrWhiteSpace(scope)
+            ? "customer"
+            : scope.Trim().ToLowerInvariant();
+        if (selectedScope is not ("customer" or "demo"))
+        {
+            return Results.BadRequest(new
+            {
+                error = "invalid_activation_scope",
+                allowedScopes = new[] { "customer", "demo" }
+            });
+        }
+
+        var demoOrganizationIds = new HashSet<Guid>();
+        foreach (var configuredId in configuration.GetSection("Analytics:DemoOrganizationIds").Get<string[]>() ?? [])
+        {
+            if (Guid.TryParse(configuredId, out var parsed))
+                demoOrganizationIds.Add(parsed);
+        }
+
+        if (selectedScope == "demo" && demoOrganizationIds.Count == 0)
+        {
+            return Results.Conflict(new
+            {
+                error = "demo_organization_scope_not_configured",
+                configurationKey = "Analytics:DemoOrganizationIds"
+            });
+        }
+
+        var demoIds = demoOrganizationIds.ToArray();
+        var organizationsQuery = dbContext.Organizations
+            .AsNoTracking()
+            .Where(org => org.Id != PlatformOrganization.Id);
+
+        organizationsQuery = selectedScope == "demo"
+            ? organizationsQuery.Where(org => demoIds.Contains(org.Id))
+            : organizationsQuery.Where(org => !demoIds.Contains(org.Id));
+
+        var organizations = await organizationsQuery
+            .OrderBy(org => org.Name)
+            .Select(org => new ActivationOrganizationProjection(org.Id, org.Name, org.CreatedAt))
+            .ToListAsync(cancellationToken);
+
+        var organizationIds = organizations.Select(org => org.Id).ToArray();
+        if (organizationIds.Length == 0)
+        {
+            return Results.Ok(new ActivationScoreboardResponse(
+                ActivationMetricSemantics.DefinitionVersion,
+                generatedAt,
+                environment.EnvironmentName,
+                selectedScope,
+                windowDays,
+                EmptyActivationMetrics(),
+                EmptyActivationFunnel(),
+                new ActivationTelemetryAvailability(
+                    "WOR-736",
+                    false,
+                    ["demo_started", "demo_value_flow_completed", "first_login_completed", "behavior_drop_off"]),
+                []));
+        }
+
+        var customers = await dbContext.Customers
+            .AsNoTracking()
+            .Where(customer => organizationIds.Contains(customer.OrganizationId))
+            .Select(customer => new ActivationCustomerProjection(
+                customer.OrganizationId,
+                customer.CreatedAt))
+            .ToListAsync(cancellationToken);
+
+        var jobs = await dbContext.JobReports
+            .AsNoTracking()
+            .Where(job => organizationIds.Contains(job.OrganizationId) && !job.IsSoftDeleted)
+            .Select(job => new JobProjection(
+                job.Id,
+                job.OrganizationId,
+                job.Status,
+                job.CreatedAt,
+                job.UpdatedAt,
+                job.SubmittedAt,
+                job.SubmittedByUserId))
+            .ToListAsync(cancellationToken);
+
+        var jobIds = jobs.Select(job => job.Id).ToHashSet();
+        var approvalEventRows = await dbContext.JobEvents
+            .AsNoTracking()
+            .Where(evt =>
+                organizationIds.Contains(evt.OrganizationId)
+                && evt.ReportId != null
+                && evt.AfterJson != null
+                && evt.AfterJson.Contains("Approved"))
+            .Select(evt => new LifecycleEventProjection(
+                evt.OrganizationId,
+                evt.ReportId,
+                evt.BeforeJson,
+                evt.AfterJson,
+                evt.CreatedAt))
+            .ToListAsync(cancellationToken);
+
+        var statusChangesByJob = approvalEventRows
+            .Where(evt => evt.ReportId.HasValue && jobIds.Contains(evt.ReportId.Value))
+            .Select(evt => new
+            {
+                JobId = evt.ReportId!.Value,
+                Change = new JobStatusChangeObservation(
+                    ReadStatus(evt.BeforeJson),
+                    ReadStatus(evt.AfterJson),
+                    evt.CreatedAt)
+            })
+            .Where(item => item.Change.AfterStatus is not null)
+            .GroupBy(item => item.JobId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyCollection<JobStatusChangeObservation>)group
+                    .Select(item => item.Change)
+                    .OrderBy(change => change.OccurredAt)
+                    .ToArray());
+
+        var completions = jobs
+            .Select(job => new ActivationCompletionProjection(
+                job.Id,
+                job.OrganizationId,
+                ActivationMetricSemantics.ResolveFirstCompletedCompliantAt(
+                    job.Status,
+                    job.UpdatedAt,
+                    statusChangesByJob.GetValueOrDefault(job.Id) ?? [])))
+            .Where(item => item.CompletedAt.HasValue)
+            .Select(item => item with { CompletedAt = item.CompletedAt!.Value })
+            .ToList();
+
+        var completionByJobId = completions.ToDictionary(item => item.JobId);
+        var completionsByOrganization = completions
+            .GroupBy(item => item.OrganizationId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderBy(item => item.CompletedAt).ToArray());
+
+        var firstCustomerByOrganization = customers
+            .GroupBy(customer => customer.OrganizationId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Min(customer => customer.CreatedAt));
+
+        var firstJobByOrganization = jobs
+            .GroupBy(job => job.OrganizationId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Min(job => job.CreatedAt));
+
+        var activeEvents = await dbContext.JobEvents
+            .AsNoTracking()
+            .Where(evt =>
+                organizationIds.Contains(evt.OrganizationId)
+                && evt.CreatedAt >= activeWindowStart)
+            .Select(evt => new ActivationActorProjection(
+                evt.OrganizationId,
+                evt.ActorId))
+            .ToListAsync(cancellationToken);
+
+        var activeDate = activeWindowStart.UtcDateTime.Date;
+        var activeWorksheets = await dbContext.Worksheets
+            .AsNoTracking()
+            .Where(worksheet =>
+                organizationIds.Contains(worksheet.OrganizationId)
+                && worksheet.WorkDate >= activeDate)
+            .Select(worksheet => new ActivationWorksheetProjection(
+                worksheet.OrganizationId,
+                worksheet.UserId))
+            .ToListAsync(cancellationToken);
+
+        var activeOrganizationIds = activeEvents.Select(item => item.OrganizationId)
+            .Concat(activeWorksheets.Select(item => item.OrganizationId))
+            .Concat(jobs.Where(job => job.CreatedAt >= activeWindowStart).Select(job => job.OrganizationId))
+            .Distinct()
+            .ToHashSet();
+
+        var activeUserIds = activeEvents
+            .Where(item => item.ActorId.HasValue)
+            .Select(item => item.ActorId!.Value)
+            .Concat(activeWorksheets.Select(item => item.UserId))
+            .Distinct()
+            .ToHashSet();
+
+        var submittedInWindow = jobs
+            .Where(job => job.SubmittedAt is DateTimeOffset submittedAt
+                && submittedAt >= windowStart
+                && submittedAt <= generatedAt)
+            .ToList();
+        var completedSubmittedInWindow = submittedInWindow.Count(job => completionByJobId.ContainsKey(job.Id));
+        var completedInWindow = completions.Count(item =>
+            item.CompletedAt >= windowStart && item.CompletedAt <= generatedAt);
+
+        var activatedOrganizations = organizations
+            .Where(org => completionsByOrganization.ContainsKey(org.Id))
+            .ToList();
+
+        var repeatValueOrganizationIds = completionsByOrganization
+            .Where(pair => pair.Value
+                .Select(item => ActivationMetricSemantics.StartOfIsoWeek(item.CompletedAt!.Value))
+                .Distinct()
+                .Take(2)
+                .Count() >= 2)
+            .Select(pair => pair.Key)
+            .ToHashSet();
+
+        var timeToFirstValueHours = new List<double>();
+        var organizationToCustomerHours = new List<double>();
+        var customerToJobHours = new List<double>();
+        var jobToValueHours = new List<double>();
+        var organizationRows = new List<ActivationOrganizationScore>();
+
+        foreach (var organization in organizations)
+        {
+            firstCustomerByOrganization.TryGetValue(organization.Id, out var firstCustomerAt);
+            firstJobByOrganization.TryGetValue(organization.Id, out var firstJobAt);
+            var hasFirstCustomer = firstCustomerByOrganization.ContainsKey(organization.Id);
+            var hasFirstJob = firstJobByOrganization.ContainsKey(organization.Id);
+            var organizationCompletions = completionsByOrganization.GetValueOrDefault(organization.Id) ?? [];
+            var firstCompletedAt = organizationCompletions.FirstOrDefault()?.CompletedAt;
+
+            if (hasFirstCustomer && firstCustomerAt >= organization.CreatedAt)
+                organizationToCustomerHours.Add((firstCustomerAt - organization.CreatedAt).TotalHours);
+
+            if (hasFirstCustomer && hasFirstJob && firstJobAt >= firstCustomerAt)
+                customerToJobHours.Add((firstJobAt - firstCustomerAt).TotalHours);
+
+            if (hasFirstJob && firstCompletedAt.HasValue && firstCompletedAt.Value >= firstJobAt)
+                jobToValueHours.Add((firstCompletedAt.Value - firstJobAt).TotalHours);
+
+            if (firstCompletedAt.HasValue && firstCompletedAt.Value >= organization.CreatedAt)
+                timeToFirstValueHours.Add((firstCompletedAt.Value - organization.CreatedAt).TotalHours);
+
+            organizationRows.Add(new ActivationOrganizationScore(
+                organization.Id,
+                organization.Name,
+                organization.CreatedAt,
+                hasFirstCustomer ? firstCustomerAt : null,
+                hasFirstJob ? firstJobAt : null,
+                firstCompletedAt,
+                organizationCompletions.Length,
+                organizationCompletions.Count(item => item.CompletedAt >= windowStart && item.CompletedAt <= generatedAt),
+                repeatValueOrganizationIds.Contains(organization.Id),
+                activeOrganizationIds.Contains(organization.Id)));
+        }
+
+        var metrics = new ActivationScoreboardMetrics(
+            organizations.Count,
+            activatedOrganizations.Count,
+            activeOrganizationIds.Count,
+            activeUserIds.Count,
+            completedInWindow,
+            submittedInWindow.Count > 0
+                ? (double)completedSubmittedInWindow / submittedInWindow.Count
+                : null,
+            ActivationMetricSemantics.Percentile(timeToFirstValueHours, 0.50),
+            ActivationMetricSemantics.Percentile(timeToFirstValueHours, 0.75),
+            activatedOrganizations.Count > 0
+                ? (double)repeatValueOrganizationIds.Count / activatedOrganizations.Count
+                : null);
+
+        var funnel = new ActivationFunnel(
+            new ActivationFunnelStage("organization_created", organizations.Count, "domain"),
+            new ActivationFunnelStage("first_customer_created", firstCustomerByOrganization.Count, "domain"),
+            new ActivationFunnelStage("first_job_created", firstJobByOrganization.Count, "domain"),
+            new ActivationFunnelStage("first_completed_compliant_job", activatedOrganizations.Count, "domain"),
+            new ActivationFunnelStage("repeat_active_week", repeatValueOrganizationIds.Count, "domain"),
+            new ActivationFunnelTiming(
+                ActivationMetricSemantics.Percentile(organizationToCustomerHours, 0.50),
+                ActivationMetricSemantics.Percentile(organizationToCustomerHours, 0.75)),
+            new ActivationFunnelTiming(
+                ActivationMetricSemantics.Percentile(customerToJobHours, 0.50),
+                ActivationMetricSemantics.Percentile(customerToJobHours, 0.75)),
+            new ActivationFunnelTiming(
+                ActivationMetricSemantics.Percentile(jobToValueHours, 0.50),
+                ActivationMetricSemantics.Percentile(jobToValueHours, 0.75)));
+
+        return Results.Ok(new ActivationScoreboardResponse(
+            ActivationMetricSemantics.DefinitionVersion,
+            generatedAt,
+            environment.EnvironmentName,
+            selectedScope,
+            windowDays,
+            metrics,
+            funnel,
+            new ActivationTelemetryAvailability(
+                "WOR-736",
+                false,
+                ["demo_started", "demo_value_flow_completed", "first_login_completed", "behavior_drop_off"]),
+            organizationRows));
+    }
+
+    private static ActivationScoreboardMetrics EmptyActivationMetrics() =>
+        new(0, 0, 0, 0, 0, null, null, null, null);
+
+    private static ActivationFunnel EmptyActivationFunnel() =>
+        new(
+            new("organization_created", 0, "domain"),
+            new("first_customer_created", 0, "domain"),
+            new("first_job_created", 0, "domain"),
+            new("first_completed_compliant_job", 0, "domain"),
+            new("repeat_active_week", 0, "domain"),
+            new(null, null),
+            new(null, null),
+            new(null, null));
+
     private static SuperAdminCaseFlowSummary BuildSummary(
         IReadOnlyCollection<JobProjection> jobs,
         IReadOnlyDictionary<Guid, List<ParsedStatusEvent>> statusesByJob,
@@ -533,6 +857,63 @@ public static class ProductivityAnalyticsEndpoints
         DateTimeOffset CreatedAt);
     private sealed record ParsedCreationMetric(Guid OrganizationId, int? DurationSeconds);
 }
+
+public sealed record ActivationScoreboardResponse(
+    string MetricDefinitionVersion,
+    DateTimeOffset GeneratedAt,
+    string Environment,
+    string Scope,
+    int WindowDays,
+    ActivationScoreboardMetrics Metrics,
+    ActivationFunnel Funnel,
+    ActivationTelemetryAvailability Telemetry,
+    IReadOnlyList<ActivationOrganizationScore> Organizations);
+
+public sealed record ActivationScoreboardMetrics(
+    int Companies,
+    int ActivatedCompanies,
+    int WeeklyActiveCompanies,
+    int WeeklyActiveUsers,
+    int CompletedCompliantJobs,
+    double? ComplianceCompletionRate,
+    double? MedianTimeToFirstCompletedCompliantJobHours,
+    double? P75TimeToFirstCompletedCompliantJobHours,
+    double? RepeatValueRate);
+
+public sealed record ActivationFunnel(
+    ActivationFunnelStage OrganizationCreated,
+    ActivationFunnelStage FirstCustomerCreated,
+    ActivationFunnelStage FirstJobCreated,
+    ActivationFunnelStage FirstCompletedCompliantJob,
+    ActivationFunnelStage RepeatActiveWeek,
+    ActivationFunnelTiming OrganizationToCustomer,
+    ActivationFunnelTiming CustomerToJob,
+    ActivationFunnelTiming JobToCompletedCompliant);
+
+public sealed record ActivationFunnelStage(string Name, int Companies, string Source);
+public sealed record ActivationFunnelTiming(double? MedianHours, double? P75Hours);
+public sealed record ActivationTelemetryAvailability(
+    string OwnerIssue,
+    bool Available,
+    IReadOnlyList<string> UnavailableStages);
+
+public sealed record ActivationOrganizationScore(
+    Guid OrganizationId,
+    string OrganizationName,
+    DateTimeOffset OrganizationCreatedAt,
+    DateTimeOffset? FirstCustomerCreatedAt,
+    DateTimeOffset? FirstJobCreatedAt,
+    DateTimeOffset? FirstCompletedCompliantJobAt,
+    int CompletedCompliantJobs,
+    int CompletedCompliantJobsInWindow,
+    bool HasRepeatValueWeek,
+    bool IsWeeklyActive);
+
+internal sealed record ActivationOrganizationProjection(Guid Id, string Name, DateTimeOffset CreatedAt);
+internal sealed record ActivationCustomerProjection(Guid OrganizationId, DateTimeOffset CreatedAt);
+internal sealed record ActivationCompletionProjection(Guid JobId, Guid OrganizationId, DateTimeOffset? CompletedAt);
+internal sealed record ActivationActorProjection(Guid OrganizationId, Guid? ActorId);
+internal sealed record ActivationWorksheetProjection(Guid OrganizationId, Guid UserId);
 
 public sealed record CaseCreationDurationRequest(IReadOnlyList<Guid> JobIds, int DurationSeconds);
 
