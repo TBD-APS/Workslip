@@ -86,31 +86,33 @@ export function CalendarPicker({ value, idPrefix = 'worksheet-date-picker', onCh
               <ChevronRight size={16} aria-hidden="true" />
             </button>
           </div>
-          <div className="calendar-picker-weekdays" aria-hidden="true">
-            {WEEKDAYS.map((day, column) => (
-              <span id={`${idPrefix}-weekday-${column}`} key={day}>{day}</span>
-            ))}
-          </div>
-          <div id={`${idPrefix}-grid`} className="calendar-picker-grid">
-            {days.map((day, index) => {
-              if (!day) return <span key={`blank-${index}`} aria-hidden="true" />;
-              const dayIso = toDateIso(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), day));
-              const isSelected = dayIso === value;
-              const weekdayColumn = (startOffset + day - 1) % WEEKDAYS.length;
-              return (
-                <button
-                  id={`${idPrefix}-day-${dayIso}`}
-                  key={dayIso}
-                  type="button"
-                  className={isSelected ? 'calendar-picker-day selected' : 'calendar-picker-day'}
-                  onClick={() => selectDay(day)}
-                  aria-pressed={isSelected}
-                  data-calendar-column={weekdayColumn}
-                >
-                  {day}
-                </button>
-              );
-            })}
+          <div className="calendar-picker-calendar-grid">
+            <div className="calendar-picker-weekdays" aria-hidden="true">
+              {WEEKDAYS.map((day, column) => (
+                <span id={`${idPrefix}-weekday-${column}`} key={day}>{day}</span>
+              ))}
+            </div>
+            <div id={`${idPrefix}-grid`} className="calendar-picker-grid">
+              {days.map((day, index) => {
+                if (!day) return <span key={`blank-${index}`} aria-hidden="true" />;
+                const dayIso = toDateIso(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), day));
+                const isSelected = dayIso === value;
+                const weekdayColumn = (startOffset + day - 1) % WEEKDAYS.length;
+                return (
+                  <button
+                    id={`${idPrefix}-day-${dayIso}`}
+                    key={dayIso}
+                    type="button"
+                    className={isSelected ? 'calendar-picker-day selected' : 'calendar-picker-day'}
+                    onClick={() => selectDay(day)}
+                    aria-pressed={isSelected}
+                    data-calendar-column={weekdayColumn}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
