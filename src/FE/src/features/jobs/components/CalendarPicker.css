@@ -18,8 +18,11 @@
   z-index: 25;
   top: calc(100% + 0.4rem);
   left: 0;
+  box-sizing: border-box;
   width: min(22rem, calc(100vw - 3rem));
+  max-width: calc(100vw - 2rem);
   padding: 0.75rem;
+  overflow: hidden;
   background: var(--surface-modal);
   border: none;
   border-radius: var(--radius-lg);
@@ -36,62 +39,72 @@
   text-transform: capitalize;
 }
 
-/* Weekday labels and dates deliberately participate in one shared grid.
-   This prevents independent grid sizing from drifting column centers apart. */
+/* Keep header and dates as two explicit, identical seven-column grids.
+   Avoid display: contents because mobile Safari/PWA rendering can calculate
+   nested grid items inconsistently and visually push later date columns right. */
 .calendar-picker-calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  column-gap: 0.25rem;
-  row-gap: 0.35rem;
   width: 100%;
   min-width: 0;
-  overflow: hidden;
 }
 
 .calendar-picker-weekdays,
 .calendar-picker-grid {
-  display: contents;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  column-gap: 0.25rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .calendar-picker-weekdays {
+  margin-bottom: 0.35rem;
   color: var(--text-muted);
   font-size: var(--fs-xs);
   text-align: center;
 }
 
+.calendar-picker-grid {
+  row-gap: 0.35rem;
+  align-items: center;
+  overflow: hidden;
+}
+
+.calendar-picker-weekdays > span,
+.calendar-picker-grid > span,
+.calendar-picker-day {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
 .calendar-picker-weekdays > span,
 .calendar-picker-grid > span {
-  box-sizing: border-box;
   display: grid;
-  min-width: 0;
   place-items: center;
 }
 
 .calendar-picker-day {
-  box-sizing: border-box;
   display: grid;
   width: 100%;
-  min-width: 0;
+  max-width: 100%;
   min-height: 44px;
   padding: 0;
+  margin: 0;
   place-items: center;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text);
   line-height: 1;
+  text-align: center;
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .calendar-picker-day:hover,
 .calendar-picker-day.selected {
   background: var(--primary);
   color: white;
-}
-
-.calendar-picker-popover {
-  box-sizing: border-box;
-  max-width: calc(100vw - 2rem);
 }
 
 /* A chosen date is selection state, so it uses the central petrol token. */
@@ -122,8 +135,8 @@
     position: relative;
     top: auto;
     left: auto;
-    width: min(22rem, calc(100vw - 4rem));
-    max-width: none;
+    width: 100%;
+    max-width: 100%;
     margin-top: 0.4rem;
   }
 }
