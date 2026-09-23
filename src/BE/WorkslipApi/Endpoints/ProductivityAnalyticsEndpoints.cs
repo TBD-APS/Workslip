@@ -909,11 +909,11 @@ public sealed record ActivationOrganizationScore(
     bool HasRepeatValueWeek,
     bool IsWeeklyActive);
 
-private sealed record ActivationOrganizationProjection(Guid Id, string Name, DateTimeOffset CreatedAt);
-private sealed record ActivationCustomerProjection(Guid OrganizationId, DateTimeOffset CreatedAt);
-private sealed record ActivationCompletionProjection(Guid JobId, Guid OrganizationId, DateTimeOffset? CompletedAt);
-private sealed record ActivationActorProjection(Guid OrganizationId, Guid? ActorId);
-private sealed record ActivationWorksheetProjection(Guid OrganizationId, Guid UserId);
+internal sealed record ActivationOrganizationProjection(Guid Id, string Name, DateTimeOffset CreatedAt);
+internal sealed record ActivationCustomerProjection(Guid OrganizationId, DateTimeOffset CreatedAt);
+internal sealed record ActivationCompletionProjection(Guid JobId, Guid OrganizationId, DateTimeOffset? CompletedAt);
+internal sealed record ActivationActorProjection(Guid OrganizationId, Guid? ActorId);
+internal sealed record ActivationWorksheetProjection(Guid OrganizationId, Guid UserId);
 
 public sealed record CaseCreationDurationRequest(IReadOnlyList<Guid> JobIds, int DurationSeconds);
 
