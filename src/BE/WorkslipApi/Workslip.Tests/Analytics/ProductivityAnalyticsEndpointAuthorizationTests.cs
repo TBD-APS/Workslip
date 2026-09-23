@@ -1,7 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Workslip.Api.Endpoints;
+using Workslip.Application.Auth;
+using Workslip.Infrastructure.Schema;
 using Xunit;
 
 namespace Workslip.Tests.Analytics;
@@ -12,6 +16,10 @@ public sealed class ProductivityAnalyticsEndpointAuthorizationTests
     public async Task ActivationScoreboardEndpoint_RequiresSuperAdminPolicy()
     {
         var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSingleton<ICurrentUserContext, StubCurrentUserContext>();
+        builder.Services.AddSingleton(_ =>
+            new SqlDbContext(new DbContextOptionsBuilder<SqlDbContext>().Options));
+
         await using var app = builder.Build();
         app.MapProductivityAnalyticsEndpoints();
 
@@ -28,5 +36,12 @@ public sealed class ProductivityAnalyticsEndpointAuthorizationTests
 
         Assert.Contains(AuthPolicies.RequireSuperAdmin, policies);
         Assert.DoesNotContain(AuthPolicies.RequireAdmin, policies);
+    }
+
+    private sealed class StubCurrentUserContext : ICurrentUserContext
+    {
+        public Guid? UserId => Guid.NewGuid();
+        public Guid? OrganizationId => Guid.NewGuid();
+        public string? Role => "Superadmin";
     }
 }
