@@ -320,7 +320,8 @@ jobs:
             -CompanyName mrsoftwarev2 `
             -Environment live `
             -RuntimeIdentityName '${{ steps.foundation.outputs.runtime_identity_name }}' `
-            -RuntimePrincipalId '${{ steps.foundation.outputs.runtime_principal_id }}'
+            -RuntimePrincipalId '${{ steps.foundation.outputs.runtime_principal_id }}' `
+            -RuntimeClientId '${{ steps.foundation.outputs.runtime_client_id }}'
 
       - name: Logout live migration identity
         shell: bash
