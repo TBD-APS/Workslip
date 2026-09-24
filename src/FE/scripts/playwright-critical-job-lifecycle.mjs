@@ -428,16 +428,30 @@ async function verifyWithdrawFromReviewLifecycle() {
     // Back in the wizard: correct and resubmit through the normal Draft -> InReview path.
     // A complete draft opens on the worksheets step by design (useJobDetails auto-redirect),
     // so walk back to the first step through the stable step indicator before correcting.
-    const detailsStep = userHarness.session.page.locator('#job-step-0');
+    // The redirect is asynchronous: it can land after the wizard first renders on step 0, which
+    // moved the page away between "step 0 is current" and the trigger click (WOR-811 CI run
+    // 35848266036). Give the redirect a moment to happen, then retry the walk-back if it still
+    // pulls the page away.
+    const page = userHarness.session.page;
+    const detailsStep = page.locator('#job-step-0');
+    const commentTrigger = page.locator('#job-technical-observations-trigger');
     await detailsStep.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    if ((await detailsStep.getAttribute('aria-current')) !== 'step') {
-      await detailsStep.click();
-    }
-    await contractHelpers.waitForWizardStep(userHarness.session.page, 'Sagsdetaljer');
-    const commentTrigger = userHarness.session.page.locator('#job-technical-observations-trigger');
-    await commentTrigger.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    if ((await commentTrigger.getAttribute('aria-expanded')) !== 'true') {
-      await commentTrigger.click();
+    await page.locator('#job-step-0:not([aria-current="step"])').waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {});
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        if ((await detailsStep.getAttribute('aria-current')) !== 'step') {
+          await detailsStep.click();
+        }
+        await contractHelpers.waitForWizardStep(page, 'Sagsdetaljer');
+        await commentTrigger.waitFor({ state: 'visible', timeout: 10_000 });
+        if ((await commentTrigger.getAttribute('aria-expanded')) !== 'true') {
+          await commentTrigger.click({ timeout: 10_000 });
+        }
+        break;
+      } catch (error) {
+        if (attempt >= 3) throw error;
+        console.log(`[playwright] lifecycle: wizard moved off Sagsdetaljer during withdraw correction (attempt ${attempt}); retrying.`);
+      }
     }
     const technical = userHarness.session.page.locator('#job-technical-observations');
     await technical.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
