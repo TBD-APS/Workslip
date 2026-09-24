@@ -1,10 +1,9 @@
 name: Deploy backend · Azure API
 
+# The classic App Service API is retired in favor of Container Apps. This file
+# is kept for reference only; its automatic trigger has been removed. Manual
+# dispatch remains available for a one-off redeploy if that is ever required.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
 
 env:

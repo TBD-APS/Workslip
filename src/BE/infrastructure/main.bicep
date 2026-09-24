@@ -27,10 +27,6 @@ param location string = resourceGroup().location
 param storageAccountName string       = take('st${companyName}${toLower(environment)}', 24)
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
 param logAnalyticsName string          = 'logAnal-${companyName}-${toLower(environment)}'
-param webApiServerName string          = take('plan-${companyName}-${toLower(environment)}', 40)
-@description('Set true only to create a new App Service plan. Existing plans must use false so this baseline never changes their SKU or deployment slots.')
-param manageWebApiServer bool = false
-param webApiName string                = take('api-${companyName}-${toLower(environment)}', 60)
 param appConfigurationName string     = take('appcs-${companyName}-${toLower(environment)}', 50)
 @allowed([
   'Default'
@@ -95,8 +91,6 @@ var roles = {
   keyVaultAdministrator: '00482a5a-887f-4fb3-b363-3b7fe8e74483'
   keyVaultSecretsUserRole: '4633458b-17de-408a-b874-0445c86b69e6'
   appConfigurationDataOwnerRole: '5ae67dd6-50cb-40e7-96ff-dc2bfa4b606b'
-  websiteContributor: 'de139f84-1756-47ae-9be6-808fbbe84772'
-  sqlSecurityManager: '056cd41c-7e88-42e1-933e-88ba6a50c9c3'
   
   UserReadWriteAll: '741f803b-c850-494e-b5df-cde7c675a1ca'
   UserInviteAll: '09850681-111b-4a89-9bed-3f2cae46d706'
@@ -109,8 +103,6 @@ var tags = {
   project: companyName
 }
 
-var appInsightsConnectionString = appInsights.properties.ConnectionString
-var appInsightsInstrumentationKey = appInsights.properties.InstrumentationKey
 var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)
 var isProduction = toLower(environment) == 'live'
 var useCustomEmailDomain = isProduction && customEmailDomainEnabled
@@ -243,132 +235,11 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Web API hosting
-// New App Service compatibility plans use Free F1. The product deployment
-// wrapper adopts existing plans with manageWebApiServer=false, so it cannot
-// downscale an existing S1 plan or remove its deployment slots. Container Apps
-// is the preferred live path.
-// The API reads App Configuration + Key Vault references through that identity.
-// ──────────────────────────────────────────────────────────────────────────────
-
-resource existingWebApiServer 'Microsoft.Web/serverfarms@2025-03-01' existing = {
-  name: webApiServerName
-}
-
-resource webApiServer 'Microsoft.Web/serverfarms@2025-03-01' = if (manageWebApiServer) {
-  name: webApiServerName
-  location: location
-  tags: tags
-  sku: {
-    name: 'F1'
-    tier: 'Free'
-    capacity: 1
-  }
-  // Keep scaling policy Azure-managed; the authoritative tier is explicit above.
-}
-
-resource webApi 'Microsoft.Web/sites@2023-12-01' = {
-  name: webApiName
-  location: location
-  kind: 'app'
-  tags: union(tags, {
-    'hidden-link:${appInsights.id}': 'Resource'
-  })
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: { '${identity.id}': {} }
-  }
-  dependsOn: [
-    webApiServer
-  ]
-  properties: {
-    serverFarmId: existingWebApiServer.id
-    httpsOnly: true
-    clientAffinityEnabled: false
-    publicNetworkAccess: 'Enabled'
-    keyVaultReferenceIdentity: identity.id
-    siteConfig: {
-      alwaysOn: false
-      ftpsState: 'Disabled'
-      // The Windows F1 front end can accept an HTTP/2 connection without returning
-      // response bytes. Keep the public compatibility path on HTTP/1.1 until that
-      // platform behaviour is verified as resolved in production.
-      http20Enabled: false
-      minTlsVersion: '1.2'
-      netFrameworkVersion: 'v10.0'
-      use32BitWorkerProcess: true
-      metadata: [
-        {
-          name: 'CURRENT_STACK'
-          value: 'dotnet'
-        }
-      ]
-      appSettings: [
-        {
-          name: 'ASPNETCORE_ENVIRONMENT'
-          value: 'Production'
-        }
-        {
-          name: 'AZURE_CLIENT_ID'
-          value: identity.properties.clientId
-        }
-        {
-          name: 'Azure__ManagedIdentity__ClientId'
-          value: identity.properties.clientId
-        }
-        {
-          name: 'Azure__AppConfiguration__Endpoint'
-          value: appConfiguration.properties.endpoint
-        }
-        {
-          name: 'Azure__ApplicationInsights__ConnectionString'
-          value: appInsightsConnectionString
-        }
-        {
-          name: 'Azure__ApplicationInsights__WorkspaceId'
-          value: logAnalyticsWorkspace.properties.customerId
-        }
-        {
-          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-          value: appInsightsConnectionString
-        }
-        {
-          name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
-          value: appInsightsInstrumentationKey
-        }
-        {
-          name: 'ApplicationInsightsAgent_EXTENSION_VERSION'
-          value: '~3'
-        }
-        {
-          name: 'XDT_MicrosoftApplicationInsights_Mode'
-          value: 'recommended'
-        }
-      ]
-    }
-  }
-}
-
-resource webApiDeploymentRoleForGithubIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(webApi.id, githubDeploymentIdentity.id, roles.websiteContributor)
-  scope: webApi
-  properties: {
-    principalId: githubDeploymentIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.websiteContributor)
-  }
-}
-
 module apiMonitoring './monitoring.bicep' = {
   name: 'api-monitoring-alerts'
   params: {
     companyName: companyName
     environment: environment
-    location: location
-    appInsightsResourceId: appInsights.id
-    webApiResourceId: webApi.id
-    healthEndpointUrl: 'https://${webApi.properties.defaultHostName}/health'
     alertEmailAddressList: alertEmailAddressList
     tags: tags
   }
@@ -611,163 +482,6 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   }
 }
 
-resource sqlFirewallManagerForIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(sqlServer.id, identity.id, roles.sqlSecurityManager)
-  scope: sqlServer
-  properties: {
-    principalId: identity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.sqlSecurityManager)
-  }
-}
-
-resource syncWebApiSqlFirewallRules 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
-  name: 'sync-web-api-sql-firewall-${toLower(environment)}'
-  location: location
-  kind: 'AzureCLI'
-  tags: tags
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: { '${identity.id}': {} }
-  }
-  properties: {
-    azCliVersion: '2.61.0'
-    cleanupPreference: 'OnSuccess'
-    retentionInterval: 'P1D'
-    timeout: 'PT30M'
-    forceUpdateTag: identity.id
-    environmentVariables: [
-      {
-        name: 'RESOURCE_GROUP'
-        value: resourceGroup().name
-      }
-      {
-        name: 'SQL_SERVER_NAME'
-        value: sqlServer.name
-      }
-      {
-        name: 'OUTBOUND_IPS'
-        value: webApi.properties.possibleOutboundIpAddresses
-      }
-    ]
-    scriptContent: '''
-set -euo pipefail
-
-# Cap the time we spend in any single az call so a stuck control-plane
-# response can't eat the whole deployment-script timeout.
-export AZ_HTTP_TIMEOUT=60
-
-az_with_retry() {
-  local attempt=1
-  local max_attempts=4
-
-  while true; do
-    if az "$@"; then
-      return 0
-    fi
-
-    if [ "$attempt" -ge "$max_attempts" ]; then
-      return 1
-    fi
-
-    sleep $((attempt * 5))
-    attempt=$((attempt + 1))
-  done
-}
-
-# Read every rule owned by this script plus the two legacy broad-access rules.
-# Listing must succeed before any mutation so a control-plane failure cannot be
-# mistaken for an empty ruleset.
-list_existing() {
-  az_with_retry sql server firewall-rule list \
-    --resource-group "$RESOURCE_GROUP" \
-    --server "$SQL_SERVER_NAME" \
-    --query "[?starts_with(name, 'AllowWebApi') || name == 'AllowAzureServices' || name == 'AllowDeveloperIP'].name" \
-    --output tsv
-}
-
-create_rule() {
-  local name="$1"
-  local ip="$2"
-
-  # Azure CLI's create command is backed by create_or_update, making the
-  # deterministic IP-derived rule idempotent on later deployments.
-  az_with_retry sql server firewall-rule create \
-    --resource-group "$RESOURCE_GROUP" \
-    --server "$SQL_SERVER_NAME" \
-    --name "$name" \
-    --start-ip-address "$ip" \
-    --end-ip-address "$ip" \
-    --output none
-}
-
-valid_ips=()
-declare -A seen_ips=()
-IFS=',' read -ra candidate_ips <<< "$OUTBOUND_IPS"
-for ip in "${candidate_ips[@]}"; do
-  trimmed_ip=$(echo "$ip" | xargs)
-  valid=false
-  if [[ "$trimmed_ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-    IFS='.' read -ra octets <<< "$trimmed_ip"
-    valid=true
-    for octet in "${octets[@]}"; do
-      if (( 10#$octet > 255 )); then
-        valid=false
-        break
-      fi
-    done
-  fi
-
-  if [ "$valid" = true ]; then
-    if [ -z "${seen_ips[$trimmed_ip]:-}" ]; then
-      valid_ips+=("$trimmed_ip")
-      seen_ips["$trimmed_ip"]=1
-    fi
-  elif [ -n "$trimmed_ip" ]; then
-    echo "skipping non-IPv4 value: $trimmed_ip" >&2
-  fi
-done
-
-if [ "${#valid_ips[@]}" -eq 0 ]; then
-  echo "App Service returned no valid outbound IP addresses; existing SQL firewall rules were not changed." >&2
-  exit 1
-fi
-
-existing_raw=$(list_existing)
-
-# Use IP-derived names so a changed allowlist can be created completely before
-# obsolete access is removed. A partial failure therefore keeps the previous
-# working rules in place.
-declare -A desired_names=()
-for ip in "${valid_ips[@]}"; do
-  name="AllowWebApi-${ip//./-}"
-  create_rule "$name" "$ip"
-  desired_names["$name"]=1
-done
-
-# Replacements are now confirmed. Remove obsolete managed rules and the two
-# legacy broad-access rules. Deliberately configured unrelated rules remain.
-if [ -n "$existing_raw" ]; then
-  while IFS= read -r name; do
-    case "$name" in
-      AllowWebApi*|AllowAzureServices|AllowDeveloperIP)
-        if [ -z "${desired_names[$name]:-}" ]; then
-          az_with_retry sql server firewall-rule delete \
-            --resource-group "$RESOURCE_GROUP" \
-            --server "$SQL_SERVER_NAME" \
-            --name "$name" \
-            --output none
-        fi ;;
-    esac
-  done <<< "$existing_raw"
-fi
-'''
-  }
-  dependsOn: [
-    sqlFirewallManagerForIdentity
-  ]
-}
-
 // ──────────────────────────────────────────────────────────
 // Storage Account
 // Used for document storage and workflow assets.
@@ -918,10 +632,6 @@ resource customEmailSender 'Microsoft.Communication/emailServices/domains/sender
 
 output STORAGE_ACCOUNT_NAME string             = storageAccount.name
 output POWER_BI_WORKSHEETS_BLOB_URL string     = 'https://${storageAccount.name}.blob.core.windows.net/${powerBiWorksheetsContainer.name}/worksheets.csv'
-output WEB_API_NAME string                     = webApi.name
-output WEB_API_DEFAULT_HOSTNAME string         = webApi.properties.defaultHostName
-output WEB_API_URL string                      = 'https://${webApi.properties.defaultHostName}'
-output WEB_API_SERVER_NAME string              = webApiServer.name
 output MANAGED_IDENTITY_CLIENT_ID string       = identity.properties.clientId
 output MANAGED_IDENTITY_PRINCIPAL_ID string    = identity.properties.principalId
 output GITHUB_DEPLOYMENT_CLIENT_ID string      = githubDeploymentIdentity.properties.clientId

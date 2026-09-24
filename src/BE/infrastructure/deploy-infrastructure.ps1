@@ -319,65 +319,6 @@ function Get-ExistingRoleAssignmentName {
     return $result.Output.Trim()
 }
 
-function Remove-ObsoleteGitHubPlanReaderAssignment {
-    <#
-        The prior release workflow inspected the App Service plan and required
-        a scoped Reader assignment. Direct F1 deployment no longer reads the
-        sibling plan resource. ARM incremental mode does not remove a deleted
-        Bicep role assignment, so reconcile the one obsolete assignment by its
-        exact scope, principal and role definition.
-    #>
-    param(
-        [Parameter(Mandatory = $true)][string]$Scope,
-        [Parameter(Mandatory = $true)][string]$PrincipalId
-    )
-
-    $readerRoleDefinitionId = 'acdd72a7-3385-48ef-bd42-f606fba81ae7'
-    $assignmentName = Get-ExistingRoleAssignmentName `
-        -Scope $Scope `
-        -PrincipalId $PrincipalId `
-        -RoleDefinitionId $readerRoleDefinitionId
-
-    if ([string]::IsNullOrWhiteSpace($assignmentName)) {
-        Write-Host 'No obsolete App Service plan Reader assignment found.' -ForegroundColor DarkGray
-        return
-    }
-
-    $assignmentId = "$Scope/providers/Microsoft.Authorization/roleAssignments/$assignmentName"
-    Invoke-AzureCli -Arguments @(
-        'role', 'assignment', 'delete',
-        '--ids', $assignmentId,
-        '--only-show-errors',
-        '-o', 'none'
-    ) | Out-Null
-    Write-Host 'Removed obsolete App Service plan Reader assignment.' -ForegroundColor Green
-}
-
-function Get-AppServicePlanSkuName {
-    param([Parameter(Mandatory = $true)][string]$Name)
-
-    $result = Invoke-AzureCli `
-        -Arguments @(
-            'appservice', 'plan', 'show',
-            '--resource-group', $ResourceGroup,
-            '--name', $Name,
-            '--query', 'sku.name',
-            '--only-show-errors',
-            '-o', 'tsv'
-        ) `
-        -AllowFailure
-
-    if ($result.ExitCode -eq 0) {
-        return $result.Output.Trim()
-    }
-
-    if ($result.Output -match '(?i)(ResourceNotFound|not found|does not exist|404)') {
-        return ''
-    }
-
-    throw "Could not inspect App Service plan '$Name'.`n$($result.Output)"
-}
-
 function Set-KeyVaultSecretFromMemory {
     param(
         [Parameter(Mandatory = $true)][string]$SecretName,
@@ -968,22 +909,11 @@ Run without -WhatIf to create it, or create the group first:
         -PrincipalId $resolvedGlobalAdminId `
         -RoleDefinitionId '00482a5a-887f-4fb3-b363-3b7fe8e74483'
 
-    $webApiServerName = "plan-$COMPANY_NAME-$NormalizedEnvironment"
-    if ($webApiServerName.Length -gt 40) {
-        $webApiServerName = $webApiServerName.Substring(0, 40)
-    }
-    $existingWebApiPlanSku = Get-AppServicePlanSkuName -Name $webApiServerName
-    $webApiPlanExists = -not [string]::IsNullOrWhiteSpace($existingWebApiPlanSku)
-    $manageWebApiServer = -not $webApiPlanExists
-
     if (-not [string]::IsNullOrWhiteSpace($existingAppConfigurationDataOwnerRoleAssignmentName)) {
         Write-Host 'Adopting existing App Configuration Data Owner assignment.' -ForegroundColor DarkGray
     }
     if (-not [string]::IsNullOrWhiteSpace($existingKeyVaultAdministratorRoleAssignmentName)) {
         Write-Host 'Adopting existing Key Vault Administrator assignment.' -ForegroundColor DarkGray
-    }
-    if ($webApiPlanExists) {
-        Write-Host "Reusing existing App Service plan SKU '$existingWebApiPlanSku' without changing capacity or deployment slots." -ForegroundColor DarkGray
     }
 
     if (Test-Path $EntraStatePath) {
@@ -1041,7 +971,6 @@ Run without -WhatIf to create it, or create the group first:
             globalAdminPrincipalType = @{ value = $resolvedGlobalAdminPrincipalType }
             appConfigurationDataOwnerRoleAssignmentName = @{ value = $existingAppConfigurationDataOwnerRoleAssignmentName }
             keyVaultAdministratorRoleAssignmentName = @{ value = $existingKeyVaultAdministratorRoleAssignmentName }
-            manageWebApiServer = @{ value = $manageWebApiServer }
             customEmailDomainEnabled = @{ value = [bool]$EnableCustomEmailDomain }
             entraDefaultDomain = @{ value = $resolvedEntraDefaultDomain }
             powerBiReaderPrincipalId = @{ value = $PowerBiReaderPrincipalId }
@@ -1097,15 +1026,6 @@ Run without -WhatIf to create it, or create the group first:
     )
     $deployment = $deploymentResult.Output | ConvertFrom-Json
     $outputs = $deployment.properties.outputs
-
-    $githubDeploymentPrincipalId = [string]$outputs.GITHUB_DEPLOYMENT_PRINCIPAL_ID.value
-    if ([string]::IsNullOrWhiteSpace($githubDeploymentPrincipalId)) {
-        throw 'Deployment output GITHUB_DEPLOYMENT_PRINCIPAL_ID was empty.'
-    }
-    $webApiPlanScope = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/serverfarms/$webApiServerName"
-    Remove-ObsoleteGitHubPlanReaderAssignment `
-        -Scope $webApiPlanScope `
-        -PrincipalId $githubDeploymentPrincipalId
 
     if ($mustStoreSqlAdminPassword) {
         Set-KeyVaultSecretFromMemory -SecretName $SqlAdminPasswordSecretName -SecretValue $sqlAdminPassword

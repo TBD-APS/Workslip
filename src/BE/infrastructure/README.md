@@ -112,25 +112,6 @@ The infrastructure phase:
 3. reconciles Azure-owned deployment secrets without exposing them on command lines;
 4. provisions the API user-assigned managed identity in Azure SQL.
 
-New retained App Service plans use Free F1 with `alwaysOn` disabled. The
-compatibility script adopts existing plans without changing their SKU or
-deployment slots, so an existing S1 plan remains unchanged until a separately
-approved capacity migration removes its slots first. The deployment workflow
-uses a staging slot and swap when one exists; otherwise it deploys directly to
-the App Service app and runs the production smoke test. Direct F1 delivery has
-no automatic App Service rollback. Moving this legacy path to Standard S1 is an
-explicit capacity choice, not an infrastructure or release requirement.
-
-HTTP/2 is intentionally disabled on the Windows F1 compatibility path. The
-public App Service frontend accepted HTTP/2 connections without returning
-response bytes, while HTTP/1.1 completed normally. Re-enable HTTP/2 only after
-a verified production check confirms that platform behaviour is resolved.
-
-The compatibility reconciler explicitly removes the obsolete plan-scoped
-`Reader` assignment from the GitHub deployment identity after applying the
-baseline. This is necessary because Azure incremental deployments do not delete
-a role assignment solely because its Bicep declaration was removed.
-
 The template takes no compile-time file input. Everything instance-specific arrives as a deployment parameter, so `main.bicep` describes *a* Workslip environment rather than this one, and a deployment no longer writes to the working tree as a side effect. `monitoring.config.json` remains operator configuration; the deployment script reads it and passes the addresses through.
 
 An infrastructure-only deployment does not generate the VAPID private key. Use the full `deploy.ps1` entry point when establishing a new environment or repairing a missing VAPID secret.
@@ -196,19 +177,11 @@ DNS verification must remain valid for Domain, SPF, DKIM and DKIM2. See `../../.
 
 ## Azure Monitor API alerts
 
-`monitoring.bicep` provisions one Azure Monitor Action Group and three stateful API alert rules:
-
-| Alert | Condition | Severity |
-|---|---|---|
-| API unavailable | The public `/health` endpoint fails from at least three of five Azure test locations during a five-minute window. | Critical (0) |
-| HTTP 5xx | The App Service emits one or more HTTP 5xx responses during a five-minute window. | Error (1) |
-| Slow API | Average App Service response time exceeds five seconds during a five-minute window. | Warning (2) |
-
-The availability test runs every five minutes from five regions, has retries enabled and validates HTTP 200, TLS validity and certificate lifetime. Standard availability tests are billable Azure Monitor executions; review Azure pricing before deploying additional environments or locations.
+`monitoring.bicep` provisions one Azure Monitor Action Group whose recipients are the alert mailboxes passed through the deployment parameters. Metric and availability alert rules are owned by the Container Apps monitoring path, not this compatibility baseline.
 
 Alert recipients are maintained in `monitoring.config.json`. This is intentionally deployment-time operations configuration rather than a query against the Workslip database: alerts must still be deliverable when the API or SQL database is unavailable. Keep the list aligned with the people expected to respond to production incidents. Do not place credentials or notification-service secrets in this file.
 
-After deployment, use Azure Monitor's **Test action group** function to verify delivery. Do not deliberately stop production or generate production errors solely to test an alert. Tune the response-time threshold if App Service startup behaviour creates repeated non-actionable notifications.
+After deployment, use Azure Monitor's **Test action group** function to verify delivery. Do not deliberately stop production or generate production errors solely to test an alert.
 
 ## Cost budget
 

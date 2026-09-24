@@ -229,7 +229,6 @@ jobs:
                 echo 'company_name=mrsoftwarev2'
                 echo 'location=swedencentral'
                 echo 'resource_group=rg-mrsoftwarev2-live'
-                echo 'webapp_name=api-mrsoftwarev2-live'
                 echo 'api_identity_name=id-mrsoftwarev2-live'
                 echo 'log_analytics_workspace_name=logAnal-mrsoftwarev2-live'
               } >> "${GITHUB_OUTPUT}"
@@ -462,17 +461,6 @@ jobs:
             '--workspace-name', $env:LOG_ANALYTICS_WORKSPACE_NAME,
             '--query', 'id', '--output', 'tsv'
           )
-          $configuredWorkspaceId = Invoke-AzureTsv -Arguments @(
-            'webapp', 'config', 'appsettings', 'list',
-            '--resource-group', $env:AZURE_RESOURCE_GROUP,
-            '--name', $env:AZURE_WEBAPP_NAME,
-            '--query', "[?name=='Azure__ApplicationInsights__WorkspaceId'].value | [0]",
-            '--output', 'tsv'
-          )
-
-          if ($configuredWorkspaceId -ne $workspaceId) {
-            throw 'The API workspace setting does not match the selected Log Analytics workspace.'
-          }
 
           $apiPrincipalId = Invoke-AzureTsv -Arguments @(
             'identity', 'show',
@@ -490,6 +478,39 @@ jobs:
 
           if ([string]::IsNullOrWhiteSpace($readerAssignment)) {
             throw 'The API managed identity is missing Log Analytics Data Reader on the selected workspace.'
+          }
+
+      - name: Verify current production API workspace setting
+        if: ${{ inputs.operation == 'reconcile' && inputs.target == 'current-production' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          function Invoke-AzureTsv {
+            param([Parameter(Mandatory = $true)][string[]]$Arguments)
+            $output = @(& az @Arguments 2>&1 | ForEach-Object { $_.ToString() })
+            if ($LASTEXITCODE -ne 0) {
+              throw "Azure CLI verification failed with exit code $LASTEXITCODE.`n$($output -join [Environment]::NewLine)"
+            }
+            return ($output -join [Environment]::NewLine).Trim()
+          }
+
+          $workspaceId = Invoke-AzureTsv -Arguments @(
+            'monitor', 'log-analytics', 'workspace', 'show',
+            '--resource-group', $env:AZURE_RESOURCE_GROUP,
+            '--workspace-name', $env:LOG_ANALYTICS_WORKSPACE_NAME,
+            '--query', 'customerId', '--output', 'tsv'
+          )
+          $configuredWorkspaceId = Invoke-AzureTsv -Arguments @(
+            'webapp', 'config', 'appsettings', 'list',
+            '--resource-group', $env:AZURE_RESOURCE_GROUP,
+            '--name', $env:AZURE_WEBAPP_NAME,
+            '--query', "[?name=='Azure__ApplicationInsights__WorkspaceId'].value | [0]",
+            '--output', 'tsv'
+          )
+
+          if ($configuredWorkspaceId -ne $workspaceId) {
+            throw 'The API workspace setting does not match the selected Log Analytics workspace.'
           }
 
       - name: Require current production API health after reconcile
