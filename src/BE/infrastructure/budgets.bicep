@@ -30,8 +30,8 @@ param monthlyAmount int = 800
   are only a problem in combination.
 */
 
-@description('First day of the month the budget starts measuring from. Azure requires the first of a month for a monthly budget. Defaulted here rather than computed inside the template because utcNow() is only valid in a parameter default.')
-param startDate string = utcNow('yyyy-MM-01')
+@description('First day of the month the budget starts measuring from. Frozen in time: Azure rejects changing the start date of an existing budget (400 "Start date of budgets cannot be updated"), so this must be a fixed value — never utcNow(), which shifts every month and breaks redeploys. Only move it forward by deleting the budget in Azure first, then bumping this value in a dedicated PR.')
+param startDate string = '2026-08-01'
 
 var normalizedEnvironment = toLower(environment)
 
