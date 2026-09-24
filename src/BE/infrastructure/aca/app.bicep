@@ -30,6 +30,9 @@ param storageAccountName string
 
 param apiEnvironment string = 'Production'
 
+@description('Custom domain bindings that already exist on the Container App ingress, as returned by `az containerapp hostname list` (name, certificateId, bindingType). The deploy workflow resolves them from the live app before every release; an ARM deployment that omits customDomains removes the production hostname binding, which is exactly the outage that motivates this parameter. Empty until aca-live-cutover.yml bind has run.')
+param customDomains array = []
+
 var appName = 'ca-${namePrefix}'
 var tags = {
   environment: 'live'
@@ -87,6 +90,9 @@ resource liveApp 'Microsoft.App/containerApps@2024-03-01' = {
         targetPort: 8080
         transport: 'Auto'
         allowInsecure: false
+        // Preserve the app.mrsoftware.dk binding across releases. Container Apps
+        // treats a missing customDomains array as "no custom domains" on PUT.
+        customDomains: customDomains
       }
       registries: [
         {

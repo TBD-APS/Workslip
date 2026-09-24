@@ -51,6 +51,16 @@ customers are served.
   `app.mrsoftware.dk` is bound to it. The `bind` mode of `aca-live-cutover.yml`
   has been exercised — the domain resolves to the nginx frontend container.
 
+**Releases must carry the binding forward.** A Container App ARM deployment
+that omits `ingress.customDomains` removes every bound hostname. On
+2026-09-24 the first `aca-live-deploy.yml` run after the domain bind did
+exactly that and took `app.mrsoftware.dk` offline until `aca-live-cutover.yml`
+`bind` was re-run. `aca-live-deploy.yml` therefore reads the current bindings
+with `az containerapp hostname list`, passes them to `aca/app.bicep` as
+`customDomains`, and smoke-tests every SNI-bound hostname after the release.
+If the binding is ever missing again, re-run `bind` with confirmation
+`CUTOVER`; the DNS records do not need to change.
+
 **What still needs verification — do not describe this as finished:**
 
 The `retire` mode of `aca-live-cutover.yml` stops the legacy App Service

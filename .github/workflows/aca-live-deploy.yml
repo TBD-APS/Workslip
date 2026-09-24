@@ -334,12 +334,44 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Resolve existing custom domain bindings
+        id: domains
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # A Container App PUT that omits ingress.customDomains drops every bound
+          # hostname, including the production domain. Read the current bindings and
+          # hand them back to app.bicep so a release never un-binds app.mrsoftware.dk.
+          # The first deploy (no app yet) legitimately has none.
+          if az containerapp show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name ca-workslip-live-app \
+            --only-show-errors --output none 2>/dev/null; then
+            bindings="$(az containerapp hostname list \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name ca-workslip-live-app \
+              --query '[].{name:name,certificateId:certificateId,bindingType:bindingType}' \
+              --output json)"
+          else
+            bindings='[]'
+          fi
+          bindings="$(printf '%s' "$bindings" | node -e '
+            let d = ""; process.stdin.on("data", c => d += c).on("end", () => {
+              const list = JSON.parse(d || "[]");
+              if (!Array.isArray(list)) throw new Error("hostname list is not an array");
+              process.stdout.write(JSON.stringify(list));
+            });')"
+          echo "bindings=$bindings" >> "$GITHUB_OUTPUT"
+          echo "count=$(node -e 'process.stdout.write(String(JSON.parse(process.argv[1]).length))' "$bindings")" >> "$GITHUB_OUTPUT"
+          echo "Preserving $(node -e 'process.stdout.write(String(JSON.parse(process.argv[1]).length))' "$bindings") existing custom domain binding(s)."
+
       - name: Deploy live-app Container App revision
         id: app
         shell: bash
         env:
           ACR_LOGIN_SERVER: ${{ steps.foundation.outputs.acr_login_server }}
           APP_INSIGHTS_CONNECTION_STRING: ${{ steps.shared.outputs.app_insights_connection_string }}
+          CUSTOM_DOMAINS: ${{ steps.domains.outputs.bindings }}
         run: |
           set -Eeuo pipefail
           frontend_image="$ACR_LOGIN_SERVER/workslip-live-app-frontend:$GITHUB_SHA"
@@ -363,6 +395,7 @@ jobs:
               sqlDatabaseName="$LIVE_SQL_DATABASE" \
               storageAccountName='stmrsoftwarev2live' \
               apiEnvironment='Production' \
+              customDomains="$CUSTOM_DOMAINS" \
             --only-show-errors \
             --output none
 
@@ -398,6 +431,17 @@ jobs:
           LIVE_URL: ${{ steps.app.outputs.url }}
         run: bash tools/release/post-deploy-smoke.sh "$LIVE_URL"
 
+      - name: Smoke-test the production domain the release must keep serving
+        if: ${{ steps.domains.outputs.count != '0' }}
+        shell: bash
+        env:
+          CUSTOM_DOMAINS: ${{ steps.domains.outputs.bindings }}
+        run: |
+          set -Eeuo pipefail
+          for host in $(node -e 'for (const d of JSON.parse(process.argv[1])) if (d.bindingType === "SniEnabled") console.log(d.name)' "$CUSTOM_DOMAINS"); do
+            bash tools/release/post-deploy-smoke.sh "https://$host"
+          done
+
       - name: Publish live-app handoff
         shell: bash
         env:
@@ -415,5 +459,6 @@ jobs:
           - Registry auth: managed identity + \`AcrPull\`; ACR admin credentials disabled
           - Database: pending reviewed migrations applied before release
           - Smoke: frontend \`/\` = 200, backend \`/health\` = 200, unauthenticated \`/api/auth/me\` = 401
+          - Custom domain bindings preserved: ${{ steps.domains.outputs.count }}
           - Scale: 0→4 replicas, HTTP autoscale, scale-to-zero when idle
           EOF
