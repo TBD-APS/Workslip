@@ -100,7 +100,9 @@ function Invoke-Up {
         if ($LASTEXITCODE -ne 0) { throw 'docker compose config validation failed.' }
 
         Write-Step 'Starting Workslip full local stack'
-        & docker compose up -d --wait --quiet-pull --progress plain
+        # Keep this invocation compatible with older Compose v2 builds on Windows.
+        # Readiness is verified explicitly below, so --wait/--progress are unnecessary.
+        & docker compose up -d --quiet-pull
         if ($LASTEXITCODE -ne 0) { throw 'docker compose up failed.' }
 
         Write-Step 'Waiting for API health'
