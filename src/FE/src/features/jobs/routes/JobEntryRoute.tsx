@@ -7,6 +7,7 @@ import { notify } from '../../../lib/toast';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { AdminCompletedJobReport } from './AdminCompletedJobReport';
 import { JobDetail } from './JobDetail';
+import { useWorkflowActiveTime } from '../hooks/useWorkflowActiveTime';
 
 type JobEntryLocationState = {
   from?: string;
@@ -58,6 +59,13 @@ export function JobEntryRoute() {
 
   const status = query.data?.status;
   const reopenReason = query.data?.rejectionNote?.trim();
+  const isEditableWorkflow = Boolean(
+    id
+      && location.pathname.includes('/app/job/')
+      && status
+      && EDITABLE_STATES.has(status),
+  );
+  useWorkflowActiveTime(id, isEditableWorkflow);
 
   useEffect(() => {
     if (status !== JobStatus.Reopened) return;
