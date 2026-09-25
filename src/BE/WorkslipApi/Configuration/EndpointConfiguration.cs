@@ -40,6 +40,7 @@ public static class EndpointConfiguration
         app.MapReferenceDataEndpoints();
         app.MapPushNotificationEndpoints();
         app.MapProductivityAnalyticsEndpoints();
+        app.MapWorkflowStatisticsEndpoints();
         app.MapValueAnalyticsEndpoints();
         app.MapCacheEndpoints();
         app.MapDiagnosticsEndpoints();
