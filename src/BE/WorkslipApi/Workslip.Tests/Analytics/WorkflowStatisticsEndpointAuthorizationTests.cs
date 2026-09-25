@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Workslip.Api.Endpoints;
 using Workslip.Application.Auth;
+using Workslip.Domain;
 using Workslip.Infrastructure.Schema;
 using Xunit;
 
