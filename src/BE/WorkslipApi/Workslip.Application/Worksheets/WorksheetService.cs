@@ -4,6 +4,7 @@ using FluentValidation.Results;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
+using Workslip.Application.Notifications;
 using Workslip.Domain;
 
 namespace Workslip.Application.Worksheets;
@@ -16,6 +17,7 @@ public class WorksheetService : IWorksheetService
     private readonly ICurrentUserContext _currentUserContext;
     private readonly IMonthlyHoursPdfGenerator _monthlyHoursPdfGenerator;
     private readonly ILogger<WorksheetService> _logger;
+    private readonly INotificationService? _notificationService;
 
     public WorksheetService(
         IWorksheetRepository repository,
@@ -23,7 +25,8 @@ public class WorksheetService : IWorksheetService
         IValidator<UpsertWorksheetRequest> validator,
         ICurrentUserContext currentUserContext,
         IMonthlyHoursPdfGenerator monthlyHoursPdfGenerator,
-        ILogger<WorksheetService> logger)
+        ILogger<WorksheetService> logger,
+        INotificationService? notificationService = null)
     {
         _repository = repository;
         _jobService = jobService;
@@ -31,6 +34,7 @@ public class WorksheetService : IWorksheetService
         _currentUserContext = currentUserContext;
         _monthlyHoursPdfGenerator = monthlyHoursPdfGenerator;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<Result<MyWorksheetsMonthResponse>> GetWorksheetsForUserAsync(int? year, int? month, CancellationToken cancellationToken)
@@ -234,9 +238,51 @@ public class WorksheetService : IWorksheetService
             return Result<JobReportSummaryResponse>.Error("worksheet_unexpected_error");
         }
 
+        await TryQueueDailyHoursLimitNotificationAsync(request, organizationId.Value, cancellationToken);
         await _jobService.InvalidateJobDetailCacheAsync(request.JobId, organizationId.Value, cancellationToken);
 
         return await _jobService.GetSingleJobAsync(request.JobId, cancellationToken);
+    }
+
+    private async Task TryQueueDailyHoursLimitNotificationAsync(
+        UpsertWorksheetRequest request,
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        if (_notificationService is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var totalHours = await _repository.GetHoursForUserDayAsync(
+                organizationId,
+                request.UserId,
+                request.WorkDate,
+                cancellationToken);
+
+            if (totalHours != WorksheetHourRules.MaxDailyHours)
+            {
+                return;
+            }
+
+            await _notificationService.QueueDailyHoursLimitReachedAsync(
+                request.UserId,
+                request.UserDisplayName,
+                request.WorkDate,
+                totalHours,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Daily hours limit notification could not be queued after worksheet persistence. JobId: {JobId}, UserId: {UserId}, WorkDate: {WorkDate}.",
+                request.JobId,
+                request.UserId,
+                request.WorkDate);
+        }
     }
 
     public async Task<Result<JobReportSummaryResponse>> DeleteAsync(Guid worksheetId, Guid jobId, CancellationToken cancellationToken)
