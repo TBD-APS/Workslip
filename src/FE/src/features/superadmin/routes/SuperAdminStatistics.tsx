@@ -130,7 +130,10 @@ function Distribution({ buckets }: { buckets: DistributionBucket[] }) {
         <div className="statistics-bar-row" key={bucket.key}>
           <span>{bucket.label}</span>
           <div className="statistics-bar-track" aria-hidden="true">
-            <div className="statistics-bar-fill" style={{ width: `${Math.max(2, (bucket.rate / maxRate) * 100)}%` }} />
+            <div
+              className="statistics-bar-fill"
+              style={{ width: bucket.rate <= 0 ? '0%' : `${Math.max(2, (bucket.rate / maxRate) * 100)}%` }}
+            />
           </div>
           <strong>{formatPercent(bucket.rate)}</strong>
           <small>{bucket.count}</small>
@@ -164,10 +167,15 @@ export function SuperAdminStatistics() {
   const summary = data?.summary;
   const trend = data?.trend ?? [];
   const isEmpty = !statisticsQuery.isPending && (summary?.caseCount ?? 0) === 0;
+  const firstPassRate = summary?.firstPassApprovalRate ?? null;
 
-  const waiting = summary?.assignedToFirstWork.medianSeconds ?? 0;
-  const active = summary?.employeeActive.medianSeconds ?? 0;
-  const inactive = summary?.inactiveAfterStart.medianSeconds ?? 0;
+  const waitingMedian = summary?.assignedToFirstWork.medianSeconds ?? null;
+  const activeMedian = summary?.employeeActive.medianSeconds ?? null;
+  const inactiveMedian = summary?.inactiveAfterStart.medianSeconds ?? null;
+  const waiting = waitingMedian ?? 0;
+  const active = activeMedian ?? 0;
+  const inactive = inactiveMedian ?? 0;
+  const breakdownHasData = waitingMedian !== null || activeMedian !== null || inactiveMedian !== null;
   const breakdownTotal = Math.max(waiting + active + inactive, 1);
 
   return (
@@ -260,14 +268,14 @@ export function SuperAdminStatistics() {
             <p>Gør det synligt, om en lang sag skyldes Workslip-flowet eller at arbejdet først bliver udført senere.</p>
           </div>
           <div className="statistics-stacked" role="img" aria-label="Fordeling mellem ventetid, aktiv tid og øvrig inaktiv tid">
-            <span className="statistics-stack-wait" style={{ width: `${(waiting / breakdownTotal) * 100}%` }} />
-            <span className="statistics-stack-active" style={{ width: `${(active / breakdownTotal) * 100}%` }} />
-            <span className="statistics-stack-inactive" style={{ width: `${(inactive / breakdownTotal) * 100}%` }} />
+            <span className="statistics-stack-wait" style={{ width: breakdownHasData ? `${(waiting / breakdownTotal) * 100}%` : '0%' }} />
+            <span className="statistics-stack-active" style={{ width: breakdownHasData ? `${(active / breakdownTotal) * 100}%` : '0%' }} />
+            <span className="statistics-stack-inactive" style={{ width: breakdownHasData ? `${(inactive / breakdownTotal) * 100}%` : '0%' }} />
           </div>
           <div className="statistics-stack-legend">
-            <span><i className="statistics-legend-dot statistics-legend-dot--wait" />Før første arbejde <strong>{formatDuration(waiting)}</strong></span>
-            <span><i className="statistics-legend-dot statistics-legend-dot--active" />Aktiv udfyldelse <strong>{formatDuration(active)}</strong></span>
-            <span><i className="statistics-legend-dot statistics-legend-dot--inactive" />Øvrig inaktiv tid <strong>{formatDuration(inactive)}</strong></span>
+            <span><i className="statistics-legend-dot statistics-legend-dot--wait" />Før første arbejde <strong>{formatDuration(waitingMedian)}</strong></span>
+            <span><i className="statistics-legend-dot statistics-legend-dot--active" />Aktiv udfyldelse <strong>{formatDuration(activeMedian)}</strong></span>
+            <span><i className="statistics-legend-dot statistics-legend-dot--inactive" />Øvrig inaktiv tid <strong>{formatDuration(inactiveMedian)}</strong></span>
           </div>
         </div>
 
@@ -308,7 +316,7 @@ export function SuperAdminStatistics() {
         </div>
 
         <div className="statistics-quality-grid">
-          <article><BadgeCheck size={18} /><span>Godkendt første gang</span><strong>{formatPercent(summary?.firstPassApprovalRate ?? null)}</strong><small>Af godkendte sager</small></article>
+          <article><BadgeCheck size={18} /><span>Godkendt første gang</span><strong>{formatPercent(firstPassRate)}</strong><small>Af godkendte sager</small></article>
           <article><AlertTriangle size={18} /><span>Sager med afvisning</span><strong>{formatPercent(summary?.rejectionRate ?? null)}</strong><small>Af indsendte sager</small></article>
           <article><Activity size={18} /><span>System/UI-signal</span><strong>{formatPercent(summary?.systemUiRejectionRate ?? null)}</strong><small>Af klassificerede afvisninger</small></article>
           <article><RotateCcw size={18} /><span>Rework pr. godkendt sag</span><strong>{summary?.averageReworkLoops == null ? '—' : formatNumber(summary.averageReworkLoops, 2)}</strong><small>{summary?.rejectionEventCount ?? 0} afvisningshændelser</small></article>
@@ -319,12 +327,12 @@ export function SuperAdminStatistics() {
             <span>First-pass vs. rework</span>
             <h3>Godkendt uden retur</h3>
             <div className="statistics-approval-stack" role="img" aria-label="Andel godkendt første gang og andel med rework">
-              <span className="statistics-approval-pass" style={{ width: `${(summary?.firstPassApprovalRate ?? 0) * 100}%` }} />
-              <span className="statistics-approval-rework" style={{ width: `${Math.max(0, 1 - (summary?.firstPassApprovalRate ?? 0)) * 100}%` }} />
+              <span className="statistics-approval-pass" style={{ width: firstPassRate === null ? '0%' : `${firstPassRate * 100}%` }} />
+              <span className="statistics-approval-rework" style={{ width: firstPassRate === null ? '0%' : `${Math.max(0, 1 - firstPassRate) * 100}%` }} />
             </div>
             <div className="statistics-stack-legend">
-              <span><i className="statistics-legend-dot statistics-legend-dot--active" />Første gang <strong>{formatPercent(summary?.firstPassApprovalRate ?? null)}</strong></span>
-              <span><i className="statistics-legend-dot statistics-legend-dot--rework" />Har krævet rework <strong>{summary?.firstPassApprovalRate == null ? '—' : formatPercent(1 - summary.firstPassApprovalRate)}</strong></span>
+              <span><i className="statistics-legend-dot statistics-legend-dot--active" />Første gang <strong>{formatPercent(firstPassRate)}</strong></span>
+              <span><i className="statistics-legend-dot statistics-legend-dot--rework" />Har krævet rework <strong>{firstPassRate === null ? '—' : formatPercent(1 - firstPassRate)}</strong></span>
             </div>
             <div className="statistics-quality-trend">
               <h4>First-pass pr. uge</h4>
