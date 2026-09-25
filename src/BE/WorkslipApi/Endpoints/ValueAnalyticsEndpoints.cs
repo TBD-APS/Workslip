@@ -286,7 +286,7 @@ public static class ValueAnalyticsEndpoints
                 "External billing source required",
                 "External sales/CRM source required",
                 "Monthly design-partner survey source required",
-                "Lead-source dimension is maintained in the Power BI project"))));
+                "Lead-source dimension is maintained in the Power BI project")));
     }
 
     private static int DateKey(DateTimeOffset value) =>
