@@ -58,14 +58,34 @@ export function activateOrganizationSession(
 ): void {
   const currentToken = AuthStorage.getItem(AUTH_TOKEN_KEY);
   const savedHomeToken = AuthStorage.getItem(HOME_AUTH_TOKEN_KEY);
-  const homeToken = savedHomeToken ?? currentToken;
-  if (!currentToken || !homeToken) {
+  if (!currentToken) {
     throw new Error('Der mangler en aktiv Superadmin-session.');
   }
 
   const delegatedPayload = readTokenPayload(delegatedToken);
-  const homePayload = readTokenPayload(homeToken);
   const currentPayload = readTokenPayload(currentToken);
+
+  // A completed re-login or token refresh can leave recovery metadata from an
+  // older delegated session in localStorage. In that state the active token is
+  // already a valid, non-delegated Superadmin home token, so the saved home token
+  // is stale by definition. Reusing the stale token makes every new organization
+  // switch fail client-side even though the API returned a valid delegated token.
+  // Recover only from a cryptographically-shaped, unexpired Superadmin home
+  // payload; an active delegated token must continue to use its original home
+  // token and therefore stays fail-closed.
+  const hasStaleRecoveryState = savedHomeToken !== null
+    && savedHomeToken !== currentToken
+    && currentPayload !== null
+    && isValidHomeSessionPayload(currentPayload);
+
+  if (hasStaleRecoveryState) {
+    clearOrganizationSession();
+  }
+
+  const homeToken = hasStaleRecoveryState
+    ? currentToken
+    : savedHomeToken ?? currentToken;
+  const homePayload = readTokenPayload(homeToken);
   const delegatedOrganizationId = delegatedPayload
     ? normalizeUuid(readStringClaim(delegatedPayload, ORGANIZATION_ID_CLAIM))
     : null;
@@ -95,7 +115,7 @@ export function activateOrganizationSession(
 
   // Preserve the original token across organization switches. A delegated
   // token must never replace the home token used to exit the session.
-  if (!savedHomeToken) {
+  if (!savedHomeToken || hasStaleRecoveryState) {
     AuthStorage.setItem(HOME_AUTH_TOKEN_KEY, currentToken);
   }
 
@@ -164,6 +184,14 @@ function isValidRecoveryPair(
     && delegatedActorId === homeActorId
     && delegatedHomeOrganizationId !== null
     && delegatedHomeOrganizationId === homeOrganizationId;
+}
+
+function isValidHomeSessionPayload(payload: Record<string, unknown>): boolean {
+  return isUnexpiredPayload(payload)
+    && hasValidHomeDelegationClaim(payload)
+    && isSuperadminPayload(payload)
+    && readActorId(payload) !== null
+    && normalizeUuid(readStringClaim(payload, ORGANIZATION_ID_CLAIM)) !== null;
 }
 
 function isSuperadminPayload(payload: Record<string, unknown>): boolean {
