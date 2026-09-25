@@ -89,6 +89,40 @@ describe('Superadmin organization sessions', () => {
     },
   );
 
+  it('replaces stale recovery metadata after a fresh Superadmin login', () => {
+    const refreshedHomeToken = token(homePayload({ exp: NOW_SECONDS + 600 }));
+    const staleHomeToken = token(homePayload({ exp: NOW_SECONDS - 1 }));
+
+    localStorage.setItem(AUTH_TOKEN_KEY, refreshedHomeToken);
+    localStorage.setItem(HOME_AUTH_TOKEN_KEY, staleHomeToken);
+    localStorage.setItem(ORGANIZATION_SESSION_ID_KEY, OTHER_ORGANIZATION_ID);
+    localStorage.setItem(ORGANIZATION_SESSION_NAME_KEY, 'Gammel organisation');
+
+    activateOrganizationSession(
+      { id: CUSTOMER_ORGANIZATION_ID, name: 'NP Teknik' },
+      validDelegatedToken,
+    );
+
+    expect(localStorage.getItem(HOME_AUTH_TOKEN_KEY)).toBe(refreshedHomeToken);
+    expect(localStorage.getItem(AUTH_TOKEN_KEY)).toBe(validDelegatedToken);
+    expect(getOrganizationSession()).toEqual({
+      id: CUSTOMER_ORGANIZATION_ID,
+      name: 'NP Teknik',
+    });
+  });
+
+  it('does not replace recovery metadata while the active token is delegated', () => {
+    const expiredHomeToken = token(homePayload({ exp: NOW_SECONDS - 1 }));
+    saveDelegation(validDelegatedToken, expiredHomeToken);
+
+    expect(() => activateOrganizationSession(
+      { id: CUSTOMER_ORGANIZATION_ID, name: 'NP Teknik' },
+      validDelegatedToken,
+    )).toThrow('Organisationssessionens token kunne ikke valideres.');
+
+    expect(localStorage.getItem(HOME_AUTH_TOKEN_KEY)).toBe(expiredHomeToken);
+  });
+
   it('restores a validated home session', () => {
     saveDelegation(validDelegatedToken, validHomeToken);
     localStorage.setItem(REAUTH_IN_FLIGHT_KEY, '123');
