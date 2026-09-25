@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Activity, ArrowRight, Building2, CheckCircle2, Gauge, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Activity, ArrowRight, BarChart3, Building2, CheckCircle2, Gauge, RefreshCw, ShieldCheck } from 'lucide-react';
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useNavigate } from 'react-router-dom';
@@ -17,7 +17,6 @@ import {
 } from '../api';
 import { AdminInviteForm } from '../components/AdminInviteForm';
 import { OrganizationCreateForm } from '../components/OrganizationCreateForm';
-import { SuperAdminProductivityAnalytics } from '../components/SuperAdminProductivityAnalytics';
 import { SuperAdminUsersPanel } from '../components/SuperAdminUsersPanel';
 import { DiagnosticsSupportCopyButton } from '../diagnostics/DiagnosticsSupportCopyButton';
 import {
@@ -168,6 +167,14 @@ export function SuperAdmin() {
           <button
             type="button"
             className="btn btn-secondary superadmin-refresh"
+            onClick={() => navigate('/superadmin/statistik')}
+          >
+            <BarChart3 size={16} aria-hidden="true" />
+            <span>Statistik</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary superadmin-refresh"
             onClick={() => navigate('/superadmin/cache')}
           >
             <Gauge size={16} aria-hidden="true" />
@@ -215,8 +222,6 @@ export function SuperAdmin() {
           <strong>{activeOrganizationSession?.name ?? 'Superadmin-hjemmeorganisation'}</strong>
         </div>
       </div>
-
-      <SuperAdminProductivityAnalytics organizations={organizations} />
 
       <SuperAdminUsersPanel />
 

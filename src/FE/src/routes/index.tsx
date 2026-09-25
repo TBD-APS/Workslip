@@ -82,6 +82,10 @@ const LegalPage = lazy(() =>
 const SuperAdmin = lazy(() =>
   import('../features/superadmin/routes/SuperAdmin').then((module) => ({ default: module.SuperAdmin })),
 );
+// eslint-disable-next-line react-refresh/only-export-components
+const SuperAdminStatistics = lazy(() =>
+  import('../features/superadmin/routes/SuperAdminStatistics').then((module) => ({ default: module.SuperAdminStatistics })),
+);
 const CacheDiagnostics = lazy(() =>
   import('../features/superadmin/routes/CacheDiagnostics').then((module) => ({ default: module.CacheDiagnostics })),
 ); // eslint-disable-next-line react-refresh/only-export-components
@@ -299,6 +303,14 @@ export const router = createBrowserRouter([
             element: (
               <RoleGuard permission="organization:manage" redirectTo="/app">
                 <SuperAdmin />
+              </RoleGuard>
+            ),
+          },
+          {
+            path: 'statistik',
+            element: (
+              <RoleGuard permission="organization:manage" redirectTo="/app">
+                <SuperAdminStatistics />
               </RoleGuard>
             ),
           },
