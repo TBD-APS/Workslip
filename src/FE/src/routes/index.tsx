@@ -82,6 +82,7 @@ const LegalPage = lazy(() =>
 const SuperAdmin = lazy(() =>
   import('../features/superadmin/routes/SuperAdmin').then((module) => ({ default: module.SuperAdmin })),
 );
+// eslint-disable-next-line react-refresh/only-export-components
 const SuperAdminStatistics = lazy(() =>
   import('../features/superadmin/routes/SuperAdminStatistics').then((module) => ({ default: module.SuperAdminStatistics })),
 );
