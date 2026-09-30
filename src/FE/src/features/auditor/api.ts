@@ -146,18 +146,18 @@ export type UpdateAuditorFindingRequest = {
 };
 
 export async function getAuditorOrganizations(): Promise<AuditorOrganizationSummary[]> {
-  return apiClient.get('/api/auditor/organizations');
+  return apiClient.get<unknown, AuditorOrganizationSummary[]>('/api/auditor/organizations');
 }
 
 export async function getAuditorReports(
   organizationId: string,
   options: { search?: string; installationType?: string; limit?: number; offset?: number } = {},
 ): Promise<AuditorReportListResponse> {
-  return apiClient.get(`/api/auditor/organizations/${organizationId}/reports`, { params: options });
+  return apiClient.get<unknown, AuditorReportListResponse>(`/api/auditor/organizations/${organizationId}/reports`, { params: options });
 }
 
 export async function getAuditorReport(organizationId: string, jobId: string): Promise<AuditorReportDetail> {
-  return apiClient.get(`/api/auditor/organizations/${organizationId}/reports/${jobId}`);
+  return apiClient.get<unknown, AuditorReportDetail>(`/api/auditor/organizations/${organizationId}/reports/${jobId}`);
 }
 
 export async function createAuditorFinding(
@@ -165,7 +165,7 @@ export async function createAuditorFinding(
   jobId: string,
   request: CreateAuditorFindingRequest,
 ): Promise<AuditorFinding> {
-  return apiClient.post(`/api/auditor/organizations/${organizationId}/reports/${jobId}/findings`, request);
+  return apiClient.post<unknown, AuditorFinding>(`/api/auditor/organizations/${organizationId}/reports/${jobId}/findings`, request);
 }
 
 export async function updateAuditorFinding(
@@ -174,7 +174,7 @@ export async function updateAuditorFinding(
   findingId: string,
   request: UpdateAuditorFindingRequest,
 ): Promise<AuditorFinding> {
-  return apiClient.patch(`/api/auditor/organizations/${organizationId}/reports/${jobId}/findings/${findingId}`, request);
+  return apiClient.patch<unknown, AuditorFinding>(`/api/auditor/organizations/${organizationId}/reports/${jobId}/findings/${findingId}`, request);
 }
 
 export function getAuditorImageUrl(organizationId: string, jobId: string, imageId: string): string {
