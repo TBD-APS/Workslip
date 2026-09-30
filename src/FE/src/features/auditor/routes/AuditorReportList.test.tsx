@@ -82,7 +82,7 @@ describe('AuditorReportList', () => {
 
     await waitFor(() => expect(mockReports).toHaveBeenCalledWith('org-1', expect.objectContaining({ limit: 100, offset: 0 })));
     expect(await screen.findAllByText('Testkunde')).not.toHaveLength(0);
-    expect(screen.getByText('VVS Test A/S')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'VVS Test A/S' })).toBeInTheDocument();
     expect(screen.getByTestId('auditor-report-table')).toBeInTheDocument();
   });
 });
