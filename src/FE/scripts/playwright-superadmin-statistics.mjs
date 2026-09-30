@@ -99,14 +99,15 @@ async function verifyStatisticsViewport(viewport) {
 
     await page.waitForURL((url) => url.pathname === '/superadmin/statistik', { timeout: UI_TIMEOUT });
     await page.waitForFunction(
-      () => document.querySelector('.superadmin-statistics-page') !== null
-        && document.querySelector('.statistics-loading-state') === null,
+      () => document.querySelector('.statistics-page') !== null
+        && document.querySelectorAll('.statistics-metric-card').length >= 3
+        && document.querySelector('.superadmin-alert-error') === null,
       undefined,
       { timeout: UI_TIMEOUT },
     );
 
     const layout = await page.evaluate(() => {
-      const root = document.querySelector('.superadmin-statistics-page');
+      const root = document.querySelector('.statistics-page');
       const filters = document.querySelector('.statistics-filters');
       const cards = [...document.querySelectorAll('.statistics-metric-card')];
       const documentWidth = document.documentElement.clientWidth;
@@ -118,7 +119,7 @@ async function verifyStatisticsViewport(viewport) {
         documentWidth,
         scrollWidth,
         hasRoot: Boolean(root),
-        hasErrorState: Boolean(document.querySelector('.statistics-error-state')),
+        hasErrorState: Boolean(document.querySelector('.superadmin-alert-error')),
         metricCardCount: cards.length,
         rootRight: rootRect?.right ?? null,
         filterRight: filterRect?.right ?? null,
