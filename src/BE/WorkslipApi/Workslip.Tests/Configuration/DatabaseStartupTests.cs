@@ -163,7 +163,7 @@ public sealed class DatabaseStartupTests
             .Select(definition => definition.Name)
             .ToArrayAsync();
 
-        Assert.Equal("JH El & Køl – Demo", organization.Name);
+        Assert.Equal("JN Køl & El – Demo", organization.Name);
         Assert.Equal(new[] { "EL", "KØL" }, installationTypes);
     }
 
@@ -200,7 +200,7 @@ public sealed class DatabaseStartupTests
             .Select(definition => definition.Name)
             .ToArrayAsync();
 
-        Assert.Equal("JH El & Køl – Demo", organization.Name);
+        Assert.Equal("JN Køl & El – Demo", organization.Name);
         Assert.Equal(new[] { "EL", "KØL" }, installationTypes);
     }
 

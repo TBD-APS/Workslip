@@ -60,7 +60,7 @@ public sealed class DatabaseSeederTests
             SyntheticSeedProfile.ElectricalAndRefrigerationDemo);
 
         var organization = await context.Organizations.AsNoTracking().SingleAsync();
-        Assert.Equal("JH El & Køl – Demo", organization.Name);
+        Assert.Equal("JN Køl & El – Demo", organization.Name);
         Assert.Equal("87654321", organization.Cvr);
         Assert.Equal(
             new[]
