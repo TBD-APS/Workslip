@@ -14,5 +14,5 @@ export interface ReferenceDataResponse {
   closureFlags: ClosureFlagResponse[];
   /** Organization identity used for organization-scoped feature profiles. */
   /** @nullable */
-  organizationName: string | null;
+  organizationName?: string | null;
 }
