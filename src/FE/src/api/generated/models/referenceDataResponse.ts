@@ -13,5 +13,6 @@ export interface ReferenceDataResponse {
   workKinds: WorkKindResponse[];
   closureFlags: ClosureFlagResponse[];
   /** Organization identity used for organization-scoped feature profiles. */
+  /** @nullable */
   organizationName: string | null;
 }
