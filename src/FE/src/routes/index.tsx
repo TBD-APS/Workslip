@@ -73,6 +73,9 @@ const billingGuidePageElement = createElement(lazy(() =>
 const AuditorReportList = lazy(() =>
   import('../features/auditor/routes/AuditorReportList').then((module) => ({ default: module.AuditorReportList })),
 );
+const AuditorReportDetail = lazy(() =>
+  import('../features/auditor/routes/AuditorReportDetail').then((module) => ({ default: module.AuditorReportDetail })),
+);
 const Profile = lazy(() =>
   import('../features/settings/routes/Profile').then((module) => ({ default: module.Profile })),
 );
@@ -283,6 +286,7 @@ export const router = createBrowserRouter([
           { path: 'docs/new', element: <RoleGuard permission="docs:edit">{docsPageElement}</RoleGuard> },
           { path: 'docs/:id', element: <RoleGuard permission="docs:view">{docsPageElement}</RoleGuard> },
           { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
+          { path: 'auditor/:organizationId/reports/:jobId', element: <RoleGuard permission="report:view"><AuditorReportDetail /></RoleGuard> },
           { path: 'lederanalyse', element: <RoleGuard permission="leader-analysis:view"><Lederanalyse /></RoleGuard> },
           { path: 'profil', element: <Profile /> },
           { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
