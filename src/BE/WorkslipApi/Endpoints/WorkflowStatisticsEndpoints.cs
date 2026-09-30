@@ -132,8 +132,8 @@ public static class WorkflowStatisticsEndpoints
         }
 
         var organizations = await organizationsQuery
-            .Select(org => new OrganizationProjection(org.Id, org.Name))
             .OrderBy(org => org.Name)
+            .Select(org => new OrganizationProjection(org.Id, org.Name))
             .ToListAsync(cancellationToken);
 
         if (organizationId.HasValue && organizations.Count == 0)
