@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Ardalis.Result;
 using Workslip.Application.Images;
 
@@ -52,7 +53,10 @@ public sealed record AuditorReportDetailResponse(
     string OrganizationCvr,
     string? ReportNumber,
     string? CustomerName,
+    [property: JsonIgnore] string? CustomerEmail,
+    [property: JsonIgnore] string? CustomerPhone,
     string? CustomerAddress,
+    [property: JsonIgnore] string? CustomerContactPerson,
     string? DestinationAddress,
     string? DestinationZipCode,
     string? DestinationCity,
@@ -77,10 +81,10 @@ public sealed record AuditorReportDetailResponse(
 public sealed record AuditorInstallationResponse(Guid Id, string Name, IReadOnlyList<AuditorControlCategoryResponse> Categories);
 public sealed record AuditorControlCategoryResponse(Guid Id, string Name, bool IsIrrelevant, IReadOnlyList<AuditorControlPointResponse> ControlPoints);
 public sealed record AuditorControlPointResponse(Guid Id, string Name, bool IsRequired, bool IsChecked);
-public sealed record AuditorPersonResponse(Guid Id, string DisplayName);
+public sealed record AuditorPersonResponse(Guid Id, string DisplayName, [property: JsonIgnore] string? Email);
 public sealed record AuditorWorksheetResponse(Guid Id, DateTime WorkDate, decimal HoursWorked, Guid UserId, string UserName);
 public sealed record AuditorFindingResponse(Guid Id, Guid AssignmentId, string Category, string Description, string? Reference, DateTimeOffset? DueAt, string Status, string? CompanyEvidence, DateTimeOffset? CompanyEvidenceAt, string? CreatedBy, string? CompanyEvidenceBy, string? VerifiedBy, DateTimeOffset? VerifiedAt, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
-public sealed record AuditorEventResponse(Guid Id, string EventType, DateTimeOffset CreatedAt, string? ActorName);
+public sealed record AuditorEventResponse(Guid Id, string EventType, [property: JsonIgnore] string? DetailsJson, DateTimeOffset CreatedAt, string? ActorName);
 
 public sealed record CreateAuditorFindingRequest(string Category, string Description, string? Reference, DateTimeOffset? DueAt);
 public sealed record UpdateAuditorFindingRequest(string Status, string? Description, DateTimeOffset? DueAt);
