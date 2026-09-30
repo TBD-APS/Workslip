@@ -91,17 +91,23 @@ export async function getWorkflowStatistics(input: {
   }) as unknown as WorkflowStatisticsResponse;
 }
 
-export async function recordWorkflowActiveSegment(jobId: string, durationSeconds: number): Promise<void> {
-  if (!jobId || durationSeconds < 1) return;
+export async function recordWorkflowActiveSegment(
+  jobId: string,
+  durationSeconds: number,
+  segmentId: string,
+): Promise<void> {
+  if (!jobId || !segmentId || durationSeconds < 1) return;
 
   try {
     await apiClient.post('/api/productivity/workflow-active-segment', {
       jobId,
+      segmentId,
       durationSeconds: Math.min(1_800, Math.max(1, Math.round(durationSeconds))),
     }, {
       skipGlobalErrorToast: true,
     });
   } catch {
     // Analytics is deliberately best-effort and must never block the job workflow.
+    // segmentId makes a retried request idempotent at the persistence boundary.
   }
 }

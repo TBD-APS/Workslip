@@ -39,6 +39,7 @@ Do not keep issue implementation plans, completed task specs or superseded runbo
 | Agent rules | [`../AGENTS.md`](../AGENTS.md) | Active |
 | Documentation rules | [`AGENTS.md`](AGENTS.md) | Active |
 | Product/company strategy | [`strategy/WORKSLIP_STRATEGY.md`](strategy/WORKSLIP_STRATEGY.md) | Active |
+| SuperAdmin statistics | [`SUPERADMIN_STATISTICS.md`](SUPERADMIN_STATISTICS.md) | Active |
 | Validation | [`agents/VALIDATION.md`](agents/VALIDATION.md) | Active |
 | Documentation Steward | [`agents/DOCUMENTATION_STEWARD.md`](agents/DOCUMENTATION_STEWARD.md) | Active |
 | Frontend | [`../src/FE/README.md`](../src/FE/README.md) | Active |

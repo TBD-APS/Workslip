@@ -31,6 +31,7 @@ public static class WorkflowStatisticsEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status400BadRequest)
             .Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status409Conflict)
             .ExcludeFromDescription();
 
         var superAdminGroup = app.MapSuperAdminGroup("/api/superadmin/analytics", "superadmin-analytics");
@@ -48,7 +49,9 @@ public static class WorkflowStatisticsEndpoints
         SqlDbContext dbContext,
         CancellationToken cancellationToken)
     {
-        if (request.JobId == Guid.Empty || request.DurationSeconds is < 1 or > 1_800)
+        if (request.JobId == Guid.Empty
+            || request.SegmentId == Guid.Empty
+            || request.DurationSeconds is < 1 or > 1_800)
         {
             return Results.BadRequest(new { error = "invalid_workflow_active_segment" });
         }
@@ -56,6 +59,21 @@ public static class WorkflowStatisticsEndpoints
         if (currentUser.OrganizationId is not Guid organizationId || currentUser.UserId is not Guid userId)
         {
             return Results.Forbid();
+        }
+
+        var existingSegment = await dbContext.JobEvents
+            .AsNoTracking()
+            .Where(evt => evt.Id == request.SegmentId)
+            .Select(evt => new { evt.OrganizationId, evt.ReportId, evt.EventType })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (existingSegment is not null)
+        {
+            return existingSegment.OrganizationId == organizationId
+                && existingSegment.ReportId == request.JobId
+                && string.Equals(existingSegment.EventType, ActiveSegmentEventType, StringComparison.OrdinalIgnoreCase)
+                    ? Results.NoContent()
+                    : Results.Conflict(new { error = "workflow_active_segment_id_conflict" });
         }
 
         var jobExists = await dbContext.JobReports
@@ -78,7 +96,7 @@ public static class WorkflowStatisticsEndpoints
 
         dbContext.JobEvents.Add(new JobEventRow
         {
-            Id = Guid.NewGuid(),
+            Id = request.SegmentId,
             OrganizationId = organizationId,
             ReportId = request.JobId,
             ActorId = userId,
@@ -114,8 +132,8 @@ public static class WorkflowStatisticsEndpoints
         }
 
         var organizations = await organizationsQuery
-            .Select(org => new OrganizationProjection(org.Id, org.Name))
             .OrderBy(org => org.Name)
+            .Select(org => new OrganizationProjection(org.Id, org.Name))
             .ToListAsync(cancellationToken);
 
         if (organizationId.HasValue && organizations.Count == 0)
@@ -203,6 +221,7 @@ public static class WorkflowStatisticsEndpoints
                 ReadString(evt.BeforeJson, "status"),
                 ReadString(evt.AfterJson, "status"),
                 ReadString(evt.AfterJson, "rejectionNote"),
+                ReadString(evt.AfterJson, "rejectionCategory"),
                 evt.CreatedAt))
             .Where(evt => evt.BeforeStatus is not null || evt.AfterStatus is not null)
             .GroupBy(evt => evt.JobId)
@@ -298,6 +317,7 @@ public static class WorkflowStatisticsEndpoints
                 null,
                 JobStatus.Rejected.ToString(),
                 job.RejectionNote,
+                null,
                 job.UpdatedAt));
         }
 
@@ -343,7 +363,8 @@ public static class WorkflowStatisticsEndpoints
             : null;
 
         var reasonCodes = rejectionEvents
-            .Select(evt => ClassifyRejectionReason(evt.RejectionNote))
+            .Select(evt => NormalizeRejectionCategory(evt.RejectionCategory)
+                ?? ClassifyRejectionReason(evt.RejectionNote))
             .ToArray();
 
         return new JobMetric(
@@ -450,6 +471,11 @@ public static class WorkflowStatisticsEndpoints
                 codes.Length > 0 ? (double)count / codes.Length : 0);
         }).Where(bucket => bucket.Count > 0 || bucket.Code == "unclassified").ToList();
     }
+
+    private static string? NormalizeRejectionCategory(string? category) =>
+        !string.IsNullOrWhiteSpace(category) && ReasonLabels.ContainsKey(category)
+            ? category
+            : null;
 
     private static string ClassifyRejectionReason(string? note)
     {
@@ -581,7 +607,13 @@ public static class WorkflowStatisticsEndpoints
     private sealed record AssignmentProjection(Guid JobId, Guid UserId, DateTimeOffset AssignedAt);
     private sealed record ViewProjection(Guid JobId, Guid UserId, DateTimeOffset ViewedAt);
     private sealed record EventProjection(Guid JobId, string EventType, string? BeforeJson, string? AfterJson, DateTimeOffset CreatedAt);
-    private sealed record ParsedStatusEvent(Guid JobId, string? BeforeStatus, string? AfterStatus, string? RejectionNote, DateTimeOffset CreatedAt);
+    private sealed record ParsedStatusEvent(
+        Guid JobId,
+        string? BeforeStatus,
+        string? AfterStatus,
+        string? RejectionNote,
+        string? RejectionCategory,
+        DateTimeOffset CreatedAt);
     private sealed record ActiveSegment(Guid JobId, int? DurationSeconds, string? RoleBucket, DateTimeOffset CreatedAt);
     private sealed record JobMetric(
         Guid JobId,
@@ -600,7 +632,7 @@ public static class WorkflowStatisticsEndpoints
     private sealed record BucketDefinition(string Key, string Label, double MinInclusive, double MaxExclusive);
 }
 
-public sealed record WorkflowActiveSegmentRequest(Guid JobId, int DurationSeconds);
+public sealed record WorkflowActiveSegmentRequest(Guid JobId, int DurationSeconds, Guid SegmentId);
 
 public sealed record WorkflowStatisticsResponse(
     int WindowDays,

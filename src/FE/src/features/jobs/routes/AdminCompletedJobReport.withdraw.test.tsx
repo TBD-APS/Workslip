@@ -125,7 +125,10 @@ describe('AdminCompletedJobReport withdraw from review', () => {
     renderReport();
 
     fireEvent.click(screen.getByRole('button', { name: 'Afvis' }));
-    fireEvent.change(screen.getByLabelText('Begrundelse for afvisning'), {
+    fireEvent.change(screen.getByLabelText('Årsagstype'), {
+      target: { value: 'missing_photo_documentation' },
+    });
+    fireEvent.change(screen.getByLabelText('Kommentar til medarbejderen'), {
       target: { value: 'Mangler dokumentation' },
     });
     const rejectButtons = screen.getAllByRole('button', { name: 'Afvis' });
@@ -137,7 +140,10 @@ describe('AdminCompletedJobReport withdraw from review', () => {
     expect(mocks.mutateAsync).toHaveBeenCalledTimes(2);
     expect(mocks.mutateAsync).toHaveBeenNthCalledWith(2, {
       id: 'job-1',
-      data: { status: 'Rejected', rejectionNote: 'Mangler dokumentation' },
+      data: {
+        status: 'Rejected',
+        rejectionNote: '[workslip-rejection:missing_photo_documentation] Mangler dokumentation',
+      },
     });
     expect(mocks.notifyError).not.toHaveBeenCalled();
     expect(await screen.findByRole('heading', { name: 'Sagen er afvist' })).toBeInTheDocument();
