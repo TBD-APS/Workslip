@@ -7,8 +7,13 @@ import {
   isElectricalRefrigerationProfile,
 } from './electricalRefrigerationProfile';
 
-function referenceData(...types: Array<{ id: string; name: string }>): ReferenceDataResponse {
+function referenceData(
+  ...args: Array<{ id: string; name: string } | string>
+): ReferenceDataResponse {
+  const organizationName = typeof args[0] === 'string' ? args[0] : 'JN Køl & El – Demo';
+  const types = (typeof args[0] === 'string' ? args.slice(1) : args) as Array<{ id: string; name: string }>;
   return {
+    organizationName,
     installationTypes: types.map((type, index) => ({
       ...type,
       sortOrder: index + 1,
@@ -40,6 +45,12 @@ describe('electricalRefrigerationProfile', () => {
       { id: 'el', name: 'EL' },
       { id: 'koel', name: 'KØL' },
     ))).toBe(true);
+
+    expect(isElectricalRefrigerationProfile(referenceData(
+      'NP VVS Teknik ApS',
+      { id: 'el', name: 'EL' },
+      { id: 'koel', name: 'KØL' },
+    ))).toBe(false);
 
     expect(isElectricalRefrigerationProfile(referenceData(
       { id: 'vand', name: 'Vand' },

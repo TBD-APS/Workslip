@@ -12,4 +12,6 @@ export interface ReferenceDataResponse {
   installationTypes: InstallationTypeDefinitionResponse[];
   workKinds: WorkKindResponse[];
   closureFlags: ClosureFlagResponse[];
+  /** Organization identity used for organization-scoped feature profiles. */
+  organizationName?: string | null;
 }

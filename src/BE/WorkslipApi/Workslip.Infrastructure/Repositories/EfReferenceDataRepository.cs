@@ -118,6 +118,14 @@ public sealed class EfReferenceDataRepository : IReferenceDataRepository
             .Select(w => new WorkKindResponse(w.Id, w.NormalizedLabel, w.Label, w.RequiresCustomWorkKind, w.SortOrder))
             .ToArrayAsync(cancellationToken);
 
+        var organizationName = organizationId.HasValue
+            ? await _dbContext.Organizations
+                .AsNoTracking()
+                .Where(organization => organization.Id == organizationId.Value)
+                .Select(organization => organization.Name)
+                .SingleOrDefaultAsync(cancellationToken)
+            : null;
+
         var closureFlags = await _dbContext.JobClosureFlags
             .AsNoTracking()
             .Where(f => f.IsActive)
@@ -125,6 +133,6 @@ public sealed class EfReferenceDataRepository : IReferenceDataRepository
             .Select(f => new ClosureFlagResponse(f.Id, f.NormalizedLabel, f.Label, f.IsExclusive, f.SortOrder))
             .ToArrayAsync(cancellationToken);
 
-        return new ReferenceDataResponse(definitions, workKinds, closureFlags);
+        return new ReferenceDataResponse(definitions, workKinds, closureFlags, organizationName);
     }
 }
