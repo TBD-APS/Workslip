@@ -30,6 +30,12 @@ const AUTH_LOADING_TITLE = 'Tjekker login';
 const AUTH_LOADING_MESSAGE = 'Vi kontrollerer din session og forbinder til Workslip.';
 const devLoginEnabled = import.meta.env.DEV;
 const demoLoginEnabled = import.meta.env.VITE_DEMO_MODE === 'true';
+const entraLoginConfigured = Boolean(
+  import.meta.env.VITE_AZURE_AD_TENANT_ID?.trim()
+  && import.meta.env.VITE_AZURE_AD_CLIENT_ID?.trim()
+  && import.meta.env.VITE_AZURE_AD_SCOPE?.trim(),
+);
+const showMicrosoftLogin = !demoLoginEnabled && (entraLoginConfigured || !devLoginEnabled);
 
 const beginAuthTransition = () => {
   document.documentElement.setAttribute(AUTH_TRANSITION_ATTRIBUTE, '');
@@ -280,10 +286,16 @@ export const Login = () => {
                   <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
-              <h2>{demoLoginEnabled ? 'Prøv Workslip' : 'Log ind på Workslip'}</h2>
+              <h2>{demoLoginEnabled
+                ? 'Prøv Workslip'
+                : devLoginEnabled && !entraLoginConfigured
+                  ? 'Lokal Workslip'
+                  : 'Log ind på Workslip'}</h2>
               <p>{demoLoginEnabled
                 ? 'Start den isolerede demo med fiktive data. Du får administratoradgang med ét klik.'
-                : 'Log ind med Microsoft passkey. Brug kun engangskode hvis passkey ikke virker eller du har fået ny telefon.'}</p>
+                : devLoginEnabled && !entraLoginConfigured
+                  ? 'Vælg en lokal udviklerrolle for at fortsætte. Microsoft-login er ikke nødvendigt i det lokale udviklingsmiljø.'
+                  : 'Log ind med Microsoft passkey. Brug kun engangskode hvis passkey ikke virker eller du har fået ny telefon.'}</p>
             </div>
 
             {errorMsg && (
@@ -308,7 +320,7 @@ export const Login = () => {
               </div>
             )}
 
-            {!demoLoginEnabled && (
+            {showMicrosoftLogin && (
               <div className="login-email-step">
                 <button
                   type="button"
