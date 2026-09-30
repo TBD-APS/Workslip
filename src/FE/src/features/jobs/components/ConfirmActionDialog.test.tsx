@@ -58,4 +58,33 @@ describe('ConfirmActionDialog', () => {
 
     expect(doubleActionLabels()).toEqual(['Annuller', 'Afvis']);
   });
+
+  it('suggests and submits a structured rejection category from the admin comment', () => {
+    const onConfirm = vi.fn();
+    render(
+      <ConfirmActionDialog
+        action="reject"
+        reportNumber="WS-271"
+        isPending={false}
+        onConfirm={onConfirm}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const confirm = document.getElementById('job-report-reject-confirm');
+    expect(confirm).not.toBeNull();
+    expect(confirm).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText('Kommentar til medarbejderen'), {
+      target: { value: 'Mangler foto og dokumentation' },
+    });
+
+    expect(screen.getByLabelText('Årsagstype')).toHaveValue('missing_photo_documentation');
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm!);
+
+    expect(onConfirm).toHaveBeenCalledWith(
+      '[workslip-rejection:missing_photo_documentation] Mangler foto og dokumentation',
+    );
+  });
 });
