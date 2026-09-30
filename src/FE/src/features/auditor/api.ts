@@ -1,3 +1,4 @@
+import type { AxiosResponse } from 'axios';
 import { apiClient } from '../../lib/axios';
 
 export type AuditorOrganizationSummary = {
@@ -56,7 +57,6 @@ export type AuditorInstallation = {
 export type AuditorPerson = {
   id: string;
   displayName: string;
-  email: string | null;
 };
 
 export type AuditorWorksheet = {
@@ -88,7 +88,6 @@ export type AuditorFinding = {
 export type AuditorEvent = {
   id: string;
   eventType: string;
-  detailsJson: string | null;
   createdAt: string;
   actorName: string | null;
 };
@@ -106,10 +105,7 @@ export type AuditorReportDetail = {
   organizationCvr: string;
   reportNumber: string | null;
   customerName: string | null;
-  customerEmail: string | null;
-  customerPhone: string | null;
   customerAddress: string | null;
-  customerContactPerson: string | null;
   destinationAddress: string | null;
   destinationZipCode: string | null;
   destinationCity: string | null;
@@ -177,6 +173,10 @@ export async function updateAuditorFinding(
   return apiClient.patch<unknown, AuditorFinding>(`/api/auditor/organizations/${organizationId}/reports/${jobId}/findings/${findingId}`, request);
 }
 
-export function getAuditorImageUrl(organizationId: string, jobId: string, imageId: string): string {
-  return `/api/auditor/organizations/${organizationId}/reports/${jobId}/images/${imageId}`;
+export async function getAuditorImageBlob(organizationId: string, jobId: string, imageId: string): Promise<Blob> {
+  const response = await apiClient.get<Blob, AxiosResponse<Blob>>(
+    `/api/auditor/organizations/${organizationId}/reports/${jobId}/images/${imageId}`,
+    { responseType: 'blob' },
+  );
+  return response.data;
 }
