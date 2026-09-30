@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useState } from 'react';
+import { useDeferredValue, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight, ClipboardCheck, MapPin, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -14,7 +14,7 @@ type InstallationFilter = '' | 'Vand' | 'Afløb';
 
 export const AuditorReportList = () => {
   const navigate = useNavigate();
-  const [selectedOrganizationId, setSelectedOrganizationId] = useState<string>('');
+  const [requestedOrganizationId, setRequestedOrganizationId] = useState<string>('');
   const [search, setSearch] = useState('');
   const deferredSearch = useDeferredValue(search.trim());
   const [installationType, setInstallationType] = useState<InstallationFilter>('');
@@ -24,11 +24,12 @@ export const AuditorReportList = () => {
     queryFn: getAuditorOrganizations,
   });
 
-  useEffect(() => {
-    if (!selectedOrganizationId && organizationsQuery.data?.length) {
-      setSelectedOrganizationId(organizationsQuery.data[0].organizationId);
-    }
-  }, [organizationsQuery.data, selectedOrganizationId]);
+  const organizations = organizationsQuery.data ?? [];
+  const selectedOrganizationId = organizations.some(
+    (organization) => organization.organizationId === requestedOrganizationId,
+  )
+    ? requestedOrganizationId
+    : (organizations[0]?.organizationId ?? '');
 
   const reportsQuery = useQuery({
     queryKey: ['auditor-reports', selectedOrganizationId, deferredSearch, installationType],
@@ -41,7 +42,7 @@ export const AuditorReportList = () => {
     enabled: Boolean(selectedOrganizationId),
   });
 
-  const selectedOrganization = organizationsQuery.data?.find(
+  const selectedOrganization = organizations.find(
     (organization) => organization.organizationId === selectedOrganizationId,
   );
 
@@ -57,7 +58,6 @@ export const AuditorReportList = () => {
     );
   }
 
-  const organizations = organizationsQuery.data ?? [];
   const reports = reportsQuery.data?.items ?? [];
 
   return (
@@ -97,7 +97,7 @@ export const AuditorReportList = () => {
                   type="button"
                   className="auditor-organization-card"
                   aria-pressed={organization.organizationId === selectedOrganizationId}
-                  onClick={() => setSelectedOrganizationId(organization.organizationId)}
+                  onClick={() => setRequestedOrganizationId(organization.organizationId)}
                   data-testid={`auditor-organization-${organization.organizationId}`}
                 >
                   <span className="auditor-organization-card__header">
