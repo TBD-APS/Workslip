@@ -11,8 +11,22 @@ type ConfirmActionDialogProps = {
   onClose: () => void;
 };
 
+const REJECTION_MARKER_PREFIX = '[workslip-rejection:';
+
+const rejectionCategories = [
+  { value: 'missing_required_data', label: 'Manglende data' },
+  { value: 'incorrect_measurement_or_value', label: 'Forkert måling eller værdi' },
+  { value: 'missing_photo_documentation', label: 'Manglende foto eller dokumentation' },
+  { value: 'wrong_control_point', label: 'Forkert kontrolpunkt' },
+  { value: 'incomplete_work', label: 'Arbejdet er ikke færdigt' },
+  { value: 'duplicate_or_wrong_job', label: 'Forkert eller dubleret sag' },
+  { value: 'system_or_ui_issue', label: 'System eller brugerflade' },
+  { value: 'other', label: 'Andet' },
+] as const;
+
 export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm, onClose }: ConfirmActionDialogProps) {
   const [reason, setReason] = useState('');
+  const [rejectionCategory, setRejectionCategory] = useState('');
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   const dialogRef = useModalAccessibility<HTMLDivElement>({
@@ -22,10 +36,11 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
   });
 
   const isApprove = action === 'approve';
+  const isReject = action === 'reject';
   const isUndoReject = action === 'undo-reject';
   const isReopen = action === 'reopen';
   const isWithdraw = action === 'withdraw';
-  const requiresReason = action === 'reject' || isReopen;
+  const requiresReason = isReject || isReopen;
   const title = isApprove
     ? 'Godkend sag'
     : isUndoReject
@@ -45,13 +60,23 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
         : isWithdraw
           ? 'Træk tilbage'
           : 'Afvis';
+
+  const handleConfirm = () => {
+    if (isReject) {
+      onConfirm(`${REJECTION_MARKER_PREFIX}${rejectionCategory}] ${reason.trim()}`);
+      return;
+    }
+
+    onConfirm(reason);
+  };
+
   const confirmButton = (
     <button
       id={isWithdraw ? 'job-report-withdraw-review-confirm' : undefined}
       type="button"
       className={isApprove ? 'btn btn-primary' : isReopen || isWithdraw ? 'btn btn-secondary' : 'btn btn-danger'}
-      onClick={() => onConfirm(reason)}
-      disabled={isPending || (requiresReason && !reason.trim())}
+      onClick={handleConfirm}
+      disabled={isPending || (requiresReason && !reason.trim()) || (isReject && !rejectionCategory)}
     >
       {isPending && <Loader2 className="animate-spin" size={16} aria-hidden="true" />}
       <span>{isPending ? pendingLabel : actionLabel}</span>
@@ -95,17 +120,35 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
           </p>
         )}
 
+        {isReject && (
+          <div className="form-group" style={{ marginTop: '1rem' }}>
+            <label className="form-label" htmlFor="status-rejection-category">Årsagstype</label>
+            <select
+              id="status-rejection-category"
+              className="form-input"
+              value={rejectionCategory}
+              onChange={(event) => setRejectionCategory(event.target.value)}
+              disabled={isPending}
+            >
+              <option value="">Vælg årsagstype</option>
+              {rejectionCategories.map((category) => (
+                <option key={category.value} value={category.value}>{category.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {requiresReason && (
           <div className="form-group" style={{ marginTop: '1rem' }}>
             <label className="form-label" htmlFor="status-reason">
-              {isReopen ? 'Hvorfor skal sagen genåbnes?' : 'Begrundelse for afvisning'}
+              {isReopen ? 'Hvorfor skal sagen genåbnes?' : 'Kommentar til medarbejderen'}
             </label>
             <textarea
               id="status-reason"
               className="form-input form-textarea"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
-              placeholder={isReopen ? 'Beskriv hvad der skal ændres og hvorfor...' : 'Angiv årsagen til afvisningen...'}
+              placeholder={isReopen ? 'Beskriv hvad der skal ændres og hvorfor...' : 'Beskriv konkret hvad der skal rettes...'}
               rows={3}
             />
           </div>
