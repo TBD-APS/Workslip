@@ -1,6 +1,9 @@
 import type { AxiosResponse } from 'axios';
 import { apiClient } from '../../lib/axios';
 
+// Auditor access is intentionally routed through dedicated server-authorized endpoints.
+// Do not reuse ordinary tenant job APIs here: cross-tenant reads must remain assignment-gated.
+
 export type AuditorOrganizationSummary = {
   assignmentId: string;
   organizationId: string;
@@ -173,8 +176,12 @@ export async function updateAuditorFinding(
   return apiClient.patch<unknown, AuditorFinding>(`/api/auditor/organizations/${organizationId}/reports/${jobId}/findings/${findingId}`, request);
 }
 
-export async function getAuditorImageBlob(organizationId: string, jobId: string, imageId: string): Promise<Blob> {
-  const response = await apiClient.get<Blob, AxiosResponse<Blob>>(
+export async function getAuditorImageBlob(
+  organizationId: string,
+  jobId: string,
+  imageId: string,
+): Promise<Blob> {
+  const response = await apiClient.get<unknown, AxiosResponse<Blob>>(
     `/api/auditor/organizations/${organizationId}/reports/${jobId}/images/${imageId}`,
     { responseType: 'blob' },
   );
