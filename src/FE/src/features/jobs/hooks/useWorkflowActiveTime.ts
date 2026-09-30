@@ -1,10 +1,22 @@
 import { useEffect } from 'react';
 import { recordWorkflowActiveSegment } from '../../superadmin/statisticsApi';
 
-const FLUSH_INTERVAL_MS = 15_000;
+const FLUSH_INTERVAL_MS = 10_000;
 const IDLE_TIMEOUT_MS = 30_000;
 const MIN_SEGMENT_MS = 1_000;
 const ACTIVITY_EVENTS: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart', 'wheel'];
+
+function createSegmentId(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+    const value = Math.floor(Math.random() * 16);
+    const nibble = character === 'x' ? value : (value & 0x3) | 0x8;
+    return nibble.toString(16);
+  });
+}
 
 export function useWorkflowActiveTime(jobId: string | undefined, enabled: boolean) {
   useEffect(() => {
@@ -23,7 +35,8 @@ export function useWorkflowActiveTime(jobId: string | undefined, enabled: boolea
       activeSince = null;
 
       if (elapsedMs >= MIN_SEGMENT_MS) {
-        void recordWorkflowActiveSegment(jobId, elapsedMs / 1000);
+        const segmentId = createSegmentId();
+        void recordWorkflowActiveSegment(jobId, elapsedMs / 1000, segmentId);
       }
     };
 

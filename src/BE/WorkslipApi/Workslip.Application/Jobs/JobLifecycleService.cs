@@ -69,7 +69,11 @@ public sealed class JobLifecycleService(
             }
         }
 
-        return await TransitionAsync(id, request.Status, request.RejectionNote, cancellationToken);
+        var decodedRejection = request.Status == JobStatus.Rejected
+            ? JobRejectionCategoryCodec.Decode(request.RejectionNote)
+            : new JobRejectionCategoryCodec.DecodedRejection(null, request.RejectionNote);
+        using var auditScope = JobLifecycleAuditContext.PushRejectionCategory(decodedRejection.Category);
+        return await TransitionAsync(id, request.Status, decodedRejection.Note, cancellationToken);
     }
 
     private async Task<Result<JobReportSummaryResponse>> TransitionAsync(
