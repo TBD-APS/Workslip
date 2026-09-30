@@ -87,6 +87,16 @@ async function verifyStatisticsViewport(viewport) {
 
     const response = await statisticsResponse;
     assert.equal(response.status(), 200, `Statistics API returned HTTP ${response.status()} at ${viewport.name}.`);
+    const statistics = await response.json();
+    assert.ok(Array.isArray(statistics?.rejectionReasons), `Statistics API returned no rejection-reason distribution at ${viewport.name}.`);
+    const persistedStructuredReason = statistics.rejectionReasons.find(
+      (reason) => reason?.code === 'missing_photo_documentation',
+    );
+    assert.ok(
+      Number(persistedStructuredReason?.count ?? 0) >= 1,
+      `Structured rejection category was not read back from persisted statistics data at ${viewport.name}.`,
+    );
+
     await page.waitForURL((url) => url.pathname === '/superadmin/statistik', { timeout: UI_TIMEOUT });
     await page.waitForFunction(
       () => document.querySelector('.superadmin-statistics-page') !== null
