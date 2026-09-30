@@ -11,6 +11,7 @@ export type DemoCompetency = {
 
 const ELECTRICAL_LABEL = 'EL';
 const REFRIGERATION_LABEL = 'KØL';
+const JN_ORGANIZATION_NAMES = new Set(['JN KØL & EL – DEMO', 'JN KØL & EL', 'JN KØLER & EL – DEMO']);
 
 const DEMO_COMPETENCIES: Readonly<Record<string, readonly DemoCompetency[]>> = {
   'a1a1a1a1-da5b-4cc4-bbeb-07b40cab806f': [
@@ -32,11 +33,13 @@ const DEMO_COMPETENCIES: Readonly<Record<string, readonly DemoCompetency[]>> = {
 };
 
 export function isElectricalRefrigerationProfile(referenceData: ReferenceDataResponse | null | undefined) {
+  const organizationName = referenceData?.organizationName?.trim().toLocaleUpperCase('da-DK');
   const labels = (referenceData?.installationTypes ?? [])
     .map((installationType) => installationType.name.trim().toLocaleUpperCase('da-DK'))
     .sort();
 
-  return labels.length === 2
+  return JN_ORGANIZATION_NAMES.has(organizationName ?? '')
+    && labels.length === 2
     && labels[0] === ELECTRICAL_LABEL
     && labels[1] === REFRIGERATION_LABEL;
 }

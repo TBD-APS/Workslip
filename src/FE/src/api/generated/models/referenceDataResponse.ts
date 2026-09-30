@@ -12,4 +12,6 @@ export interface ReferenceDataResponse {
   installationTypes: InstallationTypeDefinitionResponse[];
   workKinds: WorkKindResponse[];
   closureFlags: ClosureFlagResponse[];
+  /** @nullable */
+  organizationName?: string | null;
 }

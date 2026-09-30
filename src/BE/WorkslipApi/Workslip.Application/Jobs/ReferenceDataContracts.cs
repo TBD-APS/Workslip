@@ -5,7 +5,8 @@ namespace Workslip.Application.Jobs;
 public sealed record ReferenceDataResponse(
     IReadOnlyList<InstallationTypeDefinitionResponse> InstallationTypes,
     IReadOnlyList<WorkKindResponse> WorkKinds,
-    IReadOnlyList<ClosureFlagResponse> ClosureFlags);
+    IReadOnlyList<ClosureFlagResponse> ClosureFlags,
+    string? OrganizationName = null);
 
 public sealed record InstallationTypeDefinitionResponse(
     Guid Id,

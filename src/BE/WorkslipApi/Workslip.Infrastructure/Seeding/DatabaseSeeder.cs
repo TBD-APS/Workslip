@@ -710,7 +710,7 @@ public sealed record SyntheticSeedProfile(
         InstallationChecklistPack.VvsKls);
 
     public static readonly SyntheticSeedProfile ElectricalAndRefrigerationDemo = new(
-        "JH El & Køl – Demo",
+        "JN Køl & El – Demo",
         "87654321",
         InstallationChecklistPack.ElectricalAndRefrigeration);
 }
