@@ -192,6 +192,7 @@ export WORKSLIP_PLAYWRIGHT_API_URL="${API_URL}"
 export WORKSLIP_PLAYWRIGHT_ADMIN_EMAIL='admin@17v3ygzs.mailosaur.net'
 export WORKSLIP_PLAYWRIGHT_USER_EMAIL='user@17v3ygzs.mailosaur.net'
 export WORKSLIP_PLAYWRIGHT_AUDITOR_EMAIL='auditor@17v3ygzs.mailosaur.net'
+export WORKSLIP_PLAYWRIGHT_SUPERADMIN_EMAIL='superadmin@17v3ygzs.mailosaur.net'
 export WORKSLIP_PLAYWRIGHT_EVIDENCE_DIR="${RUNNER_TEMP:-/tmp}/workslip-playwright-evidence"
 
 export WORKSLIP_ALLOW_LOCAL_DEV_TOKEN=true
@@ -199,6 +200,7 @@ export WORKSLIP_LOCAL_APP_URL="${APP_URL}"
 export WORKSLIP_LOCAL_API_URL="${API_URL}"
 export WORKSLIP_SYNTHETIC_ADMIN_EMAIL="${WORKSLIP_PLAYWRIGHT_ADMIN_EMAIL}"
 export WORKSLIP_SYNTHETIC_USER_EMAIL="${WORKSLIP_PLAYWRIGHT_USER_EMAIL}"
+export WORKSLIP_SYNTHETIC_SUPERADMIN_EMAIL="${WORKSLIP_PLAYWRIGHT_SUPERADMIN_EMAIL}"
 
 run_scenario 'authenticated smoke' scripts/playwright-ephemeral-smoke.mjs
 if [[ "${WORKSLIP_PLAYWRIGHT_FOCUSED_ONLY:-false}" == "true" ]]; then
@@ -216,6 +218,7 @@ run_scenario 'notification and people lifecycle evidence' scripts/playwright-not
 run_scenario 'duplicate assignment lifecycle evidence' scripts/playwright-duplicate-assignment-lifecycle.mjs
 run_scenario 'global copyability evidence' scripts/playwright-copyability-lifecycle.mjs
 run_scenario 'shared state semantics evidence' scripts/playwright-shared-state-semantics.mjs
+run_scenario 'SuperAdmin statistics responsive evidence' scripts/playwright-superadmin-statistics.mjs
 run_scenario 'Admin Lederanalyse + Timer Power BI evidence' scripts/playwright-power-bi-leader-analysis.mjs
 
 echo "Restarting Development API with the isolated JH EL/KØL seed profile."

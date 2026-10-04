@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Workslip.Application.Auth;
+using Workslip.Application.Jobs;
 using Workslip.Domain;
 using Workslip.Domain.Models;
 
@@ -53,6 +54,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
             if (dbContext is null) return result;
 
             var auditEntries = OnBeforeSaveChanges(dbContext);
+            ApplyLifecycleMetadata(auditEntries);
 
             if (auditEntries.Count > 0)
             {
@@ -107,6 +109,16 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
         }
 
         return auditEntries;
+    }
+
+    private static void ApplyLifecycleMetadata(IReadOnlyCollection<AuditEntry> auditEntries)
+    {
+        var rejectionCategory = JobLifecycleAuditContext.RejectionCategory;
+        if (string.IsNullOrWhiteSpace(rejectionCategory))
+            return;
+
+        foreach (var auditEntry in auditEntries.Where(IsTransitionToRejected))
+            auditEntry.AfterValues["rejectionCategory"] = rejectionCategory;
     }
 
     private static HashSet<Guid> ReportsWithWorkKindChange(DbContext dbContext) =>
@@ -187,6 +199,11 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
         auditEntry.EventType == AuditEventTypes.Modified
         && auditEntry.AfterValues.TryGetValue(AuditSuffixes.Status, out var status)
         && string.Equals(status?.ToString(), JobStatus.InReview.ToString(), StringComparison.Ordinal);
+
+    private static bool IsTransitionToRejected(AuditEntry auditEntry) =>
+        auditEntry.EventType == AuditEventTypes.Modified
+        && auditEntry.AfterValues.TryGetValue(AuditSuffixes.Status, out var status)
+        && string.Equals(status?.ToString(), JobStatus.Rejected.ToString(), StringComparison.Ordinal);
 
     private static bool IsHistoryStatus(string status) =>
         !string.Equals(status, JobStatus.Draft.ToString(), StringComparison.Ordinal);
