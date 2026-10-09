@@ -258,7 +258,7 @@ export const Login = () => {
   }
 
   return (
-    <div className="app-container app-container-center auth-shell">
+    <div id="login-shell" className="app-container app-container-center auth-shell">
       <div className="bg-glow-wrapper">
         <div className="bg-glow bg-glow-1" />
         <div className="bg-glow bg-glow-2" />
@@ -280,7 +280,7 @@ export const Login = () => {
           <>
             <div className="login-card-header">
               <div className="logo logo-center">
-                <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <svg id="login-logo" className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -323,6 +323,7 @@ export const Login = () => {
             {showMicrosoftLogin && (
               <div className="login-email-step">
                 <button
+                  id="login-microsoft"
                   type="button"
                   className="btn btn-primary login-submit-btn"
                   onClick={handleMicrosoftLogin}
@@ -333,6 +334,7 @@ export const Login = () => {
                 </button>
 
                 <button
+                  id="login-otc"
                   type="button"
                   onClick={() => setShowOtcLogin(true)}
                   className="login-otc-btn"
@@ -345,12 +347,13 @@ export const Login = () => {
             {devLoginEnabled && (
               <div className="login-email-step" aria-label="Developer login">
                 {[
-                  { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net' },
-                  { label: 'Dev Login · Auditor', email: 'auditor@17v3ygzs.mailosaur.net' },
-                  { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net' },
-                  { label: 'Dev Login · Superadmin', email: 'superadmin@17v3ygzs.mailosaur.net' },
+                  { id: 'login-dev-user', label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net' },
+                  { id: 'login-dev-auditor', label: 'Dev Login · Auditor', email: 'auditor@17v3ygzs.mailosaur.net' },
+                  { id: 'login-dev-admin', label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net' },
+                  { id: 'login-dev-superadmin', label: 'Dev Login · Superadmin', email: 'superadmin@17v3ygzs.mailosaur.net' },
                 ].map((entry) => (
                   <button
+                    id={entry.id}
                     key={entry.email}
                     type="button"
                     onClick={() => void handleDevLogin(entry.email)}
