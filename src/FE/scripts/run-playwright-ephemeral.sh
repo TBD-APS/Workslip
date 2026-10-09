@@ -71,6 +71,7 @@ run_scenario() {
 echo "[playwright] validating suite stability policy before expensive runtime setup"
 cd "${FE_ROOT}"
 node --test scripts/playwright-stability-policy.test.mjs
+node --test scripts/playwright-auditor-v1.test.mjs
 node scripts/playwright-stability-policy.mjs
 
 sql_password="Workslip$(openssl rand -hex 16)!A1"

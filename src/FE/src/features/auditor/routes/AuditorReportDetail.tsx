@@ -132,7 +132,7 @@ export const AuditorReportDetail = () => {
   const installationNames = report.installations.map((installation) => installation.name).join(', ');
 
   return (
-    <div className="page-container auditor-page auditor-detail" data-testid="auditor-report-detail">
+    <div id="auditor-report-detail" className="page-container auditor-page auditor-detail" data-testid="auditor-report-detail">
       <button type="button" className="auditor-back-link" onClick={() => navigate('/app/auditor')}>
         <ArrowLeft size={16} aria-hidden="true" /> Tilbage til audit
       </button>
@@ -265,7 +265,7 @@ export const AuditorReportDetail = () => {
         ) : (
           <div className="auditor-finding-list" data-testid="auditor-finding-list">
             {report.findings.map((finding) => (
-              <article key={finding.id} className="auditor-finding" data-testid={`auditor-finding-${finding.id}`}>
+              <article key={finding.id} id={`auditor-finding-${finding.id}`} className="auditor-finding" data-testid={`auditor-finding-${finding.id}`}>
                 <div className="auditor-finding__header">
                   <strong>{findingLabels[finding.category]} ({finding.category})</strong>
                   <span className="auditor-count">{findingStatusLabels[finding.status]}</span>
@@ -313,6 +313,7 @@ export const AuditorReportDetail = () => {
         )}
 
         <form
+          id="auditor-finding-form"
           className="auditor-finding-form"
           onSubmit={(event) => {
             event.preventDefault();
@@ -342,15 +343,15 @@ export const AuditorReportDetail = () => {
           </div>
           <label>
             Reference til kontrolpunkt eller dokument
-            <input value={reference} maxLength={500} onChange={(event) => setReference(event.target.value)} placeholder="Valgfri reference" />
+            <input id="auditor-finding-reference" value={reference} maxLength={500} onChange={(event) => setReference(event.target.value)} placeholder="Valgfri reference" />
           </label>
           <label>
             Beskrivelse
-            <textarea value={description} maxLength={4000} onChange={(event) => setDescription(event.target.value)} placeholder="Beskriv det konkrete fund og hvad der skal følges op på." />
+            <textarea id="auditor-finding-description" value={description} maxLength={4000} onChange={(event) => setDescription(event.target.value)} placeholder="Beskriv det konkrete fund og hvad der skal følges op på." />
           </label>
           {formError ? <p className="auditor-muted" role="alert"><CircleAlert size={15} aria-hidden="true" /> {formError}</p> : null}
           <div className="auditor-detail__actions">
-            <button type="submit" className="btn btn-primary" disabled={createFindingMutation.isPending}>
+            <button id="auditor-finding-submit" type="submit" className="btn btn-primary" disabled={createFindingMutation.isPending}>
               {createFindingMutation.isPending ? 'Gemmer…' : 'Opret fund'}
             </button>
           </div>

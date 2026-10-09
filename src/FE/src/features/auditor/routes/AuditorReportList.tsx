@@ -61,7 +61,7 @@ export const AuditorReportList = () => {
   const reports = reportsQuery.data?.items ?? [];
 
   return (
-    <div className="page-container auditor-page" data-testid="auditor-workspace">
+    <div id="auditor-workspace" className="page-container auditor-page" data-testid="auditor-workspace">
       <header className="auditor-page__intro">
         <div>
           <p className="auditor-page__eyebrow">Ekstern KLS-gennemgang</p>
@@ -94,6 +94,7 @@ export const AuditorReportList = () => {
               {organizations.map((organization) => (
                 <button
                   key={organization.assignmentId}
+                  id={`auditor-organization-${organization.organizationId}`}
                   type="button"
                   className="auditor-organization-card"
                   aria-pressed={organization.organizationId === selectedOrganizationId}
@@ -177,6 +178,7 @@ export const AuditorReportList = () => {
                     {reports.map((report) => (
                       <tr
                         key={report.id}
+                        id={`auditor-report-${report.id}`}
                         tabIndex={0}
                         onClick={() => navigate(`/app/auditor/${selectedOrganizationId}/reports/${report.id}`)}
                         onKeyDown={(event) => {
@@ -203,10 +205,11 @@ export const AuditorReportList = () => {
                   </tbody>
                 </table>
 
-                <div className="auditor-report-cards" data-testid="auditor-report-cards">
+                <div id="auditor-report-cards" className="auditor-report-cards" data-testid="auditor-report-cards">
                   {reports.map((report) => (
                     <article
                       key={report.id}
+                      id={`auditor-report-card-${report.id}`}
                       className="auditor-report-card"
                       role="button"
                       tabIndex={0}
