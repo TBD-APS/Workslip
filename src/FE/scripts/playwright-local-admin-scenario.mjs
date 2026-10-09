@@ -13,6 +13,12 @@ const API_TIMEOUT = 30_000;
 const UI_TIMEOUT = 25_000;
 const SUPPORTED_SCENARIOS = new Set(['customer-lifecycle', 'worksheet-integrity']);
 const SUPPORTED_VIEWPORTS = new Set(['mobile', 'desktop']);
+const TEST_ADDRESS = {
+  text: 'Testvej 1, 8000 Aarhus C',
+  street: 'Testvej 1',
+  zipCode: '8000',
+  city: 'Aarhus C',
+};
 
 export function validateFocusedAdminEnvironment(env = process.env) {
   if (env.WORKSLIP_ALLOW_LOCAL_DEV_TOKEN !== 'true') {
@@ -135,6 +141,20 @@ export async function runFocusedAdminScenario(scenarioName, viewportName) {
     ...contextOptions,
     locale: 'da-DK',
     timezoneId: 'Europe/Copenhagen',
+  });
+  // Address lookup is prerequisite data, not the customer/worksheet journey under test.
+  // Match the synthetic fixture used by the local critical job lifecycle suite.
+  await context.route('https://dawa.aws.dk/adresser/autocomplete**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([{ tekst: TEST_ADDRESS.text, adresse: {
+      vejnavn: 'Testvej', husnr: '1', postnr: TEST_ADDRESS.zipCode, postnrnavn: TEST_ADDRESS.city,
+    } }]),
+  }));
+  scenarioReport.coverageNotes.push({
+    area: 'address lookup',
+    status: 'synthetic-fixture',
+    detail: 'Focused local evidence does not exercise the external address provider.',
   });
   const page = await context.newPage();
   const auth = { token: null, user: null, role: null };
@@ -314,23 +334,6 @@ export async function runFocusedAdminScenario(scenarioName, viewportName) {
   }
 
   async function getAddress() {
-    const query = encodeURIComponent(session.data.addressQuery);
-    const response = await fetch(`https://dawa.aws.dk/adresser/autocomplete?q=${query}&per_side=5`, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(API_TIMEOUT),
-    });
-    if (!response.ok) throw new Error(`DAWA autocomplete returned HTTP ${response.status}.`);
-    const suggestions = await response.json();
-    const suggestion = Array.isArray(suggestions) ? suggestions.find((item) => item?.tekst || item?.adresse?.betegnelse) : null;
-    if (!suggestion) throw new Error('DAWA returned no address suggestion.');
-    const text = suggestion.tekst ?? suggestion.adresse.betegnelse;
-    const address = suggestion.adresse ?? suggestion.data ?? {};
-    return {
-      text,
-      street: address.vejnavn && address.husnr ? `${address.vejnavn} ${address.husnr}` : text.split(',')[0],
-      zipCode: address.postnr ?? address.postnummer?.nr ?? null,
-      city: address.postnrnavn ?? address.postnummer?.navn ?? null,
-      raw: suggestion,
-    };
+    return { ...TEST_ADDRESS };
   }
 }
