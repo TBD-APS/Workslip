@@ -2,6 +2,7 @@ using System.Reflection;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Workslip.Application.Auth;
+using Workslip.Application.Auditing;
 using Workslip.Application.Conversations;
 using Workslip.Application.Worksheets;
 using Workslip.Application.Invitations;
@@ -32,6 +33,7 @@ public static IServiceCollection AddWorkslipApplication(this IServiceCollection 
     services.AddScoped<IJobConversationService, JobConversationService>();
     services.AddScoped<JobValidationService>();
     services.AddScoped<JobDeletionNotificationService>();
+    services.AddScoped<IAuditorService, AuditorService>();
     services.AddScoped<IInventoryService, InventoryService>();
     services.AddScoped<IOrganizationService, OrganizationService>();
     services.AddScoped<IOrganizationSessionService, OrganizationSessionService>();
