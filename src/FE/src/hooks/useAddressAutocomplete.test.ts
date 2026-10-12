@@ -42,7 +42,7 @@ describe('useAddressAutocomplete', () => {
     expect(result.current.suggestions).toEqual([
       {
         display: 'Fiskergade 2, st. tv, 8000 Aarhus C',
-        street: 'Fiskergade 2',
+        street: 'Fiskergade 2, st. tv',
         zipCode: '8000',
         city: 'Aarhus C',
       },
