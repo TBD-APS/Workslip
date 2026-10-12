@@ -21,19 +21,23 @@ export type AddressSuggestion = {
   city: string;
 };
 
-const DAWA_BASE = 'https://dawa.aws.dk/adresser/autocomplete';
+// Compatible DAR-backed endpoint. The government DAWA service shut down on 2026-10-01.
+// This public endpoint is rate-limited; migrate to the official Adressevælger for scale.
+const ADDRESS_API_BASE = 'https://dawa.companydata.dk/adresser/autocomplete';
 const DEBOUNCE_MS = 250;
 const MIN_QUERY_LENGTH = 3;
 
 export function useAddressAutocomplete() {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const abortRef = useRef<AbortController | undefined>(undefined);
 
   const search = useCallback((query: string) => {
     clearTimeout(timerRef.current);
     abortRef.current?.abort();
+    setError(null);
 
     if (query.trim().length < MIN_QUERY_LENGTH) {
       setSuggestions([]);
@@ -48,16 +52,14 @@ export function useAddressAutocomplete() {
 
       try {
         const res = await fetch(
-          `${DAWA_BASE}?q=${encodeURIComponent(query)}&struktur=mini`,
+          `${ADDRESS_API_BASE}?q=${encodeURIComponent(query)}&struktur=mini&per_side=10`,
           { signal: controller.signal },
         );
-        if (!res.ok) {
-          setSuggestions([]);
-          return;
-        }
+        if (!res.ok) throw new Error(`Address lookup failed (${res.status})`);
 
         const data: DawaAdresse[] = await res.json();
-        const mapped: AddressSuggestion[] = data.map((item) => {
+        if (!Array.isArray(data)) throw new Error('Unexpected address response');
+        const mapped: AddressSuggestion[] = data.filter((item) => item?.adresse?.vejnavn).map((item) => {
           const base = [item.adresse.vejnavn, item.adresse.husnr].filter(Boolean).join(' ');
           const floor = item.adresse.etage;
           const door = item.adresse.dør;
@@ -77,9 +79,10 @@ export function useAddressAutocomplete() {
       } catch {
         if (!controller.signal.aborted) {
           setSuggestions([]);
+          setError('Adresseforslag er midlertidigt utilgængelige. Du kan skrive adressen manuelt.');
         }
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     }, DEBOUNCE_MS);
   }, []);
@@ -87,9 +90,10 @@ export function useAddressAutocomplete() {
   const clear = useCallback(() => {
     clearTimeout(timerRef.current);
     abortRef.current?.abort();
+    setError(null);
     setSuggestions([]);
     setIsLoading(false);
   }, []);
 
-  return { suggestions, isLoading, search, clear };
+  return { suggestions, isLoading, error, search, clear };
 }
