@@ -5,6 +5,7 @@ import { AddressAutocomplete } from './AddressAutocomplete';
 const autocomplete = vi.hoisted(() => ({
   search: vi.fn(),
   clear: vi.fn(),
+  error: null as string | null,
 }));
 
 vi.mock('../hooks/useAddressAutocomplete', () => ({
@@ -16,6 +17,7 @@ vi.mock('../hooks/useAddressAutocomplete', () => ({
       city: 'Aarhus C',
     }],
     isLoading: false,
+    error: autocomplete.error,
     search: autocomplete.search,
     clear: autocomplete.clear,
   }),
@@ -24,6 +26,7 @@ vi.mock('../hooks/useAddressAutocomplete', () => ({
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  autocomplete.error = null;
 });
 
 describe('AddressAutocomplete readonly mode', () => {
@@ -107,3 +110,20 @@ describe('AddressAutocomplete focus handling', () => {
   });
 });
 
+
+describe('AddressAutocomplete regression', () => {
+  it('starts search for a partial street name', () => {
+    render(<AddressAutocomplete value="" onTextChange={vi.fn()} onSelectSuggestion={vi.fn()} />);
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Fisk' } });
+    expect(autocomplete.search).toHaveBeenCalledWith('Fisk');
+  });
+
+  it('shows provider failures without disabling manual address entry', () => {
+    autocomplete.error = 'Adresseforslag er midlertidigt utilgængelige.';
+    const onTextChange = vi.fn();
+    render(<AddressAutocomplete value="Fisk" onTextChange={onTextChange} onSelectSuggestion={vi.fn()} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Adresseforslag er midlertidigt utilgængelige.');
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Fiskergade' } });
+    expect(onTextChange).toHaveBeenCalledWith('Fiskergade');
+  });
+});
