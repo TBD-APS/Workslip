@@ -120,6 +120,12 @@ async function main() {
     locale: 'da-DK',
     timezoneId: 'Europe/Copenhagen',
   });
+
+  await context.route('https://adressevaelger.dk/adresser/soeg**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ status: 'ok', fund: [{ type: 'adresse', id: '00000000-0000-0000-0000-000000000001', titel: TEST_ADDRESS.text, vejnavn: 'Testvej', husnummer: '1' }] }),
+  }));
   const page = await context.newPage();
   const auth = { token: null, user: null, role: null };
   const fixtures = { jobs: [], customers: [], users: [] };
