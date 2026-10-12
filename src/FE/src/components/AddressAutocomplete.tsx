@@ -28,7 +28,7 @@ export function AddressAutocomplete({
   showAddressActions = true,
   inputId,
 }: AddressAutocompleteProps) {
-  const { suggestions, isLoading, search, clear } = useAddressAutocomplete();
+  const { suggestions, isLoading, error: lookupError, search, clear } = useAddressAutocomplete();
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -203,6 +203,7 @@ export function AddressAutocomplete({
         </ul>
       )}
       {error && <p className="form-error-text">{error}</p>}
+      {!readOnly && lookupError && <p role="alert" className="form-error-text">{lookupError}</p>}
     </div>
   );
 }
