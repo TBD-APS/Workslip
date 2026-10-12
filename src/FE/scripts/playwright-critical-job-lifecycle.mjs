@@ -26,17 +26,17 @@ const TEST_ADDRESS = {
   zipCode: '8000',
   city: 'Aarhus C',
 };
-const DAWA_RESPONSE = [{
-  tekst: TEST_ADDRESS.text,
-  adresse: {
+const ADRESSEVAELGER_RESPONSE = {
+  status: 'ok',
+  beskrivelse: '',
+  fund: [{
+    type: 'adresse',
+    id: '00000000-0000-0000-0000-000000000001',
+    titel: TEST_ADDRESS.text,
     vejnavn: 'Testvej',
-    husnr: '1',
-    etage: null,
-    dør: null,
-    postnr: TEST_ADDRESS.zipCode,
-    postnrnavn: TEST_ADDRESS.city,
-  },
-}];
+    husnummer: '1',
+  }],
+};
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const postmanPath = path.resolve(scriptDirectory, '../../BE/WorkslipApi/Postman/postman_collection.json');
@@ -70,15 +70,15 @@ async function createLifecycleSession({ email, role, suffix }) {
     timezoneId: 'Europe/Copenhagen',
     viewport: VIEWPORT,
   });
-  await context.route('https://dawa.aws.dk/adresser/autocomplete**', async (route) => {
+  await context.route('https://adressevaelger.dk/adresser/soeg**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(DAWA_RESPONSE),
+      body: JSON.stringify(ADRESSEVAELGER_RESPONSE),
     });
   });
   await context.route(
-    (url) => !['127.0.0.1', 'localhost'].includes(url.hostname) && url.hostname !== 'dawa.aws.dk',
+    (url) => !['127.0.0.1', 'localhost'].includes(url.hostname) && url.hostname !== 'adressevaelger.dk',
     (route) => route.fulfill({ status: 204, contentType: 'application/javascript', body: '' }),
   );
 
