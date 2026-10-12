@@ -338,7 +338,7 @@ async function main() {
     const suggestion = payload.fund.find((item) => item?.titel || item?.adressebetegnelse);
     if (!suggestion) throw new Error('Adressevælger returned no address suggestion.');
     const text = suggestion.titel ?? suggestion.adressebetegnelse;
-    const postalMatch = text.match(/,\\s*(\\d{4})\\s+(.+)$/);
+    const postalMatch = text.match(/,\s*(\d{4})\s+(.+)$/);
     const street = postalMatch
       ? text.slice(0, postalMatch.index).trim()
       : [suggestion.vejnavn ?? suggestion.vejNavn, suggestion.husnummer ?? suggestion.husNummer].filter(Boolean).join(' ') || text;
