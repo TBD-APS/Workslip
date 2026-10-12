@@ -44,9 +44,11 @@ function mapSuggestion(hit: AdressevaelgerHit): AddressSuggestion | null {
     : display;
   const streetName = hit.vejnavn ?? hit.vejNavn;
   const houseNumber = hit.husnummer ?? hit.husNummer;
-  const street = streetName
-    ? [streetName, houseNumber].filter(Boolean).join(' ')
-    : streetFromLabel;
+  const street = postalMatch
+    ? streetFromLabel
+    : streetName
+      ? [streetName, houseNumber].filter(Boolean).join(' ')
+      : streetFromLabel;
 
   return {
     display,
