@@ -5,6 +5,7 @@ import { AddressAutocomplete } from './AddressAutocomplete';
 const autocomplete = vi.hoisted(() => ({
   search: vi.fn(),
   clear: vi.fn(),
+  searchError: false,
 }));
 
 vi.mock('../hooks/useAddressAutocomplete', () => ({
@@ -16,6 +17,7 @@ vi.mock('../hooks/useAddressAutocomplete', () => ({
       city: 'Aarhus C',
     }],
     isLoading: false,
+    searchError: autocomplete.searchError,
     search: autocomplete.search,
     clear: autocomplete.clear,
   }),
@@ -24,6 +26,7 @@ vi.mock('../hooks/useAddressAutocomplete', () => ({
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  autocomplete.searchError = false;
 });
 
 describe('AddressAutocomplete readonly mode', () => {
@@ -54,6 +57,20 @@ describe('AddressAutocomplete readonly mode', () => {
     expect(onSelectSuggestion).not.toHaveBeenCalled();
     expect(onClear).not.toHaveBeenCalled();
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+});
+
+describe('AddressAutocomplete provider errors', () => {
+  it('shows manual-entry guidance and retries the current query', () => {
+    autocomplete.searchError = true;
+    render(
+      <AddressAutocomplete value="Fiskergade" onTextChange={vi.fn()} onSelectSuggestion={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Du kan stadig skrive adressen manuelt.');
+    fireEvent.click(screen.getByRole('button', { name: 'Prøv igen' }));
+
+    expect(autocomplete.search).toHaveBeenCalledWith('Fiskergade');
   });
 });
 
