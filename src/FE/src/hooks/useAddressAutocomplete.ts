@@ -38,7 +38,7 @@ function mapSuggestion(hit: AdressevaelgerHit): AddressSuggestion | null {
 
   // Adressevælgerens label indeholder den fulde betegnelse for konkrete adresser.
   // Det sidste kommafelt er postnummer/by; for vejforslag er der ingen sådan del.
-  const postalMatch = display.match(/,\\s*(\\d{4})\\s+(.+)$/);
+  const postalMatch = display.match(/,\s*(\d{4})\s+(.+)$/);
   const streetFromLabel = postalMatch
     ? display.slice(0, postalMatch.index).trim()
     : display;
