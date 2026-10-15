@@ -39,6 +39,6 @@ Live logs from 2026-09-24 to 2026-10-15 showed users being signed out although t
 
 Rejected refreshes are logged with the reason (no cookie, unknown token, revoked, absolute or idle expiry, reuse) but never with token material.
 
-The browser treats only a `401` or `403` from `POST /api/auth/refresh` as the end of the session. A network error, a server error or rate limiting keeps the stored login and shows a recoverable error, so the next request can refresh again.
+The browser treats only a `401` or `403` from `POST /api/auth/refresh` as the end of the session. A network error, a server error or rate limiting keeps the stored login and shows a recoverable error, so the next request can refresh again. At startup the app waits 15 seconds (the identity request has the same timeout) before it shows the connection screen, because a phone on a slow morning connection needs several seconds for the identity request plus a refresh. On that screen, "Log ind igen" renews the existing session first and only opens the sign-in page when the server refuses it.
 
 Sessions created before this amendment keep their stored 14-day `ExpiresAt` as their absolute limit. No schema change or data migration is required.
