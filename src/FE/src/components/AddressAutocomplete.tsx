@@ -28,7 +28,7 @@ export function AddressAutocomplete({
   showAddressActions = true,
   inputId,
 }: AddressAutocompleteProps) {
-  const { suggestions, isLoading, error: lookupError, search, clear } = useAddressAutocomplete();
+  const { suggestions, isLoading, searchError, search, clear } = useAddressAutocomplete();
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -202,8 +202,20 @@ export function AddressAutocomplete({
           ))}
         </ul>
       )}
+      {searchError && !readOnly && (
+        <p className="form-error-text address-search-error" role="alert">
+          Adresseforslag kunne ikke hentes. Du kan stadig skrive adressen manuelt.
+          <button
+            type="button"
+            className="address-search-retry"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => search(value)}
+          >
+            Prøv igen
+          </button>
+        </p>
+      )}
       {error && <p className="form-error-text">{error}</p>}
-      {!readOnly && lookupError && <p role="alert" className="form-error-text">{lookupError}</p>}
     </div>
   );
 }

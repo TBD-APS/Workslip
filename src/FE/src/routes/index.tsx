@@ -10,8 +10,9 @@ import { ErrorFallback } from '../providers/ErrorFallback';
 import { RoleGuard } from '../providers/permissions';
 import { FeatureGate } from '../providers/moduleAccess';
 import { useAuth } from '../providers/useAuth';
+import { isRefreshRejectedByServer, refreshAccessToken } from '../lib/axios';
 
-const AUTH_STARTUP_GRACE_MS = 6_000;
+const AUTH_STARTUP_GRACE_MS = 15_000;
 
 const InviteAccept = lazy(() =>
   import('../features/auth/routes/InviteAccept').then((module) => ({ default: module.InviteAccept })),
@@ -101,15 +102,18 @@ const loadJobEntryRoute = () =>
 
 interface StartupRecoveryProps {
   isRetrying: boolean;
+  stillOffline: boolean;
   onRetry: () => void;
   onReload: () => void;
   onLogin: () => void;
 }
 
-const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupRecoveryProps) => (
+const StartupRecovery = ({ isRetrying, stillOffline, onRetry, onReload, onLogin }: StartupRecoveryProps) => (
   <FullscreenSystemState
     title="Forbindelsen tager længere tid end normalt"
-    message="Serveren kan være ved at starte efter en deployment. Dit gemte login er ikke blevet slettet."
+    message={stillOffline
+      ? 'Stadig ingen forbindelse. Du er stadig logget ind – prøv igen om lidt.'
+      : 'Det kan skyldes en langsom forbindelse. Du er stadig logget ind.'}
     isLoading={isRetrying}
     icon={<WifiOff size={28} />}
     role="alert"
@@ -133,6 +137,7 @@ const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupReco
           Genindlæs appen
         </button>
         <button
+          id="startup-login-button"
           type="button"
           className="system-state-link"
           onClick={onLogin}
@@ -157,6 +162,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const [startupTimedOut, setStartupTimedOut] = useState(false);
   const [retryAttempt, setRetryAttempt] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [stillOffline, setStillOffline] = useState(false);
 
   const returnTo = `${location.pathname}${location.search}${location.hash}`;
   const loginUrl = `/login?returnTo=${encodeURIComponent(returnTo)}`;
@@ -185,7 +191,27 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    setIsRetrying(true);
+    setStillOffline(false);
+    try {
+      // The session on the server usually still works, for example when a phone was
+      // just slow to wake up. Renew it first; only a session the server refuses
+      // sends the user to the sign-in page.
+      await refreshAccessToken();
+      setStartupTimedOut(false);
+      setRetryAttempt((attempt) => attempt + 1);
+      await meQuery.refetch();
+      return;
+    } catch (error) {
+      if (!isRefreshRejectedByServer(error)) {
+        setStillOffline(true);
+        return;
+      }
+    } finally {
+      setIsRetrying(false);
+    }
+
     clearLocalSession();
     navigate(loginUrl, { replace: true });
   };
@@ -202,9 +228,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return (
       <StartupRecovery
         isRetrying={isRetrying}
+        stillOffline={stillOffline}
         onRetry={() => { void handleRetry(); }}
         onReload={() => window.location.reload()}
-        onLogin={handleLogin}
+        onLogin={() => { void handleLogin(); }}
       />
     );
   }
@@ -221,9 +248,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return (
     <StartupRecovery
       isRetrying={isRetrying}
+      stillOffline={stillOffline}
       onRetry={() => { void handleRetry(); }}
       onReload={() => window.location.reload()}
-      onLogin={handleLogin}
+      onLogin={() => { void handleLogin(); }}
     />
   );
 };

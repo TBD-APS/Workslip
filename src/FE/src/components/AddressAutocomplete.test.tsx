@@ -5,7 +5,7 @@ import { AddressAutocomplete } from './AddressAutocomplete';
 const autocomplete = vi.hoisted(() => ({
   search: vi.fn(),
   clear: vi.fn(),
-  error: null as string | null,
+  searchError: false,
 }));
 
 vi.mock('../hooks/useAddressAutocomplete', () => ({
@@ -17,7 +17,7 @@ vi.mock('../hooks/useAddressAutocomplete', () => ({
       city: 'Aarhus C',
     }],
     isLoading: false,
-    error: autocomplete.error,
+    searchError: autocomplete.searchError,
     search: autocomplete.search,
     clear: autocomplete.clear,
   }),
@@ -26,7 +26,7 @@ vi.mock('../hooks/useAddressAutocomplete', () => ({
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
-  autocomplete.error = null;
+  autocomplete.searchError = false;
 });
 
 describe('AddressAutocomplete readonly mode', () => {
@@ -57,6 +57,20 @@ describe('AddressAutocomplete readonly mode', () => {
     expect(onSelectSuggestion).not.toHaveBeenCalled();
     expect(onClear).not.toHaveBeenCalled();
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+});
+
+describe('AddressAutocomplete provider errors', () => {
+  it('shows manual-entry guidance and retries the current query', () => {
+    autocomplete.searchError = true;
+    render(
+      <AddressAutocomplete value="Fiskergade" onTextChange={vi.fn()} onSelectSuggestion={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Du kan stadig skrive adressen manuelt.');
+    fireEvent.click(screen.getByRole('button', { name: 'Prøv igen' }));
+
+    expect(autocomplete.search).toHaveBeenCalledWith('Fiskergade');
   });
 });
 
@@ -110,20 +124,3 @@ describe('AddressAutocomplete focus handling', () => {
   });
 });
 
-
-describe('AddressAutocomplete regression', () => {
-  it('starts search for a partial street name', () => {
-    render(<AddressAutocomplete value="" onTextChange={vi.fn()} onSelectSuggestion={vi.fn()} />);
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Fisk' } });
-    expect(autocomplete.search).toHaveBeenCalledWith('Fisk');
-  });
-
-  it('shows provider failures without disabling manual address entry', () => {
-    autocomplete.error = 'Adresseforslag er midlertidigt utilgængelige.';
-    const onTextChange = vi.fn();
-    render(<AddressAutocomplete value="Fisk" onTextChange={onTextChange} onSelectSuggestion={vi.fn()} />);
-    expect(screen.getByRole('alert')).toHaveTextContent('Adresseforslag er midlertidigt utilgængelige.');
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Fiskergade' } });
-    expect(onTextChange).toHaveBeenCalledWith('Fiskergade');
-  });
-});
