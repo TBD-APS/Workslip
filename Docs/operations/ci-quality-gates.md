@@ -45,6 +45,29 @@ The branch-matched frontend client is generated from the backend in the same rev
 
 The `contributor-quality-gate.yml` workflow that added a separate exact-head owner-approval status for authors other than `rasm105k` has been **removed**, along with its `enforce-owner-review` check. It is no longer a required status, and the reconciler no longer requests it. Merge gating relies on `CI Gate`, CodeQL, browser evidence and explicit merge review. Re-introducing an exact-head owner-approval requirement for external contributors would require adding both a live workflow and a matching required status in `tools/release/configure-github-branch-rules.ps1`.
 
+## SAAS'y baseline (repository governance)
+
+`.github/workflows/saasy-baseline.yml` runs independently of the Workslip `CI Gate`.
+It checks pull-request titles against the SAAS'y `[Type] Subject` convention,
+including the eight accepted types, and warns about missing PR descriptions.
+The title checker is `tools/git/check-pr-title.sh` and has executable
+self-tests in `tools/git/check-pr-title.test.sh`. Invalid titles fail closed.
+
+Workslip is a **public** repository and `TBD-APS/mr-saassy` is **private**.
+GitHub cannot resolve a reusable workflow from that private repository in a
+public caller, so the original `uses: TBD-APS/mr-saassy/...` jobs failed before
+starting any job. The baseline now uses equivalent local checks rather than
+changing repository visibility, requiring privileged cross-repository tokens,
+or disabling the check. Keep the accepted title types synchronized with the
+SAAS'y policy when that policy changes.
+
+A weekly read-only branch-hygiene audit remains active. It lists unprotected,
+non-open merged-PR heads and conservatively detects old branches whose changed
+files match `main`. It never deletes refs or updates branches; reports are
+uploaded as `repository-branch-hygiene`. This local content audit is deliberately
+conservative and can miss candidates when `main` has newer edits to the same
+files. Branch cleanup still requires explicit operator review.
+
 ## Code scanning
 
 GitHub CodeQL **Default setup** is the repository's code-scanning owner.
