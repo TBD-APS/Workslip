@@ -2,7 +2,7 @@
 
 > Title format: `[Type] ISSUE-ID — Clear title`
 >
-> Allowed types: `Bug`, `Feature`, `Improvement`, `Docs`, `Refactor`, `Infra`, `Security`, `Release`, `Hotfix`, `Chore`, `Test`.
+> Allowed types: `Bug`, `Fix`, `Feature`, `Improvement`, `Docs`, `Refactor`, `Infra`, `Security`, `Release`, `Hotfix`, `Chore`, `Test`. The SAAS'y baseline check (`tools/git/check-pr-title.sh`) enforces this list.
 >
 > Example: `[Bug] WOR-55 — Preserve focus after address autocomplete`
 
