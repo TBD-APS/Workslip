@@ -71,6 +71,7 @@ run_scenario() {
 echo "[playwright] validating suite stability policy before expensive runtime setup"
 cd "${FE_ROOT}"
 node --test scripts/playwright-stability-policy.test.mjs
+node --test scripts/playwright-auditor-v1.test.mjs
 node scripts/playwright-stability-policy.mjs
 
 sql_password="Workslip$(openssl rand -hex 16)!A1"
@@ -211,6 +212,7 @@ run_scenario 'auth brand and login transition evidence' scripts/playwright-auth-
 run_scenario 'PDF performance evidence' scripts/playwright-pdf-performance.mjs
 run_scenario 'job image gallery evidence' scripts/playwright-job-images.mjs
 run_scenario 'rare critical auth/role flows' scripts/playwright-critical-rare-flows.mjs
+run_scenario 'Auditor v1 desktop/mobile evidence' scripts/playwright-auditor-v1.mjs
 run_scenario 'critical job lifecycle flows' scripts/playwright-critical-job-lifecycle.mjs
 run_scenario 'customer lifecycle evidence' scripts/playwright-customer-lifecycle.mjs
 run_scenario 'worksheet integrity evidence' scripts/playwright-worksheet-integrity.mjs

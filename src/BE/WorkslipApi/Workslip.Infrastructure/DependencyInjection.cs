@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Workslip.Application;
 using Workslip.Application.Auth;
+using Workslip.Application.Auditing;
 using Workslip.Application.Common;
 using Workslip.Application.Conversations;
 using Workslip.Application.Customers;
@@ -82,6 +83,7 @@ public static class DependencyInjection
         services.AddScoped<IAssignmentRepository, EfAssignmentRepository>();
         services.AddScoped<IJobAssignmentScopeRepository, EfJobAssignmentScopeRepository>();
         services.AddScoped<IJobAuditorScopeRepository, EfJobAuditorScopeRepository>();
+        services.AddScoped<IAuditorRepository, SqlAuditorRepository>();
         services.AddScoped<IJobConversationRepository, SqlJobConversationRepository>();
         services.AddScoped<ICustomerRepository, EfCustomerRepository>();
         services.AddScoped<IDocumentRepository, SqlDocumentRepository>();

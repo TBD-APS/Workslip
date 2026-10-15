@@ -44,6 +44,7 @@ public static class EndpointConfiguration
         app.MapValueAnalyticsEndpoints();
         app.MapCacheEndpoints();
         app.MapDiagnosticsEndpoints();
+        app.MapAuditorEndpoints();
         app.MapControlCenterEndpoints();
 
         return app;

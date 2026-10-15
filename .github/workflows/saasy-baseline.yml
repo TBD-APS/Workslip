@@ -1,0 +1,59 @@
+name: SAAS'y baseline
+
+# Workslip is public, while TBD-APS/mr-saassy is private. A public workflow
+# cannot invoke reusable workflows in a private repository. Keep the same
+# validation and read-only hygiene intent locally; do not weaken merge gates.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited]
+  schedule:
+    - cron: '31 3 * * 0'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: saasy-baseline-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-title:
+    if: github.event_name == 'pull_request'
+    name: PR title convention
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Self-test title convention
+        shell: bash
+        run: bash tools/git/check-pr-title.test.sh
+      - name: Validate PR title and body
+        shell: bash
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.txt"
+          bash tools/git/check-pr-title.sh "$PR_TITLE" "$RUNNER_TEMP/pr-body.txt"
+
+  branch-hygiene:
+    if: github.event_name == 'schedule'
+    name: Audit merged PR branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Audit merged and redundant branches (read-only)
+        shell: bash
+        run: bash tools/git/audit-merged-pr-branches.sh
+      - name: Upload hygiene report
+        uses: actions/upload-artifact@v7
+        with:
+          name: repository-branch-hygiene
+          path: artifacts/github/
+          retention-days: 14
