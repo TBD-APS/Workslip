@@ -47,7 +47,8 @@ public static IServiceCollection AddWorkslipApplication(this IServiceCollection 
         serviceProvider.GetRequiredService<UserEntraService>());
     services.AddScoped<IAuthService, AuthService>();
     services.AddSingleton(new RefreshSessionPolicy(
-        AbsoluteLifetime: TimeSpan.FromDays(14),
+        AbsoluteLifetime: TimeSpan.FromDays(90),
+        IdleLifetime: TimeSpan.FromDays(14),
         ConcurrentRefreshGrace: TimeSpan.FromSeconds(30),
         CleanupRetention: TimeSpan.FromDays(7)));
     services.AddScoped<IRefreshSessionService, RefreshSessionService>();

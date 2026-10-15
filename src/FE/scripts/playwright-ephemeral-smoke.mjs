@@ -115,6 +115,36 @@ async function verifyAuthenticatedBootstrapReloadAndLogout() {
     assert.ok(storedSession.authToken, 'Authenticated bootstrap must persist the bearer token.');
     assert.equal(storedSession.userEmail?.toLowerCase(), bootstrapSession.user.email.toLowerCase(), 'Authenticated bootstrap must persist the user email hint.');
 
+    // A refresh that never reaches the server (a lost connection) says nothing about
+    // the session: the login is kept and the user is offered a retry, not a sign-in.
+    await page.evaluate(() => localStorage.setItem('authToken', 'expired-access-token'));
+    await page.route('**/api/auth/refresh', (route) => route.abort('internetdisconnected'));
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+    await page.locator('#startup-retry-button').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.notEqual(new URL(page.url()).pathname, '/login', 'A lost refresh connection must not force a new sign-in.');
+    assert.equal(
+      await page.evaluate(() => localStorage.getItem('authToken')),
+      'expired-access-token',
+      'A lost refresh connection must keep the stored login.',
+    );
+
+    // "Log ind igen" renews the session before giving up on it. Still offline keeps the
+    // user on this screen; once the connection is back the same session continues
+    // without a new sign-in.
+    const loginButton = page.locator('#startup-login-button');
+    await loginButton.click();
+    await page.getByText('Stadig ingen forbindelse', { exact: false }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.notEqual(new URL(page.url()).pathname, '/login', 'Log ind igen must not discard a session it could not check.');
+    await page.unroute('**/api/auth/refresh');
+    const keptSessionRefresh = page.waitForResponse((response) =>
+      response.request().method() === 'POST'
+        && new URL(response.url()).pathname === '/api/auth/refresh',
+    { timeout: UI_TIMEOUT });
+    await loginButton.click();
+    assert.equal((await keptSessionRefresh).status(), 200, 'Log ind igen must renew the existing session first.');
+    await page.locator('#app-shell').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.equal(new URL(page.url()).pathname, '/app/settings', 'The renewed session must return to the same page.');
+
     await page.evaluate(() => localStorage.setItem('authToken', 'expired-access-token'));
     const refreshResponse = page.waitForResponse((response) =>
       response.request().method() === 'POST'

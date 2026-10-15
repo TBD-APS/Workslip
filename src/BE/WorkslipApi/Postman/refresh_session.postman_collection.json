@@ -7,7 +7,11 @@
     { "key": "baseUrl", "value": "http://127.0.0.1:5262" },
     { "key": "frontendOrigin", "value": "http://localhost:5270" },
     { "key": "email", "value": "admin@17v3ygzs.mailosaur.net" },
-    { "key": "firstAccessToken", "value": "" }
+    { "key": "firstAccessToken", "value": "" },
+    { "key": "refreshCookieName", "value": "" },
+    { "key": "lostResponseOriginal", "value": "" },
+    { "key": "lostResponseReplacement", "value": "" },
+    { "key": "recoveredReplacement", "value": "" }
   ],
   "item": [
     {
@@ -68,6 +72,223 @@
         "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] }
       },
       "event": [{ "listen": "test", "script": { "exec": ["pm.test('refresh is rejected', () => pm.response.to.have.status(401));"] } }]
+    },
+    {
+      "name": "Second login for lost-response recovery",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Origin",
+            "value": "{{frontendOrigin}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\":\"{{email}}\"}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/dev/token",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "dev",
+            "token"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login succeeds', () => pm.response.to.have.status(200));",
+              "const setCookie = pm.response.headers.get('Set-Cookie') || '';",
+              "const match = /((?:__Host-)?workslip-refresh)=([^;]+)/.exec(setCookie);",
+              "pm.test('login sets a refresh cookie', () => pm.expect(match).to.not.eql(null));",
+              "pm.collectionVariables.set('refreshCookieName', match[1]);",
+              "pm.collectionVariables.set('lostResponseOriginal', match[2]);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Refresh whose response the browser never receives",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "{{frontendOrigin}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/refresh",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "refresh"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('refresh succeeds', () => pm.response.to.have.status(200));",
+              "const setCookie = pm.response.headers.get('Set-Cookie') || '';",
+              "const match = /((?:__Host-)?workslip-refresh)=([^;]+)/.exec(setCookie);",
+              "pm.test('refresh rotates the cookie', () => { pm.expect(match).to.not.eql(null); pm.expect(match[2]).to.not.eql(pm.collectionVariables.get('lostResponseOriginal')); });",
+              "pm.collectionVariables.set('lostResponseReplacement', match[2]);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Previous token after the grace window continues the session",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "{{frontendOrigin}}"
+          },
+          {
+            "key": "Cookie",
+            "value": "{{refreshCookieName}}={{lostResponseOriginal}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/refresh",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "refresh"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "// Wait past the 30-second concurrent-refresh grace window, as a sleeping laptop would.",
+              "setTimeout(() => {}, 31000);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('the session continues', () => pm.response.to.have.status(200));",
+              "pm.expect(pm.response.json().token).to.be.a('string').and.not.empty;",
+              "const setCookie = pm.response.headers.get('Set-Cookie') || '';",
+              "const match = /((?:__Host-)?workslip-refresh)=([^;]+)/.exec(setCookie);",
+              "pm.test('a new refresh cookie replaces the lost one', () => { pm.expect(match).to.not.eql(null); pm.expect(match[2]).to.not.eql(pm.collectionVariables.get('lostResponseReplacement')); });",
+              "pm.collectionVariables.set('recoveredReplacement', match[2]);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Superseded replacement is rejected and revokes the session",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "{{frontendOrigin}}"
+          },
+          {
+            "key": "Cookie",
+            "value": "{{refreshCookieName}}={{lostResponseReplacement}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/refresh",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "refresh"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('the superseded token is rejected', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recovered token is revoked with its session",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "{{frontendOrigin}}"
+          },
+          {
+            "key": "Cookie",
+            "value": "{{refreshCookieName}}={{recoveredReplacement}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/refresh",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "refresh"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('the whole session was revoked', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ]
     }
   ]
 }

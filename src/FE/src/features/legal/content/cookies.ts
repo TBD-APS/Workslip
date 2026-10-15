@@ -2,7 +2,7 @@ import type { LegalContent } from './types';
 
 export const cookiesContent: LegalContent = {
   title: 'Cookie- og lagringspolitik',
-  lastUpdated: '10. september 2026',
+  lastUpdated: '15. oktober 2026',
   sections: [
     {
       heading: 'Hvad er cookies',
@@ -15,7 +15,7 @@ export const cookiesContent: LegalContent = {
       heading: 'Cookies vi bruger',
       content: [
         'Workslip bruger følgende lagringsteknologier:',
-        '• nødvendig sessionscookie — roterende login-session med en absolut levetid på højst 14 dage',
+        '• nødvendig sessionscookie — roterende login-session, der udløber efter 14 dage uden brug og senest efter 90 dage',
         '• localStorage — kortlivet authToken, userEmail, tema og en kortvarig reauth-markør',
         '• sessionStorage — søgning, sortering, paginering og scrollpositioner',
       ],
