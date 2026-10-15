@@ -49,7 +49,9 @@ The `contributor-quality-gate.yml` workflow that added a separate exact-head own
 
 `.github/workflows/saasy-baseline.yml` runs independently of the Workslip `CI Gate`.
 It checks pull-request titles against the SAAS'y `[Type] Subject` convention,
-including the eight accepted types, and warns about missing PR descriptions.
+accepting the twelve types listed in the pull request template (`Bug`, `Fix`,
+`Feature`, `Improvement`, `Docs`, `Refactor`, `Infra`, `Security`, `Release`,
+`Hotfix`, `Chore`, `Test`), and warns about missing PR descriptions.
 The title checker is `tools/git/check-pr-title.sh` and has executable
 self-tests in `tools/git/check-pr-title.test.sh`. Invalid titles fail closed.
 
@@ -58,8 +60,10 @@ GitHub cannot resolve a reusable workflow from that private repository in a
 public caller, so the original `uses: TBD-APS/mr-saassy/...` jobs failed before
 starting any job. The baseline now uses equivalent local checks rather than
 changing repository visibility, requiring privileged cross-repository tokens,
-or disabling the check. Keep the accepted title types synchronized with the
-SAAS'y policy when that policy changes.
+or disabling the check. The checker, its self-test and the pull request
+template must list the same types. Workslip accepts the template's types,
+which are a superset of the eight in the SAAS'y checker (SAS-27 owns aligning
+the two repositories).
 
 A weekly read-only branch-hygiene audit remains active. It lists unprotected,
 non-open merged-PR heads and conservatively detects old branches whose changed

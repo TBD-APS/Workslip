@@ -6,10 +6,10 @@ BODY="$(mktemp)"
 trap 'rm -f "$BODY"' EXIT
 printf 'This change fixes a broken integration.\n' > "$BODY"
 
-for kind in Fix Feature Improvement Chore Docs Infra Test Security; do
+for kind in Bug Fix Feature Improvement Docs Refactor Infra Security Release Hotfix Chore Test; do
   bash "$CHECK" "[${kind}] Workslip integration fix" "$BODY" >/dev/null
 done
-for invalid in 'fix: integration' '[Bug] Integration' '[Fix]' 'WOR-815: Integration' '' '[Feature] '; do
+for invalid in 'fix: integration' '[Bugfix] Integration' '[bug] Integration' '[Fix]' 'WOR-815: Integration' '' '[Feature] '; do
   if bash "$CHECK" "$invalid" "$BODY" >/dev/null 2>&1; then
     echo "Invalid PR title unexpectedly passed: '$invalid'" >&2
     exit 1
