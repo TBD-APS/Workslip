@@ -77,6 +77,14 @@ interface RefreshedSession {
   user: { email: string };
 }
 
+export const REFRESH_UNAVAILABLE_MESSAGE = 'Ingen forbindelse lige nu. Du er stadig logget ind – prøv igen.';
+
+// Only the server can say that a refresh session is over (401) or that the request
+// is not allowed to use it (403). Anything else is a transient failure.
+const isRefreshRejectedByServer = (refreshError: unknown): boolean =>
+  axios.isAxiosError(refreshError)
+  && (refreshError.response?.status === 401 || refreshError.response?.status === 403);
+
 let refreshPromise: Promise<string> | null = null;
 
 const waitForConcurrentRotation = () => new Promise((resolve) => window.setTimeout(resolve, 250));
@@ -264,7 +272,16 @@ apiClient.interceptors.response.use(
           error.config._authRetry = true;
           error.config.headers.Authorization = `Bearer ${refreshedToken}`;
           return apiClient.request(error.config);
-        } catch {
+        } catch (refreshError) {
+          if (!isRefreshRejectedByServer(refreshError)) {
+            // A lost connection, a server error or rate limiting says nothing about the
+            // session itself. Keep the stored login so the next request can refresh
+            // again, and let the caller show its recovery state instead of a sign-in.
+            if (!isMeEndpoint && !error.config?.skipGlobalErrorToast) {
+              notify.error(REFRESH_UNAVAILABLE_MESSAGE);
+            }
+            return Promise.reject(refreshError);
+          }
           // The cookie is absent, expired, revoked, or unsafe to use. Continue
           // into the established interactive reauthentication flow below.
         }

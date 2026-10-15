@@ -115,6 +115,20 @@ async function verifyAuthenticatedBootstrapReloadAndLogout() {
     assert.ok(storedSession.authToken, 'Authenticated bootstrap must persist the bearer token.');
     assert.equal(storedSession.userEmail?.toLowerCase(), bootstrapSession.user.email.toLowerCase(), 'Authenticated bootstrap must persist the user email hint.');
 
+    // A refresh that never reaches the server (a lost connection) says nothing about
+    // the session: the login is kept and the user is offered a retry, not a sign-in.
+    await page.evaluate(() => localStorage.setItem('authToken', 'expired-access-token'));
+    await page.route('**/api/auth/refresh', (route) => route.abort('internetdisconnected'));
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: UI_TIMEOUT });
+    await page.locator('#startup-retry-button').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    assert.notEqual(new URL(page.url()).pathname, '/login', 'A lost refresh connection must not force a new sign-in.');
+    assert.equal(
+      await page.evaluate(() => localStorage.getItem('authToken')),
+      'expired-access-token',
+      'A lost refresh connection must keep the stored login.',
+    );
+    await page.unroute('**/api/auth/refresh');
+
     await page.evaluate(() => localStorage.setItem('authToken', 'expired-access-token'));
     const refreshResponse = page.waitForResponse((response) =>
       response.request().method() === 'POST'
