@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { chooseRun, validateEvidence, workflowRunsPath } from './verify-production-eligibility.mjs';
+import { chooseRun, validateEvidence, workflowRunsPath, verifyOwnerMerge } from './verify-production-eligibility.mjs';
 
 const SHA = 'a'.repeat(40);
 const OTHER_SHA = 'b'.repeat(40);
@@ -114,4 +114,22 @@ test('CLI entrypoint executes and fails closed on invalid SHA', () => {
   });
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /production blocked: Production eligibility requires an exact 40-character commit SHA/);
+});
+
+const REPOSITORY = 'TBD-APS/Workslip';
+function ownerPull() { return { number: 12, merged: true, merged_at: '2026-10-26T12:00:00Z', merge_commit_sha: SHA, merged_by: { id: 31623093 }, base: { ref: 'main', repo: { full_name: REPOSITORY } } }; }
+function ownerApi(pr = ownerPull(), associated = [{ number: 12 }]) { return async path => path.includes('/commits/') ? associated : pr; }
+test('requires one exact main PR merged by the immutable owner identity', async () => {
+  assert.equal(await verifyOwnerMerge(ownerApi(), REPOSITORY, SHA), 12);
+  for (const mutate of [p => p.merged_by.id = 1, p => p.merged_by = { login: 'rasm105k' }, p => p.merged = false, p => p.merge_commit_sha = OTHER_SHA, p => p.base.ref = 'feature', p => p.base.repo.full_name = 'foreign/repo', p => p.number = 13]) {
+    const pr = ownerPull(); mutate(pr);
+    await assert.rejects(verifyOwnerMerge(ownerApi(pr), REPOSITORY, SHA));
+  }
+});
+test('denies direct pushes, incomplete evidence, wrong repositories and provider failures', async () => {
+  for (const associations of [[], null, Array(100).fill({ number: 12 }), [{ number: '../12' }]]) {
+    await assert.rejects(verifyOwnerMerge(ownerApi(ownerPull(), associations), REPOSITORY, SHA));
+  }
+  await assert.rejects(verifyOwnerMerge(ownerApi(), 'foreign/repo', SHA));
+  await assert.rejects(verifyOwnerMerge(async () => { throw Error('unavailable'); }, REPOSITORY, SHA));
 });

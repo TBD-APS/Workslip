@@ -83,6 +83,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: workslip-production
@@ -95,6 +96,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+      pull-requests: read
       actions: read
     outputs:
       github_environment: ${{ steps.target.outputs.github_environment }}
@@ -271,6 +273,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      pull-requests: read
       actions: read
     env:
       TARGET_ENVIRONMENT: ${{ needs.select-target.outputs.environment }}

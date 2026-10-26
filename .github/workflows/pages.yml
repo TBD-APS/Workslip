@@ -15,6 +15,8 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  pull-requests: read
   pages: write
   id-token: write
 
@@ -74,6 +76,16 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Require owner-merged current main and its CI Gate
+        run: node tools/release/verify-production-eligibility.mjs --sha "$GITHUB_SHA" --wait-seconds 900
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5

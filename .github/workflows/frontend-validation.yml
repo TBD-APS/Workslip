@@ -223,6 +223,7 @@ jobs:
           cache-dependency-path: src/FE/package-lock.json
       - name: Validate production release policy
         run: |
+          node --test tools/release/verify-production-eligibility.test.mjs
           node --check tools/release/resolve-release-environment.mjs
           node --test tools/release/resolve-release-environment.test.mjs
           node tools/release/resolve-release-environment.mjs --environment production --require-runnable

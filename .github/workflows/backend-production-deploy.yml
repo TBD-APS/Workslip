@@ -23,6 +23,7 @@ env:
 
 permissions:
   contents: read
+  pull-requests: read
 
 # v1 has a stale deployment waiting for the old manual-review policy. Isolate
 # current releases from that historical queue while keeping deployments serialized.
@@ -37,6 +38,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+      pull-requests: read
       actions: read
     steps:
       - name: Verify manual deployment branch
@@ -154,6 +156,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      pull-requests: read
       actions: read
     steps:
       - name: Checkout exact validated revision

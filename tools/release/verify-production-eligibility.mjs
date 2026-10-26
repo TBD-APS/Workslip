@@ -91,6 +91,24 @@ export function validateEvidence({ expectedSha, mainSha, run, jobs }) {
   };
 }
 
+
+export async function verifyOwnerMerge(client, repository, sha) {
+  if (repository !== 'TBD-APS/Workslip') throw new Error('Production ownership requires TBD-APS/Workslip.');
+  requireSha(sha);
+  const base = `/repos/${repository}`;
+  const associated = await client(`${base}/commits/${sha}/pulls?per_page=100`);
+  if (!Array.isArray(associated) || !associated.length || associated.length >= 100) throw new Error('Complete merged PR evidence is required.');
+  const matches = [];
+  for (const number of new Set(associated.map(pr => pr.number))) {
+    if (!Number.isSafeInteger(number) || number < 1) throw new Error('Invalid PR association evidence.');
+    const pr = await client(`${base}/pulls/${number}`);
+    if (pr?.number === number && pr.merged === true && pr.merged_at && pr.merge_commit_sha === sha
+      && pr.base?.ref === 'main' && pr.base?.repo?.full_name === repository && pr.merged_by?.id === 31623093) matches.push(number);
+  }
+  if (matches.length !== 1) throw new Error('The exact production commit must come from one PR merged by Rasmus.');
+  return matches[0];
+}
+
 export function chooseRun(runs, expectedSha) {
   const sha = requireSha(expectedSha);
   const matching = (runs || []).filter((run) =>
@@ -117,6 +135,8 @@ function createClient(apiBase, token) {
   const base = apiBase.replace(/\/$/, '');
   return async (path) => {
     const response = await fetch(`${base}${path}`, {
+      redirect: 'error',
+      signal: AbortSignal.timeout(15000),
       headers: {
         Accept: 'application/vnd.github+json',
         'X-GitHub-Api-Version': '2022-11-28',
@@ -125,8 +145,7 @@ function createClient(apiBase, token) {
       },
     });
     if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`GitHub API ${response.status} for ${path}: ${body.slice(0, 300)}`);
+      throw new Error(`GitHub evidence request failed (HTTP ${response.status}).`);
     }
     return response.json();
   };
@@ -181,6 +200,8 @@ async function resolveEvidence({ client, repository, sha, ciRunId, waitSeconds, 
     if (mainSha !== sha) {
       throw new Error(`Production candidate ${sha} is stale; current main is ${mainSha}.`);
     }
+
+    await verifyOwnerMerge(client, repository, sha);
 
     if (ciRunId) {
       const run = await loadRunById(client, repository, ciRunId);
