@@ -24,6 +24,8 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  pull-requests: read
   id-token: write
 
 concurrency:
@@ -78,6 +80,13 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Require owner-merged current main and CI before Azure access
+        run: node tools/release/verify-production-eligibility.mjs --sha "$GITHUB_SHA"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Azure login as infrastructure identity
         uses: azure/login@v3
         with:
@@ -139,9 +148,11 @@ jobs:
           [[ "$runtime_client_id" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo '::error::Runtime client id is unavailable.'; exit 1; }
           [[ "$runtime_principal_id" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo '::error::Runtime principal id is unavailable.'; exit 1; }
           [[ "$migration_client_id" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo '::error::Migration client id is unavailable.'; exit 1; }
-          echo "runtime_client_id=$runtime_client_id" >> "$GITHUB_OUTPUT"
-          echo "runtime_principal_id=$runtime_principal_id" >> "$GITHUB_OUTPUT"
-          echo "migration_client_id=$migration_client_id" >> "$GITHUB_OUTPUT"
+          {
+            echo "runtime_client_id=$runtime_client_id"
+            echo "runtime_principal_id=$runtime_principal_id"
+            echo "migration_client_id=$migration_client_id"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Allow Graph assignment propagation
         run: sleep 20
@@ -149,6 +160,10 @@ jobs:
       - name: Logout infrastructure identity
         run: az logout
 
+      - name: Require owner-merged current main and CI before Azure access
+        run: node tools/release/verify-production-eligibility.mjs --sha "$GITHUB_SHA"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Azure login as live migration identity
         uses: azure/login@v3
         with:
@@ -180,6 +195,10 @@ jobs:
       - name: Logout live migration identity
         run: az logout
 
+      - name: Require owner-merged current main and CI before Azure access
+        run: node tools/release/verify-production-eligibility.mjs --sha "$GITHUB_SHA"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Azure login as Workslip runtime identity
         uses: azure/login@v3
         with:

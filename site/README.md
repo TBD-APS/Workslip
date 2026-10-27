@@ -1,8 +1,8 @@
 # Workslip public site
 
-Status: Active foundation, mrsoftware.dk rollout  
-Owner: Workslip  
-Source of truth: this directory for public-site implementation; root repository documentation for architecture and operations  
+Status: Active foundation, GitHub Pages project site
+Owner: Workslip
+Source of truth: this directory for public-site implementation; root repository documentation for architecture and operations
 Review cadence: each public-site release
 
 ## Local development
@@ -85,7 +85,7 @@ Pull requests that only change `site/**` or `.github/workflows/pages.yml` use th
 
 Pushes to `main` that change `site/**` or `.github/workflows/pages.yml` run `.github/workflows/pages.yml`. That workflow builds the Jekyll site with strict front matter, validates the generated output and deploys through the `github-pages` environment. It can also be started manually through `workflow_dispatch`, but production deployment is hard-gated to `main`.
 
-The canonical marketing-site domain is `https://mrsoftware.dk`. GitHub Pages must use **GitHub Actions** as its source, and the repository Pages setting must use `mrsoftware.dk` as the custom domain. DNS, HTTPS and rollback steps are documented in `Docs/operations/github-pages-domain-runbook.md`.
+The company homepage is served by `TBD-APS/mrsoftware-website`. This Workslip site uses a GitHub Pages project address and must not claim the company apex or www hostname. The approved cleanup procedure is in `Docs/operations/github-pages-domain-runbook.md`.
 
 The production application is hosted separately at `https://app.mrsoftware.dk`. The marketing site must not call the production API directly unless that origin is deliberately added to the API CORS configuration.
 
@@ -101,3 +101,9 @@ The production application is hosted separately at `https://app.mrsoftware.dk`. 
 This Jekyll site is static marketing and documentation content. It must not contain application business logic, production secrets, direct database access or duplicated React application behavior. The real application remains under `src/FE`.
 
 `/demo/` is a deliberately limited, public product walkthrough: it may render fictional, bundled scenarios and client-only UI feedback so visitors can understand the flow without a login. It must not authenticate users, call an API, access production data, use application components or routes, persist data in browser storage, or claim to be an integrated product environment. A real integrated demo remains a separate deployment and needs its own security gates.
+
+## Release ownership and domain
+
+The company homepage is owned by `TBD-APS/mrsoftware-website`. This site's source no longer claims `mrsoftware.dk` through a `CNAME`; the planned Pages address is `https://tbd-aps.github.io/Workslip/`. An approved operator must separately clear the legacy custom-domain setting in GitHub Pages. A source change alone does not alter that setting or DNS. `app.mrsoftware.dk` remains the application host.
+
+Production eligibility now requires the exact current main commit to come from one PR merged by Rasmus (`rasm105k`, immutable id `31623093`), alongside the existing successful exact-main `CI Gate`. Existing deployment and infrastructure environment approvals remain required. Only Rasmus merges; contributors use feature PRs. Separate main protection and credential-access changes must be applied before this is an account-level boundary.

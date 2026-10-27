@@ -19,6 +19,8 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  pull-requests: read
   id-token: write
 
 concurrency:
@@ -90,6 +92,13 @@ jobs:
             [[ -n "$value" ]] || { echo "::error::Missing $key on the live GitHub environment."; exit 1; }
           done
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Require owner-merged current main and CI before Azure access
+        run: node tools/release/verify-production-eligibility.mjs --sha "$GITHUB_SHA"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Azure login
         uses: azure/login@v3
         with:

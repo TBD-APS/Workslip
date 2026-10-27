@@ -24,6 +24,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: workslip-cross-tenant-sql-seed
@@ -47,6 +48,7 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: read
+      pull-requests: read
       actions: read
     outputs:
       execute: ${{ steps.intent.outputs.execute }}
@@ -147,6 +149,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      pull-requests: read
     env:
       INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
       TARGET_TENANT_ID: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
@@ -231,6 +234,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      pull-requests: read
     env:
       SOURCE_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
       SOURCE_TENANT_ID: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
@@ -447,6 +451,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      pull-requests: read
     env:
       INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
       TARGET_TENANT_ID: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
