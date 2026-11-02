@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cp, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, writeFile, rm, mkdir, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -60,7 +60,7 @@ test('accepts a successful manually dispatched CI run on the exact current main 
 test('rejects stale successful CI when main has advanced', () => {
   assert.throws(
     () => validateEvidence({ expectedSha: SHA, mainSha: OTHER_SHA, run: greenRun(), jobs: [greenGate()] }),
-    /stale/,
+    /RELEASE_SOURCE_STALE/,
   );
 });
 
@@ -68,7 +68,7 @@ test('rejects every non-success workflow conclusion', () => {
   for (const conclusion of ['failure', 'cancelled', 'timed_out', 'action_required', 'neutral', 'skipped', null]) {
     assert.throws(
       () => validateEvidence({ expectedSha: SHA, mainSha: SHA, run: greenRun({ conclusion }), jobs: [greenGate()] }),
-      /not green/,
+      /CI_RUN_NOT_GREEN/,
     );
   }
 });
@@ -76,24 +76,24 @@ test('rejects every non-success workflow conclusion', () => {
 test('rejects a wrong branch and unapproved CI trigger', () => {
   assert.throws(
     () => validateEvidence({ expectedSha: SHA, mainSha: SHA, run: greenRun({ head_branch: 'feature' }), jobs: [greenGate()] }),
-    /not main/,
+    /CI_RUN_NOT_GREEN/,
   );
   assert.throws(
     () => validateEvidence({ expectedSha: SHA, mainSha: SHA, run: greenRun({ event: 'schedule' }), jobs: [greenGate()] }),
-    /not an accepted main CI trigger/,
+    /CI_RUN_NOT_GREEN/,
   );
 });
 
 test('rejects missing, duplicate, skipped or red CI Gate', () => {
-  assert.throws(() => validateEvidence({ expectedSha: SHA, mainSha: SHA, run: greenRun(), jobs: [] }), /exactly one CI Gate/);
+  assert.throws(() => validateEvidence({ expectedSha: SHA, mainSha: SHA, run: greenRun(), jobs: [] }), /CI_REQUIRED_JOB_NOT_GREEN/);
   assert.throws(
     () => validateEvidence({ expectedSha: SHA, mainSha: SHA, run: greenRun(), jobs: [greenGate(), greenGate({ id: 203 })] }),
-    /exactly one CI Gate/,
+    /CI_REQUIRED_JOB_NOT_GREEN/,
   );
   for (const conclusion of ['failure', 'cancelled', 'skipped', null]) {
     assert.throws(
       () => validateEvidence({ expectedSha: SHA, mainSha: SHA, run: greenRun(), jobs: [greenGate({ conclusion })] }),
-      /CI Gate is not green/,
+      /CI_REQUIRED_JOB_NOT_GREEN/,
     );
   }
 });
@@ -160,9 +160,33 @@ test('the Workslip adapter collects canonical attempt-bound evidence through the
   assert.equal(paths.filter(path => path.endsWith('/git/ref/heads/main')).length, 2);
 });
 
+test('continued GitHub evidence progress does not expire the transport watchdog', async () => {
+  const originalTimeout = globalThis.setTimeout;
+  // Scale only the long watchdog down: the complete pass exceeds its timeout,
+  // while each successful request makes progress before inactivity can expire.
+  globalThis.setTimeout = (callback, delay, ...args) => originalTimeout(callback, delay >= 60000 ? 400 : delay, ...args);
+  let requests = 0;
+  try {
+    const client = async path => {
+      requests++;
+      await new Promise(done => originalTimeout(done, 80));
+      if (path.endsWith('/git/ref/heads/main')) return { object: { sha: SHA } };
+      if (path.includes('/commits/')) return [{ number: 12 }];
+      if (path.endsWith('/pulls/12')) return ownerPull();
+      if (path.includes('/workflows/')) return { total_count: 1, workflow_runs: [greenRun()] };
+      if (path.endsWith('/actions/runs/101')) return greenRun();
+      if (path.includes('/attempts/1/jobs')) return { total_count: 1, jobs: [greenGate()] };
+      throw Error('Unexpected GitHub request');
+    };
+    const result = await resolveEvidence({ client, repository: REPOSITORY, sha: SHA });
+    assert.equal(result.gateId, 202);
+    assert.ok(requests >= 9);
+  } finally { globalThis.setTimeout = originalTimeout; }
+});
+
 test('a newer failed canonical run prevents an older green result from authorizing production', () => {
   assert.equal(chooseRun([greenRun({ id: 102, conclusion: 'failure' }), greenRun()], SHA).state, 'failed');
-  assert.throws(() => validateEvidence({ expectedSha: SHA, mainSha: SHA, run: greenRun(), jobs: [greenGate({ run_attempt: 2 })] }), /attempt/);
+  assert.throws(() => validateEvidence({ expectedSha: SHA, mainSha: SHA, run: greenRun(), jobs: [greenGate({ run_attempt: 2 })] }), /CI_JOB_IDENTITY_INVALID/);
 });
 
 test('a modified Boney snapshot blocks the actual Workslip CLI before provider admission', async t => {
@@ -170,32 +194,54 @@ test('a modified Boney snapshot blocks the actual Workslip CLI before provider a
   await cp(new URL('./boney/', import.meta.url), join(directory, 'boney'), { recursive: true });
   await cp(SCRIPT, join(directory, 'verify-production-eligibility.mjs'));
   await cp(new URL('./product.delivery.json', import.meta.url), join(directory, 'product.delivery.json'));
-  const modified = join(directory, 'boney', 'pipeline.mjs');
+  const modified = join(directory, 'boney', 'ReleasePipeline.cs');
   await writeFile(modified, (await readFile(modified, 'utf8')) + '\n// unexpected drift\n');
   const result = spawnSync(process.execPath, [join(directory, 'verify-production-eligibility.mjs'), '--sha', SHA, '--repository', REPOSITORY], { encoding: 'utf8', env: { ...process.env, GITHUB_TOKEN: '' } });
   assert.notEqual(result.status, 0); assert.match(result.stderr, /DELIVERY_SNAPSHOT_INVALID/);
   const marker = join(directory, 'executed-unverified-code');
-  const engine = join(directory, 'boney', 'github.mjs');
-  await writeFile(engine, `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'executed');\n` + await readFile(engine, 'utf8'));
+  const engine = join(directory, 'boney', 'Program.cs');
+  await writeFile(engine, (await readFile(engine, 'utf8')) + `\nSystem.IO.File.WriteAllText(${JSON.stringify(marker)}, "executed");\n`);
   const malicious = spawnSync(process.execPath, [join(directory, 'verify-production-eligibility.mjs'), '--sha', SHA, '--repository', REPOSITORY], { encoding: 'utf8', env: { ...process.env, GITHUB_TOKEN: '' } });
   assert.notEqual(malicious.status, 0); assert.match(malicious.stderr, /DELIVERY_SNAPSHOT_INVALID/);
   await assert.rejects(readFile(marker), { code: 'ENOENT' });
 });
 
-test('the snapshot verifier cannot execute before the Workslip entrypoint checks its bytes', async t => {
+test('an altered C# build project cannot execute before the Workslip entrypoint checks its bytes', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'workslip-bootstrap-')); t.after(() => rm(directory, { recursive: true, force: true }));
   await cp(new URL('./boney/', import.meta.url), join(directory, 'boney'), { recursive: true });
   await cp(SCRIPT, join(directory, 'verify-production-eligibility.mjs'));
   await cp(new URL('./product.delivery.json', import.meta.url), join(directory, 'product.delivery.json'));
   const marker = join(directory, 'unverified-bootstrap');
-  const verifier = join(directory, 'boney', 'snapshot.mjs');
-  await writeFile(verifier, `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'executed');\n` + await readFile(verifier, 'utf8'));
+  const verifier = join(directory, 'boney', 'Boney.Delivery.csproj');
+  await writeFile(verifier, (await readFile(verifier, 'utf8')).replace('</Project>', `<Target Name="Unreviewed" BeforeTargets="BeforeBuild"><WriteLinesToFile File="${marker}" Lines="executed" /></Target></Project>`));
+  const fakeBin = join(directory, 'fake-bin'); await mkdir(fakeBin);
+  const compiler = join(fakeBin, 'dotnet');
+  await writeFile(compiler, `#!${process.execPath}\nrequire('node:fs').writeFileSync(${JSON.stringify(marker)}, 'compiler invoked'); process.exit(91);\n`);
+  await chmod(compiler, 0o755);
   for (const args of [
     [join(directory, 'verify-production-eligibility.mjs'), '--sha', SHA, '--repository', REPOSITORY],
     ['--input-type=module', '-e', `await import(${JSON.stringify(pathToFileURL(join(directory, 'verify-production-eligibility.mjs')).href)})`],
   ]) {
-    const result = spawnSync(process.execPath, args, { encoding: 'utf8', env: { ...process.env, GITHUB_TOKEN: '' } });
+    const result = spawnSync(process.execPath, args, { encoding: 'utf8', env: { ...process.env, GITHUB_TOKEN: '', PATH: `${fakeBin}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH}` } });
     assert.notEqual(result.status, 0); assert.match(result.stderr, /DELIVERY_SNAPSHOT_INVALID/);
     await assert.rejects(readFile(marker), { code: 'ENOENT' });
   }
+});
+
+test('unverified cached build outputs cannot supply the Workslip policy executable', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'workslip-cached-output-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await cp(new URL('./boney/', import.meta.url), join(directory, 'boney'), { recursive: true });
+  await cp(SCRIPT, join(directory, 'verify-production-eligibility.mjs'));
+  await cp(new URL('./product.delivery.json', import.meta.url), join(directory, 'product.delivery.json'));
+  const output = join(directory, 'boney', 'bin', 'Release', 'net10.0');
+  await mkdir(output, { recursive: true });
+  await writeFile(join(output, 'Boney.Delivery.dll'), 'unverified cached executable');
+  await mkdir(join(directory, 'boney', 'obj'), { recursive: true });
+  await writeFile(join(directory, 'boney', 'obj', 'project.assets.json'), 'unverified cached compiler input');
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e',
+    `const gate = await import(${JSON.stringify(pathToFileURL(join(directory, 'verify-production-eligibility.mjs')).href)}); console.log(gate.chooseRun([], ${JSON.stringify(SHA)}).state);`],
+  { encoding: 'utf8', env: { ...process.env, GITHUB_TOKEN: '' }, timeout: 120000 });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), 'missing');
 });

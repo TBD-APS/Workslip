@@ -87,6 +87,11 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+      - name: Set up the C# delivery runtime
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
       - name: Require owner-merged current main and its CI Gate
         run: node tools/release/verify-production-eligibility.mjs --sha "$GITHUB_SHA" --wait-seconds 900
         env:

@@ -47,6 +47,11 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
+      - name: Set up the C# delivery runtime
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
       - name: Require exact green main CI Gate
         working-directory: .
         env:

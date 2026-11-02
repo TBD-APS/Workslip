@@ -1,16 +1,22 @@
 {
   "schemaVersion": 1,
   "sourceRepository": "TBD-APS/boney",
-  "sourceRevision": "179dbeccdbb14bffaa82637c50333fa6a082c204",
+  "sourceRevision": "34af61220fcf27dff2cca37e129fec0f5bc131f3",
   "files": {
-    "cli.mjs": "7bad3d93a80eeac822ac7e4792be7104634f156d3a6d7cc5e551c7fa925e2a90",
-    "github.mjs": "7f9b39092346e54580c86cc92b49add6e2a2fc9d7e8e9881d7b8d1f59b8cd82b",
-    "pipeline.mjs": "7f9465118e5e8391f2bdb4d30f244d8af3de208c0e2fd5c5f214bbf784a32216",
-    "profile.mjs": "f0479dd70f73798a198c6daa66bb4316ebee703322b24c9a4fa42ef50a833329",
-    "risk.mjs": "7237f562ec917633d8d9471a651fc659457692e93984934d932faae06a74e4ad",
-    "scaffold.mjs": "1652d7f2d21dd153fe65fb9128b8ae62a502ef3980cbb974bb76d7b25db8851c",
-    "snapshot.mjs": "2365443d3f5a0aaa5a53a4c07c4149f9c5d63492335ed10b6935e0b6d3dc8c4f",
-    "source.mjs": "b80071221b121b790c95d91b50b0a95827cf89d91a193088f1b307ea8da644c7",
-    "store.mjs": "0b7236131dc014f732185f69b682f39a9b3f84c10e494208e143aee3c9a3c688"
+    "Boney.Delivery.csproj": "64955c88647e30ca545b819c413027452015e5e4e6e350dd6a22d4dbda9a5dfd",
+    "Json.cs": "8c82fb2e8dd5a97b124b8ad6fe582159ff3ed3f00afe4c7d138665adfa28e252",
+    "DeliveryProfile.cs": "2262fbcb5f2e801014f1f16571bf9535e486012cc8142e5ee2af6584c1227960",
+    "GitHubReleaseGate.cs": "58d9761a5b4bc46161794ed320547b99a7291766fcdb97aceb5a6aa284df6b7c",
+    "ReleasePipeline.cs": "42692388342af2950d0b194479be1caf0e14c1a87d482add9469025cb01b2c27",
+    "FileReleaseStore.cs": "41f6e7e6a4d90e0213e3e4960b03defda7f668369fa2e9047452997efcda1256",
+    "ReleaseRisk.cs": "53b7ba727e1ff2cc1607e59348ef1d7b13fd1fa0052867a7ebac3b86fc28c971",
+    "TrackedSources.cs": "65d64fb0466166120a3c43cf426ff84d41844c51b1bfb5b25e650892a3a65b07",
+    "DeliverySnapshot.cs": "2d5660769984c0e72b81c356fbe752eecbe32f1192209477736aa1f4c300a5ca",
+    "DeliveryScaffold.cs": "fe18712e12a6e936457d4dba056f3f1f25d0acd9edaad36b6fdf20a63bdb7595",
+    "ReferenceRelease.cs": "fc3b528e8fec2e3ca8a6da2f8b29f5aab1167a8f8321869e0e319b0b2b4bf2ed",
+    "DeliveryCommandLine.cs": "a928abb710ca535e86b0ea8a390a3ea26fe84e6c18eabfaf775d396593ac31ca",
+    "CSharpProcessAdapter.cs": "bca650be7763d773994c8fc181c9f0c5e6cb73ee302a3f9b2e0034115a24693a",
+    "Program.cs": "22cd30a48424e25b91f6d58980d9af1e034d035da67a797ffbf49891a4c61691",
+    "DeliveryPolicyProtocol.cs": "df4bc3bf796f07b9960da8610501a36e12598bfa0d91c0de2a4eaef878a0f346"
   }
 }

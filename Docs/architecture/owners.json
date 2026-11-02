@@ -8,6 +8,16 @@
     ]
   },
   "owners": {
+    "platform.release-admission": {
+      "path": "tools/release/verify-production-eligibility.mjs",
+      "instructions": "AGENTS.md",
+      "intents": [
+        "release-admission",
+        "production-eligibility",
+        "delivery-pipeline"
+      ],
+      "summary": "Product-owned bootstrap and transport for the pinned Boney C# release-admission policy; native workflows own hosting and approvals."
+    },
     "repository.text-normalization": {
       "path": ".gitattributes",
       "instructions": "AGENTS.md",

@@ -55,6 +55,11 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Set up the C# delivery runtime
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
       - name: Require exact green main CI Gate
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -164,6 +169,11 @@ jobs:
         with:
           ref: ${{ env.RELEASE_SHA }}
           persist-credentials: false
+
+      - name: Set up the C# delivery runtime
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
 
       - name: Re-verify green current main before mutation
         env:
