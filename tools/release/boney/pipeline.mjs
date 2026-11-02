@@ -39,9 +39,13 @@ export async function executeRelease({ profile: input, environment, context: inp
       await authorizeRelease(profile, context, request);
       return existing;
     }
-    let stage = 'checking', candidate, previous, mutationStarted = false;
+    let stage = 'checking', candidate, previous, mutationStarted = false, persistenceFailed = false;
     let state = { schemaVersion: 1, ...identity, repository: profile.repository, githubEnvironment: target.githubEnvironment, status: stage };
-    const save = async (status, extra = {}) => { state = { ...state, ...extra, status }; return session.save(state); };
+    const save = async (status, extra = {}) => {
+      state = { ...state, ...extra, status };
+      try { return await session.save(state); }
+      catch { persistenceFailed = true; throw Error('RELEASE_RECONCILIATION_REQUIRED'); }
+    };
     try {
       const admission = await authorizeRelease(profile, context, request);
       await save('admitted', { admission });
@@ -70,6 +74,9 @@ export async function executeRelease({ profile: input, environment, context: inp
       requireObservation(await adapter.observe(args()), candidate);
       return await save('released');
     } catch {
+      // A store may have committed a receipt before losing its acknowledgement.
+      // Its uncertain outcome must never trigger another provider mutation.
+      if (persistenceFailed) throw Error('RELEASE_RECONCILIATION_REQUIRED');
       // Untrusted provider errors can contain credentials or response bodies.
       // Persist a bounded outcome, never arbitrary exception text or adapter output.
       if (mutationStarted && target.recovery === 'automatic' && previous) {
@@ -77,7 +84,10 @@ export async function executeRelease({ profile: input, environment, context: inp
         try {
           requireObservation(await adapter.recover({ context, environment, target, candidate: structuredClone(candidate), previous: structuredClone(previous) }), previous);
           return await save('rolled-back', { recoveredRevision: previous.revision });
-        } catch { return await save('blocked', { reason: 'RECOVERY_NOT_CONFIRMED' }); }
+        } catch {
+          if (persistenceFailed) throw Error('RELEASE_RECONCILIATION_REQUIRED');
+          return await save('blocked', { reason: 'RECOVERY_NOT_CONFIRMED' });
+        }
       }
       return await save('blocked', { failedStage: stage, reason: mutationStarted ? 'MANUAL_RECOVERY_REQUIRED' : 'RELEASE_STEP_FAILED' });
     }

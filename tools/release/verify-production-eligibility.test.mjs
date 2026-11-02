@@ -174,4 +174,10 @@ test('a modified Boney snapshot blocks the actual Workslip CLI before provider a
   await writeFile(modified, (await readFile(modified, 'utf8')) + '\n// unexpected drift\n');
   const result = spawnSync(process.execPath, [join(directory, 'verify-production-eligibility.mjs'), '--sha', SHA, '--repository', REPOSITORY], { encoding: 'utf8', env: { ...process.env, GITHUB_TOKEN: '' } });
   assert.notEqual(result.status, 0); assert.match(result.stderr, /DELIVERY_SNAPSHOT_INVALID/);
+  const marker = join(directory, 'executed-unverified-code');
+  const engine = join(directory, 'boney', 'github.mjs');
+  await writeFile(engine, `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'executed');\n` + await readFile(engine, 'utf8'));
+  const malicious = spawnSync(process.execPath, [join(directory, 'verify-production-eligibility.mjs'), '--sha', SHA, '--repository', REPOSITORY], { encoding: 'utf8', env: { ...process.env, GITHUB_TOKEN: '' } });
+  assert.notEqual(malicious.status, 0); assert.match(malicious.stderr, /DELIVERY_SNAPSHOT_INVALID/);
+  await assert.rejects(readFile(marker), { code: 'ENOENT' });
 });

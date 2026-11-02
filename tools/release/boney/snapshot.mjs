@@ -2,7 +2,7 @@ import { readFile, readdir, lstat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 
-export const RUNTIME_FILES = Object.freeze(['cli.mjs', 'github.mjs', 'pipeline.mjs', 'profile.mjs', 'risk.mjs', 'scaffold.mjs', 'snapshot.mjs', 'store.mjs']);
+export const RUNTIME_FILES = Object.freeze(['cli.mjs', 'github.mjs', 'pipeline.mjs', 'profile.mjs', 'risk.mjs', 'scaffold.mjs', 'snapshot.mjs', 'source.mjs', 'store.mjs']);
 
 export async function verifySnapshot(directory) {
   const fail = () => { throw Error('DELIVERY_SNAPSHOT_INVALID'); };

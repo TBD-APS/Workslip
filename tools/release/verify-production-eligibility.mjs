@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createGitHubReleaseGate } from './boney/github.mjs';
-import { loadProfile } from './boney/profile.mjs';
 import { verifySnapshot } from './boney/snapshot.mjs';
-import { githubClient } from './boney/cli.mjs';
 
 // The committed snapshot is an explicit Boney upgrade, checked before release use.
 await verifySnapshot(fileURLToPath(new URL('./boney/', import.meta.url)));
+const [{ createGitHubReleaseGate }, { loadProfile }, { githubClient }] = await Promise.all([
+  import('./boney/github.mjs'), import('./boney/profile.mjs'), import('./boney/cli.mjs'),
+]);
 export const deliveryProfile = await loadProfile(new URL('./product.delivery.json', import.meta.url));
 const gate = createGitHubReleaseGate({ ...deliveryProfile, ...deliveryProfile.ci });
 export const { validateEvidence, chooseRun, workflowRunsPath, verifyOwnerMerge, resolveEvidence } = gate;

@@ -1,11 +1,11 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { execFileSync } from 'node:child_process';
 import { loadProfile } from './profile.mjs';
 import { executeRelease, authorizeRelease } from './pipeline.mjs';
 import { FileReleaseStore } from './store.mjs';
 import { verifySnapshot } from './snapshot.mjs';
+import { requireTrackedSources } from './source.mjs';
 
 export function githubClient(token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN) {
   if (!token) throw Error('GITHUB_READ_TOKEN_REQUIRED');
@@ -31,18 +31,16 @@ async function main(args) {
     options[key] = rest[index + 1];
   }
   if (!options['--profile'] || !options['--revision']) throw Error('DELIVERY_USAGE');
-  const profile = await loadProfile(resolve(options['--profile']));
+  if (command === 'run' && (!options['--adapter'] || !options['--environment'] || !options['--receipt'])) throw Error('DELIVERY_USAGE');
+  const paths = [options['--profile'], ...(command === 'run' ? [options['--adapter']] : [])];
+  const [profilePath, adapterPath] = await requireTrackedSources({ revision: options['--revision'], paths });
+  const profile = await loadProfile(profilePath);
   const context = { repository: process.env.GITHUB_REPOSITORY, ref: process.env.GITHUB_REF, event: process.env.GITHUB_EVENT_NAME, sha: options['--revision'] };
   const request = githubClient();
   if (command === 'admit') { console.log(JSON.stringify(await authorizeRelease(profile, context, request))); return; }
-  if (!options['--adapter'] || !options['--environment'] || !options['--receipt']) throw Error('DELIVERY_USAGE');
-  const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-  const dirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=normal'], { encoding: 'utf8' });
-  if (head !== context.sha || dirty) throw Error('DELIVERY_REQUIRES_CLEAN_EXACT_SOURCE');
   // Admission precedes loading executable product code.
   await authorizeRelease(profile, context, request);
-  const adapterPath = resolve(options['--adapter']);
-  execFileSync('git', ['ls-files', '--error-unmatch', '--', adapterPath], { stdio: 'pipe' });
+  await requireTrackedSources({ revision: context.sha, paths });
   const adapter = await import(pathToFileURL(adapterPath).href);
   const store = options['--store'] ? new FileReleaseStore(options['--store'])
     : typeof adapter.createStore === 'function' ? await adapter.createStore({ profile, environment: options['--environment'], context }) : null;

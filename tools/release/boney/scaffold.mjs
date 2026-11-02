@@ -6,7 +6,7 @@ const quote = value => `'${value.replaceAll("'", "'\\''")}'`;
 
 export async function scaffoldDelivery({ directory, profile: input, validation }) {
   const profile = validateProfile(input), target = profile.environments.production;
-  if (!target || profile.ci?.workflow !== 'ci.yml' || JSON.stringify(profile.ci.requiredJobs) !== JSON.stringify(['CI Gate'])
+  if (!target || !profile.events.includes('workflow_dispatch') || profile.ci?.workflow !== 'ci.yml' || JSON.stringify(profile.ci.requiredJobs) !== JSON.stringify(['CI Gate'])
       || !Array.isArray(validation) || !validation.length || !validation.every(argv => Array.isArray(argv) && argv.length && argv.every(arg => typeof arg === 'string' && arg.length && !/[\r\n\0]/.test(arg)))) throw Error('DELIVERY_SCAFFOLD_INVALID');
   const workflow = join(directory, '.github', 'workflows');
   await mkdir(workflow, { recursive: true });
