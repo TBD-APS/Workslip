@@ -109,6 +109,11 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Set up the C# delivery runtime
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
       - name: Require exact green current main CI Gate before Azure mutation
         env:
           GITHUB_TOKEN: ${{ github.token }}

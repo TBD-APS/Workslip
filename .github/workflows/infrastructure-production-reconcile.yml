@@ -178,6 +178,11 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Set up the C# delivery runtime
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
       - name: Require exact green main CI Gate before Azure credentials
         if: ${{ inputs.execution_mode == 'standard' }}
         shell: bash
@@ -377,6 +382,11 @@ jobs:
             }
           }
           Get-Command sqlcmd -ErrorAction Stop | Out-Null
+
+      - name: Set up the C# delivery runtime
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
 
       - name: Re-verify current main immediately before reconcile
         if: ${{ inputs.operation == 'reconcile' }}
