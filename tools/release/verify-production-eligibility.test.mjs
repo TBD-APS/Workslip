@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { cp, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { chooseRun, validateEvidence, workflowRunsPath, verifyOwnerMerge } from './verify-production-eligibility.mjs';
+import { chooseRun, validateEvidence, workflowRunsPath, verifyOwnerMerge, resolveEvidence, deliveryProfile } from './verify-production-eligibility.mjs';
 
 const SHA = 'a'.repeat(40);
 const OTHER_SHA = 'b'.repeat(40);
@@ -11,6 +14,7 @@ const SCRIPT = fileURLToPath(new URL('./verify-production-eligibility.mjs', impo
 function greenRun(overrides = {}) {
   return {
     id: 101,
+    run_attempt: 1,
     name: 'CI',
     path: '.github/workflows/frontend-validation.yml',
     head_sha: SHA,
@@ -26,6 +30,9 @@ function greenRun(overrides = {}) {
 function greenGate(overrides = {}) {
   return {
     id: 202,
+    run_id: 101,
+    run_attempt: 1,
+    head_sha: SHA,
     name: 'CI Gate',
     status: 'completed',
     conclusion: 'success',
@@ -132,4 +139,39 @@ test('denies direct pushes, incomplete evidence, wrong repositories and provider
   }
   await assert.rejects(verifyOwnerMerge(ownerApi(), 'foreign/repo', SHA));
   await assert.rejects(verifyOwnerMerge(async () => { throw Error('unavailable'); }, REPOSITORY, SHA));
+});
+
+test('the Workslip adapter collects canonical attempt-bound evidence through the pinned Boney implementation', async () => {
+  const paths = [];
+  const client = async path => {
+    paths.push(path);
+    if (path.endsWith('/git/ref/heads/main')) return { object: { sha: SHA } };
+    if (path.includes('/commits/')) return [{ number: 12 }];
+    if (path.endsWith('/pulls/12')) return ownerPull();
+    if (path.includes('/workflows/')) return { total_count: 1, workflow_runs: [greenRun()] };
+    if (path.endsWith('/actions/runs/101')) return greenRun();
+    if (path.includes('/attempts/1/jobs')) return { total_count: 1, jobs: [greenGate()] };
+    throw Error('Unexpected GitHub request');
+  };
+  const result = await resolveEvidence({ client, repository: REPOSITORY, sha: SHA });
+  assert.equal(result.sha, SHA); assert.equal(result.gateId, 202);
+  assert.deepEqual(deliveryProfile.ci.requiredJobs, ['CI Gate']);
+  assert.ok(paths.some(path => path.includes('/attempts/1/jobs')));
+  assert.equal(paths.filter(path => path.endsWith('/git/ref/heads/main')).length, 2);
+});
+
+test('a newer failed canonical run prevents an older green result from authorizing production', () => {
+  assert.equal(chooseRun([greenRun({ id: 102, conclusion: 'failure' }), greenRun()], SHA).state, 'failed');
+  assert.throws(() => validateEvidence({ expectedSha: SHA, mainSha: SHA, run: greenRun(), jobs: [greenGate({ run_attempt: 2 })] }), /attempt/);
+});
+
+test('a modified Boney snapshot blocks the actual Workslip CLI before provider admission', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'workslip-delivery-')); t.after(() => rm(directory, { recursive: true, force: true }));
+  await cp(new URL('./boney/', import.meta.url), join(directory, 'boney'), { recursive: true });
+  await cp(SCRIPT, join(directory, 'verify-production-eligibility.mjs'));
+  await cp(new URL('./product.delivery.json', import.meta.url), join(directory, 'product.delivery.json'));
+  const modified = join(directory, 'boney', 'pipeline.mjs');
+  await writeFile(modified, (await readFile(modified, 'utf8')) + '\n// unexpected drift\n');
+  const result = spawnSync(process.execPath, [join(directory, 'verify-production-eligibility.mjs'), '--sha', SHA, '--repository', REPOSITORY], { encoding: 'utf8', env: { ...process.env, GITHUB_TOKEN: '' } });
+  assert.notEqual(result.status, 0); assert.match(result.stderr, /DELIVERY_SNAPSHOT_INVALID/);
 });

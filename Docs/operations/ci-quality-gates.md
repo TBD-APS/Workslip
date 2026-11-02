@@ -23,6 +23,23 @@ A production mutation is **fail-closed**. Frontend deployment, backend deploymen
 
 `tools/release/verify-production-eligibility.mjs` is the single adapter for that contract. Every maintained production workflow calls it before it acquires Azure credentials or mutates anything: `aca-live-deploy.yml`, `backend-production-deploy.yml`, `database-production-migrations.yml`, `infrastructure-production-reconcile.yml`, `appservice-slot-upgrade.yml`, `sql-live-seed-copy.yml` and `production-readiness-smoke.yml`. Do not add a second interpretation of “green”.
 
+The adapter consumes Boney's shared version-1 delivery toolkit from the committed
+`tools/release/boney/` snapshot. `boney.lock.json` records the exact Boney source
+revision and every runtime file hash; the adapter verifies that inventory before
+use. `tools/release/product.delivery.json` owns Workslip's repository, branch,
+numeric merger identity, canonical CI Gate and live migration/recovery policy.
+Upgrade the snapshot in a reviewed PR; do not import a moving private-repository
+branch during deployment. Provider identities, Azure commands, migration locks,
+environment approvals and dispatch triggers remain in Workslip.
+
+The shared gate verifies the latest canonical run and its specific job attempt,
+including complete pagination. An older successful run cannot override a newer
+failed/pending run on the same SHA. Re-fetching run and branch evidence before
+admission detects reruns and branch movement during collection. These controls
+are local/CI admission evidence, not proof of deployed application health or a
+live migration/recovery exercise. Workslip's native workflow remains the executor;
+this integration does not replace its provider steps with a second release writer.
+
 Frontend delivery no longer needs a second platform-specific adapter. The frontend is a container image built inside the same Azure workflow as the API, so it reads the same evidence from the same repository checkout.
 
 ## Pull request CI
