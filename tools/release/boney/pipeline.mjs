@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { validateProfile } from './profile.mjs';
 import { verifyMergedRelease, createGitHubReleaseGate } from './github.mjs';
 
@@ -34,8 +35,12 @@ export async function executeRelease({ profile: input, environment, context: inp
   const identity = { product: profile.product, environment, revision: context.sha };
   return store.withLock(identity, async session => {
     const existing = session.load();
-    if (existing) {
-      if (existing.status !== 'released' || existing.repository !== profile.repository) throw Error('RELEASE_RECONCILIATION_REQUIRED');
+    if (existing !== null) {
+      if (existing?.schemaVersion !== 1 || existing.status !== 'released' || existing.repository !== profile.repository
+          || existing.product !== identity.product || existing.environment !== identity.environment || existing.revision !== identity.revision
+          || existing.githubEnvironment !== target.githubEnvironment) throw Error('RELEASE_RECONCILIATION_REQUIRED');
+      try { requireArtifact(existing.candidate, identity.revision); }
+      catch { throw Error('RELEASE_RECONCILIATION_REQUIRED'); }
       await authorizeRelease(profile, context, request);
       return existing;
     }
@@ -43,7 +48,11 @@ export async function executeRelease({ profile: input, environment, context: inp
     let state = { schemaVersion: 1, ...identity, repository: profile.repository, githubEnvironment: target.githubEnvironment, status: stage };
     const save = async (status, extra = {}) => {
       state = { ...state, ...extra, status };
-      try { return await session.save(state); }
+      try {
+        const receipt = await session.save(structuredClone(state));
+        if (!Object.entries(state).every(([key, value]) => isDeepStrictEqual(receipt?.[key], value))) throw Error('RELEASE_RECEIPT_INVALID');
+        return structuredClone(receipt);
+      }
       catch { persistenceFailed = true; throw Error('RELEASE_RECONCILIATION_REQUIRED'); }
     };
     try {

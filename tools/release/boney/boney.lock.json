@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "sourceRepository": "TBD-APS/boney",
-  "sourceRevision": "9059dd18e96d536fe53918ca58f0ea8c934bdf57",
+  "sourceRevision": "1ba9cdf30b363ea05925c0fc3d69fec66ac13057",
   "files": {
     "cli.mjs": "bae5b5351bf27a8b080124d95e29b5d0249bc399cf4e10fc874c54f2dbcd8e2e",
     "github.mjs": "7f9b39092346e54580c86cc92b49add6e2a2fc9d7e8e9881d7b8d1f59b8cd82b",
-    "pipeline.mjs": "7fbf48f6138c509a12fbef7c20747d8b26b334072c434ab28b2bbd73b36992bc",
+    "pipeline.mjs": "7f9465118e5e8391f2bdb4d30f244d8af3de208c0e2fd5c5f214bbf784a32216",
     "profile.mjs": "f0479dd70f73798a198c6daa66bb4316ebee703322b24c9a4fa42ef50a833329",
     "risk.mjs": "7237f562ec917633d8d9471a651fc659457692e93984934d932faae06a74e4ad",
     "scaffold.mjs": "1652d7f2d21dd153fe65fb9128b8ae62a502ef3980cbb974bb76d7b25db8851c",
