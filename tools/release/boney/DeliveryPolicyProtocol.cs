@@ -103,7 +103,10 @@ public static class DeliveryPolicyProtocol
 
     private sealed class Channel(TextReader input, TextWriter output, CancellationToken cancellationToken)
     {
-        private readonly char[] buffer = new char[4096];
+        // Console.In can fill a character block past an already buffered LF when
+        // multibyte UTF-8 shifts its byte/character counts. Read one character so
+        // an open request/response pipe never needs future bytes to finish a line.
+        private readonly char[] buffer = new char[1];
         private int offset, count;
         private long sequence;
 

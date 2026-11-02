@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "sourceRepository": "TBD-APS/boney",
-  "sourceRevision": "34af61220fcf27dff2cca37e129fec0f5bc131f3",
+  "sourceRevision": "09eb993fea16646f9bc6985d4bbca27be910cb50",
   "files": {
     "Boney.Delivery.csproj": "64955c88647e30ca545b819c413027452015e5e4e6e350dd6a22d4dbda9a5dfd",
     "Json.cs": "8c82fb2e8dd5a97b124b8ad6fe582159ff3ed3f00afe4c7d138665adfa28e252",
@@ -10,13 +10,13 @@
     "ReleasePipeline.cs": "42692388342af2950d0b194479be1caf0e14c1a87d482add9469025cb01b2c27",
     "FileReleaseStore.cs": "41f6e7e6a4d90e0213e3e4960b03defda7f668369fa2e9047452997efcda1256",
     "ReleaseRisk.cs": "53b7ba727e1ff2cc1607e59348ef1d7b13fd1fa0052867a7ebac3b86fc28c971",
-    "TrackedSources.cs": "65d64fb0466166120a3c43cf426ff84d41844c51b1bfb5b25e650892a3a65b07",
+    "TrackedSources.cs": "a88930438e320373fcb245acc2d7caf512b17575c65e35dcfb431d5f18b20fff",
     "DeliverySnapshot.cs": "2d5660769984c0e72b81c356fbe752eecbe32f1192209477736aa1f4c300a5ca",
     "DeliveryScaffold.cs": "fe18712e12a6e936457d4dba056f3f1f25d0acd9edaad36b6fdf20a63bdb7595",
     "ReferenceRelease.cs": "fc3b528e8fec2e3ca8a6da2f8b29f5aab1167a8f8321869e0e319b0b2b4bf2ed",
     "DeliveryCommandLine.cs": "a928abb710ca535e86b0ea8a390a3ea26fe84e6c18eabfaf775d396593ac31ca",
     "CSharpProcessAdapter.cs": "bca650be7763d773994c8fc181c9f0c5e6cb73ee302a3f9b2e0034115a24693a",
     "Program.cs": "22cd30a48424e25b91f6d58980d9af1e034d035da67a797ffbf49891a4c61691",
-    "DeliveryPolicyProtocol.cs": "df4bc3bf796f07b9960da8610501a36e12598bfa0d91c0de2a4eaef878a0f346"
+    "DeliveryPolicyProtocol.cs": "f06b1745cab6746525bb2af69654dd21bfd09a6f3454027717a7c6a7327cee8c"
   }
 }
