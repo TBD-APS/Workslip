@@ -24,7 +24,7 @@ public static class TrackedSources
                     current = Path.Combine(current, segment);
                     if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) throw Json.Error("DELIVERY_SOURCE_INVALID");
                 }
-                var entry = await Git("ls-tree", "-z", revision, "--", ":(literal)" + name);
+                var entry = await Git("ls-tree", "--full-tree", "-z", revision, "--", ":(literal)" + name);
                 var match = Regex.Match(entry, "\\A(?:100644|100755) blob ([a-f0-9]{40})\\t([^\\0]+)\\0\\z");
                 if (!match.Success || match.Groups[2].Value != name || (await Git("hash-object", "--no-filters", "--", absolute)).Trim() != match.Groups[1].Value) throw Json.Error("DELIVERY_SOURCE_INVALID");
                 sources.Add(absolute);

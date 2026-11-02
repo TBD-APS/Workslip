@@ -133,6 +133,14 @@ test('requires one exact main PR merged by the immutable owner identity', async 
     await assert.rejects(verifyOwnerMerge(ownerApi(pr), REPOSITORY, SHA));
   }
 });
+test('large UTF-8 pull-request metadata completes over the open callback channel', async () => {
+  const originalTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = (callback, delay, ...args) => originalTimeout(callback, delay >= 60000 ? 2000 : delay, ...args);
+  try {
+    const associations = [{ number: 12, title: 'Release — verified', body: 'x'.repeat(5000) }];
+    assert.equal(await verifyOwnerMerge(ownerApi(ownerPull(), associations), REPOSITORY, SHA), 12);
+  } finally { globalThis.setTimeout = originalTimeout; }
+});
 test('denies direct pushes, incomplete evidence, wrong repositories and provider failures', async () => {
   for (const associations of [[], null, Array(100).fill({ number: 12 }), [{ number: '../12' }]]) {
     await assert.rejects(verifyOwnerMerge(ownerApi(ownerPull(), associations), REPOSITORY, SHA));
