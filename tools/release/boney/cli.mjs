@@ -1,11 +1,7 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, realpath } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { loadProfile } from './profile.mjs';
-import { executeRelease, authorizeRelease } from './pipeline.mjs';
-import { FileReleaseStore } from './store.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { verifySnapshot } from './snapshot.mjs';
-import { requireTrackedSources } from './source.mjs';
 
 export function githubClient(token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN) {
   if (!token) throw Error('GITHUB_READ_TOKEN_REQUIRED');
@@ -22,6 +18,10 @@ export function githubClient(token = process.env.GITHUB_TOKEN || process.env.GH_
 async function main(args) {
   const [command, ...rest] = args;
   if (command === 'verify-snapshot' && rest.length === 1) { console.log(JSON.stringify(await verifySnapshot(resolve(rest[0])))); return; }
+  // Every operational command uses a complete exported snapshot. Do not load
+  // engine modules until its inventory and bytes have been verified.
+  await verifySnapshot(dirname(fileURLToPath(import.meta.url)));
+  const { loadProfile } = await import('./profile.mjs');
   if (command === 'validate-profile' && rest.length === 1) { const profile = await loadProfile(resolve(rest[0])); console.log(JSON.stringify({ product: profile.product, schemaVersion: profile.schemaVersion })); return; }
   if (!['run', 'admit'].includes(command) || rest.length % 2) throw Error('DELIVERY_USAGE');
   const options = {};
@@ -32,16 +32,19 @@ async function main(args) {
   }
   if (!options['--profile'] || !options['--revision']) throw Error('DELIVERY_USAGE');
   if (command === 'run' && (!options['--adapter'] || !options['--environment'] || !options['--receipt'])) throw Error('DELIVERY_USAGE');
+  const { requireTrackedSources } = await import('./source.mjs');
   const paths = [options['--profile'], ...(command === 'run' ? [options['--adapter']] : [])];
   const [profilePath, adapterPath] = await requireTrackedSources({ revision: options['--revision'], paths });
   const profile = await loadProfile(profilePath);
   const context = { repository: process.env.GITHUB_REPOSITORY, ref: process.env.GITHUB_REF, event: process.env.GITHUB_EVENT_NAME, sha: options['--revision'] };
   const request = githubClient();
+  const { executeRelease, authorizeRelease } = await import('./pipeline.mjs');
   if (command === 'admit') { console.log(JSON.stringify(await authorizeRelease(profile, context, request))); return; }
   // Admission precedes loading executable product code.
   await authorizeRelease(profile, context, request);
   await requireTrackedSources({ revision: context.sha, paths });
   const adapter = await import(pathToFileURL(adapterPath).href);
+  const { FileReleaseStore } = await import('./store.mjs');
   const store = options['--store'] ? new FileReleaseStore(options['--store'])
     : typeof adapter.createStore === 'function' ? await adapter.createStore({ profile, environment: options['--environment'], context }) : null;
   if (!store || typeof store.withLock !== 'function') throw Error('DURABLE_RELEASE_STORE_REQUIRED');
@@ -52,6 +55,6 @@ async function main(args) {
   if (receipt.status !== 'released') process.exitCode = 1;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (process.argv[1] && await realpath(resolve(process.argv[1])).catch(() => null) === await realpath(fileURLToPath(import.meta.url))) {
   main(process.argv.slice(2)).catch(() => { console.error('Delivery refused; inspect the admission policy or retained release receipt.'); process.exitCode = 1; });
 }
