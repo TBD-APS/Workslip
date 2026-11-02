@@ -1,7 +1,24 @@
 import fs from 'node:fs';
-import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { verifySnapshot } from './boney/snapshot.mjs';
+import { readFile, lstat } from 'node:fs/promises';
+import { resolve, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createHash } from 'node:crypto';
+
+// Trusted entrypoints keep this bootstrap inline: importing a bundled helper first
+// would execute it before its hash is checked. The reviewed lock is the authority.
+async function verifySnapshot(directory) {
+  const verifier = join(directory, 'snapshot.mjs'), lockPath = join(directory, 'boney.lock.json');
+  try {
+    if (!(await lstat(lockPath)).isFile() || !(await lstat(verifier)).isFile()) throw Error();
+    const lock = JSON.parse(await readFile(lockPath, 'utf8'));
+    const digest = lock?.files?.['snapshot.mjs'];
+    if (lock?.schemaVersion !== 1 || lock.sourceRepository !== 'TBD-APS/boney'
+        || !/^[a-f0-9]{40}$/.test(lock.sourceRevision ?? '') || !/^[a-f0-9]{64}$/.test(digest ?? '')
+        || createHash('sha256').update(await readFile(verifier)).digest('hex') !== digest) throw Error();
+  } catch { throw Error('DELIVERY_SNAPSHOT_INVALID'); }
+  const { verifySnapshot: verify } = await import(pathToFileURL(verifier).href);
+  return verify(directory);
+}
 
 // The committed snapshot is an explicit Boney upgrade, checked before release use.
 await verifySnapshot(fileURLToPath(new URL('./boney/', import.meta.url)));

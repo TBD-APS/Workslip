@@ -26,7 +26,10 @@ A production mutation is **fail-closed**. Frontend deployment, backend deploymen
 The adapter consumes Boney's shared version-1 delivery toolkit from the committed
 `tools/release/boney/` snapshot. `boney.lock.json` records the exact Boney source
 revision and every runtime file hash; the adapter verifies that inventory before
-use. `tools/release/product.delivery.json` owns Workslip's repository, branch,
+use. The product-owned entrypoint first uses Node built-ins to hash the verifier
+against the reviewed lock, before importing the verifier itself. The entrypoint
+and reviewed lock are the bootstrap trust root; bundled code is not an unchecked
+bootstrap dependency. `tools/release/product.delivery.json` owns Workslip's repository, branch,
 numeric merger identity, canonical CI Gate and live migration/recovery policy.
 Upgrade the snapshot in a reviewed PR; do not import a moving private-repository
 branch during deployment. Provider identities, Azure commands, migration locks,

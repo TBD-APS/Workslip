@@ -4,7 +4,7 @@ import { cp, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chooseRun, validateEvidence, workflowRunsPath, verifyOwnerMerge, resolveEvidence, deliveryProfile } from './verify-production-eligibility.mjs';
 
 const SHA = 'a'.repeat(40);
@@ -180,4 +180,22 @@ test('a modified Boney snapshot blocks the actual Workslip CLI before provider a
   const malicious = spawnSync(process.execPath, [join(directory, 'verify-production-eligibility.mjs'), '--sha', SHA, '--repository', REPOSITORY], { encoding: 'utf8', env: { ...process.env, GITHUB_TOKEN: '' } });
   assert.notEqual(malicious.status, 0); assert.match(malicious.stderr, /DELIVERY_SNAPSHOT_INVALID/);
   await assert.rejects(readFile(marker), { code: 'ENOENT' });
+});
+
+test('the snapshot verifier cannot execute before the Workslip entrypoint checks its bytes', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'workslip-bootstrap-')); t.after(() => rm(directory, { recursive: true, force: true }));
+  await cp(new URL('./boney/', import.meta.url), join(directory, 'boney'), { recursive: true });
+  await cp(SCRIPT, join(directory, 'verify-production-eligibility.mjs'));
+  await cp(new URL('./product.delivery.json', import.meta.url), join(directory, 'product.delivery.json'));
+  const marker = join(directory, 'unverified-bootstrap');
+  const verifier = join(directory, 'boney', 'snapshot.mjs');
+  await writeFile(verifier, `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'executed');\n` + await readFile(verifier, 'utf8'));
+  for (const args of [
+    [join(directory, 'verify-production-eligibility.mjs'), '--sha', SHA, '--repository', REPOSITORY],
+    ['--input-type=module', '-e', `await import(${JSON.stringify(pathToFileURL(join(directory, 'verify-production-eligibility.mjs')).href)})`],
+  ]) {
+    const result = spawnSync(process.execPath, args, { encoding: 'utf8', env: { ...process.env, GITHUB_TOKEN: '' } });
+    assert.notEqual(result.status, 0); assert.match(result.stderr, /DELIVERY_SNAPSHOT_INVALID/);
+    await assert.rejects(readFile(marker), { code: 'ENOENT' });
+  }
 });
