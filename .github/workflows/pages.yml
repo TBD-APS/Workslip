@@ -38,8 +38,10 @@ jobs:
           ruby-version: "3.3"
           bundler-cache: true
           working-directory: site
-      - name: Compile output validator
-        run: python -m py_compile site/scripts/validate_output.py
+      - name: Compile output validator and test Pages target checks
+        run: |
+          python -m py_compile site/scripts/validate_output.py site/scripts/validate_pages_config.py
+          python -m unittest discover -s site/scripts -p 'test_*.py'
       - name: Setup Pages
         if: github.event_name != 'pull_request'
         id: pages
@@ -47,14 +49,16 @@ jobs:
       - name: Build Jekyll preview
         if: github.event_name == 'pull_request'
         working-directory: site
-        run: bundle exec jekyll build --strict_front_matter
+        run: bundle exec jekyll build --strict_front_matter --baseurl /Workslip
         env:
           JEKYLL_ENV: production
-      - name: Require the approved project-site base path
+      - name: Require the approved project-site address
         if: github.event_name != 'pull_request'
-        run: test "$PAGES_BASE_PATH" = /Workslip
+        run: python site/scripts/validate_pages_config.py
         env:
           PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          PAGES_ORIGIN: ${{ steps.pages.outputs.origin }}
+          PAGES_BASE_URL: ${{ steps.pages.outputs.base_url }}
       - name: Build Jekyll production artifact
         if: github.event_name != 'pull_request'
         working-directory: site
