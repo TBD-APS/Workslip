@@ -30,7 +30,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$playwrightVersion = '1.55.0'
+$playwrightVersion = '1.65.0'
 $playwrightImage = "mcr.microsoft.com/playwright:v$playwrightVersion-noble"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $frontendRoot = Join-Path $repoRoot 'src\FE'

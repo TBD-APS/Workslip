@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 35
 
     container:
-      image: mcr.microsoft.com/playwright:v1.55.0-noble
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
       options: --ipc=host
 
     defaults:
@@ -76,7 +76,7 @@ jobs:
           --ignore-scripts
           --no-audit
           --no-fund
-          playwright@1.55.0
+          playwright@1.65.0
 
       - name: Validate test sources
         run: |
