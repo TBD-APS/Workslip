@@ -28,7 +28,7 @@ env:
   DOTNET_VERSION: '10.0.x'
   NODE_VERSION: '24'
   BACKEND_SOLUTION: src/BE/WorkslipApi/Workslip.slnx
-  PLAYWRIGHT_VERSION: '1.55.0'
+  PLAYWRIGHT_VERSION: '1.65.0'
 
 jobs:
   changes:

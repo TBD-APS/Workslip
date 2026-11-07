@@ -87,6 +87,22 @@ Pushes to `main` that change `site/**` or `.github/workflows/pages.yml` run `.gi
 
 The company homepage is served by `TBD-APS/mrsoftware-website`. This Workslip site uses a GitHub Pages project address and must not claim the company apex or www hostname. The approved cleanup procedure is in `Docs/operations/github-pages-domain-runbook.md`.
 
+Before building a production artifact, the workflow checks all three
+`actions/configure-pages` outputs: origin `https://tbd-aps.github.io`, base path
+`/Workslip`, and the corresponding full base URL. Empty/root paths and company
+custom domains stop the release with a pointer to that runbook. Source changes
+cannot clear the remote custom-domain setting. An approved operator must inspect
+and, when authorized, correct that setting before the production run can pass.
+The owner-merged-current-main, exact-main CI Gate and environment approval checks
+remain required. Pull-request previews explicitly build for `/Workslip` and never
+deploy.
+
+The Pages target regression checks run without credentials:
+
+```powershell
+python -m unittest discover -s site/scripts -p 'test_*.py'
+```
+
 The production application is hosted separately at `https://app.mrsoftware.dk`. The marketing site must not call the production API directly unless that origin is deliberately added to the API CORS configuration.
 
 ## Public-content rules

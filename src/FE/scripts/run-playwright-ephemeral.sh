@@ -157,7 +157,7 @@ npm install \
   --ignore-scripts \
   --no-audit \
   --no-fund \
-  playwright@1.55.0
+  playwright@1.65.0
 node scripts/node_modules/playwright/cli.js install --with-deps chromium
 
 echo "Starting Vite on loopback with the repository's /api proxy."
