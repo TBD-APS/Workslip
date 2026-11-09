@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "product": "workslip",
+  "repository": "TBD-APS/Workslip",
+  "branch": "main",
+  "mergerIds": [31623093],
+  "events": ["push", "workflow_dispatch"],
+  "ci": { "workflow": "frontend-validation.yml", "requiredJobs": ["CI Gate"] },
+  "environments": {
+    "production": { "githubEnvironment": "live", "migration": "expand-contract", "recovery": "manual" }
+  }
+}

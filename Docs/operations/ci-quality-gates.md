@@ -16,12 +16,40 @@ Workslip uses one normal delivery path:
 A production mutation is **fail-closed**. Frontend deployment, backend deployment, production migrations and production infrastructure reconciliation must prove that the exact candidate SHA:
 
 1. is the current `main` SHA;
-2. has a completed `CI` push run for that exact SHA; and
+2. has a completed `CI` push or manually dispatched run for that exact SHA; and
 3. has exactly one completed `CI Gate` job with conclusion `success`.
 
 `failure`, `cancelled`, `timed_out`, `action_required`, `neutral`, `skipped`, a missing gate, a duplicate gate, a stale SHA or an unresolved CI run is not deployable. An older green ancestor is not sufficient.
 
-`tools/release/verify-production-eligibility.mjs` is the single adapter for that contract. Every maintained production workflow calls it before it acquires Azure credentials or mutates anything: `aca-live-deploy.yml`, `backend-production-deploy.yml`, `database-production-migrations.yml`, `infrastructure-production-reconcile.yml`, `appservice-slot-upgrade.yml`, `sql-live-seed-copy.yml` and `production-readiness-smoke.yml`. Do not add a second interpretation of “green”.
+`tools/release/verify-production-eligibility.mjs` is the single adapter for that contract. Maintained production workflows share it before production mutations, including backend/container deployment, Pages, database migrations, infrastructure reconciliation, slot upgrades, seed copies, cutover, guest reconciliation and readiness smoke checks. Each invoking job installs the .NET 10 runtime required by the adapter. Do not add a second interpretation of “green”.
+
+The adapter consumes Boney's shared version-1 C# delivery toolkit from the committed
+`tools/release/boney/` snapshot. `boney.lock.json` records the exact Boney source
+revision and every runtime file hash; the adapter verifies that inventory before
+use. The product-owned Node entrypoint uses built-ins to check the complete source
+inventory, project file and hashes before invoking .NET 10. It copies verified
+bytes into a fresh temporary build directory, so existing `bin`/`obj` files and
+parent build settings cannot become executable input. The entrypoint and reviewed
+lock are the bootstrap trust root. Node handles the existing command line and
+GitHub HTTP transport; admission rules execute in C# through Boney's JSON policy
+protocol. `tools/release/product.delivery.json` owns Workslip's repository, branch,
+numeric merger identity, canonical CI Gate and live migration/recovery policy.
+Upgrade the snapshot in a reviewed PR; do not import a moving private-repository
+branch during deployment. Provider identities, Azure commands, migration locks,
+environment approvals and dispatch triggers remain in Workslip.
+
+The shared gate verifies the latest canonical run and its specific job attempt,
+including complete pagination. An older successful run cannot override a newer
+failed/pending run on the same SHA. Re-fetching run and branch evidence before
+admission detects reruns and branch movement during collection. These controls
+are local/CI admission evidence, not proof of deployed application health or a
+live migration/recovery exercise. Workslip's native workflow remains the executor;
+this integration does not replace its provider steps with a second release writer.
+
+Local release-policy tests and workflow jobs that invoke the adapter require the
+.NET 10 SDK as well as Node. Run
+`node --test tools/release/verify-production-eligibility.test.mjs` from the repository
+root. A successful policy test is not a deployment or a live migration receipt.
 
 Frontend delivery no longer needs a second platform-specific adapter. The frontend is a container image built inside the same Azure workflow as the API, so it reads the same evidence from the same repository checkout.
 

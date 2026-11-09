@@ -28,7 +28,7 @@ env:
   DOTNET_VERSION: '10.0.x'
   NODE_VERSION: '24'
   BACKEND_SOLUTION: src/BE/WorkslipApi/Workslip.slnx
-  PLAYWRIGHT_VERSION: '1.55.0'
+  PLAYWRIGHT_VERSION: '1.65.0'
 
 jobs:
   changes:
@@ -221,8 +221,14 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: src/FE/package-lock.json
+      - name: Set up the C# delivery runtime
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
       - name: Validate production release policy
         run: |
+          node --test tools/release/verify-production-eligibility.test.mjs
           node --check tools/release/resolve-release-environment.mjs
           node --test tools/release/resolve-release-environment.test.mjs
           node tools/release/resolve-release-environment.mjs --environment production --require-runnable
