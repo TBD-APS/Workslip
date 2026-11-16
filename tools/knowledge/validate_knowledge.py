@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
-KNOWLEDGE_CONTRACT_VERSION = "1.1.0"
+KNOWLEDGE_CONTRACT_VERSION = "1.1.1"
 REQUIRED_MANIFEST_FIELDS = {
     "schemaVersion",
     "product",
@@ -64,8 +64,14 @@ RELATION_TYPES = {
 }
 ALLOWED_STATUS = {"active", "draft", "historical", "generated"}
 ALLOWED_VISIBILITY = {"internal", "restricted", "public"}
-ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
+ID_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,159}")
 H1_RE = re.compile(r"^#\s+\S", re.MULTILINE)
+# Keep these parser bounds aligned with AuthoredKnowledgePolicy.TryRead. Other
+# authoring metadata (for example code_refs) is not interpreted by that runtime.
+RUNTIME_METADATA_FIELDS = REQUIRED_METADATA_FIELDS | {"review_status", "source_refs", "relations"}
+RUNTIME_LIST_FIELDS = {"audience", "source_refs", "relations"}
+# .NET String.Trim/Char.IsWhiteSpace do not include Python's C0 separators 1C-1F.
+RUNTIME_WHITESPACE = "\t\n\v\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000"
 
 
 def fail(path: Path, message: str) -> None:
@@ -91,31 +97,81 @@ def parse_inline_value(raw: str) -> Any:
     return value.strip("'\"")
 
 
+def utf16_length(value: str) -> int:
+    """C# string.Length counts UTF-16 code units, including surrogate pairs."""
+    return len(value.encode("utf-16-le")) // 2
+
+
+def parse_runtime_scalar(raw: str) -> str:
+    if not raw or utf16_length(raw) > 512 or raw[0] in "[{" or raw in {"null", "~"}:
+        raise ValueError("Runtime metadata scalars must be non-null and at most 512 UTF-16 characters")
+    if raw[0] in "'\"":
+        if len(raw) < 2 or raw[-1] != raw[0]:
+            raise ValueError("Runtime metadata quoted scalars must end with the matching quote")
+        return raw[1:-1]
+    return raw
+
+
+def parse_runtime_value(key: str, raw: str) -> str | list[str]:
+    value = raw.strip(RUNTIME_WHITESPACE)
+    if key not in RUNTIME_LIST_FIELDS:
+        return parse_runtime_scalar(value)
+    if not value.startswith("[") or not value.endswith("]"):
+        raise ValueError(f"{key} must be an inline list")
+    if not value[1:-1].strip(RUNTIME_WHITESPACE):
+        return []
+    items = []
+    start = 1
+    quote = None
+    first = True
+    for index in range(1, len(value) - 1):
+        character = value[index]
+        if quote:
+            if character == quote:
+                quote = None
+        elif character == ",":
+            items.append(value[start:index])
+            start = index + 1
+            first = True
+        elif first and character not in RUNTIME_WHITESPACE:
+            quote = character if character in "'\"" else None
+            first = False
+    if quote:
+        raise ValueError(f"{key} contains an unterminated quoted item")
+    items.append(value[start:-1])
+    if len(items) > 32:
+        raise ValueError(f"{key} cannot contain more than 32 items")
+    values = [parse_runtime_scalar(item.strip(RUNTIME_WHITESPACE)) for item in items]
+    if any(not item.strip(RUNTIME_WHITESPACE) for item in values):
+        raise ValueError(f"{key} cannot contain empty list items")
+    return values
+
+
 def parse_frontmatter(path: Path) -> tuple[dict[str, Any] | None, str]:
-    text = path.read_text(encoding="utf-8")
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
+    # Read without universal-newline conversion: the runtime normalizes CRLF only.
+    with path.open(encoding="utf-8", newline="") as source:
+        text = source.read().replace("\r\n", "\n")
+    if not text.startswith("---\n"):
         return None, text
+    end = text.find("\n---\n", 4)
+    if end < 0 or utf16_length(text[:end]) > 16_384:
+        raise ValueError("Authored frontmatter must close within 16384 normalized UTF-16 characters")
 
     metadata: dict[str, Any] = {}
-    end = None
-    for index in range(1, len(lines)):
-        line = lines[index]
-        if line.strip() == "---":
-            end = index
-            break
-        if not line.strip() or line.lstrip().startswith("#"):
+    for line in text[4:end].split("\n"):
+        if not line or line[0] in RUNTIME_WHITESPACE or line.startswith("#"):
             continue
-        if line.startswith((" ", "\t")):
-            continue
-        if ":" not in line:
+        if line.find(":") <= 0:
             continue
         key, raw = line.split(":", 1)
-        metadata[key.strip()] = parse_inline_value(raw)
-
-    if end is None:
-        return None, text
-    return metadata, "\n".join(lines[end + 1 :])
+        key = key.strip(RUNTIME_WHITESPACE)
+        if key in RUNTIME_METADATA_FIELDS:
+            if key in metadata:
+                raise ValueError(f"Duplicate runtime metadata field: {key}")
+            metadata[key] = parse_runtime_value(key, raw)
+        else:
+            metadata[key] = parse_inline_value(raw)
+    return metadata, text[end + 5:]
 
 
 def validate_manifest(path: Path) -> tuple[dict[str, Any] | None, int]:
@@ -194,7 +250,7 @@ def validate_knowledge_graph(documents: dict[str, tuple[Path, dict[str, Any]]]) 
             field in metadata for field in ("review_status", "source_refs", "relations")
         )
         if uses_graph:
-            if not isinstance(metadata.get("owner"), str) or not metadata["owner"].strip():
+            if not isinstance(metadata.get("owner"), str) or not metadata["owner"].strip(RUNTIME_WHITESPACE):
                 fail(path, "Graph knowledge requires a non-empty owner")
                 failures += 1
             if not isinstance(review, str) or review not in ALLOWED_REVIEW_STATUS:
@@ -202,7 +258,7 @@ def validate_knowledge_graph(documents: dict[str, tuple[Path, dict[str, Any]]]) 
                 failures += 1
             sources = metadata.get("source_refs")
             if not isinstance(sources, list) or not sources or any(
-                not isinstance(source, str) or not source.strip() for source in sources
+                not isinstance(source, str) or not source.strip(RUNTIME_WHITESPACE) for source in sources
             ):
                 fail(path, "Graph knowledge requires non-empty source_refs as an inline list")
                 failures += 1
@@ -270,7 +326,12 @@ def validate_structured_docs(manifest: dict[str, Any], *, graph: dict[str, Any] 
             if should_exclude(path, manifest):
                 continue
             checked += 1
-            metadata, body = parse_frontmatter(path)
+            try:
+                metadata, body = parse_frontmatter(path)
+            except ValueError as exc:
+                fail(path, f"Invalid authored frontmatter: {exc}")
+                failures += 1
+                continue
 
             # Check if this file requires frontmatter
             rel = path.relative_to(ROOT)
@@ -294,7 +355,7 @@ def validate_structured_docs(manifest: dict[str, Any], *, graph: dict[str, Any] 
                 failures += 1
 
             knowledge_id = str(metadata.get("id", ""))
-            if not ID_RE.match(knowledge_id):
+            if not ID_RE.fullmatch(knowledge_id):
                 fail(path, f"Invalid durable knowledge id: {knowledge_id!r}")
                 failures += 1
             elif knowledge_id in seen_ids:
@@ -306,6 +367,12 @@ def validate_structured_docs(manifest: dict[str, Any], *, graph: dict[str, Any] 
 
             if metadata.get("product") != product:
                 fail(path, f"product must match manifest product {product!r}")
+                failures += 1
+            if not ID_RE.fullmatch(str(metadata.get("product", ""))):
+                fail(path, "product must be a valid identifier of at most 160 characters")
+                failures += 1
+            if not isinstance(metadata.get("owner"), str) or not metadata["owner"].strip(RUNTIME_WHITESPACE):
+                fail(path, "owner must be a non-empty scalar")
                 failures += 1
             if not isinstance(metadata.get("type"), str) or metadata["type"] not in ALLOWED_TYPES:
                 fail(path, f"Unknown knowledge type {metadata.get('type')!r}")
@@ -323,7 +390,10 @@ def validate_structured_docs(manifest: dict[str, Any], *, graph: dict[str, Any] 
                 failures += 1
 
             try:
-                date.fromisoformat(str(metadata.get("last_reviewed", "")))
+                reviewed = str(metadata.get("last_reviewed", ""))
+                if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", reviewed):
+                    raise ValueError("Date format differs from runtime yyyy-MM-dd")
+                date.fromisoformat(reviewed)
             except ValueError:
                 fail(path, "last_reviewed must be an ISO date (YYYY-MM-DD)")
                 failures += 1

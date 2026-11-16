@@ -1,7 +1,7 @@
 # Workslip knowledge contract
 
 **Status:** Active  
-**Adopted contract version:** 1.1.0\
+**Adopted contract version:** 1.1.1\
 **Owner:** Workslip maintainers  
 **Review cadence:** When the knowledge schema, retrieval boundary or canonical documentation root changes
 
@@ -17,8 +17,8 @@ The machine-readable corpus contract is [`rag-manifest.json`](rag-manifest.json)
 
 ## Shared version and consumer boundary
 
-Workslip adopts MR SAAS'y knowledge contract **1.1.0** from
-[the canonical source at `26bbeddc`](https://github.com/TBD-APS/mr-saassy/blob/26bbeddc0810860c931e448d7137be6d2b720825/docs/KNOWLEDGE_CONTRACT.md),
+Workslip adopts MR SAAS'y knowledge contract **1.1.1** from
+[the canonical source at `a6b8e35c`](https://github.com/TBD-APS/mr-saassy/blob/a6b8e35c8e986b723cd60e0ffefe1c668188e569/docs/KNOWLEDGE_CONTRACT.md),
 with exact artifact hashes and source revision recorded in
 [`../tools/knowledge/shared-artifacts.json`](../tools/knowledge/shared-artifacts.json).
 The canonical contract is retained verbatim under
@@ -59,6 +59,14 @@ adr_refs: []
 Required fields for structured knowledge are `id`, `product`, `type`, `status`, `owner`, `visibility`, `audience` and `last_reviewed`.
 
 IDs are durable identifiers. Rename files when useful, but do not silently reuse an ID for different meaning.
+
+Contract 1.1.1 keeps authoring validation aligned with runtime parsing: duplicate runtime
+metadata keys and malformed quoted scalars are rejected. The normalized header ends
+within 16,384 UTF-16 characters; relevant raw scalars and list items have a 512-character
+limit, the runtime's inline lists have at most 32 items, and IDs/product/relation targets
+have at most 160 characters. These field limits apply to runtime metadata, not unrelated
+authoring extensions such as `code_refs`. Commas inside quoted provenance references
+remain part of the reference. Legacy documents do not acquire an implied review state.
 
 ## Shared taxonomy
 

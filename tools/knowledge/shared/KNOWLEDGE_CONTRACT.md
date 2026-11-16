@@ -16,7 +16,7 @@ adr_refs: []
 # MR SAAS'y knowledge contract
 
 **Status:** Active  
-**Contract version:** 1.1.0\
+**Contract version:** 1.1.1\
 **Owner:** MR SAAS'y maintainers  
 **Review cadence:** When the knowledge schema, retrieval boundary or canonical documentation root changes
 
@@ -55,7 +55,7 @@ python tools/knowledge/verify_shared_artifacts.py --root /path/to/consumer
 Changing a shared artifact here means re-running that script with `--update` and
 moving **Contract version** in the same change.
 
-Contract 1.1.0 refreshes the shared digests alongside the typed-knowledge schema below.
+Contract 1.1.1 aligns bounded frontmatter parsing with the runtime and preserves commas inside quoted provenance references. The typed-knowledge schema is described below.
 The `Docs and knowledge contract` job and the local knowledge gate verify these digests and
 run the graph contract tests. Consumer checkouts keep their pinned copies until they
 deliberately adopt this version; publication does not update other repositories automatically.
@@ -131,7 +131,8 @@ New types require a schema change rather than ad-hoc naming.
 ## Typed knowledge and review state (1.1)
 
 The five new types, and any existing document that opts into `relations`, `source_refs`
-or `review_status`, must declare all of:
+or `review_status`, must declare explicit review status and non-empty provenance. Typed
+relations may be empty or omitted. For example:
 
 ```yaml
 review_status: approved

@@ -38,7 +38,7 @@ Do not keep issue implementation plans, completed task specs or superseded runbo
 | Pull-request evidence | [`../.github/pull_request_template.md`](../.github/pull_request_template.md) | Active |
 | Agent rules | [`../AGENTS.md`](../AGENTS.md) | Active |
 | Documentation rules | [`AGENTS.md`](AGENTS.md) | Active |
-| Knowledge contract | [`KNOWLEDGE_CONTRACT.md`](KNOWLEDGE_CONTRACT.md) | Active; shared contract 1.1.0 |
+| Knowledge contract | [`KNOWLEDGE_CONTRACT.md`](KNOWLEDGE_CONTRACT.md) | Active; shared contract 1.1.1 |
 | Job correction knowledge | [`workflows/job-rejection.md`](workflows/job-rejection.md) | Active; source-reviewed internal pilot |
 | Product/company strategy | [`strategy/WORKSLIP_STRATEGY.md`](strategy/WORKSLIP_STRATEGY.md) | Active |
 | SuperAdmin statistics | [`SUPERADMIN_STATISTICS.md`](SUPERADMIN_STATISTICS.md) | Active |

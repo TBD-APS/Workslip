@@ -35,7 +35,7 @@
     "indexGeneratedHtml": false,
     "generator": "tools/docs/build_agent_docs_html.py"
   },
-  "knowledgeContractVersion": "1.1.0",
+  "knowledgeContractVersion": "1.1.1",
   "frontmatterRequired": [
     "Docs/**/*.md"
   ],

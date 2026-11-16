@@ -108,7 +108,7 @@ class KnowledgeGraphTests(unittest.TestCase):
                    relations=["supports:pilot.guide"])
         failures, graph, output = self.validate()
         self.assertEqual(0, failures, output)
-        self.assertEqual("1.1.0", graph["contractVersion"])
+        self.assertEqual("1.1.1", graph["contractVersion"])
         self.assertEqual(8, len(graph["nodes"]))
         self.assertEqual(["pilot.product"], [edge["target"] for edge in graph["relations"]
                          if edge["source"] == "pilot.platform" and edge["type"] == "implemented_by"])
@@ -147,6 +147,18 @@ class KnowledgeGraphTests(unittest.TestCase):
         self.write("observation", "agent-observation")
         self.assertEqual(0, self.validate()[0])
         self.write("observation", "agent-observation", extra="source_refs: []\n")
+        self.assertGreater(self.validate()[0], 0)
+
+    def test_quoted_commas_are_preserved_in_provenance_and_unclosed_quotes_are_rejected(self):
+        path = self.write("observation", "agent-observation")
+        original = path.read_text()
+        reference = "https://example.test/evidence?ids=one,two"
+        for quote in ("'", '"'):
+            path.write_text(original.replace("[https://example.test/source]", f"[{quote}{reference}{quote}, https://example.test/other]"))
+            failures, graph, output = self.validate()
+            self.assertEqual(0, failures, output)
+            self.assertEqual([reference, "https://example.test/other"], graph["nodes"][0]["sourceRefs"])
+        path.write_text(original.replace("[https://example.test/source]", f"['{reference}, https://example.test/other]"))
         self.assertGreater(self.validate()[0], 0)
 
     def test_invalid_relation_graph_never_exports_partial_knowledge(self):
@@ -191,6 +203,143 @@ class KnowledgeGraphTests(unittest.TestCase):
         failures, graph, output = self.validate()
         self.assertEqual(0, failures, output)
         self.assertIsNone(graph["nodes"][0]["reviewStatus"])
+
+    def test_duplicate_runtime_keys_fail_even_when_the_last_value_is_valid(self):
+        path = self.write("source")
+        original = path.read_text()
+        for line in original.split("\n---\n", 1)[0].splitlines():
+            key = line.partition(":")[0]
+            if key not in knowledge.RUNTIME_METADATA_FIELDS:
+                continue
+            with self.subTest(key=key):
+                # Identical duplicates are ambiguous too; the parser cannot choose
+                # a later review/product/visibility declaration as authoritative.
+                path.write_text(original.replace("\n---\n", "\n" + line + "\n---\n", 1))
+                failures, graph, output = self.validate()
+                self.assertGreater(failures, 0)
+                self.assertEqual({}, graph)
+                self.assertIn("Duplicate runtime metadata field", output)
+
+    def test_header_limit_counts_normalized_utf16_units_and_accepts_exact_boundary(self):
+        path = self.write("source")
+        original = path.read_text()
+        end = original.index("\n---\n", 4)
+        prefix = original[:end] + "\nsummary: "
+        at_limit = prefix + "x" * (16_384 - len(prefix))
+        # CRLF occupies two file characters but one normalized character in .NET.
+        path.write_bytes((at_limit + original[end:]).replace("\n", "\r\n").encode())
+        self.assertEqual(0, self.validate()[0])
+        # One astral character keeps Python's length unchanged, but crosses the
+        # runtime's UTF-16 limit and must not produce a successful graph.
+        too_large = at_limit[:-1] + "\U0001f600"
+        self.assertEqual(len(at_limit), len(too_large))
+        path.write_text(too_large + original[end:])
+        failures, graph, output = self.validate()
+        self.assertGreater(failures, 0)
+        self.assertEqual({}, graph)
+        self.assertIn("16384 normalized UTF-16", output)
+
+    def test_raw_scalar_limit_counts_utf16_and_quote_delimiters(self):
+        path = self.write("source")
+        original = path.read_text()
+        for raw, accepted in [("\U0001f600" * 256, True), ("\U0001f600" * 256 + "x", False),
+                              ("'" + "\U0001f600" * 255 + "'", True),
+                              ("'" + "\U0001f600" * 255 + "x'", False)]:
+            with self.subTest(raw_utf16=len(raw.encode("utf-16-le")) // 2, quoted=raw.startswith("'")):
+                path.write_text(original.replace("owner: platform/pilot", "owner: " + raw))
+                failures, graph, output = self.validate()
+                self.assertEqual(accepted, failures == 0, output)
+                if not accepted:
+                    self.assertEqual({}, graph)
+
+    def test_runtime_inline_lists_accept_32_items_and_reject_33(self):
+        for index in range(33):
+            self.write(f"target{index}")
+        path = self.write("source", "agent-observation")
+        original = path.read_text()
+        for key, previous, values in [
+            ("audience", "[agent, developer]", [f"reader{i}" for i in range(33)]),
+            ("source_refs", "[https://example.test/source]", [f"https://example.test/{i}" for i in range(33)]),
+            ("relations", "[]", [f"'supports:pilot.target{i}'" for i in range(33)]),
+        ]:
+            for count in (32, 33):
+                with self.subTest(key=key, count=count):
+                    path.write_text(original.replace(f"{key}: {previous}", f"{key}: [" + ", ".join(values[:count]) + "]"))
+                    failures, graph, output = self.validate()
+                    self.assertEqual(count == 32, failures == 0, output)
+                    if count == 33:
+                        self.assertEqual({}, graph)
+
+    def test_runtime_identifiers_accept_160_characters_and_reject_161(self):
+        path = self.write("source")
+        original = path.read_text()
+        for key, previous in (("id", "pilot.source"), ("product", "pilot")):
+            for count in (160, 161):
+                with self.subTest(key=key, count=count):
+                    value = "x" * count
+                    path.write_text(original.replace(f"{key}: {previous}\n", f"{key}: {value}\n"))
+                    self.manifest["product"] = value if key == "product" else "pilot"
+                    failures, graph, output = self.validate()
+                    self.assertEqual(count == 160, failures == 0, output)
+                    if count == 161:
+                        self.assertEqual({}, graph)
+        self.manifest["product"] = "pilot"
+        for count in (160, 161):
+            with self.subTest(key="relation target", count=count):
+                target = "x" * count
+                target_path = self.write("target", "product-capability")
+                target_path.write_text(target_path.read_text().replace("id: pilot.target", "id: " + target))
+                self.write("source", relations=["implemented_by:" + target])
+                failures, graph, output = self.validate()
+                self.assertEqual(count == 160, failures == 0, output)
+                if count == 161:
+                    self.assertEqual({}, graph)
+
+    def test_malformed_quoted_scalars_and_list_items_fail_closed(self):
+        path = self.write("source")
+        original = path.read_text()
+        for before, after in [
+            ("owner: platform/pilot", "owner: 'unterminated"),
+            ("owner: platform/pilot", 'owner: "mismatched\''),
+            ("audience: [agent, developer]", "audience: [agent, 'unterminated]"),
+            ("audience: [agent, developer]", "audience: [agent, ]"),
+            ("audience: [agent, developer]", "audience: [agent, '']"),
+            ("audience: [agent, developer]", "audience: [null]"),
+            ("source_refs: [https://example.test/source]", "source_refs: [" + "x" * 513 + "]"),
+            ("status: active", "status: \x1cactive\x1c"),
+            ("product: pilot", "product: \x1cpilot\x1c"),
+        ]:
+            with self.subTest(after=after[:70]):
+                path.write_text(original.replace(before, after))
+                failures, graph, _ = self.validate()
+                self.assertGreater(failures, 0)
+                self.assertEqual({}, graph)
+
+    def test_runtime_limits_do_not_cap_unrelated_legacy_authoring_fields(self):
+        path = self.write("legacy", review=None)
+        (self.root / "src").mkdir()
+        original = path.read_text().replace("source_refs: [https://example.test/source]\n", "").replace("relations: []\n", "")
+        original = original.replace("owner: platform/pilot", "owner: true")
+        extra = "summary: " + "x" * 513 + "\ncode_refs: [" + ", ".join(["src"] * 33) + "]\n"
+        # Runtime ignores these keys; preserve existing last-wins/citation parsing
+        # instead of applying its scalar/list limits to every authoring extension.
+        path.write_text(original.replace("\n---\n", "\n" + extra * 2 + "---\n", 1))
+        failures, graph, output = self.validate()
+        self.assertEqual(0, failures, output)
+        self.assertIsNone(graph["nodes"][0]["reviewStatus"])
+        self.assertEqual("true", graph["nodes"][0]["owner"])
+
+    def test_legacy_metadata_still_requires_runtime_owner_and_exact_date_format(self):
+        path = self.write("legacy", review=None)
+        original = path.read_text().replace("source_refs: [https://example.test/source]\n", "").replace("relations: []\n", "")
+        for before, after in [("owner: platform/pilot", "owner: ''"),
+                              ("last_reviewed: 2026-11-16", "last_reviewed: 20261116"),
+                              ("last_reviewed: 2026-11-16", "last_reviewed: 2026-W47-1")]:
+            with self.subTest(after=after):
+                path.write_text(original.replace(before, after))
+                failures, graph, _ = self.validate()
+                self.assertGreater(failures, 0)
+                self.assertEqual({}, graph)
 
     def test_block_list_and_unknown_visibility_fail_closed(self):
         self.write("source", extra="relations:\n  - implemented_by:pilot.target\n")
