@@ -18,7 +18,7 @@ The machine-readable corpus contract is [`rag-manifest.json`](rag-manifest.json)
 ## Shared version and consumer boundary
 
 Workslip adopts MR SAAS'y knowledge contract **1.1.0** from
-[the canonical source at `73026765`](https://github.com/TBD-APS/mr-saassy/blob/7302676517c07b17735d5efc2165a7741fc19475/docs/KNOWLEDGE_CONTRACT.md),
+[the canonical source at `26bbeddc`](https://github.com/TBD-APS/mr-saassy/blob/26bbeddc0810860c931e448d7137be6d2b720825/docs/KNOWLEDGE_CONTRACT.md),
 with exact artifact hashes and source revision recorded in
 [`../tools/knowledge/shared-artifacts.json`](../tools/knowledge/shared-artifacts.json).
 The canonical contract is retained verbatim under
@@ -181,9 +181,19 @@ Structured docs should link to implementation through `code_refs`, `api_refs`, c
 - `DOCUMENTED_NOT_IMPLEMENTED`
 - `IMPLEMENTED_NOT_DOCUMENTED`
 - `STALE_DOC_REFERENCE`
+- `DOC_CODE_CONTRADICTION`
+- `DOC_TEST_CONTRADICTION`
+- `UNMAPPED_CAPABILITY`
+- `PERMISSION_MISMATCH`
 
-`DOC_CODE_CONTRADICTION`, `DOC_TEST_CONTRADICTION`, `UNMAPPED_CAPABILITY` and
-`PERMISSION_MISMATCH` remain planned. The reporter does not compose Workslip's
+The four contradiction/mapping codes use explicit `code_claims`, `permission_claims`,
+`test_refs` and capability ownership mappings. Comparisons use literal API methods,
+simple namespaced C# enums, exact test-method declarations and published OpenAPI
+security classification where available. Unknown or ambiguous facts remain unassessed;
+test-method presence does not prove a passing test, and OpenAPI security classification
+does not prove runtime role authorization. Findings remain report-only and pending review.
+
+The reporter does not compose Workslip's
 grouped API routes; an unmatched API citation needs source review and is not proof
 that the endpoint is missing.
 
@@ -205,7 +215,7 @@ Run the existing documentation truth check and the knowledge contract check:
 ```bash
 python tools/docs/check_docs.py
 python tools/knowledge/verify_shared_artifacts.py
-python -m unittest discover -s tools/knowledge -p 'test_knowledge_graph.py'
+python -m unittest discover -s tools/knowledge -p 'test_*.py'
 python tools/knowledge/validate_knowledge.py
 python tools/knowledge/validate_knowledge.py --manifest Docs/rag-pilot-manifest.json --relations-json /tmp/workslip-knowledge-graph.json
 ```

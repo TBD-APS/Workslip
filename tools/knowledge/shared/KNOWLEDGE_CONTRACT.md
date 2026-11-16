@@ -308,9 +308,31 @@ Reviewable findings include the codes `tools/knowledge/report_drift.py` currentl
 - `DOCUMENTED_NOT_IMPLEMENTED`
 - `IMPLEMENTED_NOT_DOCUMENTED`
 - `STALE_DOC_REFERENCE`
+- `DOC_CODE_CONTRADICTION`
+- `DOC_TEST_CONTRADICTION`
+- `UNMAPPED_CAPABILITY`
+- `PERMISSION_MISMATCH`
 
-The remaining planned codes — `DOC_CODE_CONTRADICTION`, `DOC_TEST_CONTRADICTION`,
-`UNMAPPED_CAPABILITY`, `PERMISSION_MISMATCH` — are not yet produced by the tool.
+Optional explicit assertions make contradictions reviewable without semantic guesses:
+
+```yaml
+code_claims: ['api:/api/knowledge/get=POST', 'enum:Example.State=Draft|Active']
+permission_claims: ['permission:POST:/api/example=authenticated']
+test_refs: ['tests/ExampleTests.cs#An_exact_test_method']
+```
+
+API methods come from literal absolute `Map*` declarations or the published OpenAPI contract;
+simple C# enums include their namespace. Permission assertions compare only the published
+OpenAPI anonymous/authenticated classification where `security` is explicit or inherited.
+They do not prove middleware authorization or role semantics. A test assertion checks that the
+named method still exists; it does not claim the test passed. Unmapped active capabilities lack
+an explicit code/API owner mapping or `implemented_by` edge.
+
+Unknown, complex or ambiguous facts remain `unknownClaims` (not assessed). Current active
+documents are compared; draft/historical claims cannot create current contradictions. New
+findings include document/implementation digests, the actual observed fact, a proposed review
+action and `reviewStatus: pending`. `--facts-output` writes the metadata-only extracted facts.
+The reporter remains report-only and never blocks a release based on these new assertions.
 
 Semantic/LLM comparison may explain a finding, but it must not silently mutate canonical documentation.
 
