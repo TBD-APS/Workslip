@@ -189,6 +189,15 @@ that the endpoint is missing.
 
 An LLM may explain or prioritize findings, but it must not silently rewrite canonical docs from semantic guesses.
 
+## Pilot evaluation fixtures
+
+[`../rag/evals/golden-workslip.json`](../rag/evals/golden-workslip.json) defines ten
+source-backed acceptance cases for the internal pilot: eight answerable correction
+workflow questions and two cases requiring abstention about customer data or deployed
+behavior. Expected sources, durable IDs and heading ancestry refer to the reviewed
+workflow. These are authored fixtures; they do not establish measured retrieval or
+model quality, and the fixture file is outside the pilot's ingestion allowlist.
+
 ## Validation
 
 Run the existing documentation truth check and the knowledge contract check:
