@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Report deterministic documentation-to-code drift signals.
 
-Explicit code_refs/api_refs are the primary join. Semantic matching can later add supporting evidence,
-but it must never silently rewrite canonical documentation.
+The first version intentionally stays conservative: explicit code_refs/api_refs are authority for joins;
+semantic matching can be added later as supporting evidence, never as an automatic rewrite trigger.
 """
 
 from __future__ import annotations
@@ -78,7 +78,8 @@ def structured_documents(manifest: dict[str, Any]) -> list[tuple[Path, dict[str,
 
 
 def source_files() -> list[Path]:
-    roots = [ROOT / "src"]
+    # apps/ holds the prompt worker, whose /api/saassy routes are not Map* calls under src/.
+    roots = [ROOT / "src", ROOT / "apps"]
     extensions = {".cs", ".ts", ".tsx", ".js", ".mjs"}
     ignored = {"bin", "obj", "node_modules", "dist", "artifacts"}
     files: list[Path] = []
@@ -94,6 +95,20 @@ def source_files() -> list[Path]:
     return files
 
 
+def openapi_routes() -> dict[str, list[str]]:
+    """Routes composed from a MapGroup are real once the published contract names them."""
+    path = ROOT / "src/MR.SAASy.ControlCenter/OpenApi/control-center.openapi.json"
+    if not path.is_file():
+        return {}
+    document = json.loads(path.read_text(encoding="utf-8"))
+    relative = path.relative_to(ROOT).as_posix()
+    routes: dict[str, list[str]] = {}
+    for route in document.get("paths", {}):
+        if isinstance(route, str) and route.startswith("/api/"):
+            routes.setdefault(route, []).append(relative)
+    return routes
+
+
 def implementation_routes(files: list[Path]) -> dict[str, list[str]]:
     routes: dict[str, list[str]] = {}
     for path in files:
@@ -105,6 +120,8 @@ def implementation_routes(files: list[Path]) -> dict[str, list[str]]:
         for match in MINIMAL_API_RE.finditer(text):
             route = match.group("route")
             routes.setdefault(route, []).append(relative)
+        # Attribute routes are fragments until controller prefixes are composed; keep them as evidence,
+        # but only compare absolute /api fragments deterministically.
         for match in HTTP_ATTRIBUTE_RE.finditer(text):
             route = match.group("route")
             if route and route.startswith("/api/"):
@@ -122,28 +139,30 @@ def main() -> int:
     docs = structured_documents(manifest)
     files = source_files()
     routes = implementation_routes(files)
-    code_blob = "\n".join(path.read_text(encoding="utf-8", errors="ignore") for path in files)
+    for route, owners in openapi_routes().items():
+        routes.setdefault(route, []).extend(owners)
+    code_blob = "\n".join(
+        path.read_text(encoding="utf-8", errors="ignore") for path in files
+    )
 
     findings: list[dict[str, Any]] = []
     documented_api_refs: set[str] = set()
 
     for path, metadata in docs:
         relative = path.relative_to(ROOT).as_posix()
-        code_refs = metadata.get("code_refs", [])
-        if isinstance(code_refs, list):
-            for ref in code_refs:
-                target = ROOT / str(ref)
-                if not target.exists() and not any(ROOT.glob(str(ref))):
-                    findings.append(
-                        {
-                            "code": "STALE_DOC_REFERENCE",
-                            "document": relative,
-                            "knowledgeId": metadata.get("id"),
-                            "evidence": {"codeRef": ref, "documentSha256": file_sha(path)},
-                            "confidence": 1.0,
-                            "proposedAction": "Review or replace the stale explicit code_refs mapping."
-                        }
-                    )
+        for ref in metadata.get("code_refs", []) if isinstance(metadata.get("code_refs", []), list) else []:
+            target = ROOT / str(ref)
+            if not target.exists() and not any(ROOT.glob(str(ref))):
+                findings.append(
+                    {
+                        "code": "STALE_DOC_REFERENCE",
+                        "document": relative,
+                        "knowledgeId": metadata.get("id"),
+                        "evidence": {"codeRef": ref, "documentSha256": file_sha(path)},
+                        "confidence": 1.0,
+                        "proposedAction": "Review or replace the stale explicit code_refs mapping."
+                    }
+                )
 
         api_refs = metadata.get("api_refs", [])
         if isinstance(api_refs, list):

@@ -33,3 +33,9 @@ jobs:
         run: python tools/docs/check_docs.py
       - name: Validate RAG knowledge contract
         run: python tools/knowledge/validate_knowledge.py
+      - name: Verify pinned shared knowledge artifacts
+        run: python tools/knowledge/verify_shared_artifacts.py
+      - name: Test shared graph and consumer contracts
+        run: python -m unittest discover -s tools/knowledge -p 'test_knowledge_graph.py'
+      - name: Validate bounded documentation pilot
+        run: python tools/knowledge/validate_knowledge.py --manifest Docs/rag-pilot-manifest.json

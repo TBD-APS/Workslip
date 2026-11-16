@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
+  "knowledgeContractVersion": "1.1.0",
   "product": "workslip",
   "source": "workslip-docs",
   "tenant": "platform",
@@ -21,6 +22,7 @@
     "Docs/capabilities",
     "Docs/workflows"
   ],
+  "frontmatterRequired": ["Docs/**/*.md"],
   "kindRules": [
     { "glob": "Docs/product/**/*.md", "kind": "product" },
     { "glob": "Docs/capabilities/**/*.md", "kind": "capability" },

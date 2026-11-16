@@ -1,0 +1,35 @@
+{
+  "contractVersion": "1.1.0",
+  "canonicalRepository": "mr-saasy",
+  "purpose": "Knowledge artifacts that consuming product repositories copy rather than import. This repository is canonical; a consumer verifies its copies against these digests with tools/knowledge/verify_shared_artifacts.py.",
+  "artifacts": [
+    {
+      "path": "tools/knowledge/shared/KNOWLEDGE_CONTRACT.md",
+      "sha256": "336c43cf79f3b0948448cf35ab25c26a065b5bdf8682b174d6d75853293831c7",
+      "note": "The contract itself: frontmatter shape, taxonomy, section shape, retrieval boundary.",
+      "canonicalPath": "docs/KNOWLEDGE_CONTRACT.md"
+    },
+    {
+      "path": "tools/knowledge/templates/CAPABILITY.md",
+      "sha256": "a758a2343620493889a951e7a817d222678e0f492689a3a41d291b5e386634a6",
+      "note": "Authoring template for type: capability."
+    },
+    {
+      "path": "tools/knowledge/templates/WORKFLOW.md",
+      "sha256": "0ee242cfcbb92c407cb16ea4845217c2becf0b06a22555411a748e778682686b",
+      "note": "Authoring template for type: workflow."
+    },
+    {
+      "path": "tools/knowledge/validate_knowledge.py",
+      "sha256": "75a672022e7c4d35b8cee427b5269994d0b941dcce036f6df8087b9a438bba43",
+      "note": "Corpus validator. A consumer running an older copy validates against older rules."
+    },
+    {
+      "path": "tools/knowledge/report_drift.py",
+      "sha256": "db3dff32fcb9b5a45a5b42c2f331ad419eec37e26f8916697f76dec7fbdcff0b",
+      "note": "Code-to-document drift reporter."
+    }
+  ],
+  "canonicalCommit": "7302676517c07b17735d5efc2165a7741fc19475",
+  "canonicalManifest": "https://github.com/TBD-APS/mr-saassy/blob/7302676517c07b17735d5efc2165a7741fc19475/tools/knowledge/shared-artifacts.json"
+}
