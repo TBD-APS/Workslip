@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "product": "workslip",
+  "source": "workslip-reviewed-docs-pilot",
+  "tenant": "platform",
+  "canonicalRoot": "Docs",
+  "excludedRoots": [
+    "docs",
+    "_bmad-output"
+  ],
+  "defaultVisibility": "internal",
+  "include": [
+    "Docs/workflows/job-rejection.md"
+  ],
+  "exclude": [
+    "docs/**",
+    "_bmad-output/**",
+    "Docs/agents/**",
+    "Docs/generated/**",
+    "tools/**",
+    "src/**",
+    "site/**"
+  ],
+  "metadataRequiredPrefixes": [
+    "Docs/workflows"
+  ],
+  "kindRules": [
+    {
+      "glob": "Docs/workflows/**/*.md",
+      "kind": "workflow"
+    }
+  ],
+  "htmlProjection": {
+    "mode": "generated",
+    "indexGeneratedHtml": false,
+    "generator": "tools/docs/build_agent_docs_html.py"
+  },
+  "knowledgeContractVersion": "1.1.1",
+  "frontmatterRequired": [
+    "Docs/**/*.md"
+  ],
+  "pilot": {
+    "scope": "documentation-only",
+    "knowledgeIds": [
+      "workslip.workflow.job-rejection"
+    ],
+    "activation": "explicit-runtime-mount-required",
+    "sourceBaseline": "785c49b1b911f76b5e5a8207ac57d90fb5922c84"
+  }
+}
