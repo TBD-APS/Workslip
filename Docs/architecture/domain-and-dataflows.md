@@ -17,7 +17,7 @@ Superadmin access does not remove ordinary tenant filtering from repositories. C
 
 ## Authentication session lifecycle
 
-Interactive login creates a 14-day, server-owned refresh-session family. Only a SHA-256 token hash is persisted; the opaque token is carried in an HttpOnly cookie and is rotated on every refresh. Access JWT expiry therefore does not by itself force Entra reauthentication. Rotation is one-use, bounded concurrent reuse is recoverable, later reuse revokes the family, and explicit logout revokes the family server-side. Refresh eligibility requires the exact user and organization to still exist. See ADR 0018.
+Interactive login creates a server-owned refresh-session family that ends after 14 idle days or at the latest after 90 days. Only a SHA-256 token hash is persisted; the opaque token is carried in an HttpOnly cookie and is rotated on every refresh. Access JWT expiry therefore does not by itself force Entra reauthentication. Rotation is one-use, bounded concurrent reuse is recoverable, a refresh whose response never reached the browser is recovered while its replacement is still unused, any other reuse revokes the family, and explicit logout revokes the family server-side. Refresh eligibility requires the exact user and organization to still exist. See ADR 0018.
 
 ## User audiences
 

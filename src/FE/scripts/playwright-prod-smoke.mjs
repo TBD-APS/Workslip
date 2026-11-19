@@ -416,22 +416,32 @@ async function createSession(name, scenarioReport) {
   }
 
   async function getAddress() {
-    const query = encodeURIComponent(session.data.addressQuery);
-    const response = await fetch(`https://dawa.aws.dk/adresser/autocomplete?q=${query}&per_side=5`, {
+    const params = new URLSearchParams({
+      tekst: session.data.addressQuery,
+      token: 'adressevaelger123',
+      maksimum: '5',
+    });
+    const response = await fetch(`https://adressevaelger.dk/adresser/soeg?${params.toString()}`, {
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(API_TIMEOUT),
     });
-    if (!response.ok) throw new Error(`DAWA autocomplete returned HTTP ${response.status}.`);
-    const suggestions = await response.json();
-    const suggestion = Array.isArray(suggestions) ? suggestions.find((item) => item?.tekst || item?.adresse?.betegnelse) : null;
-    if (!suggestion) throw new Error('DAWA returned no address suggestion.');
-    const text = suggestion.tekst ?? suggestion.adresse.betegnelse;
-    const address = suggestion.adresse ?? suggestion.data ?? {};
+    if (!response.ok) throw new Error(`Adressevælger returned HTTP ${response.status}.`);
+    const payload = await response.json();
+    if (payload?.status !== 'ok' || !Array.isArray(payload?.fund)) {
+      throw new Error('Adressevælger returned an invalid response.');
+    }
+    const suggestion = payload.fund.find((item) => item?.titel || item?.adressebetegnelse);
+    if (!suggestion) throw new Error('Adressevælger returned no address suggestion.');
+    const text = suggestion.titel ?? suggestion.adressebetegnelse;
+    const postalMatch = text.match(/,\s*(\d{4})\s+(.+)$/);
+    const street = postalMatch
+      ? text.slice(0, postalMatch.index).trim()
+      : [suggestion.vejnavn ?? suggestion.vejNavn, suggestion.husnummer ?? suggestion.husNummer].filter(Boolean).join(' ') || text;
     return {
       text,
-      street: address.vejnavn && address.husnr ? `${address.vejnavn} ${address.husnr}` : text.split(',')[0],
-      zipCode: address.postnr ?? address.postnummer?.nr ?? null,
-      city: address.postnrnavn ?? address.postnummer?.navn ?? null,
+      street,
+      zipCode: suggestion.postnr ?? suggestion.postnummer?.postnr ?? postalMatch?.[1] ?? null,
+      city: suggestion.postdistrikt ?? suggestion.postnummer?.navn ?? postalMatch?.[2] ?? null,
       raw: suggestion,
     };
   }

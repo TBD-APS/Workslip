@@ -4,6 +4,7 @@ namespace Workslip.Application.Auth;
 
 public sealed record RefreshSessionPolicy(
     TimeSpan AbsoluteLifetime,
+    TimeSpan IdleLifetime,
     TimeSpan ConcurrentRefreshGrace,
     TimeSpan CleanupRetention);
 
@@ -26,6 +27,13 @@ public interface IRefreshSessionRepository
     Task<AuthUserInfo?> GetEligibleUserAsync(Guid userId, Guid organizationId, CancellationToken cancellationToken);
     Task<bool> TryRotateAsync(
         RefreshSessionRow current,
+        RefreshSessionRow replacement,
+        DateTimeOffset usedAt,
+        CancellationToken cancellationToken);
+    Task<RefreshSessionRow?> GetUnusedSuccessorAsync(RefreshSessionRow current, CancellationToken cancellationToken);
+    Task<bool> TryReplaceUnusedSuccessorAsync(
+        RefreshSessionRow current,
+        RefreshSessionRow successor,
         RefreshSessionRow replacement,
         DateTimeOffset usedAt,
         CancellationToken cancellationToken);

@@ -2108,6 +2108,24 @@
   color: var(--text);
 }
 
+.address-search-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.address-search-retry {
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .address-suggestions {
   position: absolute;
   z-index: 100;

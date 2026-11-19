@@ -9,8 +9,9 @@ demo: true
   <div class="demo-hero container">
     <div>
       <p class="eyebrow"><span class="pulse-dot" aria-hidden="true"></span> Interaktiv demo</p>
-      <h1>Se en arbejdsdag <span>falde på plads.</span></h1>
-      <p class="demo-lead">Prøv Workslip med det samme. Demoen bruger kun fiktive data og er helt adskilt fra produktionssystemet.</p>
+      <h1>Fra opgave til dokumentation. <span>Samlet ét sted.</span></h1>
+      <p class="demo-lead">Få overblik over opgaver, registrér timer og håndtér godkendelser i én enkel arbejdsgang. Prøv selv med fiktive data – uden login.</p>
+      <div class="demo-hero-actions"><a class="demo-cta" href="#demo-workspace">Prøv demoen <span aria-hidden="true">→</span></a><a class="demo-text-link" href="{{ '/features/' | relative_url }}">Se alle funktioner</a></div>
     </div>
     <div class="demo-assurance" aria-label="Demoens sikkerhed">
       <span class="demo-assurance-icon" aria-hidden="true">✓</span>
@@ -18,8 +19,14 @@ demo: true
     </div>
   </div>
 
-  <div class="container demo-stage-wrap">
-    <div class="demo-stage-label"><span>LIVE DEMO</span><p>Prøv funktionerne i vinduet herunder</p><button class="demo-reset" type="button" data-demo-action="reset">Nulstil demo <span aria-hidden="true">↺</span></button></div>
+  <div class="container demo-benefits" aria-label="Fordele ved Workslip">
+    <article><span aria-hidden="true">◫</span><h2>Ét samlet overblik</h2><p>Se dagens opgaver, status og det arbejde, der mangler at blive godkendt.</p></article>
+    <article><span aria-hidden="true">◷</span><h2>Nem tidsregistrering</h2><p>Registrér timer på den enkelte opgave, mens arbejdet er frisk i hukommelsen.</p></article>
+    <article><span aria-hidden="true">✓</span><h2>Hurtigere godkendelser</h2><p>Gennemgå arbejdssedler og send dem videre uden unødvendige mellemtrin.</p></article>
+  </div>
+
+  <div class="container demo-stage-wrap" id="demo-workspace">
+    <div class="demo-stage-label"><span>INTERAKTIV DEMO</span><p>Vælg Overblik, Opgaver eller Godkendelser. Alle data er fiktive.</p><button class="demo-reset" type="button" data-demo-action="reset">Nulstil demo <span aria-hidden="true">↺</span></button></div>
     <div class="demo-stage">
       <aside class="demo-sidebar" aria-label="Demo-navigation">
         <a class="demo-logo" href="#demo-overview" data-demo-view="overview" aria-label="Workslip demo, overblik"><span class="brand-mark" aria-hidden="true">M</span><span>Workslip</span></a>
@@ -87,5 +94,6 @@ demo: true
       </div>
     </div>
   </div>
+  <div class="container demo-final-cta"><div><p class="eyebrow">Næste skridt</p><h2>Klar til et bedre overblik?</h2><p>Se, hvordan Workslip kan samle opgaver, timer og dokumentation for dit team.</p></div><a class="demo-cta" href="{{ '/features/' | relative_url }}">Udforsk Workslip <span aria-hidden="true">→</span></a></div>
   <div class="demo-toast" data-demo-toast role="status" aria-live="polite"></div>
 </section>

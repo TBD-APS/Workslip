@@ -52,6 +52,65 @@ public sealed class EfRefreshSessionRepository(SqlDbContext db) : IRefreshSessio
         return true;
     }
 
+    public async Task<RefreshSessionRow?> GetUnusedSuccessorAsync(RefreshSessionRow current, CancellationToken cancellationToken)
+    {
+        if (current.UsedAt is null)
+        {
+            return null;
+        }
+
+        // Rotation stamps the used token and creates its replacement with the same instant,
+        // so the direct replacement is the family row created when this token was used.
+        var candidates = await db.RefreshSessions.AsNoTracking()
+            .Where(x => x.FamilyId == current.FamilyId
+                && x.Id != current.Id
+                && x.CreatedAt == current.UsedAt
+                && x.UsedAt == null
+                && x.RevokedAt == null)
+            .Take(2)
+            .ToListAsync(cancellationToken);
+        return candidates.Count == 1 ? candidates[0] : null;
+    }
+
+    public async Task<bool> TryReplaceUnusedSuccessorAsync(
+        RefreshSessionRow current,
+        RefreshSessionRow successor,
+        RefreshSessionRow replacement,
+        DateTimeOffset usedAt,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        var supersededSuccessor = await db.RefreshSessions
+            .Where(x => x.Id == successor.Id
+                && x.ConcurrencyStamp == successor.ConcurrencyStamp
+                && x.UsedAt == null
+                && x.RevokedAt == null)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.RevokedAt, usedAt)
+                .SetProperty(x => x.ConcurrencyStamp, Guid.NewGuid()), cancellationToken);
+        var restampedCurrent = supersededSuccessor == 1
+            ? await db.RefreshSessions
+                .Where(x => x.Id == current.Id
+                    && x.ConcurrencyStamp == current.ConcurrencyStamp
+                    && x.UsedAt != null
+                    && x.RevokedAt == null)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(x => x.UsedAt, usedAt)
+                    .SetProperty(x => x.ConcurrencyStamp, Guid.NewGuid()), cancellationToken)
+            : 0;
+
+        if (restampedCurrent != 1)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return false;
+        }
+
+        db.RefreshSessions.Add(replacement);
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
     public async Task<bool> TryClaimConcurrentRefreshGraceAsync(
         Guid sessionId,
         Guid expectedConcurrencyStamp,

@@ -1,7 +1,15 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Login } from './Login';
+
+vi.hoisted(() => {
+  vi.stubEnv('DEV', true);
+  vi.stubEnv('VITE_DEMO_MODE', 'false');
+  vi.stubEnv('VITE_AZURE_AD_TENANT_ID', 'synthetic-tenant');
+  vi.stubEnv('VITE_AZURE_AD_CLIENT_ID', 'synthetic-client');
+  vi.stubEnv('VITE_AZURE_AD_SCOPE', 'api://synthetic-client/access_as_user');
+});
 
 const { authState, authMocks, entraMocks } = vi.hoisted(() => ({
   authState: {
@@ -76,6 +84,8 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
 });
+
+afterAll(() => vi.unstubAllEnvs());
 
 describe('Login browser history handling', () => {
   it('replaces the login entry and sends an authenticated user to Overblik', async () => {

@@ -31,7 +31,7 @@ For every non-documentation CI run, the `Postman integration (ephemeral)` job cr
 4. apply local migrations and seed synthetic development data;
 5. obtain bearer tokens for the seeded synthetic Superadmin, Admin, User and Auditor identities through `/api/dev/token`;
 6. execute `auditor_scope.postman_collection.json` with the Admin/User/Auditor tokens to prove the job audit-scope authorization boundary, including role denial, validation, list count, direct job/history/PDF/image denial and restoration;
-7. execute `refresh_session.postman_collection.json` to prove HttpOnly cookie issuance, rotation, absence of refresh material in JSON, server-side logout and post-logout rejection;
+7. execute `refresh_session.postman_collection.json` to prove HttpOnly cookie issuance, rotation, absence of refresh material in JSON, server-side logout, post-logout rejection, and recovery of a refresh whose response was lost (it waits 31 seconds to pass the concurrent-refresh window, then proves that the superseded replacement revokes the session);
 8. initialize the main collection with the synthetic Superadmin bootstrap token, then allow its Development-only `/api/dev/token` flow to switch to the tenant identity used by the remaining workflow;
 9. fail `CI Gate` on request/assertion/runtime failure;
 10. stop the API and force-remove the SQL container through an `EXIT` trap, including failure/cancellation paths that allow shell cleanup to run.

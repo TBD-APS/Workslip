@@ -146,6 +146,65 @@ if (-not [System.Net.IPAddress]::TryParse($runnerIp, [ref]$parsedIp) -or
     throw "Could not resolve a valid public IPv4 address. Received '$runnerIp'."
 }
 
+# The temporary firewall rule must be deleted again after the migrations. A CanNotDelete or
+# ReadOnly lock on the SQL server, its resource group or the subscription makes that delete
+# fail, and the run would stop after the schema changed but before the app is deployed.
+# Refuse before touching anything instead. Locks on the database itself do not block it.
+$sqlServerId = (Invoke-AzureCli -Arguments @(
+    'sql', 'server', 'show',
+    '--resource-group', $resourceGroup,
+    '--name', $sqlServerName,
+    '--query', 'id',
+    '--output', 'tsv'
+)).Output.Trim()
+$locks = @()
+foreach ($lockQuery in @(
+    @('lock', 'list', '--resource-group', $resourceGroup, '--output', 'json'),
+    @('lock', 'list', '--output', 'json')
+)) {
+    # The migration identity may not be allowed to read subscription-wide locks. Then this
+    # check cannot see them; warn and keep the old behaviour rather than block every deploy.
+    $lockResult = Invoke-AzureCli -Arguments $lockQuery -AllowFailure
+    if ($lockResult.ExitCode -ne 0) {
+        Write-Warning "Could not list locks with 'az $($lockQuery -join ' ')'; continuing without that check.`n$($lockResult.Output)"
+        continue
+    }
+    $locks += @($lockResult.Output | ConvertFrom-Json)
+}
+$blockingLocks = @($locks | Sort-Object id -Unique | Where-Object {
+    $lockScope = ($_.id -split '/providers/Microsoft.Authorization/locks/')[0]
+    "$sqlServerId/".StartsWith("$lockScope/", [System.StringComparison]::OrdinalIgnoreCase)
+})
+if ($blockingLocks.Count -gt 0) {
+    $lockList = ($blockingLocks | ForEach-Object { "  $($_.level) '$($_.name)' on $(($_.id -split '/providers/Microsoft.Authorization/locks/')[0])" }) -join [Environment]::NewLine
+    throw @"
+Stopped before any database change: these locks would prevent deleting the temporary SQL firewall rule.
+$lockList
+Lock the data resources (databases, storage accounts, key vaults) instead of the subscription or resource group.
+See src/BE/infrastructure/aca/move-locks-to-data-resources.ps1.
+"@
+}
+
+# A failed run can leave its rule behind. Remove earlier migration rules before adding a new one.
+$staleRules = @((Invoke-AzureCli -Arguments @(
+    'sql', 'server', 'firewall-rule', 'list',
+    '--resource-group', $resourceGroup,
+    '--server', $sqlServerName,
+    '--query', "[?starts_with(name, 'AllowDatabaseMigration-')].name",
+    '--output', 'json'
+)).Output | ConvertFrom-Json)
+foreach ($staleRule in $staleRules) {
+    Write-Host "Removing leftover migration firewall rule: $staleRule"
+    Invoke-AzureCli -Arguments @(
+        'sql', 'server', 'firewall-rule', 'delete',
+        '--resource-group', $resourceGroup,
+        '--server', $sqlServerName,
+        '--name', $staleRule,
+        '--only-show-errors',
+        '--output', 'none'
+    ) | Out-Null
+}
+
 $firewallRuleCreated = $false
 $accessToken = $null
 try {

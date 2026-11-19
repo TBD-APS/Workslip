@@ -43,7 +43,7 @@ async function createKlsDraftViaUi(session, { role, assignedUsers = [], duplicat
     const createdJobIds = created.createdJobIds?.length ? created.createdJobIds : [created.id];
     session.fixtures.jobs.push(...createdJobIds);
     for (const id of createdJobIds) {
-      session.scenarioReport.generatedFixtures.push({ type: 'job', id, source: 'UI + runtime API/DAWA data' });
+      session.scenarioReport.generatedFixtures.push({ type: 'job', id, source: 'UI + runtime API/Adressevælger data' });
     }
     await session.page.getByRole('heading', { name: /sag(?:en|er) er oprettet/i }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     return { id: created.id, createdJobIds, reportNumber: created.reportNumber, customerName: session.data.customerName, role };
@@ -248,7 +248,7 @@ async function createCustomerViaUi(session) {
     const id = payload.id ?? payload.customerId;
     if (!id) throw new Error('Customer creation response did not include id.');
     session.fixtures.customers.push(id);
-    session.scenarioReport.generatedFixtures.push({ type: 'customer', id, source: 'UI + DAWA data' });
+    session.scenarioReport.generatedFixtures.push({ type: 'customer', id, source: 'UI + Adressevælger data' });
     return { ...payload, id, name: session.data.customerName };
   });
 }

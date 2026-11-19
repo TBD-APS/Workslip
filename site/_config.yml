@@ -1,10 +1,10 @@
 title: Workslip
 description: Digital planlægning, registrering og godkendelse af arbejde.
-url: "https://mrsoftware.dk"
-baseurl: ""
+url: "https://tbd-aps.github.io"
+baseurl: "/Workslip"
 lang: da-DK
 timezone: Europe/Copenhagen
-repository: rasm105k/Workslip-v2.0
+repository: TBD-APS/Workslip
 
 plugins:
   - jekyll-seo-tag

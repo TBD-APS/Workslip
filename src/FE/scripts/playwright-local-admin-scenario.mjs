@@ -144,12 +144,10 @@ export async function runFocusedAdminScenario(scenarioName, viewportName) {
   });
   // Address lookup is prerequisite data, not the customer/worksheet journey under test.
   // Match the synthetic fixture used by the local critical job lifecycle suite.
-  await context.route('https://dawa.aws.dk/adresser/autocomplete**', (route) => route.fulfill({
+  await context.route('https://adressevaelger.dk/adresser/soeg**', (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',
-    body: JSON.stringify([{ tekst: TEST_ADDRESS.text, adresse: {
-      vejnavn: 'Testvej', husnr: '1', postnr: TEST_ADDRESS.zipCode, postnrnavn: TEST_ADDRESS.city,
-    } }]),
+    body: JSON.stringify({ status: 'ok', fund: [{ type: 'adresse', id: '00000000-0000-0000-0000-000000000001', titel: TEST_ADDRESS.text, vejnavn: 'Testvej', husnummer: '1' }] }),
   }));
   scenarioReport.coverageNotes.push({
     area: 'address lookup',

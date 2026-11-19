@@ -1,122 +1,33 @@
-# GitHub Pages and custom domain runbook
+# Workslip GitHub Pages domain ownership
 
-Status: Active rollout runbook  
-Owner: Workslip  
-Source of truth: GitHub repository settings, DNS provider configuration, `site/CNAME`, `site/_config.yml` and `.github/workflows/pages.yml`  
-Review cadence: before each domain or Pages configuration change  
-Linear: WOR-168, WOR-169, WOR-172
+Status: Active cleanup runbook
+Owner: Workslip maintainers
+Source of truth: GitHub Pages settings, `site/_config.yml`, `.github/workflows/pages.yml`, and the company website repository
+Review cadence: before each Pages/domain change
 
-## Decision
+## Host ownership
 
-The public marketing site is built with Jekyll from `site/` and deployed through GitHub Actions to GitHub Pages. It remains separate from the React/Vite application under `src/FE`.
+| Host | Owner and purpose |
+| --- | --- |
+| `mrsoftware.dk` and `www.mrsoftware.dk` | Company homepage in `TBD-APS/mrsoftware-website`, served by Cloudflare Worker `mrsoftware` |
+| `https://tbd-aps.github.io/Workslip/` | Planned fallback address for this Workslip Jekyll site after the legacy Pages custom domain is cleared |
+| `app.mrsoftware.dk` | Workslip production application; retain its Azure hosting and security boundaries |
+| `demo.mrsoftware.dk` | Separately approved demo environment |
 
-Approved domain layout:
+The former instructions to point the company apex and www at this Pages site are superseded. The source no longer contains `site/CNAME`; `site.url` and `site.baseurl` now describe the project-site address. Source changes do not clear the remote Pages custom-domain setting or change DNS.
 
-| Host | Purpose |
-|---|---|
-| `mrsoftware.dk` | Canonical public marketing site |
-| `www.mrsoftware.dk` | Redirect to the canonical marketing site |
-| `app.mrsoftware.dk` | Production Workslip application |
-| `mrsoftware.dk/demo/` | Loginfri, klient-only produktwalkthrough med fiktive data og ingen integrationer |
-| `demo.mrsoftware.dk` | Reserveret til en isoleret, integreret demo efter særskilte sikkerhedsgates |
+## Separately approved settings cleanup
 
-The product may continue to be named Workslip while the company and public platform domain use MR Software.
+1. Record the current Pages configuration, domain/DNS ownership and rollback evidence. The 26 October audit observed Pages custom domain `www.mrsoftware.dk`, while the source had claimed the apex.
+2. After owner approval, clear only the Workslip repository's Pages custom domain. Keep GitHub Actions as the Pages publishing source. Preserve the company Worker's domains, DNS and Access settings.
+3. Configure `github-pages` for `main` only. The deploy Action requires the exact current main SHA from one PR merged by Rasmus and a successful exact-main `CI Gate`. Preserve existing environment reviews.
+4. Validate the next owner-merged release at the project-site address: strict Jekyll build, generated links, project base path, sitemap and canonical URLs.
+5. Read-only verify the company apex/www, application and demo hostnames independently. A Pages build proves no application/API health.
 
-## Repository configuration
+Do not change Azure RBAC, OIDC subjects, CORS, Entra callbacks or the application's host as part of this Pages cleanup. Do not restore the obsolete company-domain claim to recover a defective Workslip static build.
 
-The repository must contain the following matching configuration:
+## Rollback and evidence
 
-- `site/CNAME` contains `mrsoftware.dk`.
-- `site.url` in `site/_config.yml` is `https://mrsoftware.dk`.
-- the API CORS policy allows `https://app.mrsoftware.dk`.
-- no active production configuration references `workslip.dk`.
+Capture the prior Pages setting before mutation. A source regression is reverted through a new PR merged by Rasmus, followed by its deploy Action. Restoring a remote custom-domain claim requires a separate verified ownership decision; it is not an automatic rollback.
 
-The GitHub Pages fallback remains available through the repository Pages URL, but generated canonical metadata must point to `https://mrsoftware.dk` after the custom-domain rollout.
-
-## GitHub configuration
-
-1. Open **Settings → Pages**.
-2. Set the publishing source to **GitHub Actions**.
-3. Configure `mrsoftware.dk` as the custom domain.
-4. Open **Settings → Environments → github-pages**.
-5. Restrict deployment to `main` and configure appropriate production protection.
-6. Keep the domain-verification TXT record after verification.
-7. Enable **Enforce HTTPS** only after GitHub has provisioned a valid certificate.
-
-## DNS rollout
-
-1. Capture the current DNS records and TTL values before modification.
-2. Configure the apex records for `mrsoftware.dk` using GitHub's current Pages addresses.
-3. Configure `www.mrsoftware.dk` as a CNAME to the GitHub Pages hostname shown for the account.
-4. Point `app.mrsoftware.dk` at the production Container App. Do not hand-write these records: dispatch `aca-live-cutover.yml` from `main` in mode `prepare`, which prints the required `CNAME app` → Container App FQDN and `TXT asuid.app` → `customDomainVerificationId` values, then create them and run the same workflow in mode `bind` with confirmation `CUTOVER` to add the hostname and bind the managed certificate. Full procedure: [new-tenant cutover runbook](new-tenant-cutover.md).
-5. Keep `demo.mrsoftware.dk` separate from production hosting and data if an integrated demo is launched.
-6. Validate DNS from more than one resolver.
-7. Verify HTTPS and canonical redirects for both apex and `www`.
-8. Verify that `app.mrsoftware.dk` still reaches the application and can call the API without CORS errors.
-
-Do not copy IP addresses or verification values from an old guide. Use the values currently shown by GitHub and the active DNS provider.
-
-## Application and API boundary
-
-The marketing site and production application are separate deployments:
-
-- `mrsoftware.dk` serves static marketing content.
-- `app.mrsoftware.dk` serves the React/Vite application.
-- the API permits the production application origin through the `Frontend` CORS policy.
-- the marketing site must not receive production API access merely because it shares the parent domain.
-- `/demo/` may only be a client-only walkthrough with bundled, fictional data; it must not use credentials, browser persistence, production data or integrations.
-- `demo.mrsoftware.dk`, if launched, remains a separately deployed integrated demo with its own security gates.
-
-Any OAuth redirect URI, logout URI, CORS origin, CSP source or external-service callback that references a retired temporary hosting hostname must be reviewed and removed. Two places in this repository declare such values, and editing the template is not the same as reconciling the live resource:
-
-- `src/BE/infrastructure/deploy-entra.ps1` sets `spa.redirectUris` on the `Workslip App` registration through a Graph `PATCH`, which replaces the whole array. The next `deploy-entra.ps1` run therefore removes any URI dropped from that list. Preview with `-WhatIf` before running it against a live tenant.
-- `src/BE/infrastructure/staticConfig.bicep` writes `Cors:AllowedOrigins:<n>` into App Configuration. Removing an entry from the template does **not** delete the existing key-value; that needs an explicit `az appconfig kv delete`.
-
-Retain a hostname only where it is intentionally kept as a rollback path, and record why.
-
-## Validation checklist
-
-- Jekyll builds with strict front matter.
-- Generated-output validation passes.
-- `site/CNAME` and `site.url` agree on `mrsoftware.dk`.
-- sitemap, feed, canonical and social metadata use `https://mrsoftware.dk`.
-- navigation works with keyboard and visible focus.
-- mobile layout has no horizontal overflow.
-- HTTPS is valid and mixed content is absent.
-- `www.mrsoftware.dk` redirects to `mrsoftware.dk`.
-- `app.mrsoftware.dk` resolves to the production frontend.
-- authenticated and unauthenticated API calls from `app.mrsoftware.dk` do not fail CORS checks.
-- `/demo/` has no API, authentication, persistence or production-data access; `demo.mrsoftware.dk` remains isolated if it is launched.
-- no active configuration references `workslip.dk`.
-- no private repository data or secrets appear in generated HTML.
-
-## Rollback
-
-If the generated site is defective but DNS is healthy:
-
-1. Revert the responsible PR.
-2. run the Pages deployment workflow;
-3. verify that the prior content is served.
-
-If custom-domain activation causes an outage:
-
-1. Remove the custom domain from GitHub Pages.
-2. Restore the previous DNS records from the captured snapshot.
-3. restore `site.url` and remove or update `site/CNAME` so generated metadata matches the fallback host;
-4. verify the GitHub Pages fallback site;
-5. do not retry until DNS ownership and certificate state are understood.
-
-If `app.mrsoftware.dk` is affected, treat it as a separate hosting incident. Do not repoint the application host to GitHub Pages.
-
-## Completion evidence
-
-The rollout is complete only when the following evidence exists:
-
-- successful Pages deployment workflow;
-- verified domain ownership;
-- recorded DNS configuration;
-- active certificate and enforced HTTPS;
-- canonical apex and `www` redirect behavior;
-- successful production application smoke test;
-- successful API call from `app.mrsoftware.dk` without CORS errors;
-- OAuth redirect and logout URIs verified against the deployed domain layout.
+Completion requires the approved remote setting change, a successful exact-SHA Pages deployment, working project-site links/canonical metadata, and independent read-only checks that the company and application hosts still reach their respective services. Until those exist, report the source preparation and live cleanup separately.

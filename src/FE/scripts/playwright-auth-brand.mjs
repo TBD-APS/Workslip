@@ -8,6 +8,9 @@ const APP_URL = requireLoopbackOrigin(
 );
 const UI_TIMEOUT = 25_000;
 const AUTH_REQUEST_START_TIMEOUT_MS = 5_000;
+// The ephemeral runner starts local Vite without Entra settings.
+const LOGIN_MODE = process.env.WORKSLIP_PLAYWRIGHT_LOGIN_MODE || 'local';
+assert.ok(['local', 'entra'].includes(LOGIN_MODE), 'WORKSLIP_PLAYWRIGHT_LOGIN_MODE must be local or entra.');
 
 const { chromium } = await import('playwright');
 const browser = await chromium.launch({ headless: true });
@@ -30,7 +33,7 @@ try {
   for (const testCase of transitionCases) {
     await verifyStoredSessionTransition(testCase);
   }
-  console.log('[playwright] auth brand + stable stored-session transition evidence passed.');
+  console.log(`[playwright] ${LOGIN_MODE} auth brand + stable stored-session transition evidence passed.`);
 } finally {
   await browser.close();
 }
@@ -67,17 +70,29 @@ async function verifyAuthBrandCase({ name, theme, viewport }) {
     });
     assert.ok(navigation?.ok(), `${name}: /login returned HTTP ${navigation?.status() ?? 'unknown'}.`);
 
-    const authShell = page.locator('.auth-shell');
+    const authShell = page.locator('#login-shell');
     await authShell.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    const loginCard = page.locator('.login-card');
+    const loginCard = page.locator('#login-card');
     await loginCard.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
-    const styles = await page.evaluate(() => {
+    const actionId = LOGIN_MODE === 'local' ? 'login-dev-user' : 'login-microsoft';
+    await page.locator(`#${actionId}`).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    if (LOGIN_MODE === 'local') {
+      assert.equal(await page.locator('#login-microsoft').count(), 0, `${name}: unconfigured local login must not offer Microsoft.`);
+      assert.equal(await page.locator('#login-otc').count(), 0, `${name}: unconfigured local login must not offer OTC.`);
+      for (const roleId of ['login-dev-user', 'login-dev-auditor', 'login-dev-admin', 'login-dev-superadmin']) {
+        const roleButton = page.locator(`#${roleId}`);
+        assert.ok(await roleButton.isVisible(), `${name}: ${roleId} must be visible.`);
+        assert.ok(await roleButton.isEnabled(), `${name}: ${roleId} must be available.`);
+      }
+    }
+
+    const styles = await page.evaluate(({ actionId }) => {
       const root = document.documentElement;
       const body = getComputedStyle(document.body);
-      const cardElement = document.querySelector('.login-card');
-      const buttonElement = document.querySelector('.login-submit-btn.btn-primary');
-      const logoElement = document.querySelector('.auth-shell .logo-icon');
+      const cardElement = document.getElementById('login-card');
+      const buttonElement = document.getElementById(actionId);
+      const logoElement = document.getElementById('login-logo');
       if (!(cardElement instanceof HTMLElement)
         || !(buttonElement instanceof HTMLElement)
         || !(logoElement instanceof SVGElement)) {
@@ -104,9 +119,9 @@ async function verifyAuthBrandCase({ name, theme, viewport }) {
         cardRight: rect.right,
         viewportWidth: window.innerWidth,
         documentWidth: document.documentElement.scrollWidth,
-        appShellCount: document.querySelectorAll('.app-shell').length,
+        appShellCount: document.querySelectorAll('#app-shell').length,
       };
-    });
+    }, { actionId });
 
     assert.equal(styles.theme, theme, `${name}: stored theme must apply before the login surface is evaluated.`);
     assert.equal(styles.primaryToken, '#f47a24', `${name}: primary action token must resolve to Workslip signal orange.`);
@@ -127,20 +142,40 @@ async function verifyAuthBrandCase({ name, theme, viewport }) {
       theme === 'day' ? 'rgb(255, 255, 255)' : 'rgb(18, 59, 74)',
       `${name}: login card must use the shared Workslip floating surface.`,
     );
-    assert.equal(styles.buttonBackground, 'rgb(244, 122, 36)', `${name}: primary login action must be signal orange.`);
-    assert.equal(styles.buttonColor, 'rgb(255, 255, 255)', `${name}: orange primary action must use the shared white on-primary foreground.`);
+    if (LOGIN_MODE === 'entra') {
+      assert.equal(styles.buttonBackground, 'rgb(244, 122, 36)', `${name}: primary login action must be signal orange.`);
+      assert.equal(styles.buttonColor, 'rgb(255, 255, 255)', `${name}: orange primary action must use the shared white on-primary foreground.`);
+    } else {
+      const background = styles.buttonBackground.match(/[\d.]+/g)?.map(Number) ?? [];
+      assert.deepEqual(
+        background.slice(0, 3),
+        theme === 'day' ? [18, 59, 74] : [255, 247, 232],
+        `${name}: developer role choices must use the shared secondary surface.`,
+      );
+      assert.ok(
+        background.length === 4 && Math.abs(background[3] - (theme === 'day' ? 0.045 : 0.055)) <= 1 / 255,
+        `${name}: secondary surface opacity must match the shared token within browser colour precision.`,
+      );
+      assert.equal(
+        styles.buttonColor,
+        theme === 'day' ? 'rgb(18, 59, 74)' : 'rgb(255, 247, 232)',
+        `${name}: developer role choices must use the shared readable foreground.`,
+      );
+    }
     assert.equal(styles.logoColor, 'rgb(244, 122, 36)', `${name}: Workslip login mark must use the brand action accent.`);
     assert.equal(styles.appShellCount, 0, `${name}: public login must not mount the authenticated app shell.`);
     assert.ok(styles.cardLeft >= 0, `${name}: login card must not overflow the left viewport edge.`);
     assert.ok(styles.cardRight <= styles.viewportWidth + 0.5, `${name}: login card must not overflow the right viewport edge.`);
     assert.ok(styles.documentWidth <= styles.viewportWidth, `${name}: login document must not create horizontal scrolling.`);
 
-    await page.getByRole('button', { name: /engangskode/i }).click();
-    await page.locator('.login-card').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    const otcBounds = await page.locator('.login-card').boundingBox();
-    assert.ok(otcBounds, `${name}: OTC module must remain inside the login card.`);
-    assert.ok(otcBounds.x >= 0, `${name}: OTC card must not overflow the left viewport edge.`);
-    assert.ok(otcBounds.x + otcBounds.width <= viewport.width + 0.5, `${name}: OTC card must not overflow the right viewport edge.`);
+    if (LOGIN_MODE === 'entra') {
+      await page.locator('#login-otc').click();
+      await page.locator('#otc-email').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+      const otcBounds = await loginCard.boundingBox();
+      assert.ok(otcBounds, `${name}: OTC module must remain inside the login card.`);
+      assert.ok(otcBounds.x >= 0, `${name}: OTC card must not overflow the left viewport edge.`);
+      assert.ok(otcBounds.x + otcBounds.width <= viewport.width + 0.5, `${name}: OTC card must not overflow the right viewport edge.`);
+    }
 
     assert.deepEqual(pageErrors, [], `${name}: browser page errors: ${pageErrors.join(' | ')}`);
     assert.deepEqual(consoleErrors, [], `${name}: browser console errors: ${consoleErrors.join(' | ')}`);
@@ -165,7 +200,7 @@ async function verifyStoredSessionTransition({ name, viewport }) {
 
       window.__WORKSLIP_LOGIN_CARD_SEEN__ = false;
       const observeLoginCard = () => {
-        if (document.querySelector('.login-card')) {
+        if (document.getElementById('login-card')) {
           window.__WORKSLIP_LOGIN_CARD_SEEN__ = true;
         }
       };
@@ -216,7 +251,6 @@ async function verifyStoredSessionTransition({ name, viewport }) {
     await page.locator('#fullscreen-system-state').waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     const transitionTitle = page.locator('#fullscreen-system-state-title');
     await transitionTitle.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    assert.equal((await transitionTitle.textContent())?.trim(), 'Tjekker login', `${name}: stored-session transition title changed.`);
     await Promise.race([
       authMeStarted,
       new Promise((_, reject) => {

@@ -34,7 +34,7 @@ Describe the smallest complete successful flow.
 
 ## States and transitions
 
-List meaningful states and allowed transitions. Avoid copying implementation-only states that have no durable meaning.
+List meaningful states and allowed transitions.
 
 ## Business rules and invariants
 
@@ -50,11 +50,11 @@ Describe important expected failures, retries, conflicts and recovery behaviour.
 
 ## APIs, events and data touched
 
-Link stable contracts and ownership; do not paste generated OpenAPI or schema dumps.
+Link stable contracts and ownership; do not paste generated contracts.
 
 ## UI locations
 
-Where is the capability discoverable to users?
+Where is the capability discoverable to users/operators?
 
 ## Related capabilities and decisions
 
@@ -62,7 +62,7 @@ Link knowledge IDs, ADRs and related capability documents.
 
 ## Verification and tests
 
-Name executable tests or runtime evidence that proves the important behaviour.
+Name executable tests or runtime evidence that prove the important behaviour.
 
 ## Source and provenance
 

@@ -26,7 +26,7 @@ public sealed class RefreshSessionService(
             now.Add(policy.AbsoluteLifetime));
 
         await sessions.CreateAsync(session, cancellationToken);
-        return new RefreshSessionGrant(user, refreshToken, session.ExpiresAt);
+        return new RefreshSessionGrant(user, refreshToken, CookieExpiry(now, session.ExpiresAt));
     }
 
     public async Task<Result<RefreshSessionGrant>> RefreshAsync(
@@ -35,6 +35,7 @@ public sealed class RefreshSessionService(
     {
         if (string.IsNullOrWhiteSpace(refreshToken))
         {
+            logger.LogInformation("Refresh rejected because the request carried no refresh cookie.");
             return Result<RefreshSessionGrant>.Unauthorized();
         }
 
@@ -44,8 +45,19 @@ public sealed class RefreshSessionService(
         for (var attempt = 0; attempt < 2; attempt++)
         {
             var current = await sessions.GetByTokenHashAsync(tokenHash, cancellationToken);
-            if (current is null || current.RevokedAt is not null)
+            if (current is null)
             {
+                logger.LogInformation("Refresh rejected because the refresh token is unknown or was already cleaned up.");
+                return Result<RefreshSessionGrant>.Unauthorized();
+            }
+
+            if (current.RevokedAt is not null)
+            {
+                // A revoked token comes back either after the family was already revoked
+                // (a no-op below) or after it was superseded by lost-response recovery. In
+                // the second case two holders exist, so the whole family is revoked.
+                await sessions.RevokeFamilyAsync(current.FamilyId, now, cancellationToken);
+                logger.LogInformation("Refresh rejected because the refresh token was revoked; the session family is revoked.");
                 return Result<RefreshSessionGrant>.Unauthorized();
             }
 
@@ -53,6 +65,13 @@ public sealed class RefreshSessionService(
             {
                 await sessions.RevokeFamilyAsync(current.FamilyId, now, cancellationToken);
                 logger.LogInformation("Refresh session rejected because its absolute lifetime expired.");
+                return Result<RefreshSessionGrant>.Unauthorized();
+            }
+
+            if (current.CreatedAt.Add(policy.IdleLifetime) <= now)
+            {
+                await sessions.RevokeFamilyAsync(current.FamilyId, now, cancellationToken);
+                logger.LogInformation("Refresh session rejected because it was idle longer than the idle lifetime.");
                 return Result<RefreshSessionGrant>.Unauthorized();
             }
 
@@ -73,19 +92,41 @@ public sealed class RefreshSessionService(
                     return Result<RefreshSessionGrant>.Conflict("refresh_race");
                 }
 
-                await sessions.RevokeFamilyAsync(current.FamilyId, now, cancellationToken);
-                logger.LogWarning("Refresh-token reuse detected; the session family was revoked.");
-                return Result<RefreshSessionGrant>.Unauthorized();
+                // Outside the grace window the browser either never received the response
+                // that carried the replacement (a sleeping laptop or a lost mobile
+                // connection), or a second holder is replaying the token. Only the first
+                // case leaves the direct replacement unused, so only that case is recovered.
+                var successor = await sessions.GetUnusedSuccessorAsync(current, cancellationToken);
+                if (successor is null)
+                {
+                    await sessions.RevokeFamilyAsync(current.FamilyId, now, cancellationToken);
+                    logger.LogWarning("Refresh-token reuse detected; the session family was revoked.");
+                    return Result<RefreshSessionGrant>.Unauthorized();
+                }
+
+                var recoveredUser = await GetEligibleUserOrRevokeAsync(current, now, cancellationToken);
+                if (recoveredUser is null)
+                {
+                    return Result<RefreshSessionGrant>.Unauthorized();
+                }
+
+                var recoveredToken = GenerateRefreshToken();
+                var recovered = BuildSession(recoveredUser, current.FamilyId, recoveredToken, now, current.ExpiresAt);
+                if (await sessions.TryReplaceUnusedSuccessorAsync(current, successor, recovered, now, cancellationToken))
+                {
+                    logger.LogInformation("Refresh response was lost; the unused replacement was superseded and the session continues.");
+                    return Result<RefreshSessionGrant>.Success(
+                        new RefreshSessionGrant(recoveredUser, recoveredToken, CookieExpiry(now, recovered.ExpiresAt)));
+                }
+
+                // A competing request changed the token or its replacement; reload once
+                // and classify it again.
+                continue;
             }
 
-            var user = await sessions.GetEligibleUserAsync(
-                current.UserId,
-                current.OrganizationId,
-                cancellationToken);
+            var user = await GetEligibleUserOrRevokeAsync(current, now, cancellationToken);
             if (user is null)
             {
-                await sessions.RevokeFamilyAsync(current.FamilyId, now, cancellationToken);
-                logger.LogInformation("Refresh session rejected because the user or organization is no longer active.");
                 return Result<RefreshSessionGrant>.Unauthorized();
             }
 
@@ -100,7 +141,7 @@ public sealed class RefreshSessionService(
             if (await sessions.TryRotateAsync(current, replacement, now, cancellationToken))
             {
                 return Result<RefreshSessionGrant>.Success(
-                    new RefreshSessionGrant(user, replacementToken, replacement.ExpiresAt));
+                    new RefreshSessionGrant(user, replacementToken, CookieExpiry(now, replacement.ExpiresAt)));
             }
 
             // A competing request may have rotated this token between the read
@@ -126,6 +167,32 @@ public sealed class RefreshSessionService(
                 timeProvider.GetUtcNow(),
                 cancellationToken);
         }
+    }
+
+    private async Task<AuthUserInfo?> GetEligibleUserOrRevokeAsync(
+        RefreshSessionRow current,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var user = await sessions.GetEligibleUserAsync(
+            current.UserId,
+            current.OrganizationId,
+            cancellationToken);
+        if (user is null)
+        {
+            await sessions.RevokeFamilyAsync(current.FamilyId, now, cancellationToken);
+            logger.LogInformation("Refresh session rejected because the user or organization is no longer active.");
+        }
+
+        return user;
+    }
+
+    // The cookie lives until the idle limit, but never beyond the family's absolute
+    // expiry. Each successful refresh moves the idle limit forward.
+    private DateTimeOffset CookieExpiry(DateTimeOffset now, DateTimeOffset absoluteExpiry)
+    {
+        var idleExpiry = now.Add(policy.IdleLifetime);
+        return idleExpiry < absoluteExpiry ? idleExpiry : absoluteExpiry;
     }
 
     internal static string HashToken(string token)

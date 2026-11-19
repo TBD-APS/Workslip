@@ -42,7 +42,9 @@ const hostname = typeof window === 'undefined' ? '' : window.location.hostname;
 const SAME_ORIGIN_API_HOSTNAMES = new Set(['app.mrsoftware.dk']);
 const servesApiFromSameOrigin = SAME_ORIGIN_API_HOSTNAMES.has(hostname);
 const apiUrl = servesApiFromSameOrigin ? '' : configuredApiUrl;
-const AUTH_ME_TIMEOUT_MS = 6_000;
+// A phone on a slow morning connection can need several seconds for the identity
+// request plus a session refresh; give it the same 15 seconds as the startup screen.
+const AUTH_ME_TIMEOUT_MS = 15_000;
 
 const isAuthMeRequest = (url: string | undefined): boolean => {
   const normalizedUrl = (url ?? '')
@@ -77,11 +79,19 @@ interface RefreshedSession {
   user: { email: string };
 }
 
+export const REFRESH_UNAVAILABLE_MESSAGE = 'Ingen forbindelse lige nu. Du er stadig logget ind – prøv igen.';
+
+// Only the server can say that a refresh session is over (401) or that the request
+// is not allowed to use it (403). Anything else is a transient failure.
+export const isRefreshRejectedByServer = (refreshError: unknown): boolean =>
+  axios.isAxiosError(refreshError)
+  && (refreshError.response?.status === 401 || refreshError.response?.status === 403);
+
 let refreshPromise: Promise<string> | null = null;
 
 const waitForConcurrentRotation = () => new Promise((resolve) => window.setTimeout(resolve, 250));
 
-async function refreshAccessToken(): Promise<string> {
+export async function refreshAccessToken(): Promise<string> {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
@@ -264,7 +274,16 @@ apiClient.interceptors.response.use(
           error.config._authRetry = true;
           error.config.headers.Authorization = `Bearer ${refreshedToken}`;
           return apiClient.request(error.config);
-        } catch {
+        } catch (refreshError) {
+          if (!isRefreshRejectedByServer(refreshError)) {
+            // A lost connection, a server error or rate limiting says nothing about the
+            // session itself. Keep the stored login so the next request can refresh
+            // again, and let the caller show its recovery state instead of a sign-in.
+            if (!isMeEndpoint && !error.config?.skipGlobalErrorToast) {
+              notify.error(REFRESH_UNAVAILABLE_MESSAGE);
+            }
+            return Promise.reject(refreshError);
+          }
           // The cookie is absent, expired, revoked, or unsafe to use. Continue
           // into the established interactive reauthentication flow below.
         }
