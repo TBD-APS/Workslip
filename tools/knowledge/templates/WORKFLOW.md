@@ -56,7 +56,7 @@ Reference stable API/event/data contracts and the owning component.
 
 ## UI locations
 
-List the user-visible entry points.
+List the user-visible or operator entry points.
 
 ## Related capabilities and decisions
 

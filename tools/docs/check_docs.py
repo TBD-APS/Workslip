@@ -31,6 +31,7 @@ MAINTAINED_DOC_PATTERNS = (
     "Docs/release/*.md",
     "Docs/strategy/*.md",
     "Docs/testing/*.md",
+    "Docs/workflows/*.md",
     "site/*.md",
     "src/FE/README.md",
     "src/FE/AGENTS.md",
